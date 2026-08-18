@@ -1308,6 +1308,7 @@ namespace winrt::TerminalApp::implementation
         const auto state{ GetCombinedTaskbarState() };
 
         const auto taskbarState = state.State();
+        _tabStatus.ProgressState(taskbarState);
         // The progress of the control changed, but not necessarily the progress of the tab.
         // Set the tab's progress ring to the active pane's progress
         if (taskbarState > 0)

@@ -170,6 +170,17 @@ namespace winrt::TerminalApp::implementation
         {
             // layout will only ever be non-null if there were >0 tabs persisted in
             // .TabLayout(). We can re-evaluate that as a part of TODO: GH#12633
+            std::vector<winrt::guid> workspaceIds;
+            std::vector<uint32_t> pinnedWorkspaceIndices;
+            if (const auto ids = layout.WorkspaceIds())
+            {
+                workspaceIds = wil::to_vector(ids);
+            }
+            if (const auto indices = layout.PinnedWorkspaceIndices())
+            {
+                pinnedWorkspaceIndices = wil::to_vector(indices);
+            }
+            _root->SetStartupWorkspaceState(layout.WorkspaceStateVersion(), std::move(workspaceIds), std::move(pinnedWorkspaceIndices));
             _root->SetStartupActions(wil::to_vector(layout.TabLayout()));
         }
         else if (_appArgs)

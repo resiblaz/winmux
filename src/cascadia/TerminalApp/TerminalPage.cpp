@@ -1315,6 +1315,10 @@ namespace winrt::TerminalApp::implementation
             suspend = true;
         }
 
+        // Do not let malformed or partially-restored layouts leak metadata
+        // into tabs that the user creates after startup has completed.
+        _restoringWorkspaceState = false;
+
         // GH#6586: now that we're done processing all startup commands,
         // focus the active control. This will work as expected for both
         // commandline invocations and for `wt` action invocations.
@@ -2926,6 +2930,22 @@ namespace winrt::TerminalApp::implementation
         const auto launchPosRequest{ winrt::make<LaunchPositionRequest>() };
         RequestLaunchPosition.raise(*this, launchPosRequest);
         layout.InitialPosition(launchPosRequest.Position());
+
+        std::vector<winrt::guid> workspaceIds;
+        std::vector<uint32_t> pinnedWorkspaceIndices;
+        workspaceIds.reserve(tabCount);
+        for (uint32_t index = 0; index < tabCount; ++index)
+        {
+            const auto item = _workspaceItems.GetAt(index);
+            workspaceIds.emplace_back(item.WorkspaceId());
+            if (item.IsPinned())
+            {
+                pinnedWorkspaceIndices.emplace_back(index);
+            }
+        }
+        layout.WorkspaceStateVersion(CurrentWorkspaceStateVersion);
+        layout.WorkspaceIds(winrt::single_threaded_vector<winrt::guid>(std::move(workspaceIds)));
+        layout.PinnedWorkspaceIndices(winrt::single_threaded_vector<uint32_t>(std::move(pinnedWorkspaceIndices)));
 
         return layout;
     }
@@ -4741,6 +4761,31 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::SetStartupActions(std::vector<ActionAndArgs> actions)
     {
         _startupActions = std::move(actions);
+    }
+
+    void TerminalPage::SetStartupWorkspaceState(const uint32_t version,
+                                                std::vector<winrt::guid> workspaceIds,
+                                                std::vector<uint32_t> pinnedWorkspaceIndices)
+    {
+        _startupWorkspaceIds.clear();
+        _startupPinnedWorkspaceIndices.clear();
+        _startupWorkspaceRestoreIndex = 0;
+        _restoringWorkspaceState = false;
+
+        if (version != CurrentWorkspaceStateVersion || workspaceIds.empty())
+        {
+            return;
+        }
+
+        _startupWorkspaceIds = std::move(workspaceIds);
+        for (const auto index : pinnedWorkspaceIndices)
+        {
+            if (index < _startupWorkspaceIds.size())
+            {
+                _startupPinnedWorkspaceIndices.emplace(index);
+            }
+        }
+        _restoringWorkspaceState = true;
     }
 
     void TerminalPage::SetStartupConnection(ITerminalConnection connection)

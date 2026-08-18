@@ -30,6 +30,7 @@ namespace SettingsModelUnitTests
         TEST_METHOD(TakeWorkspaceRemovesAndReturns);
         TEST_METHOD(TakeWorkspaceReturnsNullWhenMissing);
         TEST_METHOD(WorkspaceSidebarStateRoundTrips);
+        TEST_METHOD(WindowLayoutWorkspaceMetadataRoundTrips);
 
     private:
         static std::filesystem::path _tempRoot()
@@ -151,5 +152,32 @@ namespace SettingsModelUnitTests
         auto reloaded = winrt::make_self<implementation::ApplicationState>(root);
         VERIFY_ARE_EQUAL(356.0, reloaded->WorkspaceSidebarWidth());
         VERIFY_IS_FALSE(reloaded->WorkspaceSidebarExpanded());
+    }
+
+    void ApplicationStateTests::WindowLayoutWorkspaceMetadataRoundTrips()
+    {
+        const winrt::guid firstId{ 0x115e973d, 0x0a23, 0x4b0c, { 0x93, 0x4f, 0x18, 0x2c, 0xa9, 0xc5, 0xc6, 0x18 } };
+        const winrt::guid secondId{ 0x2c63e818, 0x6aa7, 0x452f, { 0xb5, 0x72, 0xd3, 0x30, 0xa1, 0x7a, 0x96, 0xa2 } };
+
+        WindowLayout layout;
+        layout.TabLayout(winrt::single_threaded_vector<ActionAndArgs>());
+        layout.WorkspaceStateVersion(1);
+        layout.WorkspaceIds(winrt::single_threaded_vector<winrt::guid>({ firstId, secondId }));
+        layout.PinnedWorkspaceIndices(winrt::single_threaded_vector<uint32_t>({ 0 }));
+
+        const auto restored = WindowLayout::FromJson(WindowLayout::ToJson(layout));
+        VERIFY_ARE_EQUAL(1u, restored.WorkspaceStateVersion());
+        VERIFY_IS_NOT_NULL(restored.WorkspaceIds());
+        VERIFY_ARE_EQUAL(2u, restored.WorkspaceIds().Size());
+        VERIFY_ARE_EQUAL(firstId, restored.WorkspaceIds().GetAt(0));
+        VERIFY_ARE_EQUAL(secondId, restored.WorkspaceIds().GetAt(1));
+        VERIFY_IS_NOT_NULL(restored.PinnedWorkspaceIndices());
+        VERIFY_ARE_EQUAL(1u, restored.PinnedWorkspaceIndices().Size());
+        VERIFY_ARE_EQUAL(0u, restored.PinnedWorkspaceIndices().GetAt(0));
+
+        const auto legacy = WindowLayout::FromJson(L"{\"tabLayout\":[]}");
+        VERIFY_ARE_EQUAL(0u, legacy.WorkspaceStateVersion());
+        VERIFY_IS_NULL(legacy.WorkspaceIds());
+        VERIFY_IS_NULL(legacy.PinnedWorkspaceIndices());
     }
 }

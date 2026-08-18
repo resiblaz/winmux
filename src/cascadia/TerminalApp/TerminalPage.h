@@ -193,6 +193,7 @@ namespace winrt::TerminalApp::implementation
         void RequestSetMaximized(bool newMaximized);
 
         void SetStartupActions(std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> actions);
+        void SetStartupWorkspaceState(uint32_t version, std::vector<winrt::guid> workspaceIds, std::vector<uint32_t> pinnedWorkspaceIndices);
         void SetStartupConnection(winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection connection);
 
         static std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> ConvertExecuteCommandlineToActions(const Microsoft::Terminal::Settings::Model::ExecuteCommandlineArgs& args);
@@ -339,7 +340,13 @@ namespace winrt::TerminalApp::implementation
         StartupState _startupState{ StartupState::NotInitialized };
 
         std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> _startupActions;
+        std::vector<winrt::guid> _startupWorkspaceIds;
+        std::unordered_set<uint32_t> _startupPinnedWorkspaceIndices;
+        uint32_t _startupWorkspaceRestoreIndex{ 0 };
+        bool _restoringWorkspaceState{ false };
         winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _startupConnection{ nullptr };
+
+        static constexpr uint32_t CurrentWorkspaceStateVersion{ 1 };
 
         std::shared_ptr<Toast> _windowIdToast{ nullptr };
         std::shared_ptr<Toast> _actionSavedToast{ nullptr };

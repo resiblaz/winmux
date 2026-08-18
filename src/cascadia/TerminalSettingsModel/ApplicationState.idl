@@ -24,6 +24,9 @@ namespace Microsoft.Terminal.Settings.Model
         Windows.Foundation.IReference<LaunchPosition> InitialPosition;
         Windows.Foundation.IReference<Windows.Foundation.Size> InitialSize;
         Windows.Foundation.IReference<LaunchMode> LaunchMode;
+        UInt32 WorkspaceStateVersion;
+        Windows.Foundation.Collections.IVector<Guid> WorkspaceIds;
+        Windows.Foundation.Collections.IVector<UInt32> PinnedWorkspaceIndices;
     };
 
     [default_interface] runtimeclass ApplicationState {

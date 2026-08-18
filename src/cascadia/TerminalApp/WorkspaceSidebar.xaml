@@ -34,6 +34,7 @@
                       x:DataType="local:WorkspaceItemViewModel">
             <Grid MinHeight="72"
                   Padding="10,6,6,6"
+                  AutomationProperties.HelpText="{x:Bind StatusText, Mode=OneWay}"
                   AutomationProperties.Name="{x:Bind Title, Mode=OneWay}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="24" />
@@ -61,12 +62,24 @@
                                Text="{x:Bind LatestNotification, Mode=OneWay}"
                                TextTrimming="CharacterEllipsis"
                                Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(LatestNotification), Mode=OneWay}" />
-                    <TextBlock FontFamily="Consolas"
-                               FontSize="11"
-                               Opacity="0.72"
-                               Text="{x:Bind SwitchShortcutText, Mode=OneWay}"
-                               TextTrimming="CharacterEllipsis"
-                               Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(SwitchShortcutText), Mode=OneWay}" />
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="6">
+                        <Border Padding="6,1"
+                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                CornerRadius="8"
+                                Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(StatusText), Mode=OneWay}">
+                            <TextBlock FontSize="10"
+                                       Opacity="0.88"
+                                       Text="{x:Bind StatusText, Mode=OneWay}" />
+                        </Border>
+                        <TextBlock VerticalAlignment="Center"
+                                   FontFamily="Consolas"
+                                   FontSize="11"
+                                   Opacity="0.72"
+                                   Text="{x:Bind SwitchShortcutText, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(SwitchShortcutText), Mode=OneWay}" />
+                    </StackPanel>
                 </StackPanel>
                 <Button Grid.Column="2"
                         Height="24"

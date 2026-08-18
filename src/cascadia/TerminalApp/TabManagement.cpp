@@ -109,6 +109,17 @@ namespace winrt::TerminalApp::implementation
         newTabImpl->UpdateSettings(_settings, _currentWindowSettings());
 
         // If insert position is not passed, calculate it
+        std::optional<uint32_t> restoredWorkspaceIndex;
+        if (_restoringWorkspaceState && _startupWorkspaceRestoreIndex < _startupWorkspaceIds.size())
+        {
+            restoredWorkspaceIndex = _startupWorkspaceRestoreIndex++;
+            newTabImpl->IsPinned(_startupPinnedWorkspaceIndices.contains(restoredWorkspaceIndex.value()));
+            if (_startupWorkspaceRestoreIndex >= _startupWorkspaceIds.size())
+            {
+                _restoringWorkspaceState = false;
+            }
+        }
+
         if (insertPosition == -1)
         {
             insertPosition = _tabs.Size();
@@ -122,13 +133,27 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
-        // New tabs are unpinned. Keep them out of the pinned section even
-        // when the configured insertion position is "after current tab".
-        insertPosition = std::max(insertPosition, _PinnedTabCount());
+        // Runtime tabs are unpinned and stay outside the pinned section. During
+        // session restore, append pinned workspaces to the current pinned block.
+        insertPosition = newTabImpl->IsPinned() ?
+                             std::min(insertPosition, _PinnedTabCount()) :
+                             std::max(insertPosition, _PinnedTabCount());
 
         // Add the new tab to the list of our tabs.
         _tabs.InsertAt(insertPosition, *newTabImpl);
-        _workspaceItems.InsertAt(insertPosition, TerminalApp::WorkspaceItemViewModel{ *newTabImpl });
+        auto workspaceItem = winrt::make_self<WorkspaceItemViewModel>(*newTabImpl);
+        if (restoredWorkspaceIndex)
+        {
+            const auto restoredId = _startupWorkspaceIds.at(restoredWorkspaceIndex.value());
+            const auto duplicate = std::find_if(_workspaceItems.begin(), _workspaceItems.end(), [&](const auto& item) {
+                return item.WorkspaceId() == restoredId;
+            });
+            if (duplicate == _workspaceItems.end())
+            {
+                workspaceItem->RestoreWorkspaceId(restoredId);
+            }
+        }
+        _workspaceItems.InsertAt(insertPosition, *workspaceItem);
         _mruTabs.Append(*newTabImpl);
 
         newTabImpl->SetDispatch(*_actionDispatch);

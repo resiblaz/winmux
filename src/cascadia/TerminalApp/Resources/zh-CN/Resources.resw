@@ -1096,4 +1096,28 @@
   <data name="WorkspaceSidebar_NotificationCenterUnreadAutomationName" xml:space="preserve">
     <value>通知，{0} 条未读</value>
   </data>
+  <data name="WorkspaceSidebar_StatusDisconnected" xml:space="preserve">
+    <value>已断开</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusAttention" xml:space="preserve">
+    <value>需要处理</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusRunning" xml:space="preserve">
+    <value>运行中</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusProgress" xml:space="preserve">
+    <value>运行中 · {0}%</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusFailed" xml:space="preserve">
+    <value>失败</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusPaused" xml:space="preserve">
+    <value>已暂停</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusBroadcasting" xml:space="preserve">
+    <value>广播输入</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusReadOnly" xml:space="preserve">
+    <value>只读</value>
+  </data>
 </root>

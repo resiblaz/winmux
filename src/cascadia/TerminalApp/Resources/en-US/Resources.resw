@@ -1096,4 +1096,28 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebar_NotificationCenterUnreadAutomationName" xml:space="preserve">
     <value>Notifications, {0} unread</value>
   </data>
+  <data name="WorkspaceSidebar_StatusDisconnected" xml:space="preserve">
+    <value>Disconnected</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusAttention" xml:space="preserve">
+    <value>Needs attention</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusRunning" xml:space="preserve">
+    <value>Running</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusProgress" xml:space="preserve">
+    <value>Running · {0}%</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusFailed" xml:space="preserve">
+    <value>Failed</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusPaused" xml:space="preserve">
+    <value>Paused</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusBroadcasting" xml:space="preserve">
+    <value>Broadcasting</value>
+  </data>
+  <data name="WorkspaceSidebar_StatusReadOnly" xml:space="preserve">
+    <value>Read-only</value>
+  </data>
 </root>

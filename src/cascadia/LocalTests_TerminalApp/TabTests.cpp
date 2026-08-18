@@ -79,6 +79,8 @@ namespace TerminalAppLocalTests
         TEST_METHOD(CreateTerminalPage);
         TEST_METHOD(CreateWorkspaceSidebarXamlType);
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
+        TEST_METHOD(WorkspaceStatusPillTracksStructuredState);
+        TEST_METHOD(WorkspaceLayoutPersistsMetadata);
         TEST_METHOD(WorkspaceNotificationStateTracksUnread);
         TEST_METHOD(PaneAttentionState);
 
@@ -232,6 +234,70 @@ namespace TerminalAppLocalTests
 
             tab.IsPinned(true);
             VERIFY_IS_TRUE(item.IsPinned());
+        });
+    }
+
+    void TabTests::WorkspaceStatusPillTracksStructuredState()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            const auto item = page->_workspaceItems.GetAt(0);
+            const auto status = item.SourceTab().TabStatus();
+            status.IsConnectionClosed(false);
+            VERIFY_IS_TRUE(item.StatusText().empty());
+
+            status.ProgressState(1);
+            status.ProgressValue(42);
+            VERIFY_IS_TRUE(std::wstring_view{ item.StatusText() }.find(L"42") != std::wstring_view::npos);
+
+            status.ProgressState(4);
+            VERIFY_IS_FALSE(item.StatusText().empty());
+
+            status.ProgressState(0);
+            VERIFY_IS_TRUE(item.StatusText().empty());
+            item.AddNotification(7, L"Agent", L"Input required");
+            VERIFY_IS_FALSE(item.StatusText().empty());
+            item.MarkAllNotificationsRead();
+            VERIFY_IS_TRUE(item.StatusText().empty());
+
+            status.IsConnectionClosed(true);
+            VERIFY_IS_FALSE(item.StatusText().empty());
+        });
+    }
+
+    void TabTests::WorkspaceLayoutPersistsMetadata()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            page->_ToggleWorkspacePin(page->_tabs.GetAt(0));
+            NewTerminalArgs newTerminalArgs{ 1 };
+            page->_OpenNewTab(newTerminalArgs);
+
+            const auto secondTab = page->_GetFocusedTabImpl();
+            VERIFY_IS_NOT_NULL(secondTab);
+            secondTab->SetTabText(L"Persisted workspace");
+
+            const auto layout = page->GetWindowLayout();
+            VERIFY_IS_NOT_NULL(layout);
+            VERIFY_ARE_EQUAL(1u, layout.WorkspaceStateVersion());
+            VERIFY_IS_NOT_NULL(layout.WorkspaceIds());
+            VERIFY_ARE_EQUAL(2u, layout.WorkspaceIds().Size());
+            VERIFY_ARE_EQUAL(page->_workspaceItems.GetAt(0).WorkspaceId(), layout.WorkspaceIds().GetAt(0));
+            VERIFY_ARE_EQUAL(page->_workspaceItems.GetAt(1).WorkspaceId(), layout.WorkspaceIds().GetAt(1));
+            VERIFY_IS_NOT_NULL(layout.PinnedWorkspaceIndices());
+            VERIFY_ARE_EQUAL(1u, layout.PinnedWorkspaceIndices().Size());
+            VERIFY_ARE_EQUAL(0u, layout.PinnedWorkspaceIndices().GetAt(0));
+
+            const winrt::guid restoredId{ 0x4cbcf6dc, 0xa03d, 0x4df7, { 0xa1, 0xd4, 0x8f, 0x13, 0xad, 0x8e, 0x20, 0xa6 } };
+            page->SetStartupWorkspaceState(1, { restoredId }, { 0 });
+            page->_OpenNewTab(NewTerminalArgs{ 2 });
+
+            const auto restored = std::find_if(page->_workspaceItems.begin(), page->_workspaceItems.end(), [&](const auto& item) {
+                return item.WorkspaceId() == restoredId;
+            });
+            VERIFY_IS_TRUE(restored != page->_workspaceItems.end());
+            VERIFY_IS_TRUE((*restored).IsPinned());
+            VERIFY_ARE_EQUAL(2u, page->_PinnedTabCount());
         });
     }
 

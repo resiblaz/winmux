@@ -20,6 +20,9 @@ static constexpr std::string_view TabLayoutKey{ "tabLayout" };
 static constexpr std::string_view InitialPositionKey{ "initialPosition" };
 static constexpr std::string_view InitialSizeKey{ "initialSize" };
 static constexpr std::string_view LaunchModeKey{ "launchMode" };
+static constexpr std::string_view WorkspaceStateVersionKey{ "workspaceStateVersion" };
+static constexpr std::string_view WorkspaceIdsKey{ "workspaceIds" };
+static constexpr std::string_view PinnedWorkspaceIndicesKey{ "pinnedWorkspaceIndices" };
 
 namespace Microsoft::Terminal::Settings::Model::JsonUtils
 {
@@ -36,6 +39,9 @@ namespace Microsoft::Terminal::Settings::Model::JsonUtils
             GetValueForKey(json, InitialPositionKey, layout->_InitialPosition);
             GetValueForKey(json, LaunchModeKey, layout->_LaunchMode);
             GetValueForKey(json, InitialSizeKey, layout->_InitialSize);
+            GetValueForKey(json, WorkspaceStateVersionKey, layout->_WorkspaceStateVersion);
+            GetValueForKey(json, WorkspaceIdsKey, layout->_WorkspaceIds);
+            GetValueForKey(json, PinnedWorkspaceIndicesKey, layout->_PinnedWorkspaceIndices);
 
             return *layout;
         }
@@ -53,6 +59,9 @@ namespace Microsoft::Terminal::Settings::Model::JsonUtils
             SetValueForKey(json, InitialPositionKey, val.InitialPosition());
             SetValueForKey(json, LaunchModeKey, val.LaunchMode());
             SetValueForKey(json, InitialSizeKey, val.InitialSize());
+            SetValueForKey(json, WorkspaceStateVersionKey, val.WorkspaceStateVersion());
+            SetValueForKey(json, WorkspaceIdsKey, val.WorkspaceIds());
+            SetValueForKey(json, PinnedWorkspaceIndicesKey, val.PinnedWorkspaceIndices());
 
             return json;
         }

@@ -28,6 +28,7 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring NotificationHistoryCountText() const;
         TerminalApp::WorkspaceNotification LatestUnreadNotification() const;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> Notifications() const noexcept;
+        void RestoreWorkspaceId(const winrt::guid& workspaceId) noexcept;
 
         void AddNotification(uint32_t paneId, const winrt::hstring& title, const winrt::hstring& message);
         void MarkAllNotificationsRead();
@@ -46,8 +47,10 @@ namespace winrt::TerminalApp::implementation
         TerminalApp::Tab _tab{ nullptr };
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> _notifications;
         Windows::UI::Xaml::Data::INotifyPropertyChanged::PropertyChanged_revoker _tabChangedRevoker;
+        Windows::UI::Xaml::Data::INotifyPropertyChanged::PropertyChanged_revoker _tabStatusChangedRevoker;
 
         static constexpr uint32_t MaximumNotifications{ 100 };
+        void _UpdateStatus();
         void _UpdateNotificationProperties();
     };
 }

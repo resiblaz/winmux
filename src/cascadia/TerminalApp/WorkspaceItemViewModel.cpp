@@ -28,7 +28,19 @@ namespace winrt::TerminalApp::implementation
                     }
                 }
             });
+
+            if (const auto status = _tab.TabStatus())
+            {
+                _tabStatusChangedRevoker = status.PropertyChanged(winrt::auto_revoke, [weakThis{ get_weak() }](const auto&, const auto&) {
+                    if (const auto self = weakThis.get())
+                    {
+                        self->_UpdateStatus();
+                    }
+                });
+            }
         }
+
+        _UpdateStatus();
     }
 
     winrt::guid WorkspaceItemViewModel::WorkspaceId() const noexcept
@@ -125,6 +137,14 @@ namespace winrt::TerminalApp::implementation
         return _notifications;
     }
 
+    void WorkspaceItemViewModel::RestoreWorkspaceId(const winrt::guid& workspaceId) noexcept
+    {
+        if (workspaceId != winrt::guid{})
+        {
+            _workspaceId = workspaceId;
+        }
+    }
+
     void WorkspaceItemViewModel::AddNotification(const uint32_t paneId, const winrt::hstring& title, const winrt::hstring& message)
     {
         _notifications.Append(TerminalApp::WorkspaceNotification{ _workspaceId, paneId, Title(), title, message, winrt::clock::now() });
@@ -199,5 +219,53 @@ namespace winrt::TerminalApp::implementation
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"NotificationHistoryCount" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"NotificationHistoryCountText" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"LatestUnreadNotification" });
+        _UpdateStatus();
+    }
+
+    void WorkspaceItemViewModel::_UpdateStatus()
+    {
+        winrt::hstring text;
+        if (const auto status = _tab ? _tab.TabStatus() : nullptr)
+        {
+            if (status.IsConnectionClosed())
+            {
+                text = RS_(L"WorkspaceSidebar_StatusDisconnected");
+            }
+            else if (UnreadCount() > 0)
+            {
+                text = RS_(L"WorkspaceSidebar_StatusAttention");
+            }
+            else
+            {
+                switch (status.ProgressState())
+                {
+                case 1:
+                    text = status.ProgressValue() > 0 ?
+                               winrt::hstring{ RS_fmt(L"WorkspaceSidebar_StatusProgress", status.ProgressValue()) } :
+                               RS_(L"WorkspaceSidebar_StatusRunning");
+                    break;
+                case 2:
+                    text = RS_(L"WorkspaceSidebar_StatusFailed");
+                    break;
+                case 3:
+                    text = RS_(L"WorkspaceSidebar_StatusRunning");
+                    break;
+                case 4:
+                    text = RS_(L"WorkspaceSidebar_StatusPaused");
+                    break;
+                default:
+                    if (status.IsInputBroadcastActive())
+                    {
+                        text = RS_(L"WorkspaceSidebar_StatusBroadcasting");
+                    }
+                    else if (status.IsReadOnlyActive())
+                    {
+                        text = RS_(L"WorkspaceSidebar_StatusReadOnly");
+                    }
+                    break;
+                }
+            }
+        }
+        StatusText(text);
     }
 }

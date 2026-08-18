@@ -152,6 +152,14 @@ namespace winrt::TerminalApp::implementation
             {
                 workspaceItem->RestoreWorkspaceId(restoredId);
             }
+
+            const auto resumeEntry = std::find_if(_startupAgentResumeEntries.begin(), _startupAgentResumeEntries.end(), [&](const auto& entry) {
+                return entry.WorkspaceId == workspaceItem->WorkspaceId();
+            });
+            if (resumeEntry != _startupAgentResumeEntries.end() && WorkspaceAgentResume::IsSupported(*resumeEntry))
+            {
+                workspaceItem->ConfigureAgentResume(resumeEntry->Provider, resumeEntry->SessionId, resumeEntry->WorkingDirectory);
+            }
         }
         _workspaceItems.InsertAt(insertPosition, *workspaceItem);
         workspaceItem->RefreshGitBranch();

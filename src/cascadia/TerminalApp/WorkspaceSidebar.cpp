@@ -188,6 +188,30 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void WorkspaceSidebar::_ConfigureAgentResume_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            ConfigureAgentResumeRequested.raise(*this, item);
+        }
+    }
+
+    void WorkspaceSidebar::_ResumeAgent_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            ResumeAgentRequested.raise(*this, item);
+        }
+    }
+
+    void WorkspaceSidebar::_ClearAgentResume_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            ClearAgentResumeRequested.raise(*this, item);
+        }
+    }
+
     void WorkspaceSidebar::_Notification_Click(const IInspectable& sender, const RoutedEventArgs&)
     {
         if (const auto item = _ItemFromSender(sender))

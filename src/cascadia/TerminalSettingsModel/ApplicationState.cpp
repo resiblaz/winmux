@@ -23,10 +23,55 @@ static constexpr std::string_view LaunchModeKey{ "launchMode" };
 static constexpr std::string_view WorkspaceStateVersionKey{ "workspaceStateVersion" };
 static constexpr std::string_view WorkspaceIdsKey{ "workspaceIds" };
 static constexpr std::string_view PinnedWorkspaceIndicesKey{ "pinnedWorkspaceIndices" };
+static constexpr std::string_view AgentResumeEntriesKey{ "agentResumeEntries" };
+static constexpr std::string_view AgentResumeVersionKey{ "version" };
+static constexpr std::string_view AgentResumeWorkspaceIdKey{ "workspaceId" };
+static constexpr std::string_view AgentResumeProviderKey{ "provider" };
+static constexpr std::string_view AgentResumeSessionIdKey{ "sessionId" };
+static constexpr std::string_view AgentResumeWorkingDirectoryKey{ "workingDirectory" };
+static constexpr std::string_view AgentResumeRequiresConfirmationKey{ "requiresConfirmation" };
 
 namespace Microsoft::Terminal::Settings::Model::JsonUtils
 {
     using namespace winrt::Microsoft::Terminal::Settings::Model;
+
+    template<>
+    struct ConversionTrait<AgentResumeInfo>
+    {
+        AgentResumeInfo FromJson(const Json::Value& json)
+        {
+            AgentResumeInfo info{};
+            GetValueForKey(json, AgentResumeVersionKey, info.Version);
+            GetValueForKey(json, AgentResumeWorkspaceIdKey, info.WorkspaceId);
+            GetValueForKey(json, AgentResumeProviderKey, info.Provider);
+            GetValueForKey(json, AgentResumeSessionIdKey, info.SessionId);
+            GetValueForKey(json, AgentResumeWorkingDirectoryKey, info.WorkingDirectory);
+            GetValueForKey(json, AgentResumeRequiresConfirmationKey, info.RequiresConfirmation);
+            return info;
+        }
+
+        bool CanConvert(const Json::Value& json)
+        {
+            return json.isObject();
+        }
+
+        Json::Value ToJson(const AgentResumeInfo& val)
+        {
+            Json::Value json{ Json::objectValue };
+            SetValueForKey(json, AgentResumeVersionKey, val.Version);
+            SetValueForKey(json, AgentResumeWorkspaceIdKey, val.WorkspaceId);
+            SetValueForKey(json, AgentResumeProviderKey, val.Provider);
+            SetValueForKey(json, AgentResumeSessionIdKey, val.SessionId);
+            SetValueForKey(json, AgentResumeWorkingDirectoryKey, val.WorkingDirectory);
+            SetValueForKey(json, AgentResumeRequiresConfirmationKey, val.RequiresConfirmation);
+            return json;
+        }
+
+        std::string TypeDescription() const
+        {
+            return "AgentResumeInfo";
+        }
+    };
 
     template<>
     struct ConversionTrait<WindowLayout>
@@ -42,6 +87,7 @@ namespace Microsoft::Terminal::Settings::Model::JsonUtils
             GetValueForKey(json, WorkspaceStateVersionKey, layout->_WorkspaceStateVersion);
             GetValueForKey(json, WorkspaceIdsKey, layout->_WorkspaceIds);
             GetValueForKey(json, PinnedWorkspaceIndicesKey, layout->_PinnedWorkspaceIndices);
+            GetValueForKey(json, AgentResumeEntriesKey, layout->_AgentResumeEntries);
 
             return *layout;
         }
@@ -62,6 +108,7 @@ namespace Microsoft::Terminal::Settings::Model::JsonUtils
             SetValueForKey(json, WorkspaceStateVersionKey, val.WorkspaceStateVersion());
             SetValueForKey(json, WorkspaceIdsKey, val.WorkspaceIds());
             SetValueForKey(json, PinnedWorkspaceIndicesKey, val.PinnedWorkspaceIndices());
+            SetValueForKey(json, AgentResumeEntriesKey, val.AgentResumeEntries());
 
             return json;
         }

@@ -60,6 +60,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         WINRT_PROPERTY(uint32_t, WorkspaceStateVersion, 0);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<winrt::guid>, WorkspaceIds, nullptr);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<uint32_t>, PinnedWorkspaceIndices, nullptr);
+        WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::AgentResumeInfo>, AgentResumeEntries, nullptr);
 
         friend ::Microsoft::Terminal::Settings::Model::JsonUtils::ConversionTrait<Model::WindowLayout>;
     };

@@ -9,6 +9,7 @@
 #include "../TerminalApp/TabRowControl.h"
 #include "../TerminalApp/WorkspaceItemViewModel.h"
 #include "../TerminalApp/WorkspaceGitBranch.h"
+#include "../TerminalApp/WorkspaceAgentResume.h"
 #include "../TerminalApp/WorkspaceSidebar.h"
 #include "../TerminalApp/ShortcutActionDispatch.h"
 #include "../TerminalApp/Tab.h"
@@ -82,6 +83,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
         TEST_METHOD(WorkspaceWorkingDirectoryDisplayIsCompact);
         TEST_METHOD(WorkspaceGitBranchParsesStructuredOutput);
+        TEST_METHOD(WorkspaceAgentResumeRejectsUntrustedInput);
         TEST_METHOD(WorkspaceStatusPillTracksStructuredState);
         TEST_METHOD(WorkspaceLayoutPersistsMetadata);
         TEST_METHOD(WorkspaceNotificationStateTracksUnread);
@@ -300,6 +302,48 @@ namespace TerminalAppLocalTests
         VERIFY_IS_FALSE(winrt::TerminalApp::implementation::WorkspaceGitBranch::IsSupportedDirectory(L"\\\\wsl.localhost\\Ubuntu\\home\\repo"));
     }
 
+    void TabTests::WorkspaceAgentResumeRejectsUntrustedInput()
+    {
+        using namespace winrt::TerminalApp::implementation;
+
+        VERIFY_IS_TRUE(WorkspaceAgentResume::IsValidCodexSessionId(L"12345678-1234-ABCD-9876-123456789ABC"));
+        VERIFY_ARE_EQUAL(L"12345678-1234-abcd-9876-123456789abc",
+                         WorkspaceAgentResume::NormalizeCodexSessionId(L"12345678-1234-ABCD-9876-123456789ABC"));
+        VERIFY_IS_FALSE(WorkspaceAgentResume::IsValidCodexSessionId(L"session-name"));
+        VERIFY_IS_FALSE(WorkspaceAgentResume::IsValidCodexSessionId(L"12345678-1234-1234-1234-123456789ab&"));
+
+        const winrt::guid workspaceId{ 0x71c3b33d, 0x1a76, 0x4ea0, { 0x8d, 0x8d, 0x5b, 0x1c, 0x96, 0xf5, 0x4c, 0x43 } };
+        VERIFY_IS_TRUE(WorkspaceAgentResume::IsSupported(WorkspaceAgentResume::CurrentVersion,
+                                                         workspaceId,
+                                                         L"codex",
+                                                         L"12345678-1234-abcd-9876-123456789abc",
+                                                         true));
+        VERIFY_ARE_EQUAL(LR"("C:\Windows\System32\cmd.exe" /d /v:off /s /c ""C:\Tools\codex.cmd" resume 12345678-1234-abcd-9876-123456789abc")",
+                         WorkspaceAgentResume::BuildCodexCommandline(L"12345678-1234-abcd-9876-123456789abc", L"C:\\Windows\\System32\\cmd.exe", L"C:\\Tools\\codex.cmd"));
+        VERIFY_IS_TRUE(WorkspaceAgentResume::BuildCodexCommandline(L"invalid & calc", L"C:\\Windows\\System32\\cmd.exe", L"C:\\Tools\\codex.cmd").empty());
+        VERIFY_IS_TRUE(WorkspaceAgentResume::BuildCodexCommandline(L"12345678-1234-abcd-9876-123456789abc", L"C:\\Windows\\System32\\cmd.exe", L"C:\\%PATH%\\codex.cmd").empty());
+        VERIFY_IS_FALSE(WorkspaceAgentResume::IsSupported(WorkspaceAgentResume::CurrentVersion,
+                                                          workspaceId,
+                                                          L"custom",
+                                                          L"12345678-1234-abcd-9876-123456789abc",
+                                                          true));
+        VERIFY_IS_FALSE(WorkspaceAgentResume::IsSupported(WorkspaceAgentResume::CurrentVersion,
+                                                          workspaceId,
+                                                          L"codex",
+                                                          L"12345678-1234-abcd-9876-123456789abc",
+                                                          false));
+        VERIFY_IS_FALSE(WorkspaceAgentResume::IsSupported(WorkspaceAgentResume::CurrentVersion + 1,
+                                                          workspaceId,
+                                                          L"codex",
+                                                          L"12345678-1234-abcd-9876-123456789abc",
+                                                          true));
+        VERIFY_IS_FALSE(WorkspaceAgentResume::IsSupported(WorkspaceAgentResume::CurrentVersion,
+                                                          winrt::guid{},
+                                                          L"codex",
+                                                          L"12345678-1234-abcd-9876-123456789abc",
+                                                          true));
+    }
+
     void TabTests::WorkspaceLayoutPersistsMetadata()
     {
         const auto page = _commonSetup();
@@ -311,6 +355,9 @@ namespace TerminalAppLocalTests
             const auto secondTab = page->_GetFocusedTabImpl();
             VERIFY_IS_NOT_NULL(secondTab);
             secondTab->SetTabText(L"Persisted workspace");
+            page->_workspaceItems.GetAt(1).ConfigureAgentResume(L"codex",
+                                                                L"12345678-1234-1234-1234-123456789abc",
+                                                                L"C:\\src\\repo");
 
             const auto layout = page->GetWindowLayout();
             VERIFY_IS_NOT_NULL(layout);
@@ -322,9 +369,19 @@ namespace TerminalAppLocalTests
             VERIFY_IS_NOT_NULL(layout.PinnedWorkspaceIndices());
             VERIFY_ARE_EQUAL(1u, layout.PinnedWorkspaceIndices().Size());
             VERIFY_ARE_EQUAL(0u, layout.PinnedWorkspaceIndices().GetAt(0));
+            VERIFY_IS_NOT_NULL(layout.AgentResumeEntries());
+            VERIFY_ARE_EQUAL(1u, layout.AgentResumeEntries().Size());
+            VERIFY_ARE_EQUAL(page->_workspaceItems.GetAt(1).WorkspaceId(), layout.AgentResumeEntries().GetAt(0).WorkspaceId);
 
             const winrt::guid restoredId{ 0x4cbcf6dc, 0xa03d, 0x4df7, { 0xa1, 0xd4, 0x8f, 0x13, 0xad, 0x8e, 0x20, 0xa6 } };
-            page->SetStartupWorkspaceState(1, { restoredId }, { 0 });
+            AgentResumeInfo restoredResumeInfo{};
+            restoredResumeInfo.Version = winrt::TerminalApp::implementation::WorkspaceAgentResume::CurrentVersion;
+            restoredResumeInfo.WorkspaceId = restoredId;
+            restoredResumeInfo.Provider = L"codex";
+            restoredResumeInfo.SessionId = L"abcdefab-1234-1234-1234-123456789abc";
+            restoredResumeInfo.WorkingDirectory = L"C:\\restored";
+            restoredResumeInfo.RequiresConfirmation = true;
+            page->SetStartupWorkspaceState(1, { restoredId }, { 0 }, { restoredResumeInfo });
             page->_OpenNewTab(NewTerminalArgs{ 2 });
 
             const auto restored = std::find_if(page->_workspaceItems.begin(), page->_workspaceItems.end(), [&](const auto& item) {
@@ -332,6 +389,8 @@ namespace TerminalAppLocalTests
             });
             VERIFY_IS_TRUE(restored != page->_workspaceItems.end());
             VERIFY_IS_TRUE((*restored).IsPinned());
+            VERIFY_IS_TRUE((*restored).HasAgentResume());
+            VERIFY_ARE_EQUAL(L"abcdefab-1234-1234-1234-123456789abc", (*restored).AgentResumeSessionId());
             VERIFY_ARE_EQUAL(2u, page->_PinnedTabCount());
         });
     }

@@ -164,6 +164,14 @@ namespace SettingsModelUnitTests
         layout.WorkspaceStateVersion(1);
         layout.WorkspaceIds(winrt::single_threaded_vector<winrt::guid>({ firstId, secondId }));
         layout.PinnedWorkspaceIndices(winrt::single_threaded_vector<uint32_t>({ 0 }));
+        AgentResumeInfo resumeInfo;
+        resumeInfo.Version = 1;
+        resumeInfo.WorkspaceId = secondId;
+        resumeInfo.Provider = L"codex";
+        resumeInfo.SessionId = L"12345678-1234-1234-1234-123456789abc";
+        resumeInfo.WorkingDirectory = L"C:\\src\\repo";
+        resumeInfo.RequiresConfirmation = true;
+        layout.AgentResumeEntries(winrt::single_threaded_vector<AgentResumeInfo>({ resumeInfo }));
 
         const auto restored = WindowLayout::FromJson(WindowLayout::ToJson(layout));
         VERIFY_ARE_EQUAL(1u, restored.WorkspaceStateVersion());
@@ -174,10 +182,20 @@ namespace SettingsModelUnitTests
         VERIFY_IS_NOT_NULL(restored.PinnedWorkspaceIndices());
         VERIFY_ARE_EQUAL(1u, restored.PinnedWorkspaceIndices().Size());
         VERIFY_ARE_EQUAL(0u, restored.PinnedWorkspaceIndices().GetAt(0));
+        VERIFY_IS_NOT_NULL(restored.AgentResumeEntries());
+        VERIFY_ARE_EQUAL(1u, restored.AgentResumeEntries().Size());
+        const auto restoredResumeInfo = restored.AgentResumeEntries().GetAt(0);
+        VERIFY_ARE_EQUAL(1u, restoredResumeInfo.Version);
+        VERIFY_ARE_EQUAL(secondId, restoredResumeInfo.WorkspaceId);
+        VERIFY_ARE_EQUAL(L"codex", restoredResumeInfo.Provider);
+        VERIFY_ARE_EQUAL(L"12345678-1234-1234-1234-123456789abc", restoredResumeInfo.SessionId);
+        VERIFY_ARE_EQUAL(L"C:\\src\\repo", restoredResumeInfo.WorkingDirectory);
+        VERIFY_IS_TRUE(restoredResumeInfo.RequiresConfirmation);
 
         const auto legacy = WindowLayout::FromJson(L"{\"tabLayout\":[]}");
         VERIFY_ARE_EQUAL(0u, legacy.WorkspaceStateVersion());
         VERIFY_IS_NULL(legacy.WorkspaceIds());
         VERIFY_IS_NULL(legacy.PinnedWorkspaceIndices());
+        VERIFY_IS_NULL(legacy.AgentResumeEntries());
     }
 }

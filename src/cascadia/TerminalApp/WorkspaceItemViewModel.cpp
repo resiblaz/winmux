@@ -210,6 +210,44 @@ namespace winrt::TerminalApp::implementation
         return _compactWorkingDirectory(WorkingDirectory());
     }
 
+    bool WorkspaceItemViewModel::HasAgentResume() const noexcept
+    {
+        return !_agentResumeProvider.empty() && !_agentResumeSessionId.empty();
+    }
+
+    winrt::hstring WorkspaceItemViewModel::AgentResumeProvider() const noexcept
+    {
+        return _agentResumeProvider;
+    }
+
+    winrt::hstring WorkspaceItemViewModel::AgentResumeSessionId() const noexcept
+    {
+        return _agentResumeSessionId;
+    }
+
+    winrt::hstring WorkspaceItemViewModel::AgentResumeWorkingDirectory() const noexcept
+    {
+        return _agentResumeWorkingDirectory;
+    }
+
+    void WorkspaceItemViewModel::ConfigureAgentResume(const winrt::hstring& provider,
+                                                      const winrt::hstring& sessionId,
+                                                      const winrt::hstring& workingDirectory)
+    {
+        _agentResumeProvider = provider;
+        _agentResumeSessionId = sessionId;
+        _agentResumeWorkingDirectory = workingDirectory;
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AgentResumeProvider" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AgentResumeSessionId" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AgentResumeWorkingDirectory" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"HasAgentResume" });
+    }
+
+    void WorkspaceItemViewModel::ClearAgentResume()
+    {
+        ConfigureAgentResume({}, {}, {});
+    }
+
     Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> WorkspaceItemViewModel::Notifications() const noexcept
     {
         return _notifications;

@@ -358,6 +358,9 @@ namespace winrt::TerminalApp::implementation
         _workspaceSidebar.CloseRequested({ get_weak(), &TerminalPage::_WorkspaceCloseRequested });
         _workspaceSidebar.CloseOthersRequested({ get_weak(), &TerminalPage::_WorkspaceCloseOthersRequested });
         _workspaceSidebar.RenameRequested({ get_weak(), &TerminalPage::_WorkspaceRenameRequested });
+        _workspaceSidebar.ConfigureAgentResumeRequested({ get_weak(), &TerminalPage::_WorkspaceConfigureAgentResumeRequested });
+        _workspaceSidebar.ResumeAgentRequested({ get_weak(), &TerminalPage::_WorkspaceResumeAgentRequested });
+        _workspaceSidebar.ClearAgentResumeRequested({ get_weak(), &TerminalPage::_WorkspaceClearAgentResumeRequested });
         _workspaceSidebar.ActivateNotificationRequested({ get_weak(), &TerminalPage::_WorkspaceActivateNotificationRequested });
         _workspaceSidebar.ActivateNotificationItemRequested({ get_weak(), &TerminalPage::_WorkspaceActivateNotificationItemRequested });
         _workspaceSidebar.MarkNotificationsReadRequested({ get_weak(), &TerminalPage::_WorkspaceMarkNotificationsReadRequested });
@@ -665,6 +668,143 @@ namespace winrt::TerminalApp::implementation
             {
                 _RenameWorkspace(tab);
             }
+        }
+    }
+
+    safe_void_coroutine TerminalPage::_WorkspaceConfigureAgentResumeRequested(const TerminalApp::WorkspaceSidebar&,
+                                                                              const TerminalApp::WorkspaceItemViewModel& item)
+    {
+        if (!item)
+        {
+            co_return;
+        }
+
+        const auto weakThis = get_weak();
+        ContentDialog dialog{};
+        dialog.Title(box_value(RS_(L"WorkspaceSidebar_AgentConfigureDialogTitle")));
+        dialog.PrimaryButtonText(RS_(L"WorkspaceSidebar_AgentConfigureDialogSave"));
+        dialog.CloseButtonText(RS_(L"WorkspaceSidebar_AgentDialogCancel"));
+        dialog.DefaultButton(ContentDialogButton::Primary);
+
+        TextBox textBox{};
+        textBox.Header(box_value(RS_(L"WorkspaceSidebar_AgentConfigureDialogHeader")));
+        textBox.PlaceholderText(RS_(L"WorkspaceSidebar_AgentConfigureDialogPlaceholder"));
+        textBox.Text(item.AgentResumeSessionId());
+        Automation::AutomationProperties::SetName(textBox, RS_(L"WorkspaceSidebar_AgentConfigureDialogHeader"));
+        dialog.Content(textBox);
+
+        if (const auto presenter = _dialogPresenter.get())
+        {
+            if (co_await presenter.ShowDialog(dialog) != ContentDialogResult::Primary)
+            {
+                co_return;
+            }
+
+            if (const auto page = weakThis.get())
+            {
+                const auto sessionId = WorkspaceAgentResume::NormalizeCodexSessionId(textBox.Text());
+                if (sessionId.empty())
+                {
+                    ContentDialog errorDialog{};
+                    errorDialog.Title(box_value(RS_(L"WorkspaceSidebar_AgentInvalidSessionDialogTitle")));
+                    errorDialog.Content(box_value(RS_(L"WorkspaceSidebar_AgentInvalidSessionDialogBody")));
+                    errorDialog.CloseButtonText(RS_(L"Ok"));
+                    co_await presenter.ShowDialog(errorDialog);
+                    co_return;
+                }
+
+                auto workingDirectory = item.WorkingDirectory();
+                if (!Utils::IsValidDirectory(workingDirectory.c_str()))
+                {
+                    workingDirectory.clear();
+                }
+                item.ConfigureAgentResume(WorkspaceAgentResume::CodexProvider, sessionId, workingDirectory);
+            }
+        }
+    }
+
+    safe_void_coroutine TerminalPage::_WorkspaceResumeAgentRequested(const TerminalApp::WorkspaceSidebar&,
+                                                                     const TerminalApp::WorkspaceItemViewModel& item)
+    {
+        if (!item)
+        {
+            co_return;
+        }
+
+        AgentResumeInfo info{};
+        info.Version = WorkspaceAgentResume::CurrentVersion;
+        info.WorkspaceId = item.WorkspaceId();
+        info.Provider = item.AgentResumeProvider();
+        info.SessionId = item.AgentResumeSessionId();
+        info.WorkingDirectory = item.AgentResumeWorkingDirectory();
+        info.RequiresConfirmation = true;
+        if (!WorkspaceAgentResume::IsSupported(info))
+        {
+            co_return;
+        }
+
+        const auto weakThis = get_weak();
+        ContentDialog dialog{};
+        dialog.Title(box_value(RS_(L"WorkspaceSidebar_AgentResumeDialogTitle")));
+        const auto workingDirectory = info.WorkingDirectory.empty() ? item.WorkingDirectory() : info.WorkingDirectory;
+        dialog.Content(box_value(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_AgentResumeDialogBody",
+                                                        info.SessionId,
+                                                        workingDirectory.empty() ? RS_(L"WorkspaceSidebar_AgentDefaultDirectory") : workingDirectory) }));
+        dialog.PrimaryButtonText(RS_(L"WorkspaceSidebar_AgentResumeDialogConfirm"));
+        dialog.CloseButtonText(RS_(L"WorkspaceSidebar_AgentDialogCancel"));
+        dialog.DefaultButton(ContentDialogButton::Close);
+
+        if (const auto presenter = _dialogPresenter.get())
+        {
+            if (co_await presenter.ShowDialog(dialog) != ContentDialogResult::Primary)
+            {
+                co_return;
+            }
+
+            if (const auto page = weakThis.get())
+            {
+                const auto codexCliPath = WorkspaceAgentResume::ResolveCodexCliPath();
+                const auto commandProcessorPath = WorkspaceAgentResume::ResolveSystemCommandProcessorPath();
+                if (codexCliPath.empty() || commandProcessorPath.empty())
+                {
+                    ContentDialog errorDialog{};
+                    errorDialog.Title(box_value(RS_(L"WorkspaceSidebar_AgentCliMissingDialogTitle")));
+                    errorDialog.Content(box_value(RS_(L"WorkspaceSidebar_AgentCliMissingDialogBody")));
+                    errorDialog.CloseButtonText(RS_(L"Ok"));
+                    co_await presenter.ShowDialog(errorDialog);
+                    co_return;
+                }
+
+                const auto tab = item.SourceTab();
+                uint32_t tabIndex{};
+                if (!tab || !page->_tabs.IndexOf(tab, tabIndex))
+                {
+                    co_return;
+                }
+
+                NewTerminalArgs args{};
+                args.Commandline(WorkspaceAgentResume::BuildCommandline(info, commandProcessorPath, codexCliPath));
+                args.Elevate(false);
+                if (Utils::IsValidDirectory(workingDirectory.c_str()))
+                {
+                    args.StartingDirectory(workingDirectory);
+                }
+
+                page->_SelectTab(tabIndex);
+                if (const auto newPane = page->_MakePane(args))
+                {
+                    page->_SplitPane(_GetTabImpl(tab), SplitDirection::Automatic, 0.5f, newPane);
+                }
+            }
+        }
+    }
+
+    void TerminalPage::_WorkspaceClearAgentResumeRequested(const TerminalApp::WorkspaceSidebar&,
+                                                           const TerminalApp::WorkspaceItemViewModel& item)
+    {
+        if (item)
+        {
+            item.ClearAgentResume();
         }
     }
 
@@ -1318,6 +1458,7 @@ namespace winrt::TerminalApp::implementation
         // Do not let malformed or partially-restored layouts leak metadata
         // into tabs that the user creates after startup has completed.
         _restoringWorkspaceState = false;
+        _startupAgentResumeEntries.clear();
 
         // GH#6586: now that we're done processing all startup commands,
         // focus the active control. This will work as expected for both
@@ -2933,6 +3074,7 @@ namespace winrt::TerminalApp::implementation
 
         std::vector<winrt::guid> workspaceIds;
         std::vector<uint32_t> pinnedWorkspaceIndices;
+        std::vector<AgentResumeInfo> agentResumeEntries;
         workspaceIds.reserve(tabCount);
         for (uint32_t index = 0; index < tabCount; ++index)
         {
@@ -2942,10 +3084,25 @@ namespace winrt::TerminalApp::implementation
             {
                 pinnedWorkspaceIndices.emplace_back(index);
             }
+            if (item.HasAgentResume())
+            {
+                AgentResumeInfo info{};
+                info.Version = WorkspaceAgentResume::CurrentVersion;
+                info.WorkspaceId = item.WorkspaceId();
+                info.Provider = item.AgentResumeProvider();
+                info.SessionId = item.AgentResumeSessionId();
+                info.WorkingDirectory = item.AgentResumeWorkingDirectory();
+                info.RequiresConfirmation = true;
+                if (WorkspaceAgentResume::IsSupported(info))
+                {
+                    agentResumeEntries.emplace_back(std::move(info));
+                }
+            }
         }
         layout.WorkspaceStateVersion(CurrentWorkspaceStateVersion);
         layout.WorkspaceIds(winrt::single_threaded_vector<winrt::guid>(std::move(workspaceIds)));
         layout.PinnedWorkspaceIndices(winrt::single_threaded_vector<uint32_t>(std::move(pinnedWorkspaceIndices)));
+        layout.AgentResumeEntries(winrt::single_threaded_vector<AgentResumeInfo>(std::move(agentResumeEntries)));
 
         return layout;
     }
@@ -4765,10 +4922,12 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::SetStartupWorkspaceState(const uint32_t version,
                                                 std::vector<winrt::guid> workspaceIds,
-                                                std::vector<uint32_t> pinnedWorkspaceIndices)
+                                                std::vector<uint32_t> pinnedWorkspaceIndices,
+                                                std::vector<AgentResumeInfo> agentResumeEntries)
     {
         _startupWorkspaceIds.clear();
         _startupPinnedWorkspaceIndices.clear();
+        _startupAgentResumeEntries.clear();
         _startupWorkspaceRestoreIndex = 0;
         _restoringWorkspaceState = false;
 
@@ -4783,6 +4942,14 @@ namespace winrt::TerminalApp::implementation
             if (index < _startupWorkspaceIds.size())
             {
                 _startupPinnedWorkspaceIndices.emplace(index);
+            }
+        }
+        for (auto&& entry : agentResumeEntries)
+        {
+            if (WorkspaceAgentResume::IsSupported(entry) &&
+                std::find(_startupWorkspaceIds.begin(), _startupWorkspaceIds.end(), entry.WorkspaceId) != _startupWorkspaceIds.end())
+            {
+                _startupAgentResumeEntries.emplace_back(std::move(entry));
             }
         }
         _restoringWorkspaceState = true;

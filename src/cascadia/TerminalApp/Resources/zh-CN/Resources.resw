@@ -1120,4 +1120,52 @@
   <data name="WorkspaceSidebar_StatusReadOnly" xml:space="preserve">
     <value>只读</value>
   </data>
+  <data name="WorkspaceSidebarConfigureAgentResumeMenuItem.Text" xml:space="preserve">
+    <value>配置 Codex 恢复…</value>
+  </data>
+  <data name="WorkspaceSidebarResumeAgentMenuItem.Text" xml:space="preserve">
+    <value>恢复 Codex 会话</value>
+  </data>
+  <data name="WorkspaceSidebarClearAgentResumeMenuItem.Text" xml:space="preserve">
+    <value>清除 Codex 恢复配置</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentConfigureDialogTitle" xml:space="preserve">
+    <value>配置 Codex 恢复</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentConfigureDialogHeader" xml:space="preserve">
+    <value>Codex 会话 ID</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentConfigureDialogPlaceholder" xml:space="preserve">
+    <value>00000000-0000-0000-0000-000000000000</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentConfigureDialogSave" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentDialogCancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentInvalidSessionDialogTitle" xml:space="preserve">
+    <value>Codex 会话 ID 无效</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentInvalidSessionDialogBody" xml:space="preserve">
+    <value>请输入 Codex 会话显示的 36 位 UUID。首版不接受会话名称或任意命令行。</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentResumeDialogTitle" xml:space="preserve">
+    <value>恢复 Codex 会话？</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentResumeDialogBody" xml:space="preserve">
+    <value>会话：{0}&#x0A;工作目录：{1}&#x0A;&#x0A;将在新 Pane 中运行固定的 Codex 恢复命令，不会恢复已保存的环境变量。</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentResumeDialogConfirm" xml:space="preserve">
+    <value>恢复</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentDefaultDirectory" xml:space="preserve">
+    <value>使用配置文件默认目录</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentCliMissingDialogTitle" xml:space="preserve">
+    <value>未找到 Codex CLI</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentCliMissingDialogBody" xml:space="preserve">
+    <value>请安装 Codex CLI 或将 codex.cmd 加入 PATH 后重试。现有终端未被替换。</value>
+  </data>
 </root>

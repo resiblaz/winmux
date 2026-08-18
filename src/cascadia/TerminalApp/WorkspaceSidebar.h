@@ -24,6 +24,9 @@ namespace winrt::TerminalApp::implementation
         til::typed_event<TerminalApp::WorkspaceSidebar, TerminalApp::WorkspaceItemViewModel> CloseRequested;
         til::typed_event<TerminalApp::WorkspaceSidebar, TerminalApp::WorkspaceItemViewModel> CloseOthersRequested;
         til::typed_event<TerminalApp::WorkspaceSidebar, TerminalApp::WorkspaceItemViewModel> RenameRequested;
+        til::typed_event<TerminalApp::WorkspaceSidebar, TerminalApp::WorkspaceItemViewModel> ConfigureAgentResumeRequested;
+        til::typed_event<TerminalApp::WorkspaceSidebar, TerminalApp::WorkspaceItemViewModel> ResumeAgentRequested;
+        til::typed_event<TerminalApp::WorkspaceSidebar, TerminalApp::WorkspaceItemViewModel> ClearAgentResumeRequested;
         til::typed_event<TerminalApp::WorkspaceSidebar, TerminalApp::WorkspaceItemViewModel> ActivateNotificationRequested;
         til::typed_event<TerminalApp::WorkspaceSidebar, TerminalApp::WorkspaceNotification> ActivateNotificationItemRequested;
         til::typed_event<TerminalApp::WorkspaceSidebar, TerminalApp::WorkspaceItemViewModel> MarkNotificationsReadRequested;
@@ -38,6 +41,9 @@ namespace winrt::TerminalApp::implementation
         void _Close_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _CloseOthers_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _Rename_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _ConfigureAgentResume_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _ResumeAgent_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _ClearAgentResume_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _Notification_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _MarkNotificationsRead_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _ClearNotificationHistory_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);

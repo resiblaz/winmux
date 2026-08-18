@@ -172,6 +172,7 @@ namespace winrt::TerminalApp::implementation
             // .TabLayout(). We can re-evaluate that as a part of TODO: GH#12633
             std::vector<winrt::guid> workspaceIds;
             std::vector<uint32_t> pinnedWorkspaceIndices;
+            std::vector<AgentResumeInfo> agentResumeEntries;
             if (const auto ids = layout.WorkspaceIds())
             {
                 workspaceIds = wil::to_vector(ids);
@@ -180,7 +181,14 @@ namespace winrt::TerminalApp::implementation
             {
                 pinnedWorkspaceIndices = wil::to_vector(indices);
             }
-            _root->SetStartupWorkspaceState(layout.WorkspaceStateVersion(), std::move(workspaceIds), std::move(pinnedWorkspaceIndices));
+            if (const auto entries = layout.AgentResumeEntries())
+            {
+                agentResumeEntries = wil::to_vector(entries);
+            }
+            _root->SetStartupWorkspaceState(layout.WorkspaceStateVersion(),
+                                            std::move(workspaceIds),
+                                            std::move(pinnedWorkspaceIndices),
+                                            std::move(agentResumeEntries));
             _root->SetStartupActions(wil::to_vector(layout.TabLayout()));
         }
         else if (_appArgs)

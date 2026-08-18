@@ -130,6 +130,7 @@
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClInclude>
     <ClInclude Include="WorkspaceGitBranch.h" />
+    <ClInclude Include="WorkspaceAgentResume.h" />
     <ClInclude Include="WorkspaceNotification.h">
       <DependentUpon>WorkspaceNotification.idl</DependentUpon>
     </ClInclude>

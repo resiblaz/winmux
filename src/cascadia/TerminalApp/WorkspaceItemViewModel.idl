@@ -24,6 +24,10 @@ namespace TerminalApp
         UInt32 NotificationHistoryCount { get; };
         String NotificationHistoryCountText { get; };
         String WorkingDirectoryDisplay { get; };
+        Boolean HasAgentResume { get; };
+        String AgentResumeProvider { get; };
+        String AgentResumeSessionId { get; };
+        String AgentResumeWorkingDirectory { get; };
         WorkspaceNotification LatestUnreadNotification { get; };
         Windows.Foundation.Collections.IObservableVector<WorkspaceNotification> Notifications { get; };
 
@@ -31,6 +35,8 @@ namespace TerminalApp
         void MarkAllNotificationsRead();
         void MarkNotificationsReadForPane(UInt32 paneId);
         void ClearNotificationHistory();
+        void ConfigureAgentResume(String provider, String sessionId, String workingDirectory);
+        void ClearAgentResume();
 
         Boolean IsSelected;
         UInt32 UnreadCount;

@@ -38,6 +38,7 @@
     <ClInclude Include="../TabRowControl.h" />
     <ClInclude Include="../WorkspaceSidebar.h" />
     <ClInclude Include="../WorkspaceItemViewModel.h" />
+    <ClInclude Include="../WorkspaceAgentResume.h" />
     <ClInclude Include="../WorkspaceNotification.h" />
     <ClInclude Include="../App.h" />
   </ItemGroup>

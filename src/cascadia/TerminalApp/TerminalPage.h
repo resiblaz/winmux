@@ -19,6 +19,7 @@
 #include "Toast.h"
 #include "WorkspaceItemViewModel.h"
 #include "WorkspaceSidebar.h"
+#include "WorkspaceAgentResume.h"
 
 #include "WindowsPackageManagerFactory.h"
 
@@ -193,7 +194,10 @@ namespace winrt::TerminalApp::implementation
         void RequestSetMaximized(bool newMaximized);
 
         void SetStartupActions(std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> actions);
-        void SetStartupWorkspaceState(uint32_t version, std::vector<winrt::guid> workspaceIds, std::vector<uint32_t> pinnedWorkspaceIndices);
+        void SetStartupWorkspaceState(uint32_t version,
+                                      std::vector<winrt::guid> workspaceIds,
+                                      std::vector<uint32_t> pinnedWorkspaceIndices,
+                                      std::vector<Microsoft::Terminal::Settings::Model::AgentResumeInfo> agentResumeEntries);
         void SetStartupConnection(winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection connection);
 
         static std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> ConvertExecuteCommandlineToActions(const Microsoft::Terminal::Settings::Model::ExecuteCommandlineArgs& args);
@@ -342,6 +346,7 @@ namespace winrt::TerminalApp::implementation
         std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> _startupActions;
         std::vector<winrt::guid> _startupWorkspaceIds;
         std::unordered_set<uint32_t> _startupPinnedWorkspaceIndices;
+        std::vector<Microsoft::Terminal::Settings::Model::AgentResumeInfo> _startupAgentResumeEntries;
         uint32_t _startupWorkspaceRestoreIndex{ 0 };
         bool _restoringWorkspaceState{ false };
         winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _startupConnection{ nullptr };
@@ -433,6 +438,9 @@ namespace winrt::TerminalApp::implementation
         void _WorkspaceCloseRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceCloseOthersRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceRenameRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        safe_void_coroutine _WorkspaceConfigureAgentResumeRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        safe_void_coroutine _WorkspaceResumeAgentRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        void _WorkspaceClearAgentResumeRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceActivateNotificationRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceActivateNotificationItemRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceNotification& notification);
         void _WorkspaceMarkNotificationsReadRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);

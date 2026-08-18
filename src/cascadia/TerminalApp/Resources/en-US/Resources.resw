@@ -1120,4 +1120,52 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebar_StatusReadOnly" xml:space="preserve">
     <value>Read-only</value>
   </data>
+  <data name="WorkspaceSidebarConfigureAgentResumeMenuItem.Text" xml:space="preserve">
+    <value>Configure Codex resume…</value>
+  </data>
+  <data name="WorkspaceSidebarResumeAgentMenuItem.Text" xml:space="preserve">
+    <value>Resume Codex session</value>
+  </data>
+  <data name="WorkspaceSidebarClearAgentResumeMenuItem.Text" xml:space="preserve">
+    <value>Clear Codex resume</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentConfigureDialogTitle" xml:space="preserve">
+    <value>Configure Codex resume</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentConfigureDialogHeader" xml:space="preserve">
+    <value>Codex session ID</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentConfigureDialogPlaceholder" xml:space="preserve">
+    <value>00000000-0000-0000-0000-000000000000</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentConfigureDialogSave" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentDialogCancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentInvalidSessionDialogTitle" xml:space="preserve">
+    <value>Invalid Codex session ID</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentInvalidSessionDialogBody" xml:space="preserve">
+    <value>Enter the 36-character UUID shown for the Codex session. Session names and command lines are not accepted.</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentResumeDialogTitle" xml:space="preserve">
+    <value>Resume Codex session?</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentResumeDialogBody" xml:space="preserve">
+    <value>Session: {0}&#x0A;Working directory: {1}&#x0A;&#x0A;A new pane will run the fixed Codex resume command. No saved environment variables will be restored.</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentResumeDialogConfirm" xml:space="preserve">
+    <value>Resume</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentDefaultDirectory" xml:space="preserve">
+    <value>Profile default</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentCliMissingDialogTitle" xml:space="preserve">
+    <value>Codex CLI not found</value>
+  </data>
+  <data name="WorkspaceSidebar_AgentCliMissingDialogBody" xml:space="preserve">
+    <value>Install Codex CLI or add codex.cmd to PATH, then try again. The existing terminal was left unchanged.</value>
+  </data>
 </root>

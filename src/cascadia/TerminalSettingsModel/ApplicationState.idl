@@ -13,6 +13,16 @@ namespace Microsoft.Terminal.Settings.Model
         KeyboardServiceWarning,
     };
 
+    struct AgentResumeInfo
+    {
+        UInt32 Version;
+        Guid WorkspaceId;
+        String Provider;
+        String SessionId;
+        String WorkingDirectory;
+        Boolean RequiresConfirmation;
+    };
+
     runtimeclass WindowLayout
     {
         WindowLayout();
@@ -27,6 +37,7 @@ namespace Microsoft.Terminal.Settings.Model
         UInt32 WorkspaceStateVersion;
         Windows.Foundation.Collections.IVector<Guid> WorkspaceIds;
         Windows.Foundation.Collections.IVector<UInt32> PinnedWorkspaceIndices;
+        Windows.Foundation.Collections.IVector<AgentResumeInfo> AgentResumeEntries;
     };
 
     [default_interface] runtimeclass ApplicationState {

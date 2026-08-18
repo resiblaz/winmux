@@ -27,6 +27,10 @@ namespace winrt::TerminalApp::implementation
         uint32_t NotificationHistoryCount() const noexcept;
         winrt::hstring NotificationHistoryCountText() const;
         winrt::hstring WorkingDirectoryDisplay() const;
+        bool HasAgentResume() const noexcept;
+        winrt::hstring AgentResumeProvider() const noexcept;
+        winrt::hstring AgentResumeSessionId() const noexcept;
+        winrt::hstring AgentResumeWorkingDirectory() const noexcept;
         TerminalApp::WorkspaceNotification LatestUnreadNotification() const;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> Notifications() const noexcept;
         void RestoreWorkspaceId(const winrt::guid& workspaceId) noexcept;
@@ -36,6 +40,8 @@ namespace winrt::TerminalApp::implementation
         void MarkAllNotificationsRead();
         void MarkNotificationsReadForPane(uint32_t paneId);
         void ClearNotificationHistory();
+        void ConfigureAgentResume(const winrt::hstring& provider, const winrt::hstring& sessionId, const winrt::hstring& workingDirectory);
+        void ClearAgentResume();
 
         til::property_changed_event PropertyChanged;
         bool IsSelected() const noexcept;
@@ -57,6 +63,9 @@ namespace winrt::TerminalApp::implementation
         Windows::System::DispatcherQueue _dispatcher{ nullptr };
         bool _isSelected{ false };
         uint64_t _gitBranchRequestGeneration{ 0 };
+        winrt::hstring _agentResumeProvider;
+        winrt::hstring _agentResumeSessionId;
+        winrt::hstring _agentResumeWorkingDirectory;
 
         static constexpr uint32_t MaximumNotifications{ 100 };
         static constexpr auto GitQueryTimeout{ std::chrono::milliseconds{ 1500 } };

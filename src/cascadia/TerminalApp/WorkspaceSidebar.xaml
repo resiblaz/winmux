@@ -159,6 +159,18 @@
                                         IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(NotificationHistoryCountText), Mode=OneWay}"
                                         Tag="{Binding}" />
                         <MenuFlyoutSeparator />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarConfigureAgentResumeMenuItem"
+                                        Click="_ConfigureAgentResume_Click"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarResumeAgentMenuItem"
+                                        Click="_ResumeAgent_Click"
+                                        IsEnabled="{x:Bind HasAgentResume, Mode=OneWay}"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarClearAgentResumeMenuItem"
+                                        Click="_ClearAgentResume_Click"
+                                        IsEnabled="{x:Bind HasAgentResume, Mode=OneWay}"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutSeparator />
                         <MenuFlyoutItem Click="_Pin_Click"
                                         Tag="{Binding}"
                                         Text="{x:Bind PinActionText, Mode=OneWay}" />
@@ -217,6 +229,18 @@
                         <MenuFlyoutItem x:Uid="WorkspaceSidebarClearNotificationHistoryMenuItem"
                                         Click="_ClearNotificationHistory_Click"
                                         IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(NotificationHistoryCountText), Mode=OneWay}"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarConfigureAgentResumeMenuItem"
+                                        Click="_ConfigureAgentResume_Click"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarResumeAgentMenuItem"
+                                        Click="_ResumeAgent_Click"
+                                        IsEnabled="{x:Bind HasAgentResume, Mode=OneWay}"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarClearAgentResumeMenuItem"
+                                        Click="_ClearAgentResume_Click"
+                                        IsEnabled="{x:Bind HasAgentResume, Mode=OneWay}"
                                         Tag="{Binding}" />
                         <MenuFlyoutSeparator />
                         <MenuFlyoutItem Click="_Pin_Click"

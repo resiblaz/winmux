@@ -39,6 +39,9 @@
     <ClCompile Include="WorkspaceItemViewModel.cpp">
       <Filter>workspace</Filter>
     </ClCompile>
+    <ClCompile Include="WorkspaceGitBranch.cpp">
+      <Filter>workspace</Filter>
+    </ClCompile>
     <ClCompile Include="WorkspaceNotification.cpp">
       <Filter>workspace</Filter>
     </ClCompile>
@@ -75,6 +78,9 @@
       <Filter>controls</Filter>
     </ClInclude>
     <ClInclude Include="WorkspaceItemViewModel.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
+    <ClInclude Include="WorkspaceGitBranch.h">
       <Filter>workspace</Filter>
     </ClInclude>
     <ClInclude Include="WorkspaceNotification.h">

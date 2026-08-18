@@ -154,6 +154,7 @@ namespace winrt::TerminalApp::implementation
             }
         }
         _workspaceItems.InsertAt(insertPosition, *workspaceItem);
+        workspaceItem->RefreshGitBranch();
         _mruTabs.Append(*newTabImpl);
 
         newTabImpl->SetDispatch(*_actionDispatch);

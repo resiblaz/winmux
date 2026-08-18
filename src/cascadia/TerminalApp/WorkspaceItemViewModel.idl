@@ -35,6 +35,9 @@ namespace TerminalApp
         Boolean IsSelected;
         UInt32 UnreadCount;
         String WorkingDirectory;
+        String GitBranch;
+        String GitRepositoryRoot;
+        Boolean IsGitBranchLoading;
         String StatusText;
         String LatestNotification;
     }

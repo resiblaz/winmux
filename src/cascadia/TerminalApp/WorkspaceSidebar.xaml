@@ -56,13 +56,29 @@
                                FontWeight="SemiBold"
                                Text="{x:Bind Title, Mode=OneWay}"
                                TextTrimming="CharacterEllipsis" />
-                    <TextBlock FontFamily="Consolas"
-                               FontSize="11"
-                               Opacity="0.72"
-                               Text="{x:Bind WorkingDirectoryDisplay, Mode=OneWay}"
-                               TextTrimming="CharacterEllipsis"
-                               ToolTipService.ToolTip="{x:Bind WorkingDirectory, Mode=OneWay}"
-                               Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(WorkingDirectoryDisplay), Mode=OneWay}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock FontFamily="Consolas"
+                                   FontSize="11"
+                                   Opacity="0.72"
+                                   Text="{x:Bind WorkingDirectoryDisplay, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTipService.ToolTip="{x:Bind WorkingDirectory, Mode=OneWay}"
+                                   Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(WorkingDirectoryDisplay), Mode=OneWay}" />
+                        <TextBlock Grid.Column="1"
+                                   MaxWidth="104"
+                                   Margin="8,0,0,0"
+                                   FontFamily="Consolas"
+                                   FontSize="11"
+                                   Opacity="0.72"
+                                   Text="{x:Bind GitBranch, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTipService.ToolTip="{x:Bind GitRepositoryRoot, Mode=OneWay}"
+                                   Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(GitBranch), Mode=OneWay}" />
+                    </Grid>
                     <TextBlock FontFamily="Consolas"
                                FontSize="11"
                                Foreground="{ThemeResource AttentionPaneBorderColor}"

@@ -30,6 +30,7 @@ namespace winrt::TerminalApp::implementation
         TerminalApp::WorkspaceNotification LatestUnreadNotification() const;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> Notifications() const noexcept;
         void RestoreWorkspaceId(const winrt::guid& workspaceId) noexcept;
+        void RefreshGitBranch();
 
         void AddNotification(uint32_t paneId, const winrt::hstring& title, const winrt::hstring& message);
         void MarkAllNotificationsRead();
@@ -37,9 +38,13 @@ namespace winrt::TerminalApp::implementation
         void ClearNotificationHistory();
 
         til::property_changed_event PropertyChanged;
-        WINRT_OBSERVABLE_PROPERTY(bool, IsSelected, PropertyChanged.raise, false);
+        bool IsSelected() const noexcept;
+        void IsSelected(bool value);
         WINRT_OBSERVABLE_PROPERTY(uint32_t, UnreadCount, PropertyChanged.raise, 0);
         WINRT_OBSERVABLE_PROPERTY(winrt::hstring, WorkingDirectory, PropertyChanged.raise, L"");
+        WINRT_OBSERVABLE_PROPERTY(winrt::hstring, GitBranch, PropertyChanged.raise, L"");
+        WINRT_OBSERVABLE_PROPERTY(winrt::hstring, GitRepositoryRoot, PropertyChanged.raise, L"");
+        WINRT_OBSERVABLE_PROPERTY(bool, IsGitBranchLoading, PropertyChanged.raise, false);
         WINRT_OBSERVABLE_PROPERTY(winrt::hstring, StatusText, PropertyChanged.raise, L"");
         WINRT_OBSERVABLE_PROPERTY(winrt::hstring, LatestNotification, PropertyChanged.raise, L"");
 
@@ -49,9 +54,15 @@ namespace winrt::TerminalApp::implementation
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> _notifications;
         Windows::UI::Xaml::Data::INotifyPropertyChanged::PropertyChanged_revoker _tabChangedRevoker;
         Windows::UI::Xaml::Data::INotifyPropertyChanged::PropertyChanged_revoker _tabStatusChangedRevoker;
+        Windows::System::DispatcherQueue _dispatcher{ nullptr };
+        bool _isSelected{ false };
+        uint64_t _gitBranchRequestGeneration{ 0 };
 
         static constexpr uint32_t MaximumNotifications{ 100 };
-        void _UpdateWorkingDirectory();
+        static constexpr auto GitQueryTimeout{ std::chrono::milliseconds{ 1500 } };
+        static constexpr auto GitCacheMaximumAge{ std::chrono::seconds{ 10 } };
+        safe_void_coroutine _RefreshGitBranchAsync(winrt::hstring directory, uint64_t generation);
+        void _UpdateWorkingDirectory(bool refreshGit = true);
         void _UpdateStatus();
         void _UpdateNotificationProperties();
     };

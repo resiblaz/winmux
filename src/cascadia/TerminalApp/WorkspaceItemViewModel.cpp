@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "WorkspaceItemViewModel.h"
+#include "WorkspaceGitBranch.h"
 
 #include "WorkspaceItemViewModel.g.cpp"
 
@@ -55,7 +56,8 @@ namespace winrt::TerminalApp::implementation
 
     WorkspaceItemViewModel::WorkspaceItemViewModel(const TerminalApp::Tab& tab) :
         _tab{ tab },
-        _notifications{ winrt::single_threaded_observable_vector<TerminalApp::WorkspaceNotification>() }
+        _notifications{ winrt::single_threaded_observable_vector<TerminalApp::WorkspaceNotification>() },
+        _dispatcher{ Windows::System::DispatcherQueue::GetForCurrentThread() }
     {
         GUID id{};
         THROW_IF_FAILED(CoCreateGuid(&id));
@@ -92,7 +94,7 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
-        _UpdateWorkingDirectory();
+        _UpdateWorkingDirectory(false);
         _UpdateStatus();
     }
 
@@ -104,6 +106,24 @@ namespace winrt::TerminalApp::implementation
     TerminalApp::Tab WorkspaceItemViewModel::SourceTab() const noexcept
     {
         return _tab;
+    }
+
+    bool WorkspaceItemViewModel::IsSelected() const noexcept
+    {
+        return _isSelected;
+    }
+
+    void WorkspaceItemViewModel::IsSelected(const bool value)
+    {
+        if (_isSelected != value)
+        {
+            _isSelected = value;
+            PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"IsSelected" });
+            if (value)
+            {
+                RefreshGitBranch();
+            }
+        }
     }
 
     winrt::hstring WorkspaceItemViewModel::Title() const
@@ -203,6 +223,38 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void WorkspaceItemViewModel::RefreshGitBranch()
+    {
+        const auto directory = WorkingDirectory();
+        const auto generation = ++_gitBranchRequestGeneration;
+        if (!WorkspaceGitBranch::IsSupportedDirectory(directory))
+        {
+            GitBranch(L"");
+            GitRepositoryRoot(L"");
+            IsGitBranchLoading(false);
+            return;
+        }
+
+        IsGitBranchLoading(true);
+        _RefreshGitBranchAsync(directory, generation);
+    }
+
+    safe_void_coroutine WorkspaceItemViewModel::_RefreshGitBranchAsync(winrt::hstring directory, const uint64_t generation)
+    {
+        const auto weakThis = get_weak();
+        const auto dispatcher = _dispatcher;
+        co_await winrt::resume_background();
+        const auto result = WorkspaceGitBranch::QueryCached(directory, GitQueryTimeout, GitCacheMaximumAge);
+        co_await wil::resume_foreground(dispatcher);
+
+        if (const auto self = weakThis.get(); self && self->_gitBranchRequestGeneration == generation && self->WorkingDirectory() == directory)
+        {
+            self->GitBranch(result.IsRepository ? result.Branch : winrt::hstring{});
+            self->GitRepositoryRoot(result.IsRepository ? result.RepositoryRoot : winrt::hstring{});
+            self->IsGitBranchLoading(false);
+        }
+    }
+
     void WorkspaceItemViewModel::AddNotification(const uint32_t paneId, const winrt::hstring& title, const winrt::hstring& message)
     {
         _notifications.Append(TerminalApp::WorkspaceNotification{ _workspaceId, paneId, Title(), title, message, winrt::clock::now() });
@@ -280,10 +332,14 @@ namespace winrt::TerminalApp::implementation
         _UpdateStatus();
     }
 
-    void WorkspaceItemViewModel::_UpdateWorkingDirectory()
+    void WorkspaceItemViewModel::_UpdateWorkingDirectory(const bool refreshGit)
     {
         WorkingDirectory(_tab ? _tab.WorkingDirectory() : winrt::hstring{});
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"WorkingDirectoryDisplay" });
+        if (refreshGit)
+        {
+            RefreshGitBranch();
+        }
     }
 
     void WorkspaceItemViewModel::_UpdateStatus()

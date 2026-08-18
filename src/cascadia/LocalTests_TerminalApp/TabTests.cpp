@@ -8,6 +8,7 @@
 #include "../TerminalApp/MinMaxCloseControl.h"
 #include "../TerminalApp/TabRowControl.h"
 #include "../TerminalApp/WorkspaceItemViewModel.h"
+#include "../TerminalApp/WorkspaceGitBranch.h"
 #include "../TerminalApp/WorkspaceSidebar.h"
 #include "../TerminalApp/ShortcutActionDispatch.h"
 #include "../TerminalApp/Tab.h"
@@ -80,6 +81,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(CreateWorkspaceSidebarXamlType);
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
         TEST_METHOD(WorkspaceWorkingDirectoryDisplayIsCompact);
+        TEST_METHOD(WorkspaceGitBranchParsesStructuredOutput);
         TEST_METHOD(WorkspaceStatusPillTracksStructuredState);
         TEST_METHOD(WorkspaceLayoutPersistsMetadata);
         TEST_METHOD(WorkspaceNotificationStateTracksUnread);
@@ -281,6 +283,21 @@ namespace TerminalAppLocalTests
             item.WorkingDirectory(L"C:\\");
             VERIFY_ARE_EQUAL(L"C:\\", item.WorkingDirectoryDisplay());
         });
+    }
+
+    void TabTests::WorkspaceGitBranchParsesStructuredOutput()
+    {
+        const auto result = winrt::TerminalApp::implementation::WorkspaceGitBranch::ParseOutputForTests(
+            "F:/RicherLife/codes/win_terminal\r\nfeature/sidebar\r\n");
+        VERIFY_IS_TRUE(result.IsRepository);
+        VERIFY_ARE_EQUAL(L"F:/RicherLife/codes/win_terminal", result.RepositoryRoot);
+        VERIFY_ARE_EQUAL(L"feature/sidebar", result.Branch);
+
+        const auto invalid = winrt::TerminalApp::implementation::WorkspaceGitBranch::ParseOutputForTests("fatal: not a repository\r\n");
+        VERIFY_IS_FALSE(invalid.IsRepository);
+        VERIFY_IS_TRUE(invalid.Branch.empty());
+
+        VERIFY_IS_FALSE(winrt::TerminalApp::implementation::WorkspaceGitBranch::IsSupportedDirectory(L"\\\\wsl.localhost\\Ubuntu\\home\\repo"));
     }
 
     void TabTests::WorkspaceLayoutPersistsMetadata()

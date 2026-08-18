@@ -248,6 +248,44 @@ namespace winrt::TerminalApp::implementation
         ConfigureAgentResume({}, {}, {});
     }
 
+    void WorkspaceItemViewModel::SetAutomationStatus(const winrt::hstring& text)
+    {
+        _automationStatus = text;
+        _UpdateStatus();
+    }
+
+    void WorkspaceItemViewModel::ClearAutomationStatus()
+    {
+        SetAutomationStatus({});
+    }
+
+    winrt::hstring WorkspaceItemViewModel::AutomationStatus() const noexcept
+    {
+        return _automationStatus;
+    }
+
+    void WorkspaceItemViewModel::SetAutomationProgress(const uint64_t state, const uint32_t value)
+    {
+        _automationProgressState = state;
+        _automationProgressValue = value;
+        _UpdateStatus();
+    }
+
+    void WorkspaceItemViewModel::ClearAutomationProgress()
+    {
+        SetAutomationProgress(0, 0);
+    }
+
+    uint64_t WorkspaceItemViewModel::AutomationProgressState() const noexcept
+    {
+        return _automationProgressState;
+    }
+
+    uint32_t WorkspaceItemViewModel::AutomationProgressValue() const noexcept
+    {
+        return _automationProgressValue;
+    }
+
     Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> WorkspaceItemViewModel::Notifications() const noexcept
     {
         return _notifications;
@@ -392,6 +430,30 @@ namespace winrt::TerminalApp::implementation
             else if (UnreadCount() > 0)
             {
                 text = RS_(L"WorkspaceSidebar_StatusAttention");
+            }
+            else if (!_automationStatus.empty())
+            {
+                text = _automationStatus;
+            }
+            else if (_automationProgressState != 0)
+            {
+                switch (_automationProgressState)
+                {
+                case 1:
+                    text = _automationProgressValue > 0 ?
+                               winrt::hstring{ RS_fmt(L"WorkspaceSidebar_StatusProgress", _automationProgressValue) } :
+                               RS_(L"WorkspaceSidebar_StatusRunning");
+                    break;
+                case 2:
+                    text = RS_(L"WorkspaceSidebar_StatusFailed");
+                    break;
+                case 3:
+                    text = RS_(L"WorkspaceSidebar_StatusRunning");
+                    break;
+                case 4:
+                    text = RS_(L"WorkspaceSidebar_StatusPaused");
+                    break;
+                }
             }
             else
             {

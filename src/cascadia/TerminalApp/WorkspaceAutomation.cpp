@@ -116,6 +116,48 @@ namespace winrt::TerminalApp::implementation
             return std::nullopt;
         }
 
+        bool _isValidText(const winrt::hstring& value, const size_t minimumLength, const size_t maximumLength, const bool allowLineBreaks)
+        {
+            if (value.size() < minimumLength || value.size() > maximumLength)
+            {
+                return false;
+            }
+            if (minimumLength > 0 && std::all_of(value.begin(), value.end(), [](const wchar_t character) { return std::iswspace(character); }))
+            {
+                return false;
+            }
+
+            return std::none_of(value.begin(), value.end(), [&](const wchar_t character) {
+                const auto isControlCharacter = character < L' ' || (character >= L'\x7f' && character <= L'\x9f');
+                if (!isControlCharacter)
+                {
+                    return false;
+                }
+                return !allowLineBreaks || (character != L'\r' && character != L'\n' && character != L'\t');
+            });
+        }
+
+        std::optional<WorkspaceAutomationProgressState> _parseProgressState(const winrt::hstring& value)
+        {
+            if (value == L"normal")
+            {
+                return WorkspaceAutomationProgressState::Normal;
+            }
+            if (value == L"error")
+            {
+                return WorkspaceAutomationProgressState::Error;
+            }
+            if (value == L"indeterminate")
+            {
+                return WorkspaceAutomationProgressState::Indeterminate;
+            }
+            if (value == L"paused")
+            {
+                return WorkspaceAutomationProgressState::Paused;
+            }
+            return std::nullopt;
+        }
+
         std::string _stringify(const JsonObject& object)
         {
             return winrt::to_string(object.Stringify());
@@ -293,6 +335,162 @@ namespace winrt::TerminalApp::implementation
                     .PaneId = paneId,
                     .SplitDirection = direction.value(),
                     .SplitSize = gsl::narrow_cast<float>(splitSize),
+                },
+                .Id = std::move(id),
+            };
+        }
+
+        if (method == L"notification.list" || method == L"notification.clear")
+        {
+            if (!_hasOnlyKeys(params, { L"workspaceId" }) || !_isValueType(params, L"workspaceId", JsonValueType::String))
+            {
+                return _parseError(std::move(id), "invalid_params", "Notification method requires only params.workspaceId");
+            }
+            const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
+            if (!workspaceId)
+            {
+                return _parseError(std::move(id), "invalid_params", "params.workspaceId must be a non-zero canonical UUID");
+            }
+            return {
+                .Request = WorkspaceAutomationRequest{
+                    .Id = id,
+                    .Method = method == L"notification.list" ? WorkspaceAutomationMethod::NotificationList : WorkspaceAutomationMethod::NotificationClear,
+                    .WorkspaceId = workspaceId,
+                },
+                .Id = std::move(id),
+            };
+        }
+
+        if (method == L"notification.create")
+        {
+            if (!_hasOnlyKeys(params, { L"workspaceId", L"paneId", L"title", L"body" }) ||
+                !_isValueType(params, L"workspaceId", JsonValueType::String) ||
+                !_isValueType(params, L"title", JsonValueType::String) ||
+                !_isValueType(params, L"body", JsonValueType::String))
+            {
+                return _parseError(std::move(id), "invalid_params", "notification.create requires workspaceId, paneId, title, and body");
+            }
+
+            const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
+            const auto paneId = _parsePaneId(params);
+            const auto title = params.GetNamedString(L"title");
+            const auto body = params.GetNamedString(L"body");
+            if (!workspaceId || !paneId || !_isValidText(title, 1, 128, false) || !_isValidText(body, 1, 1024, true))
+            {
+                return _parseError(std::move(id), "invalid_params", "Notification target or text is invalid");
+            }
+
+            return {
+                .Request = WorkspaceAutomationRequest{
+                    .Id = id,
+                    .Method = WorkspaceAutomationMethod::NotificationCreate,
+                    .WorkspaceId = workspaceId,
+                    .PaneId = paneId,
+                    .Title = title,
+                    .Body = body,
+                },
+                .Id = std::move(id),
+            };
+        }
+
+        if (method == L"notification.markRead")
+        {
+            if (!_hasOnlyKeys(params, { L"workspaceId", L"paneId" }) || !_isValueType(params, L"workspaceId", JsonValueType::String))
+            {
+                return _parseError(std::move(id), "invalid_params", "notification.markRead requires workspaceId and optional paneId");
+            }
+            const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
+            const auto paneId = params.HasKey(L"paneId") ? _parsePaneId(params) : std::optional<uint32_t>{};
+            if (!workspaceId || (params.HasKey(L"paneId") && !paneId))
+            {
+                return _parseError(std::move(id), "invalid_params", "Notification target is invalid");
+            }
+            return {
+                .Request = WorkspaceAutomationRequest{
+                    .Id = id,
+                    .Method = WorkspaceAutomationMethod::NotificationMarkRead,
+                    .WorkspaceId = workspaceId,
+                    .PaneId = paneId,
+                },
+                .Id = std::move(id),
+            };
+        }
+
+        if (method == L"status.get" || method == L"status.clear" || method == L"progress.clear")
+        {
+            if (!_hasOnlyKeys(params, { L"workspaceId" }) || !_isValueType(params, L"workspaceId", JsonValueType::String))
+            {
+                return _parseError(std::move(id), "invalid_params", "Status method requires only params.workspaceId");
+            }
+            const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
+            if (!workspaceId)
+            {
+                return _parseError(std::move(id), "invalid_params", "params.workspaceId must be a non-zero canonical UUID");
+            }
+
+            const auto parsedMethod = method == L"status.get"   ? WorkspaceAutomationMethod::StatusGet :
+                                      method == L"status.clear" ? WorkspaceAutomationMethod::StatusClear :
+                                                                  WorkspaceAutomationMethod::ProgressClear;
+            return {
+                .Request = WorkspaceAutomationRequest{
+                    .Id = id,
+                    .Method = parsedMethod,
+                    .WorkspaceId = workspaceId,
+                },
+                .Id = std::move(id),
+            };
+        }
+
+        if (method == L"status.set")
+        {
+            if (!_hasOnlyKeys(params, { L"workspaceId", L"text" }) ||
+                !_isValueType(params, L"workspaceId", JsonValueType::String) ||
+                !_isValueType(params, L"text", JsonValueType::String))
+            {
+                return _parseError(std::move(id), "invalid_params", "status.set requires workspaceId and text");
+            }
+            const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
+            const auto text = params.GetNamedString(L"text");
+            if (!workspaceId || !_isValidText(text, 1, 96, false))
+            {
+                return _parseError(std::move(id), "invalid_params", "Status text must contain 1 to 96 characters without control characters");
+            }
+            return {
+                .Request = WorkspaceAutomationRequest{
+                    .Id = id,
+                    .Method = WorkspaceAutomationMethod::StatusSet,
+                    .WorkspaceId = workspaceId,
+                    .Text = text,
+                },
+                .Id = std::move(id),
+            };
+        }
+
+        if (method == L"progress.set")
+        {
+            if (!_hasOnlyKeys(params, { L"workspaceId", L"state", L"value" }) ||
+                !_isValueType(params, L"workspaceId", JsonValueType::String) ||
+                !_isValueType(params, L"state", JsonValueType::String) ||
+                (params.HasKey(L"value") && !_isValueType(params, L"value", JsonValueType::Number)))
+            {
+                return _parseError(std::move(id), "invalid_params", "progress.set requires workspaceId, state, and optional value");
+            }
+
+            const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
+            const auto state = _parseProgressState(params.GetNamedString(L"state"));
+            double progressValue = params.GetNamedNumber(L"value", 0);
+            if (!workspaceId || !state || !std::isfinite(progressValue) || std::floor(progressValue) != progressValue || progressValue < 0 || progressValue > 100)
+            {
+                return _parseError(std::move(id), "invalid_params", "Progress state or integer value from 0 through 100 is invalid");
+            }
+
+            return {
+                .Request = WorkspaceAutomationRequest{
+                    .Id = id,
+                    .Method = WorkspaceAutomationMethod::ProgressSet,
+                    .WorkspaceId = workspaceId,
+                    .ProgressState = state.value(),
+                    .ProgressValue = gsl::narrow_cast<uint32_t>(progressValue),
                 },
                 .Id = std::move(id),
             };

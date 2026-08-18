@@ -63,6 +63,26 @@ namespace TerminalAppUnitTests
         VERIFY_ARE_EQUAL(3u, paneSplit.Request->PaneId.value());
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationSplitDirection::Left), static_cast<int>(paneSplit.Request->SplitDirection));
         VERIFY_ARE_EQUAL(0.25f, paneSplit.Request->SplitSize);
+
+        const auto notification = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"notify-1","method":"notification.create","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":3,"title":"Codex","body":"Waiting for input"}})");
+        VERIFY_IS_TRUE(static_cast<bool>(notification));
+        VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::NotificationCreate), static_cast<int>(notification.Request->Method));
+        VERIFY_ARE_EQUAL(winrt::hstring{ L"Codex" }, notification.Request->Title);
+
+        const auto markRead = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"read-1","method":"notification.markRead","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":3}})");
+        VERIFY_IS_TRUE(static_cast<bool>(markRead));
+        VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::NotificationMarkRead), static_cast<int>(markRead.Request->Method));
+
+        const auto status = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"status-1","method":"status.set","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","text":"Waiting"}})");
+        VERIFY_IS_TRUE(static_cast<bool>(status));
+        VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::StatusSet), static_cast<int>(status.Request->Method));
+        VERIFY_ARE_EQUAL(winrt::hstring{ L"Waiting" }, status.Request->Text);
+
+        const auto progress = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"progress-1","method":"progress.set","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","state":"normal","value":73}})");
+        VERIFY_IS_TRUE(static_cast<bool>(progress));
+        VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::ProgressSet), static_cast<int>(progress.Request->Method));
+        VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationProgressState::Normal), static_cast<int>(progress.Request->ProgressState));
+        VERIFY_ARE_EQUAL(73u, progress.Request->ProgressValue);
     }
 
     void WorkspaceAutomationTests::RejectsUnsafeOrMalformedRequests()
@@ -100,6 +120,26 @@ namespace TerminalAppUnitTests
         const auto badSize = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"pane.split","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"size":0.01}})");
         VERIFY_IS_FALSE(static_cast<bool>(badSize));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, badSize.ErrorCode);
+
+        const auto missingBody = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"notification.create","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"title":"Codex"}})");
+        VERIFY_IS_FALSE(static_cast<bool>(missingBody));
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, missingBody.ErrorCode);
+
+        const auto unsafeStatus = WorkspaceAutomationProtocol::ParseRequest("{\"version\":1,\"id\":\"1\",\"method\":\"status.set\",\"params\":{\"workspaceId\":\"01020304-0506-0708-090a-0b0c0d0e0f10\",\"text\":\"line\\nfeed\"}}");
+        VERIFY_IS_FALSE(static_cast<bool>(unsafeStatus));
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, unsafeStatus.ErrorCode);
+
+        const auto delStatus = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"status.set","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","text":"wait\u007f"}})");
+        VERIFY_IS_FALSE(static_cast<bool>(delStatus));
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, delStatus.ErrorCode);
+
+        const auto badProgressState = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"progress.set","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","state":"complete","value":100}})");
+        VERIFY_IS_FALSE(static_cast<bool>(badProgressState));
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, badProgressState.ErrorCode);
+
+        const auto badProgressValue = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"progress.set","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","state":"normal","value":101}})");
+        VERIFY_IS_FALSE(static_cast<bool>(badProgressValue));
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, badProgressValue.ErrorCode);
 
         std::string oversized(WorkspaceAutomationProtocol::MaximumMessageBytes + 1, 'x');
         const auto tooLarge = WorkspaceAutomationProtocol::ParseRequest(oversized);

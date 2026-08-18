@@ -641,6 +641,63 @@ namespace winrt::TerminalApp::implementation
             }
             return value;
         };
+        const auto progressStateName = [](const uint64_t state) -> winrt::hstring {
+            switch (state)
+            {
+            case 1:
+                return L"normal";
+            case 2:
+                return L"error";
+            case 3:
+                return L"indeterminate";
+            case 4:
+                return L"paused";
+            default:
+                return L"none";
+            }
+        };
+        const auto notificationJson = [](const TerminalApp::WorkspaceNotification& notification) {
+            constexpr int64_t UnixEpochInWindowsTicks{ 116'444'736'000'000'000 };
+            constexpr int64_t TicksPerMillisecond{ 10'000 };
+            const auto timestampMilliseconds = (notification.Timestamp().time_since_epoch().count() - UnixEpochInWindowsTicks) / TicksPerMillisecond;
+
+            JsonObject value;
+            value.Insert(L"id", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(notification.NotificationId())));
+            value.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(notification.WorkspaceId())));
+            value.Insert(L"paneId", JsonValue::CreateNumberValue(notification.PaneId()));
+            value.Insert(L"title", JsonValue::CreateStringValue(notification.Title()));
+            value.Insert(L"body", JsonValue::CreateStringValue(notification.Message()));
+            value.Insert(L"timestampMs", JsonValue::CreateNumberValue(static_cast<double>(timestampMilliseconds)));
+            value.Insert(L"read", JsonValue::CreateBooleanValue(notification.IsRead()));
+            return value;
+        };
+        const auto statusJson = [&](const TerminalApp::WorkspaceItemViewModel& item) {
+            const auto itemImpl = winrt::get_self<WorkspaceItemViewModel>(item);
+            const auto terminalStatus = item.SourceTab() ? item.SourceTab().TabStatus() : nullptr;
+
+            JsonObject automationProgress;
+            automationProgress.Insert(L"state", JsonValue::CreateStringValue(progressStateName(itemImpl->AutomationProgressState())));
+            automationProgress.Insert(L"value", JsonValue::CreateNumberValue(itemImpl->AutomationProgressValue()));
+
+            JsonObject automation;
+            automation.Insert(L"text", JsonValue::CreateStringValue(itemImpl->AutomationStatus()));
+            automation.Insert(L"progress", automationProgress);
+
+            JsonObject terminal;
+            terminal.Insert(L"connectionClosed", JsonValue::CreateBooleanValue(terminalStatus && terminalStatus.IsConnectionClosed()));
+            terminal.Insert(L"readOnly", JsonValue::CreateBooleanValue(terminalStatus && terminalStatus.IsReadOnlyActive()));
+            terminal.Insert(L"inputBroadcast", JsonValue::CreateBooleanValue(terminalStatus && terminalStatus.IsInputBroadcastActive()));
+            terminal.Insert(L"progressState", JsonValue::CreateStringValue(progressStateName(terminalStatus ? terminalStatus.ProgressState() : 0)));
+            terminal.Insert(L"progressValue", JsonValue::CreateNumberValue(terminalStatus ? terminalStatus.ProgressValue() : 0));
+
+            JsonObject value;
+            value.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(item.WorkspaceId())));
+            value.Insert(L"displayText", JsonValue::CreateStringValue(item.StatusText()));
+            value.Insert(L"unreadCount", JsonValue::CreateNumberValue(item.UnreadCount()));
+            value.Insert(L"automation", automation);
+            value.Insert(L"terminal", terminal);
+            return value;
+        };
 
         switch (request.Method)
         {
@@ -879,6 +936,158 @@ namespace winrt::TerminalApp::implementation
             JsonObject result;
             result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(request.WorkspaceId.value())));
             result.Insert(L"pane", paneJson(createdPane, true));
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        case WorkspaceAutomationMethod::NotificationList:
+        {
+            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
+            if (!workspaceIndex)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+
+            const auto item = _workspaceItems.GetAt(workspaceIndex.value());
+            const auto notifications = item.Notifications();
+            JsonArray history;
+            for (auto index = notifications.Size(); index > 0; --index)
+            {
+                history.Append(notificationJson(notifications.GetAt(index - 1)));
+            }
+
+            JsonObject result;
+            result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(item.WorkspaceId())));
+            result.Insert(L"unreadCount", JsonValue::CreateNumberValue(item.UnreadCount()));
+            result.Insert(L"notifications", history);
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        case WorkspaceAutomationMethod::NotificationCreate:
+        {
+            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
+            if (!workspaceIndex)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+
+            const auto item = _workspaceItems.GetAt(workspaceIndex.value());
+            const auto tabImpl = _GetTabImpl(item.SourceTab());
+            const auto pane = tabImpl && tabImpl->GetRootPane() ? tabImpl->GetRootPane()->FindPane(request.PaneId.value()) : nullptr;
+            const auto content = pane ? pane->GetContent() : nullptr;
+            if (!pane || !content)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "pane_not_found", "Pane was not found in the requested workspace");
+            }
+
+            const auto now = std::chrono::steady_clock::now();
+            while (!_workspaceAutomationNotificationTimes.empty() &&
+                   now - _workspaceAutomationNotificationTimes.front() >= std::chrono::seconds{ 10 })
+            {
+                _workspaceAutomationNotificationTimes.pop_front();
+            }
+            if (_workspaceAutomationNotificationTimes.size() >= 5)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "rate_limited", "At most five automation notifications are allowed per 10 seconds");
+            }
+            _workspaceAutomationNotificationTimes.emplace_back(now);
+
+            const auto notifications = item.Notifications();
+            const auto previousId = notifications.Size() > 0 ? notifications.GetAt(notifications.Size() - 1).NotificationId() : winrt::guid{};
+            _SendDesktopNotification(request.Title, request.Body, tabImpl, content);
+
+            JsonObject result;
+            if (notifications.Size() > 0)
+            {
+                const auto latest = notifications.GetAt(notifications.Size() - 1);
+                if (latest.NotificationId() != previousId)
+                {
+                    result.Insert(L"suppressed", JsonValue::CreateBooleanValue(false));
+                    result.Insert(L"notification", notificationJson(latest));
+                    return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+                }
+            }
+            result.Insert(L"suppressed", JsonValue::CreateBooleanValue(true));
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        case WorkspaceAutomationMethod::NotificationMarkRead:
+        {
+            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
+            if (!workspaceIndex)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+
+            const auto item = _workspaceItems.GetAt(workspaceIndex.value());
+            if (request.PaneId)
+            {
+                item.MarkNotificationsReadForPane(request.PaneId.value());
+                if (const auto tabImpl = _GetTabImpl(item.SourceTab()); tabImpl && tabImpl->GetRootPane())
+                {
+                    if (const auto pane = tabImpl->GetRootPane()->FindPane(request.PaneId.value()))
+                    {
+                        pane->SetAttention(false);
+                    }
+                }
+                _RefreshWorkspaceNotifications();
+            }
+            else
+            {
+                _MarkWorkspaceNotificationsRead(item);
+            }
+
+            JsonObject result;
+            result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(item.WorkspaceId())));
+            result.Insert(L"unreadCount", JsonValue::CreateNumberValue(item.UnreadCount()));
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        case WorkspaceAutomationMethod::NotificationClear:
+        {
+            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
+            if (!workspaceIndex)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+
+            const auto item = _workspaceItems.GetAt(workspaceIndex.value());
+            _ClearWorkspaceNotificationHistory(item);
+
+            JsonObject result;
+            result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(item.WorkspaceId())));
+            result.Insert(L"cleared", JsonValue::CreateBooleanValue(true));
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        case WorkspaceAutomationMethod::StatusGet:
+        case WorkspaceAutomationMethod::StatusSet:
+        case WorkspaceAutomationMethod::StatusClear:
+        case WorkspaceAutomationMethod::ProgressSet:
+        case WorkspaceAutomationMethod::ProgressClear:
+        {
+            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
+            if (!workspaceIndex)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+
+            const auto item = _workspaceItems.GetAt(workspaceIndex.value());
+            const auto itemImpl = winrt::get_self<WorkspaceItemViewModel>(item);
+            switch (request.Method)
+            {
+            case WorkspaceAutomationMethod::StatusSet:
+                itemImpl->SetAutomationStatus(request.Text);
+                break;
+            case WorkspaceAutomationMethod::StatusClear:
+                itemImpl->ClearAutomationStatus();
+                break;
+            case WorkspaceAutomationMethod::ProgressSet:
+                itemImpl->SetAutomationProgress(static_cast<uint64_t>(request.ProgressState), request.ProgressValue);
+                break;
+            case WorkspaceAutomationMethod::ProgressClear:
+                itemImpl->ClearAutomationProgress();
+                break;
+            default:
+                break;
+            }
+
+            JsonObject result;
+            result.Insert(L"status", statusJson(item));
             return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
         }
         }

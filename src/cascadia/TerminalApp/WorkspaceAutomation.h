@@ -17,6 +17,15 @@ namespace winrt::TerminalApp::implementation
         PaneList,
         PaneFocus,
         PaneSplit,
+        NotificationList,
+        NotificationCreate,
+        NotificationMarkRead,
+        NotificationClear,
+        StatusGet,
+        StatusSet,
+        StatusClear,
+        ProgressSet,
+        ProgressClear,
     };
 
     enum class WorkspaceAutomationSplitDirection
@@ -28,6 +37,15 @@ namespace winrt::TerminalApp::implementation
         Left,
     };
 
+    enum class WorkspaceAutomationProgressState : uint64_t
+    {
+        None = 0,
+        Normal = 1,
+        Error = 2,
+        Indeterminate = 3,
+        Paused = 4,
+    };
+
     struct WorkspaceAutomationRequest
     {
         std::string Id;
@@ -36,6 +54,11 @@ namespace winrt::TerminalApp::implementation
         std::optional<uint32_t> PaneId;
         WorkspaceAutomationSplitDirection SplitDirection{ WorkspaceAutomationSplitDirection::Automatic };
         float SplitSize{ 0.5f };
+        winrt::hstring Text;
+        winrt::hstring Title;
+        winrt::hstring Body;
+        WorkspaceAutomationProgressState ProgressState{ WorkspaceAutomationProgressState::None };
+        uint32_t ProgressValue{ 0 };
     };
 
     struct WorkspaceAutomationParseResult

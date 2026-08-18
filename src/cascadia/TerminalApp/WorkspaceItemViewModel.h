@@ -43,6 +43,14 @@ namespace winrt::TerminalApp::implementation
         void ConfigureAgentResume(const winrt::hstring& provider, const winrt::hstring& sessionId, const winrt::hstring& workingDirectory);
         void ClearAgentResume();
 
+        void SetAutomationStatus(const winrt::hstring& text);
+        void ClearAutomationStatus();
+        winrt::hstring AutomationStatus() const noexcept;
+        void SetAutomationProgress(uint64_t state, uint32_t value);
+        void ClearAutomationProgress();
+        uint64_t AutomationProgressState() const noexcept;
+        uint32_t AutomationProgressValue() const noexcept;
+
         til::property_changed_event PropertyChanged;
         bool IsSelected() const noexcept;
         void IsSelected(bool value);
@@ -66,6 +74,9 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring _agentResumeProvider;
         winrt::hstring _agentResumeSessionId;
         winrt::hstring _agentResumeWorkingDirectory;
+        winrt::hstring _automationStatus;
+        uint64_t _automationProgressState{ 0 };
+        uint32_t _automationProgressValue{ 0 };
 
         static constexpr uint32_t MaximumNotifications{ 100 };
         static constexpr auto GitQueryTimeout{ std::chrono::milliseconds{ 1500 } };

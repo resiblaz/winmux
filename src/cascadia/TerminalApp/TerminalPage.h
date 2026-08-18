@@ -325,6 +325,7 @@ namespace winrt::TerminalApp::implementation
         bool _workspaceSidebarEnabled{ false };
         bool _workspaceSidebarLayoutInitialized{ false };
         std::unique_ptr<WorkspaceAutomationServer> _workspaceAutomationServer;
+        std::deque<std::chrono::steady_clock::time_point> _workspaceAutomationNotificationTimes;
         bool _syncingWorkspaceSelection{ false };
         bool _workspaceReordering{ false };
         std::optional<uint32_t> _workspaceReorderFrom{};

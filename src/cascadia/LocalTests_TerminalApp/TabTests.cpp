@@ -260,9 +260,22 @@ namespace TerminalAppLocalTests
 
             status.ProgressState(0);
             VERIFY_IS_TRUE(item.StatusText().empty());
+
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            itemImpl->SetAutomationProgress(1, 73);
+            VERIFY_IS_TRUE(std::wstring_view{ item.StatusText() }.find(L"73") != std::wstring_view::npos);
+            itemImpl->SetAutomationStatus(L"Waiting");
+            VERIFY_ARE_EQUAL(L"Waiting", item.StatusText());
+
             item.AddNotification(7, L"Agent", L"Input required");
             VERIFY_IS_FALSE(item.StatusText().empty());
+            VERIFY_ARE_NOT_EQUAL(L"Waiting", item.StatusText());
             item.MarkAllNotificationsRead();
+            VERIFY_ARE_EQUAL(L"Waiting", item.StatusText());
+
+            itemImpl->ClearAutomationStatus();
+            VERIFY_IS_TRUE(std::wstring_view{ item.StatusText() }.find(L"73") != std::wstring_view::npos);
+            itemImpl->ClearAutomationProgress();
             VERIFY_IS_TRUE(item.StatusText().empty());
 
             status.IsConnectionClosed(true);

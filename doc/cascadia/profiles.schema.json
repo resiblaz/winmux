@@ -2474,9 +2474,28 @@
           "description": "When set to true, adds preset \"Color Selection\" actions (keybindings) to allow colorizing selected text via keystroke, similar to the legacy conhost EnableColorSelection feature (such as alt+6 to color the selection red).",
           "type": "boolean"
         },
+        "tabLayout": {
+          "default": "horizontal",
+          "description": "Controls whether open tabs are shown in the standard horizontal tab row or as workspaces in the sidebar.",
+          "enum": [
+            "horizontal",
+            "workspaceSidebar"
+          ]
+        },
         "experimental.workspaceSidebar": {
           "default": false,
-          "description": "When set to true, shows open tabs as workspaces in a sidebar instead of the horizontal tab row.",
+          "deprecated": true,
+          "description": "[Deprecated] Use \"tabLayout\": \"workspaceSidebar\" instead. This value is used only when tabLayout is absent.",
+          "type": "boolean"
+        },
+        "experimental.workspaceAutomation.allowInput": {
+          "default": false,
+          "description": "Allows current-user local workspace automation clients to send input to an explicitly identified terminal pane. Keep disabled unless a trusted client requires it.",
+          "type": "boolean"
+        },
+        "experimental.workspaceAutomation.allowContentRead": {
+          "default": false,
+          "description": "Allows current-user local workspace automation clients to read bounded text content from an explicitly identified terminal pane. Keep disabled unless a trusted client requires it.",
           "type": "boolean"
         },
         "disableAnimations": {

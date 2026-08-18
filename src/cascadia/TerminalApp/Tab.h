@@ -112,6 +112,12 @@ namespace winrt::TerminalApp::implementation
         Microsoft::Terminal::Settings::Model::TabCloseButtonVisibility CloseButtonVisibility();
         void CloseButtonVisibility(Microsoft::Terminal::Settings::Model::TabCloseButtonVisibility visible);
 
+        bool IsPinned() const noexcept;
+        void IsPinned(bool value);
+        winrt::hstring PinIconGlyph() const;
+        winrt::hstring PinActionText() const;
+        winrt::hstring SwitchShortcutText() const;
+
         til::event<winrt::delegate<void()>> RequestFocusActiveControl;
 
         til::event<winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable>> Closed;
@@ -206,6 +212,7 @@ namespace winrt::TerminalApp::implementation
         bool _receivedKeyDown{ false };
         bool _iconHidden{ false };
         bool _changingActivePane{ false };
+        bool _isPinned{ false };
 
         winrt::hstring _runtimeTabText{};
         bool _inRename{ false };

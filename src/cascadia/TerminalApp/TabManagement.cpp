@@ -122,6 +122,10 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
+        // New tabs are unpinned. Keep them out of the pinned section even
+        // when the configured insertion position is "after current tab".
+        insertPosition = std::max(insertPosition, _PinnedTabCount());
+
         // Add the new tab to the list of our tabs.
         _tabs.InsertAt(insertPosition, *newTabImpl);
         _workspaceTabs.InsertAt(insertPosition, *newTabImpl);
@@ -212,6 +216,7 @@ namespace winrt::TerminalApp::implementation
         // This kicks off TabView::SelectionChanged, in response to which
         // we'll attach the terminal's Xaml control to the Xaml root.
         _tabView.SelectedItem(tabViewItem);
+        _SyncWorkspaceSelection(*newTabImpl);
     }
 
     // Method Description:
@@ -1220,13 +1225,15 @@ namespace winrt::TerminalApp::implementation
     // Return Value:
     // - <none>
     void TerminalPage::_TryMoveTab(const uint32_t currentTabIndex,
-                                   const int32_t suggestedNewTabIndex)
+                                   const int32_t suggestedNewTabIndex,
+                                   const bool selectMovedTab)
     {
-        auto newTabIndex = gsl::narrow_cast<uint32_t>(std::clamp<int32_t>(suggestedNewTabIndex, 0, _tabs.Size() - 1));
+        const auto tab = _tabs.GetAt(currentTabIndex);
+        const auto newTabIndex = gsl::narrow_cast<uint32_t>(_ClampTabIndexForPinnedState(tab, suggestedNewTabIndex));
         if (currentTabIndex != newTabIndex)
         {
-            auto tab = _tabs.GetAt(currentTabIndex);
             auto tabViewItem = tab.TabViewItem();
+            const auto previouslySelectedItem = _tabView.SelectedItem();
             _tabs.RemoveAt(currentTabIndex);
             _tabs.InsertAt(newTabIndex, tab);
             if (!_workspaceReordering)
@@ -1238,7 +1245,7 @@ namespace winrt::TerminalApp::implementation
 
             _tabView.TabItems().RemoveAt(currentTabIndex);
             _tabView.TabItems().InsertAt(newTabIndex, tabViewItem);
-            _tabView.SelectedItem(tabViewItem);
+            _tabView.SelectedItem(selectMovedTab ? tabViewItem : previouslySelectedItem);
 
             if (auto autoPeer = Automation::Peers::FrameworkElementAutomationPeer::FromElement(*this))
             {
@@ -1264,6 +1271,7 @@ namespace winrt::TerminalApp::implementation
     {
         auto& from{ _rearrangeFrom };
         auto& to{ _rearrangeTo };
+        std::optional<int32_t> selectedIndex{ to };
 
         if (from.has_value() && to.has_value() && to != from)
         {
@@ -1271,22 +1279,39 @@ namespace winrt::TerminalApp::implementation
             {
                 auto& tabs{ _tabs };
                 auto tab = tabs.GetAt(from.value());
+                const auto targetIndex = _ClampTabIndexForPinnedState(tab, to.value());
                 tabs.RemoveAt(from.value());
-                tabs.InsertAt(to.value(), tab);
+                tabs.InsertAt(targetIndex, tab);
                 _workspaceTabs.RemoveAt(from.value());
-                _workspaceTabs.InsertAt(to.value(), tab);
+                _workspaceTabs.InsertAt(targetIndex, tab);
                 _UpdateTabIndices();
+
+                // TabView has already performed the visual move. Put it back
+                // inside its pinned/unpinned section if the requested drop
+                // crossed the boundary.
+                _rearranging = false;
+                if (targetIndex != to.value())
+                {
+                    uint32_t visualIndex{};
+                    const auto tabViewItem = tab.TabViewItem();
+                    if (_tabView.TabItems().IndexOf(tabViewItem, visualIndex))
+                    {
+                        _tabView.TabItems().RemoveAt(visualIndex);
+                        _tabView.TabItems().InsertAt(targetIndex, tabViewItem);
+                    }
+                }
+                selectedIndex = targetIndex;
             }
             CATCH_LOG();
         }
 
         _rearranging = false;
 
-        if (to.has_value() &&
-            *to < gsl::narrow_cast<int32_t>(TabRow().TabView().TabItems().Size()))
+        if (selectedIndex.has_value() &&
+            *selectedIndex < gsl::narrow_cast<int32_t>(TabRow().TabView().TabItems().Size()))
         {
             // Selecting the dropped tab
-            TabRow().TabView().SelectedIndex(to.value());
+            TabRow().TabView().SelectedIndex(selectedIndex.value());
         }
 
         from = std::nullopt;

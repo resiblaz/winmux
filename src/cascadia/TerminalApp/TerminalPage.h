@@ -283,6 +283,7 @@ namespace winrt::TerminalApp::implementation
         TerminalApp::TabRowControl _tabRow{ nullptr };
         Windows::UI::Xaml::Controls::Grid _tabContent{ nullptr };
         Windows::UI::Xaml::Controls::Border _workspaceSidebar{ nullptr };
+        Windows::UI::Xaml::Controls::Primitives::Thumb _workspaceSidebarResizeHandle{ nullptr };
         Windows::UI::Xaml::Controls::ListView _workspaceList{ nullptr };
         Windows::UI::Xaml::Controls::Button _workspaceSidebarToggle{ nullptr };
         Windows::UI::Xaml::Controls::Button _workspaceNewButton{ nullptr };
@@ -319,6 +320,7 @@ namespace winrt::TerminalApp::implementation
         bool _workspaceSidebarEnabled{ false };
         bool _workspaceSidebarLayoutInitialized{ false };
         bool _workspaceSidebarExpanded{ true };
+        double _workspaceSidebarWidth{ 280.0 };
         bool _syncingWorkspaceSelection{ false };
         bool _workspaceReordering{ false };
         std::optional<uint32_t> _workspaceReorderFrom{};
@@ -420,8 +422,14 @@ namespace winrt::TerminalApp::implementation
         void _UpdateTabWidthMode();
         void _UpdateWorkspaceSidebar();
         void _SyncWorkspaceSelection(const winrt::TerminalApp::Tab& tab);
+        uint32_t _PinnedTabCount() const;
+        int32_t _ClampTabIndexForPinnedState(const winrt::TerminalApp::Tab& tab, int32_t suggestedIndex) const;
+        void _ToggleWorkspacePin(const winrt::TerminalApp::Tab& tab);
         void _WorkspaceSidebarToggle_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
+        void _WorkspaceSidebarResizeHandle_DragDelta(const IInspectable& sender, const Windows::UI::Xaml::Controls::Primitives::DragDeltaEventArgs& eventArgs);
         void _WorkspaceNewButton_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
+        void _WorkspacePinButton_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
+        void _WorkspacePin_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
         void _WorkspaceCloseButton_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
         void _WorkspaceClose_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
         void _WorkspaceCloseOthers_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
@@ -589,7 +597,7 @@ namespace winrt::TerminalApp::implementation
 
         void _UpdateMRUTab(const winrt::TerminalApp::Tab& tab);
 
-        void _TryMoveTab(const uint32_t currentTabIndex, const int32_t suggestedNewTabIndex);
+        void _TryMoveTab(const uint32_t currentTabIndex, const int32_t suggestedNewTabIndex, bool selectMovedTab = true);
 
         void _PreviewAction(const Microsoft::Terminal::Settings::Model::ActionAndArgs& args);
         void _PreviewActionHandler(const IInspectable& sender, const Microsoft::Terminal::Settings::Model::Command& args);

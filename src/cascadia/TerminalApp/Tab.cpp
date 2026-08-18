@@ -232,6 +232,39 @@ namespace winrt::TerminalApp::implementation
         _UpdateSwitchToTabKeyChord();
     }
 
+    bool Tab::IsPinned() const noexcept
+    {
+        return _isPinned;
+    }
+
+    void Tab::IsPinned(const bool value)
+    {
+        if (_isPinned == value)
+        {
+            return;
+        }
+
+        _isPinned = value;
+        PropertyChanged.raise(*this, WUX::Data::PropertyChangedEventArgs{ L"IsPinned" });
+        PropertyChanged.raise(*this, WUX::Data::PropertyChangedEventArgs{ L"PinIconGlyph" });
+        PropertyChanged.raise(*this, WUX::Data::PropertyChangedEventArgs{ L"PinActionText" });
+    }
+
+    winrt::hstring Tab::PinIconGlyph() const
+    {
+        return _isPinned ? L"\uE842" : L"\uE840";
+    }
+
+    winrt::hstring Tab::PinActionText() const
+    {
+        return _isPinned ? L"Unpin" : L"Pin";
+    }
+
+    winrt::hstring Tab::SwitchShortcutText() const
+    {
+        return _keyChord;
+    }
+
     // Method Description:
     // - Sets the key chord resulting in switch to the current tab.
     // Updates tool tip if required
@@ -251,6 +284,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         _keyChord = keyChordText;
+        PropertyChanged.raise(*this, WUX::Data::PropertyChangedEventArgs{ L"SwitchShortcutText" });
         _UpdateToolTip();
     }
 

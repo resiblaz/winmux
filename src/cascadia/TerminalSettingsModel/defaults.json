@@ -738,6 +738,7 @@
         // "command": "closeTab" is unbound by default.
         //   The closeTab command closes a tab without confirmation, even if it has multiple panes.
         { "keys": "ctrl+shift+t", "id": "Terminal.OpenNewTab" },
+        { "keys": "ctrl+n", "id": "Terminal.OpenNewTab" },
         { "keys": "ctrl+shift+n", "id": "Terminal.OpenNewWindow" },
         { "keys": "ctrl+shift+1", "id": "Terminal.OpenNewTabProfile0" },
         { "keys": "ctrl+shift+2", "id": "Terminal.OpenNewTabProfile1" },
@@ -751,15 +752,15 @@
         { "keys": "ctrl+shift+d", "id": "Terminal.DuplicateTab" },
         { "keys": "ctrl+tab", "id": "Terminal.NextTab" },
         { "keys": "ctrl+shift+tab", "id": "Terminal.PrevTab" },
-        { "keys": "ctrl+alt+1", "id": "Terminal.SwitchToTab0" },
-        { "keys": "ctrl+alt+2", "id": "Terminal.SwitchToTab1" },
-        { "keys": "ctrl+alt+3", "id": "Terminal.SwitchToTab2" },
-        { "keys": "ctrl+alt+4", "id": "Terminal.SwitchToTab3" },
-        { "keys": "ctrl+alt+5", "id": "Terminal.SwitchToTab4" },
-        { "keys": "ctrl+alt+6", "id": "Terminal.SwitchToTab5" },
-        { "keys": "ctrl+alt+7", "id": "Terminal.SwitchToTab6" },
-        { "keys": "ctrl+alt+8", "id": "Terminal.SwitchToTab7" },
-        { "keys": "ctrl+alt+9", "id": "Terminal.SwitchToLastTab" },
+        { "keys": "ctrl+1", "id": "Terminal.SwitchToTab0" },
+        { "keys": "ctrl+2", "id": "Terminal.SwitchToTab1" },
+        { "keys": "ctrl+3", "id": "Terminal.SwitchToTab2" },
+        { "keys": "ctrl+4", "id": "Terminal.SwitchToTab3" },
+        { "keys": "ctrl+5", "id": "Terminal.SwitchToTab4" },
+        { "keys": "ctrl+6", "id": "Terminal.SwitchToTab5" },
+        { "keys": "ctrl+7", "id": "Terminal.SwitchToTab6" },
+        { "keys": "ctrl+8", "id": "Terminal.SwitchToTab7" },
+        { "keys": "ctrl+9", "id": "Terminal.SwitchToLastTab" },
 
         // Pane Management
         { "keys": "ctrl+shift+w", "id": "Terminal.ClosePane" },

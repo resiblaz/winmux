@@ -333,6 +333,7 @@ namespace winrt::TerminalApp::implementation
         _tabRow = this->TabRow();
         _tabView = _tabRow.TabView();
         _workspaceSidebar = this->WorkspaceSidebar();
+        _workspaceSidebarResizeHandle = this->WorkspaceSidebarResizeHandle();
         _workspaceList = this->WorkspaceList();
         _workspaceSidebarToggle = this->WorkspaceSidebarToggle();
         _workspaceNewButton = this->WorkspaceNewButton();
@@ -523,7 +524,8 @@ namespace winrt::TerminalApp::implementation
 
         _workspaceSidebarEnabled = enabled;
         _workspaceSidebarLayoutInitialized = true;
-        _workspaceSidebar.Width(_workspaceSidebarExpanded ? 240.0 : 48.0);
+        _workspaceSidebar.Width(_workspaceSidebarExpanded ? _workspaceSidebarWidth : 48.0);
+        _workspaceSidebarResizeHandle.Visibility(_workspaceSidebarExpanded ? Visibility::Visible : Visibility::Collapsed);
         _workspaceSidebarTitle.Visibility(_workspaceSidebarExpanded ? Visibility::Visible : Visibility::Collapsed);
         _workspaceNewButtonText.Visibility(_workspaceSidebarExpanded ? Visibility::Visible : Visibility::Collapsed);
         _workspaceSidebarToggle.Content(box_value(_workspaceSidebarExpanded ? L"\uE76B" : L"\uE76C"));
@@ -531,7 +533,9 @@ namespace winrt::TerminalApp::implementation
                                                    _workspaceSidebarExpanded ? L"Collapse workspace sidebar" : L"Expand workspace sidebar");
 
         const auto templateKey = _workspaceSidebarExpanded ? L"ExpandedWorkspaceTemplate" : L"CollapsedWorkspaceTemplate";
+        const auto itemStyleKey = _workspaceSidebarExpanded ? L"ExpandedWorkspaceItemContainerStyle" : L"CollapsedWorkspaceItemContainerStyle";
         _workspaceList.ItemTemplate(Resources().Lookup(box_value(templateKey)).as<DataTemplate>());
+        _workspaceList.ItemContainerStyle(Resources().Lookup(box_value(itemStyleKey)).as<WUX::Style>());
 
         _UpdateTabView();
     }
@@ -543,11 +547,17 @@ namespace winrt::TerminalApp::implementation
             return;
         }
 
-        const auto selected = _workspaceList.SelectedItem().try_as<TerminalApp::Tab>();
-        if (selected != tab)
+        uint32_t tabIndex{};
+        if (!_workspaceTabs.IndexOf(tab, tabIndex))
+        {
+            return;
+        }
+
+        const auto selectedIndex = gsl::narrow_cast<int32_t>(tabIndex);
+        if (_workspaceList.SelectedIndex() != selectedIndex)
         {
             _syncingWorkspaceSelection = true;
-            _workspaceList.SelectedItem(tab);
+            _workspaceList.SelectedIndex(selectedIndex);
             _syncingWorkspaceSelection = false;
         }
 
@@ -563,9 +573,70 @@ namespace winrt::TerminalApp::implementation
         _UpdateWorkspaceSidebar();
     }
 
+    void TerminalPage::_WorkspaceSidebarResizeHandle_DragDelta(const IInspectable&, const WUX::Controls::Primitives::DragDeltaEventArgs& args)
+    {
+        if (!_workspaceSidebarExpanded || !_workspaceSidebar)
+        {
+            return;
+        }
+
+        constexpr double minimumWidth = 220.0;
+        constexpr double maximumWidth = 480.0;
+        _workspaceSidebarWidth = std::clamp(_workspaceSidebarWidth + args.HorizontalChange(), minimumWidth, maximumWidth);
+        _workspaceSidebar.Width(_workspaceSidebarWidth);
+    }
+
     void TerminalPage::_WorkspaceNewButton_Click(const IInspectable&, const RoutedEventArgs&)
     {
         _OpenNewTerminalViaDropdown(NewTerminalArgs());
+    }
+
+    uint32_t TerminalPage::_PinnedTabCount() const
+    {
+        uint32_t count = 0;
+        for (const auto& tab : _tabs)
+        {
+            if (tab.IsPinned())
+            {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    int32_t TerminalPage::_ClampTabIndexForPinnedState(const winrt::TerminalApp::Tab& tab, const int32_t suggestedIndex) const
+    {
+        const auto pinnedCount = gsl::narrow_cast<int32_t>(_PinnedTabCount());
+        const auto lastIndex = gsl::narrow_cast<int32_t>(_tabs.Size()) - 1;
+        const auto minimumIndex = tab.IsPinned() ? 0 : pinnedCount;
+        const auto maximumIndex = tab.IsPinned() ? pinnedCount - 1 : lastIndex;
+        return std::clamp(suggestedIndex, minimumIndex, maximumIndex);
+    }
+
+    void TerminalPage::_ToggleWorkspacePin(const winrt::TerminalApp::Tab& tab)
+    {
+        uint32_t currentIndex{};
+        if (!tab || !_tabs.IndexOf(tab, currentIndex))
+        {
+            return;
+        }
+
+        tab.IsPinned(!tab.IsPinned());
+        const auto targetIndex = tab.IsPinned() ? _PinnedTabCount() - 1 : _PinnedTabCount();
+        _TryMoveTab(currentIndex, gsl::narrow_cast<int32_t>(targetIndex), false);
+    }
+
+    void TerminalPage::_WorkspacePinButton_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto element = sender.try_as<FrameworkElement>())
+        {
+            _ToggleWorkspacePin(element.Tag().try_as<TerminalApp::Tab>());
+        }
+    }
+
+    void TerminalPage::_WorkspacePin_Click(const IInspectable& sender, const RoutedEventArgs& args)
+    {
+        _WorkspacePinButton_Click(sender, args);
     }
 
     void TerminalPage::_WorkspaceCloseButton_Click(const IInspectable& sender, const RoutedEventArgs&)
@@ -700,6 +771,19 @@ namespace winrt::TerminalApp::implementation
             {
                 _workspaceReordering = true;
                 _TryMoveTab(_workspaceReorderFrom.value(), gsl::narrow_cast<int32_t>(newIndex));
+
+                // ListView has already reordered its ItemsSource. If the move
+                // crossed the pinned boundary, repair the sidebar order to
+                // match the clamped canonical tab order.
+                uint32_t desiredIndex{};
+                uint32_t actualIndex{};
+                if (_tabs.IndexOf(_workspaceReorderTab, desiredIndex) &&
+                    _workspaceTabs.IndexOf(_workspaceReorderTab, actualIndex) &&
+                    desiredIndex != actualIndex)
+                {
+                    _workspaceTabs.RemoveAt(actualIndex);
+                    _workspaceTabs.InsertAt(desiredIndex, _workspaceReorderTab);
+                }
                 _workspaceReordering = false;
             }
         }

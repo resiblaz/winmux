@@ -15,6 +15,7 @@ namespace winrt::TerminalApp::implementation
         winrt::guid WorkspaceId() const noexcept;
         TerminalApp::Tab SourceTab() const noexcept;
         winrt::hstring Title() const;
+        winrt::hstring AutomationName() const;
         winrt::hstring Icon() const;
         bool IsPinned() const;
         void IsPinned(bool value);

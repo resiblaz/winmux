@@ -222,6 +222,16 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(0u, sidebar.NotificationHistory().Size());
             VERIFY_IS_TRUE(sidebar.ExpandedWidth() >= 220.0);
             VERIFY_IS_TRUE(sidebar.ExpandedWidth() <= 480.0);
+            const auto resizeHandle = sidebar.FindName(L"ResizeHandle").as<winrt::Windows::UI::Xaml::Controls::Primitives::Thumb>();
+            VERIFY_IS_NOT_NULL(resizeHandle);
+            VERIFY_IS_TRUE(resizeHandle.IsTabStop());
+            VERIFY_IS_FALSE(winrt::Windows::UI::Xaml::Automation::AutomationProperties::GetName(resizeHandle).empty());
+            VERIFY_IS_FALSE(winrt::Windows::UI::Xaml::Automation::AutomationProperties::GetHelpText(resizeHandle).empty());
+            VERIFY_IS_FALSE(winrt::Windows::UI::Xaml::Automation::AutomationProperties::GetHelpText(sidebar.WorkspaceList()).empty());
+            const auto highContrastResources = sidebar.WorkspaceList().Resources().ThemeDictionaries().Lookup(winrt::box_value(L"HighContrast")).as<ResourceDictionary>();
+            VERIFY_IS_NOT_NULL(highContrastResources);
+            VERIFY_IS_TRUE(highContrastResources.HasKey(winrt::box_value(L"ListViewItemBackgroundSelected")));
+            VERIFY_IS_TRUE(highContrastResources.HasKey(winrt::box_value(L"ListViewItemForegroundSelected")));
         });
         VERIFY_SUCCEEDED(result);
     }
@@ -234,6 +244,7 @@ namespace TerminalAppLocalTests
             const winrt::TerminalApp::WorkspaceItemViewModel item{ tab };
 
             VERIFY_ARE_EQUAL(tab.Title(), item.Title());
+            VERIFY_IS_TRUE(std::wstring_view{ item.AutomationName() }.find(tab.Title()) != std::wstring_view::npos);
             VERIFY_ARE_EQUAL(tab.Icon(), item.Icon());
             VERIFY_IS_FALSE(item.IsPinned());
 
@@ -266,6 +277,7 @@ namespace TerminalAppLocalTests
             VERIFY_IS_TRUE(std::wstring_view{ item.StatusText() }.find(L"73") != std::wstring_view::npos);
             itemImpl->SetAutomationStatus(L"Waiting");
             VERIFY_ARE_EQUAL(L"Waiting", item.StatusText());
+            VERIFY_IS_TRUE(std::wstring_view{ item.AutomationName() }.find(L"Waiting") != std::wstring_view::npos);
 
             item.AddNotification(7, L"Agent", L"Input required");
             VERIFY_IS_FALSE(item.StatusText().empty());
@@ -432,6 +444,7 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(L"Tests", latest.Title());
             VERIFY_IS_FALSE(latest.IsRead());
             VERIFY_IS_FALSE(latest.TimestampText().empty());
+            VERIFY_IS_TRUE(std::wstring_view{ latest.AutomationName() }.find(L"Tests completed") != std::wstring_view::npos);
 
             item.MarkNotificationsReadForPane(9);
             VERIFY_ARE_EQUAL(1u, item.UnreadCount());

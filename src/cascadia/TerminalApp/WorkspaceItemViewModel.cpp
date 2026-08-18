@@ -75,6 +75,7 @@ namespace winrt::TerminalApp::implementation
                     else
                     {
                         self->PropertyChanged.raise(*self, args);
+                        self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
                         if (args.PropertyName() == L"IsPinned")
                         {
                             self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"PinAutomationName" });
@@ -129,6 +130,43 @@ namespace winrt::TerminalApp::implementation
     winrt::hstring WorkspaceItemViewModel::Title() const
     {
         return _tab ? _tab.Title() : winrt::hstring{};
+    }
+
+    winrt::hstring WorkspaceItemViewModel::AutomationName() const
+    {
+        std::wstring value{ Title() };
+        const auto append = [&](const winrt::hstring& detail) {
+            if (!detail.empty())
+            {
+                if (!value.empty())
+                {
+                    value.append(L", ");
+                }
+                value.append(detail);
+            }
+        };
+
+        if (IsPinned())
+        {
+            append(RS_(L"WorkspaceSidebar_ItemAutomationPinned"));
+        }
+        if (const auto directory = WorkingDirectoryDisplay(); !directory.empty())
+        {
+            append(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_ItemAutomationDirectory", directory) });
+        }
+        if (const auto branch = GitBranch(); !branch.empty())
+        {
+            append(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_ItemAutomationGitBranch", branch) });
+        }
+        if (const auto status = StatusText(); !status.empty())
+        {
+            append(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_ItemAutomationStatus", status) });
+        }
+        if (const auto shortcut = SwitchShortcutText(); !shortcut.empty())
+        {
+            append(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_ItemAutomationShortcut", shortcut) });
+        }
+        return winrt::hstring{ value };
     }
 
     winrt::hstring WorkspaceItemViewModel::Icon() const
@@ -328,6 +366,7 @@ namespace winrt::TerminalApp::implementation
             self->GitBranch(result.IsRepository ? result.Branch : winrt::hstring{});
             self->GitRepositoryRoot(result.IsRepository ? result.RepositoryRoot : winrt::hstring{});
             self->IsGitBranchLoading(false);
+            self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
         }
     }
 
@@ -412,6 +451,7 @@ namespace winrt::TerminalApp::implementation
     {
         WorkingDirectory(_tab ? _tab.WorkingDirectory() : winrt::hstring{});
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"WorkingDirectoryDisplay" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
         if (refreshGit)
         {
             RefreshGitBranch();
@@ -487,5 +527,6 @@ namespace winrt::TerminalApp::implementation
             }
         }
         StatusText(text);
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
     }
 }

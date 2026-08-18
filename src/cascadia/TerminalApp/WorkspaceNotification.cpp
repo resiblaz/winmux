@@ -75,6 +75,12 @@ namespace winrt::TerminalApp::implementation
         return {};
     }
 
+    winrt::hstring WorkspaceNotification::AutomationName() const
+    {
+        const auto readState = _isRead ? RS_(L"WorkspaceSidebar_NotificationReadAutomationState") : RS_(L"WorkspaceSidebar_NotificationUnreadAutomationState");
+        return winrt::hstring{ RS_fmt(L"WorkspaceSidebar_NotificationItemAutomationName", _workspaceTitle, _title, _message, TimestampText(), readState) };
+    }
+
     bool WorkspaceNotification::IsRead() const noexcept
     {
         return _isRead;

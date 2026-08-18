@@ -35,7 +35,7 @@
             <Grid MinHeight="72"
                   Padding="10,6,6,6"
                   AutomationProperties.HelpText="{x:Bind StatusText, Mode=OneWay}"
-                  AutomationProperties.Name="{x:Bind Title, Mode=OneWay}">
+                  AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="24" />
                     <ColumnDefinition Width="*" />
@@ -117,6 +117,7 @@
                         CornerRadius="12"
                         FontSize="11"
                         Foreground="{ThemeResource AttentionPaneForegroundBrush}"
+                        IsTabStop="False"
                         Tag="{Binding}"
                         Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(UnreadBadgeText), Mode=OneWay}" />
                 <Button Grid.Column="3"
@@ -130,6 +131,7 @@
                         Content="{x:Bind PinIconGlyph, Mode=OneWay}"
                         FontFamily="{ThemeResource SymbolThemeFontFamily}"
                         FontSize="12"
+                        IsTabStop="False"
                         Tag="{Binding}" />
                 <Button x:Uid="WorkspaceSidebarCloseButton"
                         Grid.Column="4"
@@ -142,6 +144,7 @@
                         Content="&#xE711;"
                         FontFamily="{ThemeResource SymbolThemeFontFamily}"
                         FontSize="10"
+                        IsTabStop="False"
                         Tag="{Binding}" />
 
                 <Grid.ContextFlyout>
@@ -192,7 +195,7 @@
         <DataTemplate x:Key="CollapsedWorkspaceTemplate"
                       x:DataType="local:WorkspaceItemViewModel">
             <Grid MinHeight="36"
-                  AutomationProperties.Name="{x:Bind Title, Mode=OneWay}">
+                  AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
                 <IconSourceElement Width="16"
                                    Height="16"
                                    HorizontalAlignment="Center"
@@ -211,6 +214,7 @@
                         CornerRadius="9"
                         FontSize="9"
                         Foreground="{ThemeResource AttentionPaneForegroundBrush}"
+                        IsTabStop="False"
                         Tag="{Binding}"
                         Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(UnreadBadgeText), Mode=OneWay}" />
                 <ToolTipService.ToolTip>
@@ -345,12 +349,13 @@
                                           IsItemClickEnabled="True"
                                           ItemClick="_NotificationHistory_ItemClick"
                                           ItemsSource="{x:Bind NotificationHistory, Mode=OneWay}"
+                                          KeyDown="_NotificationHistory_KeyDown"
                                           SelectionMode="None">
                                     <ListView.ItemTemplate>
                                         <DataTemplate x:DataType="local:WorkspaceNotification">
                                             <Grid Width="320"
                                                   Padding="8"
-                                                  AutomationProperties.Name="{x:Bind Message, Mode=OneWay}">
+                                                  AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="12" />
                                                     <ColumnDefinition Width="*" />
@@ -435,6 +440,7 @@
                       IsSwipeEnabled="False"
                       ItemContainerStyle="{StaticResource ExpandedWorkspaceItemContainerStyle}"
                       ItemTemplate="{StaticResource ExpandedWorkspaceTemplate}"
+                      KeyDown="_WorkspaceList_KeyDown"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                       SelectionMode="Single">
                 <ListView.Resources>
@@ -516,7 +522,9 @@
                    MinWidth="0"
                    AutomationProperties.AutomationId="WorkspaceSidebarResizeHandle"
                    Background="Transparent"
-                   DragDelta="_Resize_DragDelta">
+                   DragDelta="_Resize_DragDelta"
+                   IsTabStop="True"
+                   PreviewKeyDown="_Resize_PreviewKeyDown">
                 <Thumb.Template>
                     <ControlTemplate TargetType="Thumb">
                         <Grid Background="{TemplateBinding Background}">

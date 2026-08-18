@@ -1012,6 +1012,9 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebarList.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Workspaces</value>
   </data>
+  <data name="WorkspaceSidebarList.[using:Windows.UI.Xaml.Automation]AutomationProperties.HelpText" xml:space="preserve">
+    <value>Use Up and Down Arrow to select a workspace, F2 to rename, Delete to close, and Shift+F10 for more actions.</value>
+  </data>
   <data name="WorkspaceSidebarCloseButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Close workspace</value>
   </data>
@@ -1033,8 +1036,11 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebarResizeHandle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Resize workspace sidebar</value>
   </data>
+  <data name="WorkspaceSidebarResizeHandle.[using:Windows.UI.Xaml.Automation]AutomationProperties.HelpText" xml:space="preserve">
+    <value>Use Left and Right Arrow to resize, Home for minimum width, and End for maximum width.</value>
+  </data>
   <data name="WorkspaceSidebarResizeToolTip.Content" xml:space="preserve">
-    <value>Drag to resize sidebar</value>
+    <value>Drag or use Left and Right Arrow to resize sidebar</value>
   </data>
   <data name="WorkspaceSidebar_PinAction" xml:space="preserve">
     <value>Pin</value>
@@ -1047,6 +1053,21 @@ For all available options, run 'wt new-tab --help'.</value>
   </data>
   <data name="WorkspaceSidebar_UnpinAutomationName" xml:space="preserve">
     <value>Unpin workspace</value>
+  </data>
+  <data name="WorkspaceSidebar_ItemAutomationPinned" xml:space="preserve">
+    <value>pinned</value>
+  </data>
+  <data name="WorkspaceSidebar_ItemAutomationDirectory" xml:space="preserve">
+    <value>directory {0}</value>
+  </data>
+  <data name="WorkspaceSidebar_ItemAutomationGitBranch" xml:space="preserve">
+    <value>Git branch {0}</value>
+  </data>
+  <data name="WorkspaceSidebar_ItemAutomationStatus" xml:space="preserve">
+    <value>status {0}</value>
+  </data>
+  <data name="WorkspaceSidebar_ItemAutomationShortcut" xml:space="preserve">
+    <value>shortcut {0}</value>
   </data>
   <data name="WorkspaceSidebar_CollapseAutomationName" xml:space="preserve">
     <value>Collapse workspace sidebar</value>
@@ -1083,6 +1104,15 @@ For all available options, run 'wt new-tab --help'.</value>
   </data>
   <data name="WorkspaceSidebarNotificationCenterEmptyState.Text" xml:space="preserve">
     <value>No notifications</value>
+  </data>
+  <data name="WorkspaceSidebar_NotificationItemAutomationName" xml:space="preserve">
+    <value>{0}, {1}: {2}, {3}, {4}</value>
+  </data>
+  <data name="WorkspaceSidebar_NotificationReadAutomationState" xml:space="preserve">
+    <value>read</value>
+  </data>
+  <data name="WorkspaceSidebar_NotificationUnreadAutomationState" xml:space="preserve">
+    <value>unread</value>
   </data>
   <data name="WorkspaceSidebarMarkAllNotificationsReadButton.Content" xml:space="preserve">
     <value>Mark all as read</value>

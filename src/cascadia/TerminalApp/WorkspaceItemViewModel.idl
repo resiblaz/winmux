@@ -13,6 +13,7 @@ namespace TerminalApp
         Guid WorkspaceId { get; };
         Tab SourceTab { get; };
         String Title { get; };
+        String AutomationName { get; };
         String Icon { get; };
         Boolean IsPinned { get; set; };
         String PinIconGlyph { get; };

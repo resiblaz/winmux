@@ -151,6 +151,50 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void WorkspaceSidebar::_Resize_PreviewKeyDown(const IInspectable&, const Input::KeyRoutedEventArgs& args)
+    {
+        switch (args.OriginalKey())
+        {
+        case Windows::System::VirtualKey::Left:
+            ExpandedWidth(_expandedWidth - 8.0);
+            break;
+        case Windows::System::VirtualKey::Right:
+            ExpandedWidth(_expandedWidth + 8.0);
+            break;
+        case Windows::System::VirtualKey::Home:
+            ExpandedWidth(MinimumExpandedWidth);
+            break;
+        case Windows::System::VirtualKey::End:
+            ExpandedWidth(MaximumExpandedWidth);
+            break;
+        default:
+            return;
+        }
+        args.Handled(true);
+    }
+
+    void WorkspaceSidebar::_WorkspaceList_KeyDown(const IInspectable&, const Input::KeyRoutedEventArgs& args)
+    {
+        const auto item = WorkspaceList().SelectedItem().try_as<TerminalApp::WorkspaceItemViewModel>();
+        if (!item)
+        {
+            return;
+        }
+
+        switch (args.OriginalKey())
+        {
+        case Windows::System::VirtualKey::F2:
+            RenameRequested.raise(*this, item);
+            break;
+        case Windows::System::VirtualKey::Delete:
+            CloseRequested.raise(*this, item);
+            break;
+        default:
+            return;
+        }
+        args.Handled(true);
+    }
+
     void WorkspaceSidebar::_New_Click(const IInspectable&, const RoutedEventArgs&)
     {
         NewRequested.raise(*this, nullptr);
@@ -245,9 +289,32 @@ namespace winrt::TerminalApp::implementation
     {
         if (const auto notification = args.ClickedItem().try_as<TerminalApp::WorkspaceNotification>())
         {
-            NotificationCenterFlyout().Hide();
-            ActivateNotificationItemRequested.raise(*this, notification);
+            _ActivateNotification(notification);
         }
+    }
+
+    void WorkspaceSidebar::_NotificationHistory_KeyDown(const IInspectable&, const Input::KeyRoutedEventArgs& args)
+    {
+        const auto key = args.OriginalKey();
+        if (key != Windows::System::VirtualKey::Enter && key != Windows::System::VirtualKey::Space)
+        {
+            return;
+        }
+
+        if (const auto element = args.OriginalSource().try_as<FrameworkElement>())
+        {
+            if (const auto notification = element.DataContext().try_as<TerminalApp::WorkspaceNotification>())
+            {
+                _ActivateNotification(notification);
+                args.Handled(true);
+            }
+        }
+    }
+
+    void WorkspaceSidebar::_ActivateNotification(const TerminalApp::WorkspaceNotification& notification)
+    {
+        NotificationCenterFlyout().Hide();
+        ActivateNotificationItemRequested.raise(*this, notification);
     }
 
     void WorkspaceSidebar::_MarkAllNotificationsRead_Click(const IInspectable&, const RoutedEventArgs&)

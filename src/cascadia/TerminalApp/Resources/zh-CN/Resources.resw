@@ -1012,6 +1012,9 @@
   <data name="WorkspaceSidebarList.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>工作区</value>
   </data>
+  <data name="WorkspaceSidebarList.[using:Windows.UI.Xaml.Automation]AutomationProperties.HelpText" xml:space="preserve">
+    <value>使用上、下方向键选择工作区，按 F2 重命名，按 Delete 关闭，按 Shift+F10 查看更多操作。</value>
+  </data>
   <data name="WorkspaceSidebarCloseButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>关闭工作区</value>
   </data>
@@ -1033,8 +1036,11 @@
   <data name="WorkspaceSidebarResizeHandle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>调整工作区侧边栏大小</value>
   </data>
+  <data name="WorkspaceSidebarResizeHandle.[using:Windows.UI.Xaml.Automation]AutomationProperties.HelpText" xml:space="preserve">
+    <value>使用左、右方向键调整宽度，按 Home 调至最小宽度，按 End 调至最大宽度。</value>
+  </data>
   <data name="WorkspaceSidebarResizeToolTip.Content" xml:space="preserve">
-    <value>拖动以调整侧边栏大小</value>
+    <value>拖动或使用左、右方向键调整侧边栏大小</value>
   </data>
   <data name="WorkspaceSidebar_PinAction" xml:space="preserve">
     <value>固定</value>
@@ -1047,6 +1053,21 @@
   </data>
   <data name="WorkspaceSidebar_UnpinAutomationName" xml:space="preserve">
     <value>取消固定工作区</value>
+  </data>
+  <data name="WorkspaceSidebar_ItemAutomationPinned" xml:space="preserve">
+    <value>已固定</value>
+  </data>
+  <data name="WorkspaceSidebar_ItemAutomationDirectory" xml:space="preserve">
+    <value>目录 {0}</value>
+  </data>
+  <data name="WorkspaceSidebar_ItemAutomationGitBranch" xml:space="preserve">
+    <value>Git 分支 {0}</value>
+  </data>
+  <data name="WorkspaceSidebar_ItemAutomationStatus" xml:space="preserve">
+    <value>状态 {0}</value>
+  </data>
+  <data name="WorkspaceSidebar_ItemAutomationShortcut" xml:space="preserve">
+    <value>快捷键 {0}</value>
   </data>
   <data name="WorkspaceSidebar_CollapseAutomationName" xml:space="preserve">
     <value>折叠工作区侧边栏</value>
@@ -1083,6 +1104,15 @@
   </data>
   <data name="WorkspaceSidebarNotificationCenterEmptyState.Text" xml:space="preserve">
     <value>暂无通知</value>
+  </data>
+  <data name="WorkspaceSidebar_NotificationItemAutomationName" xml:space="preserve">
+    <value>{0}，{1}：{2}，{3}，{4}</value>
+  </data>
+  <data name="WorkspaceSidebar_NotificationReadAutomationState" xml:space="preserve">
+    <value>已读</value>
+  </data>
+  <data name="WorkspaceSidebar_NotificationUnreadAutomationState" xml:space="preserve">
+    <value>未读</value>
   </data>
   <data name="WorkspaceSidebarMarkAllNotificationsReadButton.Content" xml:space="preserve">
     <value>全部标为已读</value>

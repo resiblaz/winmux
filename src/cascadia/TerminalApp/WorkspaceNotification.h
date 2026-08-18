@@ -24,6 +24,7 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring Message() const;
         Windows::Foundation::DateTime Timestamp() const noexcept;
         winrt::hstring TimestampText() const;
+        winrt::hstring AutomationName() const;
         bool IsRead() const noexcept;
         void IsRead(bool value) noexcept;
 

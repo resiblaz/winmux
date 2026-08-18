@@ -20,6 +20,7 @@ namespace TerminalApp
         String Message { get; };
         Windows.Foundation.DateTime Timestamp { get; };
         String TimestampText { get; };
+        String AutomationName { get; };
         Boolean IsRead { get; set; };
     }
 }

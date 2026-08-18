@@ -28,6 +28,7 @@ namespace SettingsModelUnitTests
         TEST_METHOD(ValidateDuplicateProfiles);
         TEST_METHOD(ValidateManyWarnings);
         TEST_METHOD(LayerGlobalProperties);
+        TEST_METHOD(WorkspaceSidebarSetting);
         TEST_METHOD(ValidateProfileOrdering);
         TEST_METHOD(ValidateHideProfiles);
         TEST_METHOD(TestReorderWithNullGuids);
@@ -380,6 +381,21 @@ namespace SettingsModelUnitTests
         VERIFY_ARE_EQUAL(240, settings->WindowSettingsDefaults().InitialCols());
         VERIFY_ARE_EQUAL(60, settings->WindowSettingsDefaults().InitialRows());
         VERIFY_ARE_EQUAL(false, settings->WindowSettingsDefaults().ShowTabsInTitlebar());
+    }
+
+    void DeserializationTests::WorkspaceSidebarSetting()
+    {
+        const auto defaultSettings = createSettings(R"({
+            "profiles": [ { "name": "profile0" } ]
+        })");
+        VERIFY_IS_FALSE(defaultSettings->WindowSettingsDefaults().WorkspaceSidebar());
+
+        static constexpr std::string_view userSettings{ R"({
+            "experimental.workspaceSidebar": true,
+            "profiles": [ { "name": "profile0" } ]
+        })" };
+        const auto enabledSettings = createSettings(userSettings);
+        VERIFY_IS_TRUE(enabledSettings->WindowSettingsDefaults().WorkspaceSidebar());
     }
 
     void DeserializationTests::ValidateProfileOrdering()

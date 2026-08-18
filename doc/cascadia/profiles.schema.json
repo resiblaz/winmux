@@ -2474,6 +2474,11 @@
           "description": "When set to true, adds preset \"Color Selection\" actions (keybindings) to allow colorizing selected text via keystroke, similar to the legacy conhost EnableColorSelection feature (such as alt+6 to color the selection red).",
           "type": "boolean"
         },
+        "experimental.workspaceSidebar": {
+          "default": false,
+          "description": "When set to true, shows open tabs as workspaces in a sidebar instead of the horizontal tab row.",
+          "type": "boolean"
+        },
         "disableAnimations": {
           "default": false,
           "description": "When set to `true`, visual animations will be disabled across the application.",

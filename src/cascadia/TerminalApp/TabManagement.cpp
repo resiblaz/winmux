@@ -124,6 +124,7 @@ namespace winrt::TerminalApp::implementation
 
         // Add the new tab to the list of our tabs.
         _tabs.InsertAt(insertPosition, *newTabImpl);
+        _workspaceTabs.InsertAt(insertPosition, *newTabImpl);
         _mruTabs.Append(*newTabImpl);
 
         newTabImpl->SetDispatch(*_actionDispatch);
@@ -261,8 +262,10 @@ namespace winrt::TerminalApp::implementation
         // - we're not in focus mode
         // - we're not in full screen, or the user has enabled fullscreen tabs
         // - there is more than one tab, or the user has chosen to always show tabs
-        const auto isVisible = !_isInFocusMode &&
-                               (!_isFullscreen || _showTabsFullscreen) &&
+        const auto navigationVisible = !_isInFocusMode &&
+                                       (!_isFullscreen || _showTabsFullscreen);
+        const auto isVisible = !_workspaceSidebarEnabled &&
+                               navigationVisible &&
                                (_currentWindowSettings().ShowTabsInTitlebar() ||
                                 (_tabs.Size() > 1) ||
                                 _currentWindowSettings().AlwaysShowTabs());
@@ -277,6 +280,10 @@ namespace winrt::TerminalApp::implementation
             // collapse/show the row that the tabs are in.
             // NaN is the special value XAML uses for "Auto" sizing.
             _tabRow.Height(isVisible ? NAN : 0);
+        }
+        if (_workspaceSidebar)
+        {
+            _workspaceSidebar.Visibility(_workspaceSidebarEnabled && navigationVisible ? Visibility::Visible : Visibility::Collapsed);
         }
     }
 
@@ -533,6 +540,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         _tabs.RemoveAt(tabIndex);
+        _workspaceTabs.RemoveAt(tabIndex);
         _tabView.TabItems().RemoveAt(tabIndex);
         _UpdateTabIndices();
 
@@ -1101,6 +1109,7 @@ namespace winrt::TerminalApp::implementation
         {
             _tabContent.Children().Clear();
             _tabContent.Children().Append(tab.Content());
+            _SyncWorkspaceSelection(tab);
 
             // GH#7409: If the tab switcher is open, then we _don't_ want to
             // automatically focus the new tab here. The tab switcher wants
@@ -1220,6 +1229,11 @@ namespace winrt::TerminalApp::implementation
             auto tabViewItem = tab.TabViewItem();
             _tabs.RemoveAt(currentTabIndex);
             _tabs.InsertAt(newTabIndex, tab);
+            if (!_workspaceReordering)
+            {
+                _workspaceTabs.RemoveAt(currentTabIndex);
+                _workspaceTabs.InsertAt(newTabIndex, tab);
+            }
             _UpdateTabIndices();
 
             _tabView.TabItems().RemoveAt(currentTabIndex);
@@ -1259,6 +1273,8 @@ namespace winrt::TerminalApp::implementation
                 auto tab = tabs.GetAt(from.value());
                 tabs.RemoveAt(from.value());
                 tabs.InsertAt(to.value(), tab);
+                _workspaceTabs.RemoveAt(from.value());
+                _workspaceTabs.InsertAt(to.value(), tab);
                 _UpdateTabIndices();
             }
             CATCH_LOG();

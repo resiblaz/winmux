@@ -13,19 +13,189 @@
       Background="Transparent"
       mc:Ignorable="d">
 
+    <Page.Resources>
+        <DataTemplate x:Key="ExpandedWorkspaceTemplate"
+                      x:DataType="local:Tab">
+            <Grid MinHeight="36"
+                  Padding="8,0,4,0"
+                  AutomationProperties.Name="{x:Bind Title, Mode=OneWay}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <IconSourceElement Width="16"
+                                   Height="16"
+                                   VerticalAlignment="Center"
+                                   IconSource="{x:Bind mtu:IconPathConverter.IconSourceWUX(Icon), Mode=OneWay}" />
+                <TextBlock Grid.Column="1"
+                           Margin="8,0,4,0"
+                           VerticalAlignment="Center"
+                           Text="{x:Bind Title, Mode=OneWay}"
+                           TextTrimming="CharacterEllipsis" />
+                <Button Grid.Column="2"
+                        Width="28"
+                        Height="28"
+                        Padding="0"
+                        AutomationProperties.Name="Close workspace"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="_WorkspaceCloseButton_Click"
+                        Content="&#xE711;"
+                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                        FontSize="10"
+                        Tag="{Binding}" />
+
+                <Grid.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Click="_WorkspaceRename_Click"
+                                            Tag="{Binding}"
+                                            Text="Rename" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Click="_WorkspaceClose_Click"
+                                            Tag="{Binding}"
+                                            Text="Close" />
+                        <MenuFlyoutItem Click="_WorkspaceCloseOthers_Click"
+                                            Tag="{Binding}"
+                                            Text="Close other workspaces" />
+                    </MenuFlyout>
+                </Grid.ContextFlyout>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="CollapsedWorkspaceTemplate"
+                      x:DataType="local:Tab">
+            <Grid MinHeight="36"
+                  AutomationProperties.Name="{x:Bind Title, Mode=OneWay}">
+                <IconSourceElement Width="16"
+                                   Height="16"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   IconSource="{x:Bind mtu:IconPathConverter.IconSourceWUX(Icon), Mode=OneWay}" />
+                <ToolTipService.ToolTip>
+                    <ToolTip Content="{x:Bind Title, Mode=OneWay}" />
+                </ToolTipService.ToolTip>
+                <Grid.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Click="_WorkspaceRename_Click"
+                                            Tag="{Binding}"
+                                            Text="Rename" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Click="_WorkspaceClose_Click"
+                                            Tag="{Binding}"
+                                            Text="Close" />
+                        <MenuFlyoutItem Click="_WorkspaceCloseOthers_Click"
+                                            Tag="{Binding}"
+                                            Text="Close other workspaces" />
+                    </MenuFlyout>
+                </Grid.ContextFlyout>
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
+
     <Grid x:Name="Root"
           Background="Transparent">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
+        <Border x:Name="WorkspaceSidebar"
+                Grid.RowSpan="3"
+                Width="240"
+                Background="{ThemeResource TabViewBackground}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="0,0,1,0"
+                Visibility="Collapsed">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="40" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="40" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <TextBlock x:Name="WorkspaceSidebarTitle"
+                               Margin="12,0,40,0"
+                               VerticalAlignment="Center"
+                               FontWeight="SemiBold"
+                               Text="Workspaces"
+                               TextTrimming="CharacterEllipsis" />
+                    <Button x:Name="WorkspaceSidebarToggle"
+                            Width="32"
+                            Height="32"
+                            Margin="4"
+                            Padding="0"
+                            HorizontalAlignment="Right"
+                            AutomationProperties.Name="Collapse workspace sidebar"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="_WorkspaceSidebarToggle_Click"
+                            Content="&#xE76B;"
+                            FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                </Grid>
+
+                <ListView x:Name="WorkspaceList"
+                          Grid.Row="1"
+                          AllowDrop="True"
+                          AutomationProperties.Name="Workspaces"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          CanDragItems="True"
+                          CanReorderItems="True"
+                          DragItemsCompleted="_WorkspaceList_DragItemsCompleted"
+                          DragItemsStarting="_WorkspaceList_DragItemsStarting"
+                          IsSwipeEnabled="False"
+                          ItemTemplate="{StaticResource ExpandedWorkspaceTemplate}"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          SelectionChanged="_WorkspaceList_SelectionChanged"
+                          SelectionMode="Single">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="HorizontalContentAlignment"
+                                    Value="Stretch" />
+                            <Setter Property="Padding"
+                                    Value="0" />
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                </ListView>
+
+                <Button x:Name="WorkspaceNewButton"
+                        Grid.Row="2"
+                        Height="32"
+                        Margin="4"
+                        Padding="8,0"
+                        HorizontalContentAlignment="Left"
+                        AutomationProperties.Name="New workspace"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="_WorkspaceNewButton_Click">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="8">
+                        <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                  FontSize="12"
+                                  Glyph="&#xE710;" />
+                        <TextBlock x:Name="WorkspaceNewButtonText"
+                                   VerticalAlignment="Center"
+                                   Text="New workspace" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+
         <local:TabRowControl x:Name="TabRow"
+                             Grid.Column="1"
                              Grid.Row="0"
                              KeyUp="_KeyDownHandler" />
 
         <StackPanel Grid.Row="1"
+                    Grid.Column="1"
                     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
             <mux:InfoBar x:Name="KeyboardServiceWarningInfoBar"
                          x:Load="False"
@@ -57,6 +227,7 @@
         </StackPanel>
 
         <Grid x:Name="TabContent"
+              Grid.Column="1"
               Grid.Row="2"
               HorizontalAlignment="Stretch"
               VerticalAlignment="Stretch">
@@ -72,21 +243,23 @@
             ContentDialog a Row, I believe it's assigned Row 0 by default. So,
             when the dialog gets opened, the dialog seemingly causes a giant
             hole to appear in the body of the app.
-            
+
             Assigning all the dialogs to Row 2 (where the rest of the content
             is) makes the "hole" appear in the same space as the rest of the
             TabContent, fixing the issue.
-            
+
             Note that the actual content in a content dialog gets parented to
             the PopupRoot, so it actually always appeared in the correct place, it's
             just this weird hole that appeared in Row 0.
         -->
 
         <local:AboutDialog x:Name="AboutDialog"
+                           Grid.Column="1"
                            Grid.Row="2"
                            x:Load="False" />
 
         <ContentDialog x:Name="ConfirmCloseDialog"
+                       Grid.Column="1"
                        Grid.Row="2"
                        x:Load="False"
                        DefaultButton="Primary">
@@ -95,12 +268,14 @@
 
         <ContentDialog x:Name="CloseReadOnlyDialog"
                        x:Uid="CloseReadOnlyDialog"
+                       Grid.Column="1"
                        Grid.Row="2"
                        x:Load="False"
                        DefaultButton="Close" />
 
         <ContentDialog x:Name="MultiLinePasteDialog"
                        x:Uid="MultiLinePasteDialog"
+                       Grid.Column="1"
                        Grid.Row="2"
                        x:Load="False"
                        DefaultButton="Primary">
@@ -121,12 +296,14 @@
 
         <ContentDialog x:Name="LargePasteDialog"
                        x:Uid="LargePasteDialog"
+                       Grid.Column="1"
                        Grid.Row="2"
                        x:Load="False"
                        DefaultButton="Primary" />
 
         <ContentDialog x:Name="ControlNoticeDialog"
                        x:Uid="ControlNoticeDialog"
+                       Grid.Column="1"
                        Grid.Row="2"
                        x:Load="False"
                        DefaultButton="Primary">
@@ -141,6 +318,7 @@
 
         <ContentDialog x:Name="UriErrorDialog"
                        x:Uid="UriErrorDialog"
+                       Grid.Column="1"
                        Grid.Row="2"
                        x:Load="False"
                        DefaultButton="Close">
@@ -156,6 +334,7 @@
         </ContentDialog>
 
         <local:CommandPalette x:Name="CommandPaletteElement"
+                              Grid.Column="1"
                               Grid.Row="2"
                               VerticalAlignment="Stretch"
                               x:Load="False"
@@ -163,6 +342,7 @@
                               Visibility="Collapsed" />
 
         <local:SuggestionsControl x:Name="SuggestionsElement"
+                                  Grid.Column="1"
                                   Grid.Row="2"
                                   HorizontalAlignment="Left"
                                   VerticalAlignment="Top"
@@ -176,6 +356,7 @@
             tracked by MUX#4382
         -->
         <mux:TeachingTip x:Name="WindowIdToast"
+                         Grid.Column="1"
                          Title="{x:Bind WindowProperties.WindowIdForDisplay}"
                          x:Load="False"
                          IsLightDismissEnabled="True"
@@ -183,6 +364,7 @@
 
         <mux:TeachingTip x:Name="WindowRenamer"
                          x:Uid="WindowRenamer"
+                         Grid.Column="1"
                          Title="{x:Bind WindowProperties.WindowIdForDisplay}"
                          x:Load="False"
                          ActionButtonClick="_WindowRenamerActionClick"
@@ -202,12 +384,14 @@
 
         <mux:TeachingTip x:Name="WindowCwdToast"
                          x:Uid="WindowCwdToast"
+                         Grid.Column="1"
                          Title="{x:Bind WindowProperties.VirtualWorkingDirectory, Mode=OneWay}"
                          x:Load="False"
                          IsLightDismissEnabled="True" />
 
         <mux:TeachingTip x:Name="ActionSavedToast"
                          x:Uid="ActionSavedToast"
+                         Grid.Column="1"
                          Title="Action Saved"
                          HorizontalAlignment="Stretch"
                          x:Load="False"
@@ -235,6 +419,7 @@
         </mux:TeachingTip>
         <mux:TeachingTip x:Name="ActionSaveFailedToast"
                          x:Uid="ActionSaveFailedToast"
+                         Grid.Column="1"
                          Title="Action Save Failed"
                          x:Load="False"
                          IsLightDismissEnabled="True">

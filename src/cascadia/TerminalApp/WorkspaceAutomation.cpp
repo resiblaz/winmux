@@ -81,6 +81,28 @@ namespace winrt::TerminalApp::implementation
             return gsl::narrow_cast<uint32_t>(value);
         }
 
+        std::optional<uint32_t> _parseBoundedUInt32(const JsonObject& params,
+                                                    const std::wstring_view key,
+                                                    const uint32_t defaultValue,
+                                                    const uint32_t maximumValue)
+        {
+            if (!params.HasKey(key))
+            {
+                return defaultValue;
+            }
+            if (!_isValueType(params, key, JsonValueType::Number))
+            {
+                return std::nullopt;
+            }
+
+            const auto value = params.GetNamedNumber(key);
+            if (!std::isfinite(value) || std::floor(value) != value || value < 1 || value > maximumValue)
+            {
+                return std::nullopt;
+            }
+            return gsl::narrow_cast<uint32_t>(value);
+        }
+
         std::optional<WorkspaceAutomationSplitDirection> _parseSplitDirection(const JsonObject& params)
         {
             if (!params.HasKey(L"direction"))
@@ -496,7 +518,118 @@ namespace winrt::TerminalApp::implementation
             };
         }
 
+        if (method == L"terminal.sendInput")
+        {
+            if (!_hasOnlyKeys(params, { L"workspaceId", L"paneId", L"text" }) ||
+                !_isValueType(params, L"workspaceId", JsonValueType::String) ||
+                !_isValueType(params, L"text", JsonValueType::String))
+            {
+                return _parseError(std::move(id), "invalid_params", "terminal.sendInput requires workspaceId, paneId, and text");
+            }
+
+            const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
+            const auto paneId = _parsePaneId(params);
+            const auto text = params.GetNamedString(L"text");
+            if (!workspaceId || !paneId || text.empty() || text.size() > MaximumInputCharacters)
+            {
+                return _parseError(std::move(id), "invalid_params", "Input target or text length from 1 through 4096 is invalid");
+            }
+
+            return {
+                .Request = WorkspaceAutomationRequest{
+                    .Id = id,
+                    .Method = WorkspaceAutomationMethod::TerminalSendInput,
+                    .WorkspaceId = workspaceId,
+                    .PaneId = paneId,
+                    .Text = text,
+                },
+                .Id = std::move(id),
+            };
+        }
+
+        if (method == L"terminal.readContent")
+        {
+            if (!_hasOnlyKeys(params, { L"workspaceId", L"paneId", L"maxLines", L"maxCharacters" }) ||
+                !_isValueType(params, L"workspaceId", JsonValueType::String))
+            {
+                return _parseError(std::move(id), "invalid_params", "terminal.readContent requires a target and only documented limits");
+            }
+
+            const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
+            const auto paneId = _parsePaneId(params);
+            const auto maximumLines = _parseBoundedUInt32(params, L"maxLines", 50, MaximumReadLines);
+            const auto maximumCharacters = _parseBoundedUInt32(params, L"maxCharacters", MaximumReadCharacters, MaximumReadCharacters);
+            if (!workspaceId || !paneId || !maximumLines || !maximumCharacters)
+            {
+                return _parseError(std::move(id), "invalid_params", "Read target or integer limits are invalid");
+            }
+
+            return {
+                .Request = WorkspaceAutomationRequest{
+                    .Id = id,
+                    .Method = WorkspaceAutomationMethod::TerminalReadContent,
+                    .WorkspaceId = workspaceId,
+                    .PaneId = paneId,
+                    .MaximumLines = maximumLines.value(),
+                    .MaximumCharacters = maximumCharacters.value(),
+                },
+                .Id = std::move(id),
+            };
+        }
+
         return _parseError(std::move(id), "method_not_found", "Unknown automation method");
+    }
+
+    WorkspaceAutomationContentResult WorkspaceAutomationProtocol::TailContent(const std::wstring_view content,
+                                                                               const uint32_t maximumLines,
+                                                                               const uint32_t maximumCharacters)
+    {
+        if (content.empty())
+        {
+            return {};
+        }
+        if (maximumLines == 0 || maximumCharacters == 0)
+        {
+            return { {}, true };
+        }
+
+        size_t start = 0;
+        auto searchEnd = content.size();
+        if (content.back() == L'\n')
+        {
+            --searchEnd;
+        }
+
+        for (uint32_t line = 0; line < maximumLines && searchEnd > 0; ++line)
+        {
+            const auto separator = content.rfind(L'\n', searchEnd - 1);
+            if (separator == std::wstring_view::npos)
+            {
+                break;
+            }
+            if (line + 1 == maximumLines)
+            {
+                start = separator + 1;
+                break;
+            }
+            searchEnd = separator;
+        }
+
+        if (content.size() - start > maximumCharacters)
+        {
+            start = content.size() - maximumCharacters;
+            if (start > 0 && start < content.size() &&
+                content[start] >= 0xdc00 && content[start] <= 0xdfff &&
+                content[start - 1] >= 0xd800 && content[start - 1] <= 0xdbff)
+            {
+                ++start;
+            }
+        }
+
+        return {
+            .Text = winrt::hstring{ content.substr(start) },
+            .Truncated = start > 0,
+        };
     }
 
     std::string WorkspaceAutomationProtocol::MakeResult(const std::string_view id, const JsonObject& result)

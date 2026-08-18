@@ -712,6 +712,10 @@ namespace winrt::TerminalApp::implementation
             JsonObject result;
             result.Insert(L"windowId", JsonValue::CreateStringValue(winrt::to_hstring(_WindowProperties.WindowId())));
             result.Insert(L"pipe", JsonValue::CreateStringValue(_workspaceAutomationServer ? _workspaceAutomationServer->PipeName() : std::wstring_view{}));
+            JsonObject permissions;
+            permissions.Insert(L"sendInput", JsonValue::CreateBooleanValue(_currentWindowSettings().WorkspaceAutomationAllowInput()));
+            permissions.Insert(L"readContent", JsonValue::CreateBooleanValue(_currentWindowSettings().WorkspaceAutomationAllowContentRead()));
+            result.Insert(L"permissions", permissions);
             result.Insert(L"workspaces", workspaces);
             return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
         }
@@ -1088,6 +1092,83 @@ namespace winrt::TerminalApp::implementation
 
             JsonObject result;
             result.Insert(L"status", statusJson(item));
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        case WorkspaceAutomationMethod::TerminalSendInput:
+        {
+            if (!_currentWindowSettings().WorkspaceAutomationAllowInput())
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "permission_denied", "Enable experimental.workspaceAutomation.allowInput to send terminal input");
+            }
+
+            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
+            if (!workspaceIndex)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+            const auto item = _workspaceItems.GetAt(workspaceIndex.value());
+            const auto tabImpl = _GetTabImpl(item.SourceTab());
+            const auto pane = tabImpl && tabImpl->GetRootPane() ? tabImpl->GetRootPane()->FindPane(request.PaneId.value()) : nullptr;
+            if (!pane)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "pane_not_found", "Pane was not found in the requested workspace");
+            }
+            const auto control = pane->GetTerminalControl();
+            if (!control)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "pane_not_supported", "Only terminal panes accept input");
+            }
+            if (pane->IsConnectionClosed())
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "connection_closed", "The target terminal connection is closed");
+            }
+            if (control.ReadOnly())
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "pane_read_only", "The target terminal pane is read-only");
+            }
+
+            // Send directly to the requested control. The input-broadcast path could
+            // affect panes outside the explicit Workspace/Pane target.
+            control.SendInput(request.Text);
+
+            JsonObject result;
+            result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(item.WorkspaceId())));
+            result.Insert(L"paneId", JsonValue::CreateNumberValue(request.PaneId.value()));
+            result.Insert(L"accepted", JsonValue::CreateBooleanValue(true));
+            result.Insert(L"characters", JsonValue::CreateNumberValue(request.Text.size()));
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        case WorkspaceAutomationMethod::TerminalReadContent:
+        {
+            if (!_currentWindowSettings().WorkspaceAutomationAllowContentRead())
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "permission_denied", "Enable experimental.workspaceAutomation.allowContentRead to read terminal content");
+            }
+
+            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
+            if (!workspaceIndex)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+            const auto item = _workspaceItems.GetAt(workspaceIndex.value());
+            const auto tabImpl = _GetTabImpl(item.SourceTab());
+            const auto pane = tabImpl && tabImpl->GetRootPane() ? tabImpl->GetRootPane()->FindPane(request.PaneId.value()) : nullptr;
+            if (!pane)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "pane_not_found", "Pane was not found in the requested workspace");
+            }
+            const auto control = pane->GetTerminalControl();
+            if (!control)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "pane_not_supported", "Only terminal panes expose terminal content");
+            }
+
+            const auto content = WorkspaceAutomationProtocol::TailContent(control.ReadEntireBuffer(), request.MaximumLines, request.MaximumCharacters);
+            JsonObject result;
+            result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(item.WorkspaceId())));
+            result.Insert(L"paneId", JsonValue::CreateNumberValue(request.PaneId.value()));
+            result.Insert(L"text", JsonValue::CreateStringValue(content.Text));
+            result.Insert(L"truncated", JsonValue::CreateBooleanValue(content.Truncated));
             return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
         }
         }

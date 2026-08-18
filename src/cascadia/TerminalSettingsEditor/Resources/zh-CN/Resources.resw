@@ -2800,4 +2800,20 @@
     <value>在垂直侧边栏中以工作区形式显示选项卡。侧边栏宽度和折叠状态会自动记忆。</value>
     <comment>Description for the workspace sidebar setting.</comment>
   </data>
+  <data name="Globals_WorkspaceAutomationAllowInput.Header" xml:space="preserve">
+    <value>允许本地自动化向终端发送输入</value>
+    <comment>Header for the high-risk workspace automation input permission.</comment>
+  </data>
+  <data name="Globals_WorkspaceAutomationAllowInput.HelpText" xml:space="preserve">
+    <value>高风险。允许以你的 Windows 用户身份运行的进程向明确指定的终端窗格发送文本和控制字符。默认关闭。</value>
+    <comment>Description for the high-risk workspace automation input permission.</comment>
+  </data>
+  <data name="Globals_WorkspaceAutomationAllowContentRead.Header" xml:space="preserve">
+    <value>允许本地自动化读取终端内容</value>
+    <comment>Header for the high-risk workspace automation content read permission.</comment>
+  </data>
+  <data name="Globals_WorkspaceAutomationAllowContentRead.HelpText" xml:space="preserve">
+    <value>高风险。允许以你的 Windows 用户身份运行的进程读取明确指定终端窗格中受限范围内的最近内容。默认关闭。</value>
+    <comment>Description for the high-risk workspace automation content read permission.</comment>
+  </data>
 </root>

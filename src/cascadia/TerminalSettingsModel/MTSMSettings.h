@@ -50,6 +50,8 @@ Author(s):
     X(bool, DetectURLs, "experimental.detectURLs", true)                                                                                                                                              \
     X(bool, AlwaysShowTabs, "alwaysShowTabs", true)                                                                                                                                                   \
     X(bool, WorkspaceSidebar, "experimental.workspaceSidebar", false)                                                                                                                               \
+    X(bool, WorkspaceAutomationAllowInput, "experimental.workspaceAutomation.allowInput", false)                                                                                                    \
+    X(bool, WorkspaceAutomationAllowContentRead, "experimental.workspaceAutomation.allowContentRead", false)                                                                                        \
     X(Model::NewTabPosition, NewTabPosition, "newTabPosition", Model::NewTabPosition::AfterLastTab)                                                                                                   \
     X(bool, ShowTitleInTitlebar, "showTerminalTitleInTitlebar", true)                                                                                                                                 \
     X(Model::ConfirmOnClose, ConfirmOnClose, "warning.confirmOnClose", Model::ConfirmOnClose::Automatic)                                                                                              \

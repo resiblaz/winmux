@@ -121,6 +121,8 @@ namespace SettingsModelUnitTests
 
                 "alwaysShowTabs": true,
                 "experimental.workspaceSidebar": true,
+                "experimental.workspaceAutomation.allowInput": true,
+                "experimental.workspaceAutomation.allowContentRead": true,
                 "showTabsInTitlebar": true,
                 "showTerminalTitleInTitlebar": true,
                 "tabWidthMode": "equal",

@@ -2804,4 +2804,20 @@
     <value>Show tabs as workspaces in a vertical sidebar. Sidebar width and collapsed state are remembered automatically.</value>
     <comment>Description for the workspace sidebar setting.</comment>
   </data>
+  <data name="Globals_WorkspaceAutomationAllowInput.Header" xml:space="preserve">
+    <value>Allow local automation to send terminal input</value>
+    <comment>Header for the high-risk workspace automation input permission.</comment>
+  </data>
+  <data name="Globals_WorkspaceAutomationAllowInput.HelpText" xml:space="preserve">
+    <value>High risk. Allows processes running as your Windows user to send text and control characters to an explicitly targeted terminal pane. Disabled by default.</value>
+    <comment>Description for the high-risk workspace automation input permission.</comment>
+  </data>
+  <data name="Globals_WorkspaceAutomationAllowContentRead.Header" xml:space="preserve">
+    <value>Allow local automation to read terminal content</value>
+    <comment>Header for the high-risk workspace automation content read permission.</comment>
+  </data>
+  <data name="Globals_WorkspaceAutomationAllowContentRead.HelpText" xml:space="preserve">
+    <value>High risk. Allows processes running as your Windows user to read bounded recent content from an explicitly targeted terminal pane. Disabled by default.</value>
+    <comment>Description for the high-risk workspace automation content read permission.</comment>
+  </data>
 </root>

@@ -20,6 +20,7 @@ namespace TerminalAppUnitTests
 
         TEST_METHOD(ParsesWorkspaceMethods);
         TEST_METHOD(RejectsUnsafeOrMalformedRequests);
+        TEST_METHOD(TruncatesTerminalContent);
         TEST_METHOD(SerializesVersionedResponses);
         TEST_METHOD(ServesOneRequestOverCurrentUserPipe);
         TEST_METHOD(StopsWhileAClientIsIdle);
@@ -83,6 +84,17 @@ namespace TerminalAppUnitTests
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::ProgressSet), static_cast<int>(progress.Request->Method));
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationProgressState::Normal), static_cast<int>(progress.Request->ProgressState));
         VERIFY_ARE_EQUAL(73u, progress.Request->ProgressValue);
+
+        const auto sendInput = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"input-1","method":"terminal.sendInput","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":3,"text":"echo ready\r"}})");
+        VERIFY_IS_TRUE(static_cast<bool>(sendInput));
+        VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::TerminalSendInput), static_cast<int>(sendInput.Request->Method));
+        VERIFY_ARE_EQUAL(winrt::hstring{ L"echo ready\r" }, sendInput.Request->Text);
+
+        const auto readContent = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"read-content-1","method":"terminal.readContent","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":3,"maxLines":25,"maxCharacters":4096}})");
+        VERIFY_IS_TRUE(static_cast<bool>(readContent));
+        VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::TerminalReadContent), static_cast<int>(readContent.Request->Method));
+        VERIFY_ARE_EQUAL(25u, readContent.Request->MaximumLines);
+        VERIFY_ARE_EQUAL(4096u, readContent.Request->MaximumCharacters);
     }
 
     void WorkspaceAutomationTests::RejectsUnsafeOrMalformedRequests()
@@ -141,10 +153,46 @@ namespace TerminalAppUnitTests
         VERIFY_IS_FALSE(static_cast<bool>(badProgressValue));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, badProgressValue.ErrorCode);
 
+        const auto emptyInput = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"terminal.sendInput","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"text":""}})");
+        VERIFY_IS_FALSE(static_cast<bool>(emptyInput));
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, emptyInput.ErrorCode);
+
+        const auto oversizedInputRequest = std::string{ R"({"version":1,"id":"1","method":"terminal.sendInput","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"text":")" } +
+                                           std::string(WorkspaceAutomationProtocol::MaximumInputCharacters + 1, 'x') +
+                                           R"("}})";
+        const auto oversizedInput = WorkspaceAutomationProtocol::ParseRequest(oversizedInputRequest);
+        VERIFY_IS_FALSE(static_cast<bool>(oversizedInput));
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, oversizedInput.ErrorCode);
+
+        const auto unboundedRead = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"terminal.readContent","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"maxLines":201}})");
+        VERIFY_IS_FALSE(static_cast<bool>(unboundedRead));
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, unboundedRead.ErrorCode);
+
+        const auto unsafeRead = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"terminal.readContent","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"command":"Get-Secret"}})");
+        VERIFY_IS_FALSE(static_cast<bool>(unsafeRead));
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, unsafeRead.ErrorCode);
+
         std::string oversized(WorkspaceAutomationProtocol::MaximumMessageBytes + 1, 'x');
         const auto tooLarge = WorkspaceAutomationProtocol::ParseRequest(oversized);
         VERIFY_IS_FALSE(static_cast<bool>(tooLarge));
         VERIFY_ARE_EQUAL(std::string{ "message_too_large" }, tooLarge.ErrorCode);
+    }
+
+    void WorkspaceAutomationTests::TruncatesTerminalContent()
+    {
+        using namespace winrt::TerminalApp::implementation;
+
+        const auto byLines = WorkspaceAutomationProtocol::TailContent(L"one\r\ntwo\r\nthree\r\n", 2, 100);
+        VERIFY_ARE_EQUAL(winrt::hstring{ L"two\r\nthree\r\n" }, byLines.Text);
+        VERIFY_IS_TRUE(byLines.Truncated);
+
+        const auto byCharacters = WorkspaceAutomationProtocol::TailContent(L"abcdef", 50, 3);
+        VERIFY_ARE_EQUAL(winrt::hstring{ L"def" }, byCharacters.Text);
+        VERIFY_IS_TRUE(byCharacters.Truncated);
+
+        const auto complete = WorkspaceAutomationProtocol::TailContent(L"short", 50, 8192);
+        VERIFY_ARE_EQUAL(winrt::hstring{ L"short" }, complete.Text);
+        VERIFY_IS_FALSE(complete.Truncated);
     }
 
     void WorkspaceAutomationTests::SerializesVersionedResponses()

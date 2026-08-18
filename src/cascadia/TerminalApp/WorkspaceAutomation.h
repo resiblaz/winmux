@@ -26,6 +26,8 @@ namespace winrt::TerminalApp::implementation
         StatusClear,
         ProgressSet,
         ProgressClear,
+        TerminalSendInput,
+        TerminalReadContent,
     };
 
     enum class WorkspaceAutomationSplitDirection
@@ -59,6 +61,14 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring Body;
         WorkspaceAutomationProgressState ProgressState{ WorkspaceAutomationProgressState::None };
         uint32_t ProgressValue{ 0 };
+        uint32_t MaximumLines{ 50 };
+        uint32_t MaximumCharacters{ 8192 };
+    };
+
+    struct WorkspaceAutomationContentResult
+    {
+        winrt::hstring Text;
+        bool Truncated{ false };
     };
 
     struct WorkspaceAutomationParseResult
@@ -79,8 +89,12 @@ namespace winrt::TerminalApp::implementation
     public:
         static constexpr uint32_t Version{ 1 };
         static constexpr size_t MaximumMessageBytes{ 64 * 1024 };
+        static constexpr uint32_t MaximumInputCharacters{ 4096 };
+        static constexpr uint32_t MaximumReadLines{ 200 };
+        static constexpr uint32_t MaximumReadCharacters{ 8192 };
 
         static WorkspaceAutomationParseResult ParseRequest(std::string_view request);
+        static WorkspaceAutomationContentResult TailContent(std::wstring_view content, uint32_t maximumLines, uint32_t maximumCharacters);
         static std::string MakeResult(std::string_view id, const winrt::Windows::Data::Json::JsonObject& result);
         static std::string MakeError(std::string_view id, std::string_view code, std::string_view message);
     };

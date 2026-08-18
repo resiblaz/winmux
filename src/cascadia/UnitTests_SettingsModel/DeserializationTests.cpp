@@ -29,6 +29,7 @@ namespace SettingsModelUnitTests
         TEST_METHOD(ValidateManyWarnings);
         TEST_METHOD(LayerGlobalProperties);
         TEST_METHOD(WorkspaceSidebarSetting);
+        TEST_METHOD(WorkspaceAutomationPermissionsSetting);
         TEST_METHOD(ValidateProfileOrdering);
         TEST_METHOD(ValidateHideProfiles);
         TEST_METHOD(TestReorderWithNullGuids);
@@ -396,6 +397,24 @@ namespace SettingsModelUnitTests
         })" };
         const auto enabledSettings = createSettings(userSettings);
         VERIFY_IS_TRUE(enabledSettings->WindowSettingsDefaults().WorkspaceSidebar());
+    }
+
+    void DeserializationTests::WorkspaceAutomationPermissionsSetting()
+    {
+        const auto defaultSettings = createSettings(R"({
+            "profiles": [ { "name": "profile0" } ]
+        })");
+        VERIFY_IS_FALSE(defaultSettings->WindowSettingsDefaults().WorkspaceAutomationAllowInput());
+        VERIFY_IS_FALSE(defaultSettings->WindowSettingsDefaults().WorkspaceAutomationAllowContentRead());
+
+        static constexpr std::string_view userSettings{ R"({
+            "experimental.workspaceAutomation.allowInput": true,
+            "experimental.workspaceAutomation.allowContentRead": false,
+            "profiles": [ { "name": "profile0" } ]
+        })" };
+        const auto enabledSettings = createSettings(userSettings);
+        VERIFY_IS_TRUE(enabledSettings->WindowSettingsDefaults().WorkspaceAutomationAllowInput());
+        VERIFY_IS_FALSE(enabledSettings->WindowSettingsDefaults().WorkspaceAutomationAllowContentRead());
     }
 
     void DeserializationTests::ValidateProfileOrdering()

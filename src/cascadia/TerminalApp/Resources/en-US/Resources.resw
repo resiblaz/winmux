@@ -1075,6 +1075,12 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebar_ExpandAutomationName" xml:space="preserve">
     <value>Expand workspace sidebar</value>
   </data>
+  <data name="WorkspaceSidebar_NarrowAutomationName" xml:space="preserve">
+    <value>Workspace sidebar compact while the window is narrow</value>
+  </data>
+  <data name="WorkspaceSidebar_NarrowHelpText" xml:space="preserve">
+    <value>Widen the window to show workspace details.</value>
+  </data>
   <data name="WorkspaceSidebar_RenameDialogTitle" xml:space="preserve">
     <value>Rename workspace</value>
   </data>

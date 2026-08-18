@@ -15,8 +15,13 @@ namespace winrt::TerminalApp::implementation
         void IsExpanded(bool value);
         double ExpandedWidth() const noexcept;
         void ExpandedWidth(double value);
+        void SetWindowNarrow(bool value);
+        bool IsWindowNarrow() const noexcept;
+        bool IsEffectivelyExpanded() const noexcept;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> NotificationHistory() const noexcept;
         void RefreshNotifications();
+
+        static constexpr double NarrowWindowThreshold{ 640.0 };
 
         til::property_changed_event PropertyChanged;
         til::typed_event<TerminalApp::WorkspaceSidebar, Windows::Foundation::IInspectable> NewRequested;
@@ -61,6 +66,7 @@ namespace winrt::TerminalApp::implementation
         static constexpr double CollapsedWidth{ 48.0 };
 
         bool _isExpanded{ true };
+        bool _isWindowNarrow{ false };
         double _expandedWidth{ 280.0 };
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> _notificationHistory;
 

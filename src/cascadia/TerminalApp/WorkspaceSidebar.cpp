@@ -56,12 +56,31 @@ namespace winrt::TerminalApp::implementation
         }
 
         _expandedWidth = clamped;
-        if (_isExpanded)
+        if (IsEffectivelyExpanded())
         {
             Width(_expandedWidth);
         }
         ApplicationState::SharedInstance().WorkspaceSidebarWidth(clamped);
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"ExpandedWidth" });
+    }
+
+    void WorkspaceSidebar::SetWindowNarrow(const bool value)
+    {
+        if (_isWindowNarrow != value)
+        {
+            _isWindowNarrow = value;
+            _ApplyLayout();
+        }
+    }
+
+    bool WorkspaceSidebar::IsWindowNarrow() const noexcept
+    {
+        return _isWindowNarrow;
+    }
+
+    bool WorkspaceSidebar::IsEffectivelyExpanded() const noexcept
+    {
+        return _isExpanded && !_isWindowNarrow;
     }
 
     Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> WorkspaceSidebar::NotificationHistory() const noexcept
@@ -115,16 +134,22 @@ namespace winrt::TerminalApp::implementation
 
     void WorkspaceSidebar::_ApplyLayout()
     {
-        Width(_isExpanded ? _expandedWidth : CollapsedWidth);
-        ResizeHandle().Visibility(_isExpanded ? Visibility::Visible : Visibility::Collapsed);
-        SidebarTitle().Visibility(_isExpanded ? Visibility::Visible : Visibility::Collapsed);
-        NotificationCenterButton().Visibility(_isExpanded ? Visibility::Visible : Visibility::Collapsed);
-        NewButtonText().Visibility(_isExpanded ? Visibility::Visible : Visibility::Collapsed);
-        ToggleButton().Content(box_value(_isExpanded ? L"\uE76B" : L"\uE76C"));
-        Automation::AutomationProperties::SetName(ToggleButton(), _isExpanded ? RS_(L"WorkspaceSidebar_CollapseAutomationName") : RS_(L"WorkspaceSidebar_ExpandAutomationName"));
+        const auto expanded = IsEffectivelyExpanded();
+        Width(expanded ? _expandedWidth : CollapsedWidth);
+        ResizeHandle().Visibility(expanded ? Visibility::Visible : Visibility::Collapsed);
+        SidebarTitle().Visibility(expanded ? Visibility::Visible : Visibility::Collapsed);
+        NotificationCenterButton().Visibility(expanded ? Visibility::Visible : Visibility::Collapsed);
+        NewButtonText().Visibility(expanded ? Visibility::Visible : Visibility::Collapsed);
+        ToggleButton().Content(box_value(expanded ? L"\uE76B" : L"\uE76C"));
+        ToggleButton().IsEnabled(!_isWindowNarrow);
+        Automation::AutomationProperties::SetName(ToggleButton(),
+                                                   _isWindowNarrow ? RS_(L"WorkspaceSidebar_NarrowAutomationName") :
+                                                                     expanded ? RS_(L"WorkspaceSidebar_CollapseAutomationName") :
+                                                                                RS_(L"WorkspaceSidebar_ExpandAutomationName"));
+        Automation::AutomationProperties::SetHelpText(ToggleButton(), _isWindowNarrow ? RS_(L"WorkspaceSidebar_NarrowHelpText") : winrt::hstring{});
 
-        const auto templateKey = _isExpanded ? L"ExpandedWorkspaceTemplate" : L"CollapsedWorkspaceTemplate";
-        const auto itemStyleKey = _isExpanded ? L"ExpandedWorkspaceItemContainerStyle" : L"CollapsedWorkspaceItemContainerStyle";
+        const auto templateKey = expanded ? L"ExpandedWorkspaceTemplate" : L"CollapsedWorkspaceTemplate";
+        const auto itemStyleKey = expanded ? L"ExpandedWorkspaceItemContainerStyle" : L"CollapsedWorkspaceItemContainerStyle";
         WorkspaceList().ItemTemplate(Resources().Lookup(box_value(templateKey)).as<DataTemplate>());
         WorkspaceList().ItemContainerStyle(Resources().Lookup(box_value(itemStyleKey)).as<Windows::UI::Xaml::Style>());
     }
@@ -145,7 +170,7 @@ namespace winrt::TerminalApp::implementation
 
     void WorkspaceSidebar::_Resize_DragDelta(const IInspectable&, const Controls::Primitives::DragDeltaEventArgs& args)
     {
-        if (_isExpanded)
+        if (IsEffectivelyExpanded())
         {
             ExpandedWidth(_expandedWidth + args.HorizontalChange());
         }

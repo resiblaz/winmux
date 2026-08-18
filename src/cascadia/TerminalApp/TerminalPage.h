@@ -433,6 +433,8 @@ namespace winrt::TerminalApp::implementation
         void _UpdateTabView();
         void _UpdateTabWidthMode();
         void _UpdateWorkspaceSidebar();
+        void _UpdateWorkspaceSidebarForWindowWidth(double width);
+        void _Root_SizeChanged(const IInspectable& sender, const Windows::UI::Xaml::SizeChangedEventArgs& args);
         void _UpdateWorkspaceAutomationServer();
         std::string _HandleWorkspaceAutomationRequest(std::string_view request);
         void _SyncWorkspaceSelection(const winrt::TerminalApp::Tab& tab);

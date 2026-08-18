@@ -80,6 +80,7 @@ namespace TerminalAppLocalTests
 
         TEST_METHOD(CreateTerminalPage);
         TEST_METHOD(CreateWorkspaceSidebarXamlType);
+        TEST_METHOD(WorkspaceSidebarAdaptsToWindowModes);
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
         TEST_METHOD(WorkspaceWorkingDirectoryDisplayIsCompact);
         TEST_METHOD(WorkspaceGitBranchParsesStructuredOutput);
@@ -234,6 +235,60 @@ namespace TerminalAppLocalTests
             VERIFY_IS_TRUE(highContrastResources.HasKey(winrt::box_value(L"ListViewItemForegroundSelected")));
         });
         VERIFY_SUCCEEDED(result);
+    }
+
+    void TabTests::WorkspaceSidebarAdaptsToWindowModes()
+    {
+        static constexpr std::wstring_view settingsJson{ LR"(
+        {
+            "defaultProfile": "{6239a42c-1111-49a3-80bd-e8fdd045185c}",
+            "tabLayout": "workspaceSidebar",
+            "showTabsInTitlebar": false,
+            "profiles": [
+                {
+                    "name": "profile0",
+                    "guid": "{6239a42c-1111-49a3-80bd-e8fdd045185c}",
+                    "closeOnExit": "never"
+                }
+            ]
+        })" };
+
+        CascadiaSettings settings{ settingsJson, {} };
+        VERIFY_IS_NOT_NULL(settings);
+
+        winrt::com_ptr<winrt::TerminalApp::implementation::TerminalPage> page{ nullptr };
+        _initializeTerminalPage(page, settings);
+
+        TestOnUIThread([&]() {
+            VERIFY_IS_TRUE(page->_workspaceSidebarEnabled);
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSidebar.Visibility());
+
+            const auto sidebar = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceSidebar>(page->_workspaceSidebar);
+            page->_workspaceSidebar.IsExpanded(true);
+            page->_UpdateWorkspaceSidebarForWindowWidth(winrt::TerminalApp::implementation::WorkspaceSidebar::NarrowWindowThreshold - 1.0);
+            VERIFY_IS_TRUE(sidebar->IsWindowNarrow());
+            VERIFY_IS_TRUE(page->_workspaceSidebar.IsExpanded());
+            VERIFY_IS_FALSE(sidebar->IsEffectivelyExpanded());
+            VERIFY_IS_FALSE(page->_workspaceSidebar.FindName(L"ToggleButton").as<Button>().IsEnabled());
+
+            page->_UpdateWorkspaceSidebarForWindowWidth(winrt::TerminalApp::implementation::WorkspaceSidebar::NarrowWindowThreshold);
+            VERIFY_IS_FALSE(sidebar->IsWindowNarrow());
+            VERIFY_IS_TRUE(sidebar->IsEffectivelyExpanded());
+            VERIFY_IS_TRUE(page->_workspaceSidebar.FindName(L"ToggleButton").as<Button>().IsEnabled());
+
+            page->SetFocusMode(true);
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_workspaceSidebar.Visibility());
+            page->SetFocusMode(false);
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSidebar.Visibility());
+
+            page->SetShowTabsFullscreen(false);
+            page->SetFullscreen(true);
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_workspaceSidebar.Visibility());
+            page->SetShowTabsFullscreen(true);
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSidebar.Visibility());
+            page->SetFullscreen(false);
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSidebar.Visibility());
+        });
     }
 
     void TabTests::WorkspaceItemViewModelTracksTab()

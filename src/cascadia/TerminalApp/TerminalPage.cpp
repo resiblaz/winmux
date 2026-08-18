@@ -557,6 +557,20 @@ namespace winrt::TerminalApp::implementation
         _UpdateTabView();
     }
 
+    void TerminalPage::_UpdateWorkspaceSidebarForWindowWidth(const double width)
+    {
+        if (_workspaceSidebar)
+        {
+            const auto sidebar = winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar);
+            sidebar->SetWindowNarrow(width < implementation::WorkspaceSidebar::NarrowWindowThreshold);
+        }
+    }
+
+    void TerminalPage::_Root_SizeChanged(const IInspectable&, const SizeChangedEventArgs& args)
+    {
+        _UpdateWorkspaceSidebarForWindowWidth(args.NewSize().Width);
+    }
+
     void TerminalPage::_UpdateWorkspaceAutomationServer()
     {
         if (!_workspaceSidebarEnabled)

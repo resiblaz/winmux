@@ -14,7 +14,8 @@
       mc:Ignorable="d">
 
     <Grid x:Name="Root"
-          Background="Transparent">
+          Background="Transparent"
+          SizeChanged="_Root_SizeChanged">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />

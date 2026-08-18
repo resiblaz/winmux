@@ -1075,6 +1075,12 @@
   <data name="WorkspaceSidebar_ExpandAutomationName" xml:space="preserve">
     <value>展开工作区侧边栏</value>
   </data>
+  <data name="WorkspaceSidebar_NarrowAutomationName" xml:space="preserve">
+    <value>窗口较窄，工作区侧边栏已进入紧凑模式</value>
+  </data>
+  <data name="WorkspaceSidebar_NarrowHelpText" xml:space="preserve">
+    <value>加宽窗口以显示工作区详细信息。</value>
+  </data>
   <data name="WorkspaceSidebar_RenameDialogTitle" xml:space="preserve">
     <value>重命名工作区</value>
   </data>

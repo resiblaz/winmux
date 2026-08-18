@@ -1,0 +1,21 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+namespace TerminalApp
+{
+    runtimeclass WorkspaceNotification
+    {
+        WorkspaceNotification(Guid workspaceId,
+                              UInt32 paneId,
+                              String title,
+                              String message,
+                              Windows.Foundation.DateTime timestamp);
+
+        Guid NotificationId { get; };
+        Guid WorkspaceId { get; };
+        UInt32 PaneId { get; };
+        String Title { get; };
+        String Message { get; };
+        Windows.Foundation.DateTime Timestamp { get; };
+    }
+}

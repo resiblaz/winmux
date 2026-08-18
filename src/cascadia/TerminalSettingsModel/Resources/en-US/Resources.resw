@@ -750,6 +750,9 @@
   <data name="WorkspacesCommandKey" xml:space="preserve">
     <value>Workspaces...</value>
   </data>
+  <data name="FocusLatestNotificationCommandKey" xml:space="preserve">
+    <value>Focus latest unread notification</value>
+  </data>
   <data name="CloseTab" xml:space="preserve">
     <value>Close tab</value>
   </data>

@@ -1066,4 +1066,13 @@
   <data name="WorkspaceSidebar_RenameDialogPlaceholder" xml:space="preserve">
     <value>工作区名称</value>
   </data>
+  <data name="WorkspaceSidebarOpenNotificationMenuItem.Text" xml:space="preserve">
+    <value>打开最新通知</value>
+  </data>
+  <data name="WorkspaceSidebarClearNotificationsMenuItem.Text" xml:space="preserve">
+    <value>清除通知</value>
+  </data>
+  <data name="WorkspaceSidebar_UnreadAutomationName" xml:space="preserve">
+    <value>{0} 条未读通知；打开最新通知</value>
+  </data>
 </root>

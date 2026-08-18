@@ -79,6 +79,8 @@ namespace TerminalAppLocalTests
         TEST_METHOD(CreateTerminalPage);
         TEST_METHOD(CreateWorkspaceSidebarXamlType);
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
+        TEST_METHOD(WorkspaceNotificationStateTracksUnread);
+        TEST_METHOD(PaneAttentionState);
 
         TEST_METHOD(TryDuplicateBadTab);
         TEST_METHOD(TryDuplicateBadPane);
@@ -228,6 +230,59 @@ namespace TerminalAppLocalTests
 
             tab.IsPinned(true);
             VERIFY_IS_TRUE(item.IsPinned());
+        });
+    }
+
+    void TabTests::WorkspaceNotificationStateTracksUnread()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            const auto tab = page->_tabs.GetAt(0);
+            const winrt::TerminalApp::WorkspaceItemViewModel item{ tab };
+
+            item.AddNotification(7, L"Build", L"Build completed");
+            item.AddNotification(9, L"Tests", L"Tests completed");
+
+            VERIFY_ARE_EQUAL(2u, item.UnreadCount());
+            VERIFY_ARE_EQUAL(L"2", item.UnreadBadgeText());
+            VERIFY_ARE_EQUAL(L"Tests completed", item.LatestNotification());
+            VERIFY_ARE_EQUAL(2u, item.Notifications().Size());
+
+            const auto latest = item.LatestUnreadNotification();
+            VERIFY_IS_NOT_NULL(latest);
+            VERIFY_ARE_EQUAL(item.WorkspaceId(), latest.WorkspaceId());
+            VERIFY_ARE_EQUAL(9u, latest.PaneId());
+            VERIFY_ARE_EQUAL(L"Tests", latest.Title());
+
+            item.ClearNotificationsForPane(9);
+            VERIFY_ARE_EQUAL(1u, item.UnreadCount());
+            VERIFY_ARE_EQUAL(7u, item.LatestUnreadNotification().PaneId());
+
+            item.ClearNotifications();
+            VERIFY_ARE_EQUAL(0u, item.UnreadCount());
+            VERIFY_IS_NULL(item.LatestUnreadNotification());
+            VERIFY_IS_TRUE(item.LatestNotification().empty());
+        });
+    }
+
+    void TabTests::PaneAttentionState()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            const auto tab = page->_GetFocusedTabImpl();
+            VERIFY_IS_NOT_NULL(tab);
+            const auto pane = tab->GetActivePane();
+            VERIFY_IS_NOT_NULL(pane);
+
+            const auto item = page->_WorkspaceItemForTab(*tab);
+            VERIFY_IS_NOT_NULL(item);
+            VERIFY_IS_TRUE(page->_RecordWorkspaceNotification(tab, pane->GetContent(), L"Agent", L"Input required"));
+            VERIFY_IS_TRUE(pane->HasAttention());
+            VERIFY_ARE_EQUAL(1u, item.UnreadCount());
+
+            VERIFY_IS_TRUE(page->_FocusWorkspaceNotification(item));
+            VERIFY_IS_FALSE(pane->HasAttention());
+            VERIFY_ARE_EQUAL(0u, item.UnreadCount());
         });
     }
 

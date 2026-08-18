@@ -1132,6 +1132,11 @@ namespace winrt::TerminalApp::implementation
                 tab.Focus(FocusState::Programmatic);
                 _UpdateMRUTab(tab);
                 _updateAllTabCloseButtons();
+
+                if (const auto tabImpl = _GetTabImpl(tab))
+                {
+                    _ClearWorkspaceNotificationsForActivePane(tabImpl);
+                }
             }
 
             tab.TabViewItem().StartBringIntoView();
@@ -1419,6 +1424,8 @@ namespace winrt::TerminalApp::implementation
             notificationTitle = CascadiaSettings::ApplicationDisplayName();
         }
 
+        _RecordWorkspaceNotification(tab, content, notificationTitle, message);
+
         // Use the Tab object's identity hash as a stable toast tag.
         // This survives tab reordering and cross-window moves.
         const auto tabHash = std::hash<winrt::Windows::Foundation::IUnknown>{}(*tab);
@@ -1458,6 +1465,7 @@ namespace winrt::TerminalApp::implementation
                                         if (pane->GetContent() == paneContent)
                                         {
                                             rootPane->FocusPane(pane);
+                                            p->_ClearWorkspaceNotificationsForActivePane(t);
                                         }
                                     });
                                 }

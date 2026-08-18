@@ -136,4 +136,20 @@ namespace winrt::TerminalApp::implementation
             RenameRequested.raise(*this, item);
         }
     }
+
+    void WorkspaceSidebar::_Notification_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            ActivateNotificationRequested.raise(*this, item);
+        }
+    }
+
+    void WorkspaceSidebar::_ClearNotifications_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            ClearNotificationsRequested.raise(*this, item);
+        }
+    }
 }

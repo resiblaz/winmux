@@ -4,6 +4,7 @@
 #pragma once
 
 #include "WorkspaceItemViewModel.g.h"
+#include "WorkspaceNotification.h"
 
 namespace winrt::TerminalApp::implementation
 {
@@ -21,6 +22,14 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring PinActionText() const;
         winrt::hstring PinAutomationName() const;
         winrt::hstring SwitchShortcutText() const;
+        winrt::hstring UnreadBadgeText() const;
+        winrt::hstring NotificationAutomationName() const;
+        TerminalApp::WorkspaceNotification LatestUnreadNotification() const;
+        Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> Notifications() const noexcept;
+
+        void AddNotification(uint32_t paneId, const winrt::hstring& title, const winrt::hstring& message);
+        void ClearNotifications();
+        void ClearNotificationsForPane(uint32_t paneId);
 
         til::property_changed_event PropertyChanged;
         WINRT_OBSERVABLE_PROPERTY(bool, IsSelected, PropertyChanged.raise, false);
@@ -32,7 +41,11 @@ namespace winrt::TerminalApp::implementation
     private:
         winrt::guid _workspaceId{};
         TerminalApp::Tab _tab{ nullptr };
+        Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> _notifications;
         Windows::UI::Xaml::Data::INotifyPropertyChanged::PropertyChanged_revoker _tabChangedRevoker;
+
+        static constexpr uint32_t MaximumNotifications{ 100 };
+        void _UpdateNotificationProperties();
     };
 }
 

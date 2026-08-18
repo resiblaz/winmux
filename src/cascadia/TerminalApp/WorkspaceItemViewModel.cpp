@@ -9,7 +9,8 @@
 namespace winrt::TerminalApp::implementation
 {
     WorkspaceItemViewModel::WorkspaceItemViewModel(const TerminalApp::Tab& tab) :
-        _tab{ tab }
+        _tab{ tab },
+        _notifications{ winrt::single_threaded_observable_vector<TerminalApp::WorkspaceNotification>() }
     {
         GUID id{};
         THROW_IF_FAILED(CoCreateGuid(&id));
@@ -81,5 +82,80 @@ namespace winrt::TerminalApp::implementation
     winrt::hstring WorkspaceItemViewModel::SwitchShortcutText() const
     {
         return _tab ? _tab.SwitchShortcutText() : winrt::hstring{};
+    }
+
+    winrt::hstring WorkspaceItemViewModel::UnreadBadgeText() const
+    {
+        const auto count = UnreadCount();
+        return count == 0 ? winrt::hstring{} : winrt::to_hstring(count);
+    }
+
+    winrt::hstring WorkspaceItemViewModel::NotificationAutomationName() const
+    {
+        const auto count = UnreadCount();
+        return count == 0 ? winrt::hstring{} : winrt::hstring{ RS_fmt(L"WorkspaceSidebar_UnreadAutomationName", count) };
+    }
+
+    TerminalApp::WorkspaceNotification WorkspaceItemViewModel::LatestUnreadNotification() const
+    {
+        const auto size = _notifications.Size();
+        return size == 0 ? nullptr : _notifications.GetAt(size - 1);
+    }
+
+    Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> WorkspaceItemViewModel::Notifications() const noexcept
+    {
+        return _notifications;
+    }
+
+    void WorkspaceItemViewModel::AddNotification(const uint32_t paneId, const winrt::hstring& title, const winrt::hstring& message)
+    {
+        _notifications.Append(TerminalApp::WorkspaceNotification{ _workspaceId, paneId, title, message, winrt::clock::now() });
+        if (_notifications.Size() > MaximumNotifications)
+        {
+            _notifications.RemoveAt(0);
+        }
+        _UpdateNotificationProperties();
+    }
+
+    void WorkspaceItemViewModel::ClearNotifications()
+    {
+        if (_notifications.Size() == 0)
+        {
+            return;
+        }
+
+        _notifications.Clear();
+        _UpdateNotificationProperties();
+    }
+
+    void WorkspaceItemViewModel::ClearNotificationsForPane(const uint32_t paneId)
+    {
+        bool changed = false;
+        for (auto index = _notifications.Size(); index > 0; --index)
+        {
+            if (_notifications.GetAt(index - 1).PaneId() == paneId)
+            {
+                _notifications.RemoveAt(index - 1);
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            _UpdateNotificationProperties();
+        }
+    }
+
+    void WorkspaceItemViewModel::_UpdateNotificationProperties()
+    {
+        const auto count = _notifications.Size();
+        UnreadCount(count);
+
+        const auto latest = LatestUnreadNotification();
+        LatestNotification(latest ? (latest.Message().empty() ? latest.Title() : latest.Message()) : winrt::hstring{});
+
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"UnreadBadgeText" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"NotificationAutomationName" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"LatestUnreadNotification" });
     }
 }

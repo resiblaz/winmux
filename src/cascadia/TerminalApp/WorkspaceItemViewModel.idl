@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 
 import "Tab.idl";
+import "WorkspaceNotification.idl";
 
 namespace TerminalApp
 {
@@ -18,6 +19,14 @@ namespace TerminalApp
         String PinActionText { get; };
         String PinAutomationName { get; };
         String SwitchShortcutText { get; };
+        String UnreadBadgeText { get; };
+        String NotificationAutomationName { get; };
+        WorkspaceNotification LatestUnreadNotification { get; };
+        Windows.Foundation.Collections.IObservableVector<WorkspaceNotification> Notifications { get; };
+
+        void AddNotification(UInt32 paneId, String title, String message);
+        void ClearNotifications();
+        void ClearNotificationsForPane(UInt32 paneId);
 
         Boolean IsSelected;
         UInt32 UnreadCount;

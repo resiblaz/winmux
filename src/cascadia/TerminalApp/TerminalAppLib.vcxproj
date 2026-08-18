@@ -129,6 +129,9 @@
     <ClInclude Include="WorkspaceItemViewModel.h">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClInclude>
+    <ClInclude Include="WorkspaceNotification.h">
+      <DependentUpon>WorkspaceNotification.idl</DependentUpon>
+    </ClInclude>
     <ClInclude Include="TabHeaderControl.h">
       <DependentUpon>TabHeaderControl.xaml</DependentUpon>
     </ClInclude>
@@ -246,6 +249,9 @@
     <ClCompile Include="WorkspaceItemViewModel.cpp">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClCompile>
+    <ClCompile Include="WorkspaceNotification.cpp">
+      <DependentUpon>WorkspaceNotification.idl</DependentUpon>
+    </ClCompile>
     <ClCompile Include="TabHeaderControl.cpp">
       <DependentUpon>TabHeaderControl.xaml</DependentUpon>
     </ClCompile>
@@ -359,6 +365,9 @@
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="WorkspaceItemViewModel.idl">
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="WorkspaceNotification.idl">
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="TabHeaderControl.idl">

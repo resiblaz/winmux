@@ -95,6 +95,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 { ShortcutAction::ExpandSelectionToWord, USES_RESOURCE(L"ExpandSelectionToWordCommandKey") },
                 { ShortcutAction::Find, USES_RESOURCE(L"FindCommandKey") },
                 { ShortcutAction::FindMatch, USES_RESOURCE(L"FindMatch") },
+                { ShortcutAction::FocusLatestNotification, USES_RESOURCE(L"FocusLatestNotificationCommandKey") },
                 { ShortcutAction::FocusPane, USES_RESOURCE(L"FocusPane") },
                 { ShortcutAction::GlobalSummon, USES_RESOURCE(L"GlobalSummonCommandKey") },
                 { ShortcutAction::IdentifyWindow, USES_RESOURCE(L"IdentifyWindowCommandKey") },

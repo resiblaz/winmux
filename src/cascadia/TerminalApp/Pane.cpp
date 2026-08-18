@@ -975,6 +975,8 @@ bool Pane::IsConnectionClosed() const
 void Pane::_ContentGotFocusHandler(const winrt::Windows::Foundation::IInspectable& sender,
                                    const RoutedEventArgs& /* args */)
 {
+    SetAttention(false);
+
     auto f = FocusState::Programmatic;
     if (const auto o = sender.try_as<winrt::Windows::UI::Xaml::Controls::Control>())
     {
@@ -1232,6 +1234,21 @@ void Pane::UpdateVisuals()
     const auto& brush{ _ComputeBorderColor() };
     _borderFirst.BorderBrush(brush);
     _borderSecond.BorderBrush(brush);
+}
+
+void Pane::SetAttention(const bool value)
+{
+    if (_attention != value)
+    {
+        _attention = value;
+        _UpdateBorders();
+        UpdateVisuals();
+    }
+}
+
+bool Pane::HasAttention() const noexcept
+{
+    return _attention;
 }
 
 // Method Description:
@@ -1817,8 +1834,8 @@ void Pane::_UpdateBorders()
     double top = 0, bottom = 0, left = 0, right = 0;
 
     Thickness newBorders{ 0 };
-    // Zoomed panes, and focused parents should have full borders
-    if (_zoomed || (!_IsLeaf() && _lastActive))
+    // Attention panes, zoomed panes, and focused parents should have full borders.
+    if ((_IsLeaf() && _attention) || _zoomed || (!_IsLeaf() && _lastActive))
     {
         top = bottom = right = left = PaneBorderSize;
     }
@@ -3064,6 +3081,11 @@ void Pane::BroadcastString(const winrt::Microsoft::Terminal::Control::TermContro
 
 winrt::Windows::UI::Xaml::Media::SolidColorBrush Pane::_ComputeBorderColor()
 {
+    if (_attention)
+    {
+        return _themeResources.attentionBorderBrush;
+    }
+
     if (_lastActive)
     {
         return _themeResources.focusedBorderBrush;

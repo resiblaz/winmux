@@ -1066,4 +1066,13 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebar_RenameDialogPlaceholder" xml:space="preserve">
     <value>Workspace name</value>
   </data>
+  <data name="WorkspaceSidebarOpenNotificationMenuItem.Text" xml:space="preserve">
+    <value>Open latest notification</value>
+  </data>
+  <data name="WorkspaceSidebarClearNotificationsMenuItem.Text" xml:space="preserve">
+    <value>Clear notifications</value>
+  </data>
+  <data name="WorkspaceSidebar_UnreadAutomationName" xml:space="preserve">
+    <value>{0} unread notifications; open latest notification</value>
+  </data>
 </root>

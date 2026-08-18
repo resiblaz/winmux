@@ -351,6 +351,8 @@ namespace winrt::TerminalApp::implementation
         _workspaceSidebar.CloseRequested({ get_weak(), &TerminalPage::_WorkspaceCloseRequested });
         _workspaceSidebar.CloseOthersRequested({ get_weak(), &TerminalPage::_WorkspaceCloseOthersRequested });
         _workspaceSidebar.RenameRequested({ get_weak(), &TerminalPage::_WorkspaceRenameRequested });
+        _workspaceSidebar.ActivateNotificationRequested({ get_weak(), &TerminalPage::_WorkspaceActivateNotificationRequested });
+        _workspaceSidebar.ClearNotificationsRequested({ get_weak(), &TerminalPage::_WorkspaceClearNotificationsRequested });
         _workspaceList.SelectionChanged({ get_weak(), &TerminalPage::_WorkspaceList_SelectionChanged });
         _workspaceList.DragItemsStarting({ get_weak(), &TerminalPage::_WorkspaceList_DragItemsStarting });
         _workspaceList.DragItemsCompleted({ get_weak(), &TerminalPage::_WorkspaceList_DragItemsCompleted });
@@ -651,6 +653,144 @@ namespace winrt::TerminalApp::implementation
             if (const auto tab = item.SourceTab())
             {
                 _RenameWorkspace(tab);
+            }
+        }
+    }
+
+    void TerminalPage::_WorkspaceActivateNotificationRequested(const TerminalApp::WorkspaceSidebar&, const TerminalApp::WorkspaceItemViewModel& item)
+    {
+        _FocusWorkspaceNotification(item);
+    }
+
+    void TerminalPage::_WorkspaceClearNotificationsRequested(const TerminalApp::WorkspaceSidebar&, const TerminalApp::WorkspaceItemViewModel& item)
+    {
+        _ClearWorkspaceNotifications(item);
+    }
+
+    TerminalApp::WorkspaceItemViewModel TerminalPage::_WorkspaceItemForTab(const TerminalApp::Tab& tab) const
+    {
+        for (const auto& item : _workspaceItems)
+        {
+            if (item.SourceTab() == tab)
+            {
+                return item;
+            }
+        }
+        return nullptr;
+    }
+
+    bool TerminalPage::_RecordWorkspaceNotification(const winrt::com_ptr<Tab>& tab,
+                                                    const TerminalApp::IPaneContent& content,
+                                                    const winrt::hstring& title,
+                                                    const winrt::hstring& message)
+    {
+        if (!tab || !content)
+        {
+            return false;
+        }
+
+        const auto sourcePane = tab->GetRootPane()->WalkTree([&](const auto& pane) -> std::shared_ptr<Pane> {
+            return pane->GetContent() == content ? pane : nullptr;
+        });
+        const auto item = _WorkspaceItemForTab(*tab);
+        if (!sourcePane || !item)
+        {
+            return false;
+        }
+
+        if (const auto paneId = sourcePane->Id())
+        {
+            sourcePane->SetAttention(true);
+            item.AddNotification(paneId.value(), title, message);
+            return true;
+        }
+        return false;
+    }
+
+    bool TerminalPage::_FocusWorkspaceNotification(const TerminalApp::WorkspaceItemViewModel& item)
+    {
+        if (!item)
+        {
+            return false;
+        }
+
+        const auto notification = item.LatestUnreadNotification();
+        const auto tab = item.SourceTab();
+        const auto tabImpl = _GetTabImpl(tab);
+        const auto tabIndex = _GetTabIndex(tab);
+        if (!notification || !tabImpl || !tabIndex)
+        {
+            return false;
+        }
+
+        const auto paneId = notification.PaneId();
+        _SelectTab(tabIndex.value());
+        if (tabImpl->FocusPane(paneId))
+        {
+            if (const auto pane = tabImpl->GetRootPane()->FindPane(paneId))
+            {
+                pane->SetAttention(false);
+            }
+            item.ClearNotificationsForPane(paneId);
+            return true;
+        }
+
+        // The source pane may have been closed while its notification was unread.
+        item.ClearNotificationsForPane(paneId);
+        return false;
+    }
+
+    bool TerminalPage::_FocusLatestWorkspaceNotification()
+    {
+        TerminalApp::WorkspaceItemViewModel latestItem{ nullptr };
+        int64_t latestTimestamp = std::numeric_limits<int64_t>::min();
+
+        for (const auto& item : _workspaceItems)
+        {
+            if (const auto notification = item.LatestUnreadNotification())
+            {
+                if (const auto timestamp = notification.Timestamp().time_since_epoch().count(); !latestItem || timestamp > latestTimestamp)
+                {
+                    latestItem = item;
+                    latestTimestamp = timestamp;
+                }
+            }
+        }
+
+        return _FocusWorkspaceNotification(latestItem);
+    }
+
+    void TerminalPage::_ClearWorkspaceNotifications(const TerminalApp::WorkspaceItemViewModel& item)
+    {
+        if (!item)
+        {
+            return;
+        }
+
+        item.ClearNotifications();
+        if (const auto tab = _GetTabImpl(item.SourceTab()))
+        {
+            tab->GetRootPane()->WalkTree([](const auto& pane) {
+                pane->SetAttention(false);
+            });
+        }
+    }
+
+    void TerminalPage::_ClearWorkspaceNotificationsForActivePane(const winrt::com_ptr<Tab>& tab)
+    {
+        if (!tab)
+        {
+            return;
+        }
+
+        const auto pane = tab->GetActivePane();
+        const auto item = _WorkspaceItemForTab(*tab);
+        if (pane && item)
+        {
+            if (const auto paneId = pane->Id())
+            {
+                pane->SetAttention(false);
+                item.ClearNotificationsForPane(paneId.value());
             }
         }
     }
@@ -3083,6 +3223,11 @@ namespace winrt::TerminalApp::implementation
 
             auto profile = tab->GetFocusedProfile();
             _UpdateBackground(profile);
+
+            if (_activated && sender == _GetFocusedTab())
+            {
+                _ClearWorkspaceNotificationsForActivePane(tab);
+            }
         }
 
         _adjustProcessPriorityThrottled->Run();
@@ -5605,6 +5750,17 @@ namespace winrt::TerminalApp::implementation
             // will eat focus.
             _paneResources.broadcastBorderBrush = SolidColorBrush{ Colors::Black() };
         }
+
+        const auto attentionColorKey = winrt::box_value(L"AttentionPaneBorderColor");
+        if (res.HasKey(attentionColorKey))
+        {
+            const auto obj = ThemeLookup(res, requestedTheme, attentionColorKey);
+            _paneResources.attentionBorderBrush = obj.try_as<SolidColorBrush>();
+        }
+        else
+        {
+            _paneResources.attentionBorderBrush = SolidColorBrush{ ColorHelper::FromArgb(0xFF, 0xFF, 0x9F, 0x0A) };
+        }
     }
 
     void TerminalPage::_adjustProcessPriority() const
@@ -5716,6 +5872,11 @@ namespace winrt::TerminalApp::implementation
 
         if (const auto& tab{ _GetFocusedTabImpl() })
         {
+            if (activated)
+            {
+                _ClearWorkspaceNotificationsForActivePane(tab);
+            }
+
             if (tab->TabStatus().IsInputBroadcastActive())
             {
                 tab->GetRootPane()->WalkTree([activated](const auto& p) {

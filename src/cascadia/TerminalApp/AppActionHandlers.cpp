@@ -1635,4 +1635,10 @@ namespace winrt::TerminalApp::implementation
         args.Handled(true);
     }
 
+    void TerminalPage::_HandleFocusLatestNotification(const IInspectable& /*sender*/,
+                                                      const ActionEventArgs& args)
+    {
+        args.Handled(_FocusLatestWorkspaceNotification());
+    }
+
 }

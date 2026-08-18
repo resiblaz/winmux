@@ -195,6 +195,11 @@
 
                             <SolidColorBrush x:Key="BroadcastPaneBorderColor"
                                              Color="{StaticResource SystemAccentColorDark2}" />
+
+                            <SolidColorBrush x:Key="AttentionPaneBorderColor"
+                                             Color="#FF9F0A" />
+                            <SolidColorBrush x:Key="AttentionPaneForegroundBrush"
+                                             Color="White" />
                         </ResourceDictionary>
 
                         <ResourceDictionary x:Key="Light">
@@ -214,6 +219,11 @@
 
                             <SolidColorBrush x:Key="BroadcastPaneBorderColor"
                                              Color="{StaticResource SystemAccentColorLight2}" />
+
+                            <SolidColorBrush x:Key="AttentionPaneBorderColor"
+                                             Color="#FF9F0A" />
+                            <SolidColorBrush x:Key="AttentionPaneForegroundBrush"
+                                             Color="White" />
                         </ResourceDictionary>
 
                         <ResourceDictionary x:Key="HighContrast">
@@ -237,6 +247,11 @@
 
                             <SolidColorBrush x:Key="BroadcastPaneBorderColor"
                                              Color="{StaticResource SystemColorHighlightColor}" />
+
+                            <SolidColorBrush x:Key="AttentionPaneBorderColor"
+                                             Color="{StaticResource SystemColorHighlightColor}" />
+                            <SolidColorBrush x:Key="AttentionPaneForegroundBrush"
+                                             Color="{StaticResource SystemColorHighlightTextColor}" />
                         </ResourceDictionary>
 
                     </ResourceDictionary.ThemeDictionaries>

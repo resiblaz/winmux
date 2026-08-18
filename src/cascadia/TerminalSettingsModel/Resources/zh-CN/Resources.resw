@@ -750,6 +750,9 @@
   <data name="WorkspacesCommandKey" xml:space="preserve">
     <value>工作区...</value>
   </data>
+  <data name="FocusLatestNotificationCommandKey" xml:space="preserve">
+    <value>聚焦最近的未读通知</value>
+  </data>
   <data name="CloseTab" xml:space="preserve">
     <value>关闭标签页</value>
   </data>

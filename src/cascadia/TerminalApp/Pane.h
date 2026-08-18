@@ -57,6 +57,7 @@ struct PaneResources
     winrt::Windows::UI::Xaml::Media::SolidColorBrush focusedBorderBrush{ nullptr };
     winrt::Windows::UI::Xaml::Media::SolidColorBrush unfocusedBorderBrush{ nullptr };
     winrt::Windows::UI::Xaml::Media::SolidColorBrush broadcastBorderBrush{ nullptr };
+    winrt::Windows::UI::Xaml::Media::SolidColorBrush attentionBorderBrush{ nullptr };
 };
 
 class Pane : public std::enable_shared_from_this<Pane>
@@ -97,6 +98,8 @@ public:
     void UpdateVisuals();
     void ClearActive();
     void SetActive();
+    void SetAttention(bool value);
+    bool HasAttention() const noexcept;
 
     struct BuildStartupState
     {
@@ -261,6 +264,7 @@ private:
 
     bool _zoomed{ false };
     bool _broadcastEnabled{ false };
+    bool _attention{ false };
 
     bool _IsLeaf() const noexcept;
     bool _HasFocusedChild() const noexcept;

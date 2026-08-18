@@ -425,6 +425,14 @@ namespace winrt::TerminalApp::implementation
         void _WorkspaceCloseRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceCloseOthersRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceRenameRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        void _WorkspaceActivateNotificationRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        void _WorkspaceClearNotificationsRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        TerminalApp::WorkspaceItemViewModel _WorkspaceItemForTab(const TerminalApp::Tab& tab) const;
+        bool _RecordWorkspaceNotification(const winrt::com_ptr<Tab>& tab, const TerminalApp::IPaneContent& content, const winrt::hstring& title, const winrt::hstring& message);
+        bool _FocusWorkspaceNotification(const TerminalApp::WorkspaceItemViewModel& item);
+        bool _FocusLatestWorkspaceNotification();
+        void _ClearWorkspaceNotifications(const TerminalApp::WorkspaceItemViewModel& item);
+        void _ClearWorkspaceNotificationsForActivePane(const winrt::com_ptr<Tab>& tab);
         safe_void_coroutine _RenameWorkspace(winrt::TerminalApp::Tab tab);
         void _WorkspaceList_SelectionChanged(const IInspectable& sender, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs& eventArgs);
         void _WorkspaceList_DragItemsStarting(const IInspectable& sender, const Windows::UI::Xaml::Controls::DragItemsStartingEventArgs& eventArgs);

@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 
 import "WorkspaceItemViewModel.idl";
+import "WorkspaceNotification.idl";
 
 namespace TerminalApp
 {
@@ -11,8 +12,10 @@ namespace TerminalApp
         WorkspaceSidebar();
 
         Windows.UI.Xaml.Controls.ListView WorkspaceList { get; };
+        Windows.Foundation.Collections.IObservableVector<WorkspaceNotification> NotificationHistory { get; };
         Boolean IsExpanded { get; set; };
         Double ExpandedWidth { get; set; };
+        void RefreshNotifications();
 
         event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, Object> NewRequested;
         event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> PinRequested;
@@ -20,6 +23,10 @@ namespace TerminalApp
         event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> CloseOthersRequested;
         event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> RenameRequested;
         event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> ActivateNotificationRequested;
-        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> ClearNotificationsRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceNotification> ActivateNotificationItemRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> MarkNotificationsReadRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> ClearNotificationHistoryRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, Object> MarkAllNotificationsReadRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, Object> ClearAllNotificationHistoryRequested;
     }
 }

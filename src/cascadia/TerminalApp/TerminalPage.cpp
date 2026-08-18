@@ -335,6 +335,13 @@ namespace winrt::TerminalApp::implementation
         _workspaceSidebar = this->WorkspaceSidebar();
         _workspaceList = _workspaceSidebar.WorkspaceList();
         _workspaceList.ItemsSource(_workspaceItems);
+        _workspaceItemsChangedRevoker = _workspaceItems.VectorChanged(winrt::auto_revoke, [weakThis{ get_weak() }](auto&&, auto&&) {
+            if (const auto page = weakThis.get())
+            {
+                page->_RefreshWorkspaceNotifications();
+            }
+        });
+        _RefreshWorkspaceNotifications();
         _rearranging = false;
 
         const auto canDragDrop = CanDragDrop();
@@ -352,7 +359,11 @@ namespace winrt::TerminalApp::implementation
         _workspaceSidebar.CloseOthersRequested({ get_weak(), &TerminalPage::_WorkspaceCloseOthersRequested });
         _workspaceSidebar.RenameRequested({ get_weak(), &TerminalPage::_WorkspaceRenameRequested });
         _workspaceSidebar.ActivateNotificationRequested({ get_weak(), &TerminalPage::_WorkspaceActivateNotificationRequested });
-        _workspaceSidebar.ClearNotificationsRequested({ get_weak(), &TerminalPage::_WorkspaceClearNotificationsRequested });
+        _workspaceSidebar.ActivateNotificationItemRequested({ get_weak(), &TerminalPage::_WorkspaceActivateNotificationItemRequested });
+        _workspaceSidebar.MarkNotificationsReadRequested({ get_weak(), &TerminalPage::_WorkspaceMarkNotificationsReadRequested });
+        _workspaceSidebar.ClearNotificationHistoryRequested({ get_weak(), &TerminalPage::_WorkspaceClearNotificationHistoryRequested });
+        _workspaceSidebar.MarkAllNotificationsReadRequested({ get_weak(), &TerminalPage::_WorkspaceMarkAllNotificationsReadRequested });
+        _workspaceSidebar.ClearAllNotificationHistoryRequested({ get_weak(), &TerminalPage::_WorkspaceClearAllNotificationHistoryRequested });
         _workspaceList.SelectionChanged({ get_weak(), &TerminalPage::_WorkspaceList_SelectionChanged });
         _workspaceList.DragItemsStarting({ get_weak(), &TerminalPage::_WorkspaceList_DragItemsStarting });
         _workspaceList.DragItemsCompleted({ get_weak(), &TerminalPage::_WorkspaceList_DragItemsCompleted });
@@ -662,9 +673,32 @@ namespace winrt::TerminalApp::implementation
         _FocusWorkspaceNotification(item);
     }
 
-    void TerminalPage::_WorkspaceClearNotificationsRequested(const TerminalApp::WorkspaceSidebar&, const TerminalApp::WorkspaceItemViewModel& item)
+    void TerminalPage::_WorkspaceActivateNotificationItemRequested(const TerminalApp::WorkspaceSidebar&, const TerminalApp::WorkspaceNotification& notification)
     {
-        _ClearWorkspaceNotifications(item);
+        if (const auto item = _WorkspaceItemForNotification(notification))
+        {
+            _FocusWorkspaceNotification(item, notification);
+        }
+    }
+
+    void TerminalPage::_WorkspaceMarkNotificationsReadRequested(const TerminalApp::WorkspaceSidebar&, const TerminalApp::WorkspaceItemViewModel& item)
+    {
+        _MarkWorkspaceNotificationsRead(item);
+    }
+
+    void TerminalPage::_WorkspaceClearNotificationHistoryRequested(const TerminalApp::WorkspaceSidebar&, const TerminalApp::WorkspaceItemViewModel& item)
+    {
+        _ClearWorkspaceNotificationHistory(item);
+    }
+
+    void TerminalPage::_WorkspaceMarkAllNotificationsReadRequested(const TerminalApp::WorkspaceSidebar&, const IInspectable&)
+    {
+        _MarkAllWorkspaceNotificationsRead();
+    }
+
+    void TerminalPage::_WorkspaceClearAllNotificationHistoryRequested(const TerminalApp::WorkspaceSidebar&, const IInspectable&)
+    {
+        _ClearAllWorkspaceNotificationHistory();
     }
 
     TerminalApp::WorkspaceItemViewModel TerminalPage::_WorkspaceItemForTab(const TerminalApp::Tab& tab) const
@@ -674,6 +708,21 @@ namespace winrt::TerminalApp::implementation
             if (item.SourceTab() == tab)
             {
                 return item;
+            }
+        }
+        return nullptr;
+    }
+
+    TerminalApp::WorkspaceItemViewModel TerminalPage::_WorkspaceItemForNotification(const TerminalApp::WorkspaceNotification& notification) const
+    {
+        if (notification)
+        {
+            for (const auto& item : _workspaceItems)
+            {
+                if (item.WorkspaceId() == notification.WorkspaceId())
+                {
+                    return item;
+                }
             }
         }
         return nullptr;
@@ -702,6 +751,7 @@ namespace winrt::TerminalApp::implementation
         {
             sourcePane->SetAttention(true);
             item.AddNotification(paneId.value(), title, message);
+            _RefreshWorkspaceNotifications();
             return true;
         }
         return false;
@@ -714,11 +764,20 @@ namespace winrt::TerminalApp::implementation
             return false;
         }
 
-        const auto notification = item.LatestUnreadNotification();
+        return _FocusWorkspaceNotification(item, item.LatestUnreadNotification());
+    }
+
+    bool TerminalPage::_FocusWorkspaceNotification(const TerminalApp::WorkspaceItemViewModel& item, const TerminalApp::WorkspaceNotification& notification)
+    {
+        if (!item || !notification)
+        {
+            return false;
+        }
+
         const auto tab = item.SourceTab();
         const auto tabImpl = _GetTabImpl(tab);
         const auto tabIndex = _GetTabIndex(tab);
-        if (!notification || !tabImpl || !tabIndex)
+        if (!tabImpl || !tabIndex)
         {
             return false;
         }
@@ -731,12 +790,14 @@ namespace winrt::TerminalApp::implementation
             {
                 pane->SetAttention(false);
             }
-            item.ClearNotificationsForPane(paneId);
+            item.MarkNotificationsReadForPane(paneId);
+            _RefreshWorkspaceNotifications();
             return true;
         }
 
         // The source pane may have been closed while its notification was unread.
-        item.ClearNotificationsForPane(paneId);
+        item.MarkNotificationsReadForPane(paneId);
+        _RefreshWorkspaceNotifications();
         return false;
     }
 
@@ -760,23 +821,71 @@ namespace winrt::TerminalApp::implementation
         return _FocusWorkspaceNotification(latestItem);
     }
 
-    void TerminalPage::_ClearWorkspaceNotifications(const TerminalApp::WorkspaceItemViewModel& item)
+    void TerminalPage::_MarkWorkspaceNotificationsRead(const TerminalApp::WorkspaceItemViewModel& item)
     {
         if (!item)
         {
             return;
         }
 
-        item.ClearNotifications();
+        item.MarkAllNotificationsRead();
         if (const auto tab = _GetTabImpl(item.SourceTab()))
         {
             tab->GetRootPane()->WalkTree([](const auto& pane) {
                 pane->SetAttention(false);
             });
         }
+        _RefreshWorkspaceNotifications();
     }
 
-    void TerminalPage::_ClearWorkspaceNotificationsForActivePane(const winrt::com_ptr<Tab>& tab)
+    void TerminalPage::_ClearWorkspaceNotificationHistory(const TerminalApp::WorkspaceItemViewModel& item)
+    {
+        if (!item)
+        {
+            return;
+        }
+
+        item.ClearNotificationHistory();
+        if (const auto tab = _GetTabImpl(item.SourceTab()))
+        {
+            tab->GetRootPane()->WalkTree([](const auto& pane) {
+                pane->SetAttention(false);
+            });
+        }
+        _RefreshWorkspaceNotifications();
+    }
+
+    void TerminalPage::_MarkAllWorkspaceNotificationsRead()
+    {
+        for (const auto& item : _workspaceItems)
+        {
+            item.MarkAllNotificationsRead();
+            if (const auto tab = _GetTabImpl(item.SourceTab()))
+            {
+                tab->GetRootPane()->WalkTree([](const auto& pane) {
+                    pane->SetAttention(false);
+                });
+            }
+        }
+        _RefreshWorkspaceNotifications();
+    }
+
+    void TerminalPage::_ClearAllWorkspaceNotificationHistory()
+    {
+        for (const auto& item : _workspaceItems)
+        {
+            item.ClearNotificationHistory();
+            if (const auto tab = _GetTabImpl(item.SourceTab()))
+            {
+                tab->GetRootPane()->WalkTree([](const auto& pane) {
+                    pane->SetAttention(false);
+                });
+            }
+        }
+        _RefreshWorkspaceNotifications();
+    }
+
+    void TerminalPage::_MarkWorkspaceNotificationsReadForActivePane(const winrt::com_ptr<Tab>& tab)
     {
         if (!tab)
         {
@@ -790,8 +899,17 @@ namespace winrt::TerminalApp::implementation
             if (const auto paneId = pane->Id())
             {
                 pane->SetAttention(false);
-                item.ClearNotificationsForPane(paneId.value());
+                item.MarkNotificationsReadForPane(paneId.value());
+                _RefreshWorkspaceNotifications();
             }
+        }
+    }
+
+    void TerminalPage::_RefreshWorkspaceNotifications()
+    {
+        if (_workspaceSidebar)
+        {
+            _workspaceSidebar.RefreshNotifications();
         }
     }
 
@@ -3226,7 +3344,7 @@ namespace winrt::TerminalApp::implementation
 
             if (_activated && sender == _GetFocusedTab())
             {
-                _ClearWorkspaceNotificationsForActivePane(tab);
+                _MarkWorkspaceNotificationsReadForActivePane(tab);
             }
         }
 
@@ -5874,7 +5992,7 @@ namespace winrt::TerminalApp::implementation
         {
             if (activated)
             {
-                _ClearWorkspaceNotificationsForActivePane(tab);
+                _MarkWorkspaceNotificationsReadForActivePane(tab);
             }
 
             if (tab->TabStatus().IsInputBroadcastActive())

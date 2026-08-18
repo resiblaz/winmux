@@ -7,6 +7,7 @@ namespace TerminalApp
     {
         WorkspaceNotification(Guid workspaceId,
                               UInt32 paneId,
+                              String workspaceTitle,
                               String title,
                               String message,
                               Windows.Foundation.DateTime timestamp);
@@ -14,8 +15,11 @@ namespace TerminalApp
         Guid NotificationId { get; };
         Guid WorkspaceId { get; };
         UInt32 PaneId { get; };
+        String WorkspaceTitle { get; };
         String Title { get; };
         String Message { get; };
         Windows.Foundation.DateTime Timestamp { get; };
+        String TimestampText { get; };
+        Boolean IsRead { get; set; };
     }
 }

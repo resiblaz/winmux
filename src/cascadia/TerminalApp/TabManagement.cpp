@@ -1135,7 +1135,7 @@ namespace winrt::TerminalApp::implementation
 
                 if (const auto tabImpl = _GetTabImpl(tab))
                 {
-                    _ClearWorkspaceNotificationsForActivePane(tabImpl);
+                    _MarkWorkspaceNotificationsReadForActivePane(tabImpl);
                 }
             }
 
@@ -1465,7 +1465,7 @@ namespace winrt::TerminalApp::implementation
                                         if (pane->GetContent() == paneContent)
                                         {
                                             rootPane->FocusPane(pane);
-                                            p->_ClearWorkspaceNotificationsForActivePane(t);
+                                            p->_MarkWorkspaceNotificationsReadForActivePane(t);
                                         }
                                     });
                                 }

@@ -10,11 +10,13 @@ namespace winrt::TerminalApp::implementation
 {
     WorkspaceNotification::WorkspaceNotification(const winrt::guid& workspaceId,
                                                  const uint32_t paneId,
+                                                 const winrt::hstring& workspaceTitle,
                                                  const winrt::hstring& title,
                                                  const winrt::hstring& message,
                                                  const Windows::Foundation::DateTime& timestamp) :
         _workspaceId{ workspaceId },
         _paneId{ paneId },
+        _workspaceTitle{ workspaceTitle },
         _title{ title },
         _message{ message },
         _timestamp{ timestamp }
@@ -39,6 +41,11 @@ namespace winrt::TerminalApp::implementation
         return _paneId;
     }
 
+    winrt::hstring WorkspaceNotification::WorkspaceTitle() const
+    {
+        return _workspaceTitle;
+    }
+
     winrt::hstring WorkspaceNotification::Title() const
     {
         return _title;
@@ -52,5 +59,29 @@ namespace winrt::TerminalApp::implementation
     Windows::Foundation::DateTime WorkspaceNotification::Timestamp() const noexcept
     {
         return _timestamp;
+    }
+
+    winrt::hstring WorkspaceNotification::TimestampText() const
+    {
+        const auto ticks = _timestamp.time_since_epoch().count();
+        const ULARGE_INTEGER value{ .QuadPart = gsl::narrow_cast<ULONGLONG>(ticks) };
+        const FILETIME fileTime{ value.LowPart, value.HighPart };
+        SYSTEMTIME utc{};
+        SYSTEMTIME local{};
+        if (FileTimeToSystemTime(&fileTime, &utc) && SystemTimeToTzSpecificLocalTime(nullptr, &utc, &local))
+        {
+            return winrt::hstring{ fmt::format(FMT_COMPILE(L"{:02}:{:02}"), local.wHour, local.wMinute) };
+        }
+        return {};
+    }
+
+    bool WorkspaceNotification::IsRead() const noexcept
+    {
+        return _isRead;
+    }
+
+    void WorkspaceNotification::IsRead(const bool value) noexcept
+    {
+        _isRead = value;
     }
 }

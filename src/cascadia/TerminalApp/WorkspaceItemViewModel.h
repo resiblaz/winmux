@@ -24,12 +24,15 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring SwitchShortcutText() const;
         winrt::hstring UnreadBadgeText() const;
         winrt::hstring NotificationAutomationName() const;
+        uint32_t NotificationHistoryCount() const noexcept;
+        winrt::hstring NotificationHistoryCountText() const;
         TerminalApp::WorkspaceNotification LatestUnreadNotification() const;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> Notifications() const noexcept;
 
         void AddNotification(uint32_t paneId, const winrt::hstring& title, const winrt::hstring& message);
-        void ClearNotifications();
-        void ClearNotificationsForPane(uint32_t paneId);
+        void MarkAllNotificationsRead();
+        void MarkNotificationsReadForPane(uint32_t paneId);
+        void ClearNotificationHistory();
 
         til::property_changed_event PropertyChanged;
         WINRT_OBSERVABLE_PROPERTY(bool, IsSelected, PropertyChanged.raise, false);

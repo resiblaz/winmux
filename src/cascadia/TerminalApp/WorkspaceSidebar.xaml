@@ -114,9 +114,13 @@
                                         Click="_Notification_Click"
                                         IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(UnreadBadgeText), Mode=OneWay}"
                                         Tag="{Binding}" />
-                        <MenuFlyoutItem x:Uid="WorkspaceSidebarClearNotificationsMenuItem"
-                                        Click="_ClearNotifications_Click"
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarMarkNotificationsReadMenuItem"
+                                        Click="_MarkNotificationsRead_Click"
                                         IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(UnreadBadgeText), Mode=OneWay}"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarClearNotificationHistoryMenuItem"
+                                        Click="_ClearNotificationHistory_Click"
+                                        IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(NotificationHistoryCountText), Mode=OneWay}"
                                         Tag="{Binding}" />
                         <MenuFlyoutSeparator />
                         <MenuFlyoutItem Click="_Pin_Click"
@@ -170,9 +174,13 @@
                                         Click="_Notification_Click"
                                         IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(UnreadBadgeText), Mode=OneWay}"
                                         Tag="{Binding}" />
-                        <MenuFlyoutItem x:Uid="WorkspaceSidebarClearNotificationsMenuItem"
-                                        Click="_ClearNotifications_Click"
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarMarkNotificationsReadMenuItem"
+                                        Click="_MarkNotificationsRead_Click"
                                         IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(UnreadBadgeText), Mode=OneWay}"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarClearNotificationHistoryMenuItem"
+                                        Click="_ClearNotificationHistory_Click"
+                                        IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(NotificationHistoryCountText), Mode=OneWay}"
                                         Tag="{Binding}" />
                         <MenuFlyoutSeparator />
                         <MenuFlyoutItem Click="_Pin_Click"
@@ -210,15 +218,140 @@
 
             <Grid Grid.Row="0"
                   Grid.Column="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
                 <TextBlock x:Name="SidebarTitle"
                            x:Uid="WorkspaceSidebarTitle"
-                           Margin="12,0,40,0"
+                           Grid.Column="0"
+                           Margin="12,0,4,0"
                            VerticalAlignment="Center"
                            FontSize="11"
                            FontWeight="SemiBold"
                            Opacity="0.72"
                            TextTrimming="CharacterEllipsis" />
+                <Button x:Name="NotificationCenterButton"
+                        Grid.Column="1"
+                        Width="32"
+                        Height="32"
+                        Margin="0,4"
+                        Padding="0"
+                        Background="Transparent"
+                        BorderThickness="0">
+                    <Grid Width="24"
+                          Height="24">
+                        <FontIcon HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                  FontSize="13"
+                                  Glyph="&#xEA8F;" />
+                        <Border x:Name="NotificationCenterBadge"
+                                Height="14"
+                                MinWidth="14"
+                                Padding="3,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Background="{ThemeResource AttentionPaneBorderColor}"
+                                CornerRadius="7"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed">
+                            <TextBlock x:Name="NotificationCenterBadgeText"
+                                       VerticalAlignment="Center"
+                                       FontSize="8"
+                                       Foreground="{ThemeResource AttentionPaneForegroundBrush}" />
+                        </Border>
+                    </Grid>
+                    <Button.Flyout>
+                        <Flyout x:Name="NotificationCenterFlyout"
+                                Opening="_NotificationCenter_Opening"
+                                Placement="Right">
+                            <Grid Width="360"
+                                  MinHeight="180"
+                                  MaxHeight="520">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Uid="WorkspaceSidebarNotificationCenterTitle"
+                                           Margin="4,2,4,10"
+                                           FontSize="18"
+                                           FontWeight="SemiBold" />
+                                <ListView x:Name="NotificationHistoryList"
+                                          Grid.Row="1"
+                                          MaxHeight="380"
+                                          IsItemClickEnabled="True"
+                                          ItemClick="_NotificationHistory_ItemClick"
+                                          ItemsSource="{x:Bind NotificationHistory, Mode=OneWay}"
+                                          SelectionMode="None">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="local:WorkspaceNotification">
+                                            <Grid Width="320"
+                                                  Padding="8"
+                                                  AutomationProperties.Name="{x:Bind Message, Mode=OneWay}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="12" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Ellipse Width="7"
+                                                         Height="7"
+                                                         Margin="0,6,0,0"
+                                                         HorizontalAlignment="Left"
+                                                         VerticalAlignment="Top"
+                                                         Fill="{ThemeResource AttentionPaneBorderColor}"
+                                                         Visibility="{x:Bind mtu:Converters.InvertedBooleanToVisibility(IsRead), Mode=OneWay}" />
+                                                <StackPanel Grid.Column="1"
+                                                            Spacing="2">
+                                                    <TextBlock FontSize="11"
+                                                               Opacity="0.65"
+                                                               Text="{x:Bind WorkspaceTitle, Mode=OneWay}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock FontWeight="SemiBold"
+                                                               Text="{x:Bind Title, Mode=OneWay}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock MaxLines="2"
+                                                               Opacity="0.85"
+                                                               Text="{x:Bind Message, Mode=OneWay}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="2"
+                                                           Margin="8,2,0,0"
+                                                           FontSize="10"
+                                                           Opacity="0.6"
+                                                           Text="{x:Bind TimestampText, Mode=OneWay}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                                <TextBlock x:Name="NotificationCenterEmptyState"
+                                           x:Uid="WorkspaceSidebarNotificationCenterEmptyState"
+                                           Grid.Row="1"
+                                           Margin="16,32"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Opacity="0.65" />
+                                <StackPanel Grid.Row="2"
+                                            Margin="0,10,0,0"
+                                            HorizontalAlignment="Right"
+                                            Orientation="Horizontal"
+                                            Spacing="8">
+                                    <Button x:Name="MarkAllNotificationsReadButton"
+                                            x:Uid="WorkspaceSidebarMarkAllNotificationsReadButton"
+                                            Click="_MarkAllNotificationsRead_Click" />
+                                    <Button x:Name="ClearAllNotificationHistoryButton"
+                                            x:Uid="WorkspaceSidebarClearAllNotificationHistoryButton"
+                                            Click="_ClearAllNotificationHistory_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
                 <Button x:Name="ToggleButton"
+                        Grid.Column="2"
                         Width="32"
                         Height="32"
                         Margin="4"

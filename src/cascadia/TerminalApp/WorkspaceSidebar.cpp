@@ -13,7 +13,8 @@ using namespace winrt::Windows::UI::Xaml::Controls;
 
 namespace winrt::TerminalApp::implementation
 {
-    WorkspaceSidebar::WorkspaceSidebar()
+    WorkspaceSidebar::WorkspaceSidebar() :
+        _notificationHistory{ winrt::single_threaded_observable_vector<TerminalApp::WorkspaceNotification>() }
     {
         InitializeComponent();
 
@@ -63,11 +64,61 @@ namespace winrt::TerminalApp::implementation
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"ExpandedWidth" });
     }
 
+    Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> WorkspaceSidebar::NotificationHistory() const noexcept
+    {
+        return _notificationHistory;
+    }
+
+    void WorkspaceSidebar::RefreshNotifications()
+    {
+        std::vector<TerminalApp::WorkspaceNotification> history;
+        uint32_t unreadCount = 0;
+
+        if (const auto workspaces = WorkspaceList().ItemsSource().try_as<Windows::Foundation::Collections::IIterable<IInspectable>>())
+        {
+            for (const auto& value : workspaces)
+            {
+                if (const auto item = value.try_as<TerminalApp::WorkspaceItemViewModel>())
+                {
+                    unreadCount += item.UnreadCount();
+                    for (const auto& notification : item.Notifications())
+                    {
+                        history.emplace_back(notification);
+                    }
+                }
+            }
+        }
+
+        std::sort(history.begin(), history.end(), [](const auto& left, const auto& right) {
+            return left.Timestamp() > right.Timestamp();
+        });
+
+        _notificationHistory.Clear();
+        for (const auto& notification : history)
+        {
+            _notificationHistory.Append(notification);
+        }
+
+        const auto hasHistory = !history.empty();
+        NotificationCenterBadgeText().Text(unreadCount == 0 ? winrt::hstring{} : winrt::to_hstring(unreadCount));
+        NotificationCenterBadge().Visibility(unreadCount == 0 ? Visibility::Collapsed : Visibility::Visible);
+        NotificationHistoryList().Visibility(hasHistory ? Visibility::Visible : Visibility::Collapsed);
+        NotificationCenterEmptyState().Visibility(hasHistory ? Visibility::Collapsed : Visibility::Visible);
+        MarkAllNotificationsReadButton().IsEnabled(unreadCount > 0);
+        ClearAllNotificationHistoryButton().IsEnabled(hasHistory);
+
+        const auto automationName = unreadCount == 0 ?
+                                        RS_(L"WorkspaceSidebar_NotificationCenterAutomationName") :
+                                        winrt::hstring{ RS_fmt(L"WorkspaceSidebar_NotificationCenterUnreadAutomationName", unreadCount) };
+        Automation::AutomationProperties::SetName(NotificationCenterButton(), automationName);
+    }
+
     void WorkspaceSidebar::_ApplyLayout()
     {
         Width(_isExpanded ? _expandedWidth : CollapsedWidth);
         ResizeHandle().Visibility(_isExpanded ? Visibility::Visible : Visibility::Collapsed);
         SidebarTitle().Visibility(_isExpanded ? Visibility::Visible : Visibility::Collapsed);
+        NotificationCenterButton().Visibility(_isExpanded ? Visibility::Visible : Visibility::Collapsed);
         NewButtonText().Visibility(_isExpanded ? Visibility::Visible : Visibility::Collapsed);
         ToggleButton().Content(box_value(_isExpanded ? L"\uE76B" : L"\uE76C"));
         Automation::AutomationProperties::SetName(ToggleButton(), _isExpanded ? RS_(L"WorkspaceSidebar_CollapseAutomationName") : RS_(L"WorkspaceSidebar_ExpandAutomationName"));
@@ -145,11 +196,43 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void WorkspaceSidebar::_ClearNotifications_Click(const IInspectable& sender, const RoutedEventArgs&)
+    void WorkspaceSidebar::_MarkNotificationsRead_Click(const IInspectable& sender, const RoutedEventArgs&)
     {
         if (const auto item = _ItemFromSender(sender))
         {
-            ClearNotificationsRequested.raise(*this, item);
+            MarkNotificationsReadRequested.raise(*this, item);
         }
+    }
+
+    void WorkspaceSidebar::_ClearNotificationHistory_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            ClearNotificationHistoryRequested.raise(*this, item);
+        }
+    }
+
+    void WorkspaceSidebar::_NotificationCenter_Opening(const IInspectable&, const IInspectable&)
+    {
+        RefreshNotifications();
+    }
+
+    void WorkspaceSidebar::_NotificationHistory_ItemClick(const IInspectable&, const ItemClickEventArgs& args)
+    {
+        if (const auto notification = args.ClickedItem().try_as<TerminalApp::WorkspaceNotification>())
+        {
+            NotificationCenterFlyout().Hide();
+            ActivateNotificationItemRequested.raise(*this, notification);
+        }
+    }
+
+    void WorkspaceSidebar::_MarkAllNotificationsRead_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        MarkAllNotificationsReadRequested.raise(*this, nullptr);
+    }
+
+    void WorkspaceSidebar::_ClearAllNotificationHistory_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        ClearAllNotificationHistoryRequested.raise(*this, nullptr);
     }
 }

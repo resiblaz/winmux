@@ -1069,10 +1069,31 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebarOpenNotificationMenuItem.Text" xml:space="preserve">
     <value>Open latest notification</value>
   </data>
-  <data name="WorkspaceSidebarClearNotificationsMenuItem.Text" xml:space="preserve">
-    <value>Clear notifications</value>
+  <data name="WorkspaceSidebarMarkNotificationsReadMenuItem.Text" xml:space="preserve">
+    <value>Mark all as read</value>
+  </data>
+  <data name="WorkspaceSidebarClearNotificationHistoryMenuItem.Text" xml:space="preserve">
+    <value>Clear notification history</value>
   </data>
   <data name="WorkspaceSidebar_UnreadAutomationName" xml:space="preserve">
     <value>{0} unread notifications; open latest notification</value>
+  </data>
+  <data name="WorkspaceSidebarNotificationCenterTitle.Text" xml:space="preserve">
+    <value>Notifications</value>
+  </data>
+  <data name="WorkspaceSidebarNotificationCenterEmptyState.Text" xml:space="preserve">
+    <value>No notifications</value>
+  </data>
+  <data name="WorkspaceSidebarMarkAllNotificationsReadButton.Content" xml:space="preserve">
+    <value>Mark all as read</value>
+  </data>
+  <data name="WorkspaceSidebarClearAllNotificationHistoryButton.Content" xml:space="preserve">
+    <value>Clear history</value>
+  </data>
+  <data name="WorkspaceSidebar_NotificationCenterAutomationName" xml:space="preserve">
+    <value>Notifications</value>
+  </data>
+  <data name="WorkspaceSidebar_NotificationCenterUnreadAutomationName" xml:space="preserve">
+    <value>Notifications, {0} unread</value>
   </data>
 </root>

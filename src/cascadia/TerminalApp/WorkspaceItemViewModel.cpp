@@ -98,8 +98,26 @@ namespace winrt::TerminalApp::implementation
 
     TerminalApp::WorkspaceNotification WorkspaceItemViewModel::LatestUnreadNotification() const
     {
-        const auto size = _notifications.Size();
-        return size == 0 ? nullptr : _notifications.GetAt(size - 1);
+        for (auto index = _notifications.Size(); index > 0; --index)
+        {
+            const auto notification = _notifications.GetAt(index - 1);
+            if (!notification.IsRead())
+            {
+                return notification;
+            }
+        }
+        return nullptr;
+    }
+
+    uint32_t WorkspaceItemViewModel::NotificationHistoryCount() const noexcept
+    {
+        return _notifications.Size();
+    }
+
+    winrt::hstring WorkspaceItemViewModel::NotificationHistoryCountText() const
+    {
+        const auto count = NotificationHistoryCount();
+        return count == 0 ? winrt::hstring{} : winrt::to_hstring(count);
     }
 
     Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> WorkspaceItemViewModel::Notifications() const noexcept
@@ -109,7 +127,7 @@ namespace winrt::TerminalApp::implementation
 
     void WorkspaceItemViewModel::AddNotification(const uint32_t paneId, const winrt::hstring& title, const winrt::hstring& message)
     {
-        _notifications.Append(TerminalApp::WorkspaceNotification{ _workspaceId, paneId, title, message, winrt::clock::now() });
+        _notifications.Append(TerminalApp::WorkspaceNotification{ _workspaceId, paneId, Title(), title, message, winrt::clock::now() });
         if (_notifications.Size() > MaximumNotifications)
         {
             _notifications.RemoveAt(0);
@@ -117,25 +135,14 @@ namespace winrt::TerminalApp::implementation
         _UpdateNotificationProperties();
     }
 
-    void WorkspaceItemViewModel::ClearNotifications()
-    {
-        if (_notifications.Size() == 0)
-        {
-            return;
-        }
-
-        _notifications.Clear();
-        _UpdateNotificationProperties();
-    }
-
-    void WorkspaceItemViewModel::ClearNotificationsForPane(const uint32_t paneId)
+    void WorkspaceItemViewModel::MarkAllNotificationsRead()
     {
         bool changed = false;
-        for (auto index = _notifications.Size(); index > 0; --index)
+        for (const auto& notification : _notifications)
         {
-            if (_notifications.GetAt(index - 1).PaneId() == paneId)
+            if (!notification.IsRead())
             {
-                _notifications.RemoveAt(index - 1);
+                notification.IsRead(true);
                 changed = true;
             }
         }
@@ -146,16 +153,51 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void WorkspaceItemViewModel::MarkNotificationsReadForPane(const uint32_t paneId)
+    {
+        bool changed = false;
+        for (const auto& notification : _notifications)
+        {
+            if (notification.PaneId() == paneId && !notification.IsRead())
+            {
+                notification.IsRead(true);
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            _UpdateNotificationProperties();
+        }
+    }
+
+    void WorkspaceItemViewModel::ClearNotificationHistory()
+    {
+        if (_notifications.Size() == 0)
+        {
+            return;
+        }
+
+        _notifications.Clear();
+        _UpdateNotificationProperties();
+    }
+
     void WorkspaceItemViewModel::_UpdateNotificationProperties()
     {
-        const auto count = _notifications.Size();
-        UnreadCount(count);
+        uint32_t unreadCount = 0;
+        for (const auto& notification : _notifications)
+        {
+            unreadCount += notification.IsRead() ? 0 : 1;
+        }
+        UnreadCount(unreadCount);
 
         const auto latest = LatestUnreadNotification();
         LatestNotification(latest ? (latest.Message().empty() ? latest.Title() : latest.Message()) : winrt::hstring{});
 
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"UnreadBadgeText" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"NotificationAutomationName" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"NotificationHistoryCount" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"NotificationHistoryCountText" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"LatestUnreadNotification" });
     }
 }

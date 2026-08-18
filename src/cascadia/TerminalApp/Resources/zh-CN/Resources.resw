@@ -1069,10 +1069,31 @@
   <data name="WorkspaceSidebarOpenNotificationMenuItem.Text" xml:space="preserve">
     <value>打开最新通知</value>
   </data>
-  <data name="WorkspaceSidebarClearNotificationsMenuItem.Text" xml:space="preserve">
-    <value>清除通知</value>
+  <data name="WorkspaceSidebarMarkNotificationsReadMenuItem.Text" xml:space="preserve">
+    <value>全部标为已读</value>
+  </data>
+  <data name="WorkspaceSidebarClearNotificationHistoryMenuItem.Text" xml:space="preserve">
+    <value>清除通知历史</value>
   </data>
   <data name="WorkspaceSidebar_UnreadAutomationName" xml:space="preserve">
     <value>{0} 条未读通知；打开最新通知</value>
+  </data>
+  <data name="WorkspaceSidebarNotificationCenterTitle.Text" xml:space="preserve">
+    <value>通知</value>
+  </data>
+  <data name="WorkspaceSidebarNotificationCenterEmptyState.Text" xml:space="preserve">
+    <value>暂无通知</value>
+  </data>
+  <data name="WorkspaceSidebarMarkAllNotificationsReadButton.Content" xml:space="preserve">
+    <value>全部标为已读</value>
+  </data>
+  <data name="WorkspaceSidebarClearAllNotificationHistoryButton.Content" xml:space="preserve">
+    <value>清除历史</value>
+  </data>
+  <data name="WorkspaceSidebar_NotificationCenterAutomationName" xml:space="preserve">
+    <value>通知</value>
+  </data>
+  <data name="WorkspaceSidebar_NotificationCenterUnreadAutomationName" xml:space="preserve">
+    <value>通知，{0} 条未读</value>
   </data>
 </root>

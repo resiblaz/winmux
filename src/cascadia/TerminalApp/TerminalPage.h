@@ -295,6 +295,7 @@ namespace winrt::TerminalApp::implementation
 
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _tabs;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel> _workspaceItems;
+        Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel>::VectorChanged_revoker _workspaceItemsChangedRevoker;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _mruTabs;
         static winrt::com_ptr<Tab> _GetTabImpl(const TerminalApp::Tab& tab);
 
@@ -426,13 +427,23 @@ namespace winrt::TerminalApp::implementation
         void _WorkspaceCloseOthersRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceRenameRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceActivateNotificationRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
-        void _WorkspaceClearNotificationsRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        void _WorkspaceActivateNotificationItemRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceNotification& notification);
+        void _WorkspaceMarkNotificationsReadRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        void _WorkspaceClearNotificationHistoryRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        void _WorkspaceMarkAllNotificationsReadRequested(const TerminalApp::WorkspaceSidebar& sender, const IInspectable& eventArgs);
+        void _WorkspaceClearAllNotificationHistoryRequested(const TerminalApp::WorkspaceSidebar& sender, const IInspectable& eventArgs);
         TerminalApp::WorkspaceItemViewModel _WorkspaceItemForTab(const TerminalApp::Tab& tab) const;
+        TerminalApp::WorkspaceItemViewModel _WorkspaceItemForNotification(const TerminalApp::WorkspaceNotification& notification) const;
         bool _RecordWorkspaceNotification(const winrt::com_ptr<Tab>& tab, const TerminalApp::IPaneContent& content, const winrt::hstring& title, const winrt::hstring& message);
         bool _FocusWorkspaceNotification(const TerminalApp::WorkspaceItemViewModel& item);
+        bool _FocusWorkspaceNotification(const TerminalApp::WorkspaceItemViewModel& item, const TerminalApp::WorkspaceNotification& notification);
         bool _FocusLatestWorkspaceNotification();
-        void _ClearWorkspaceNotifications(const TerminalApp::WorkspaceItemViewModel& item);
-        void _ClearWorkspaceNotificationsForActivePane(const winrt::com_ptr<Tab>& tab);
+        void _MarkWorkspaceNotificationsRead(const TerminalApp::WorkspaceItemViewModel& item);
+        void _ClearWorkspaceNotificationHistory(const TerminalApp::WorkspaceItemViewModel& item);
+        void _MarkAllWorkspaceNotificationsRead();
+        void _ClearAllWorkspaceNotificationHistory();
+        void _MarkWorkspaceNotificationsReadForActivePane(const winrt::com_ptr<Tab>& tab);
+        void _RefreshWorkspaceNotifications();
         safe_void_coroutine _RenameWorkspace(winrt::TerminalApp::Tab tab);
         void _WorkspaceList_SelectionChanged(const IInspectable& sender, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs& eventArgs);
         void _WorkspaceList_DragItemsStarting(const IInspectable& sender, const Windows::UI::Xaml::Controls::DragItemsStartingEventArgs& eventArgs);

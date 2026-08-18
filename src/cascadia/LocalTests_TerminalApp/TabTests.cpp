@@ -211,6 +211,8 @@ namespace TerminalAppLocalTests
             const winrt::TerminalApp::WorkspaceSidebar sidebar{};
             VERIFY_IS_NOT_NULL(sidebar);
             VERIFY_IS_NOT_NULL(sidebar.WorkspaceList());
+            VERIFY_IS_NOT_NULL(sidebar.NotificationHistory());
+            VERIFY_ARE_EQUAL(0u, sidebar.NotificationHistory().Size());
             VERIFY_IS_TRUE(sidebar.ExpandedWidth() >= 220.0);
             VERIFY_IS_TRUE(sidebar.ExpandedWidth() <= 480.0);
         });
@@ -247,21 +249,41 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(L"2", item.UnreadBadgeText());
             VERIFY_ARE_EQUAL(L"Tests completed", item.LatestNotification());
             VERIFY_ARE_EQUAL(2u, item.Notifications().Size());
+            VERIFY_ARE_EQUAL(2u, item.NotificationHistoryCount());
 
             const auto latest = item.LatestUnreadNotification();
             VERIFY_IS_NOT_NULL(latest);
             VERIFY_ARE_EQUAL(item.WorkspaceId(), latest.WorkspaceId());
             VERIFY_ARE_EQUAL(9u, latest.PaneId());
+            VERIFY_ARE_EQUAL(tab.Title(), latest.WorkspaceTitle());
             VERIFY_ARE_EQUAL(L"Tests", latest.Title());
+            VERIFY_IS_FALSE(latest.IsRead());
+            VERIFY_IS_FALSE(latest.TimestampText().empty());
 
-            item.ClearNotificationsForPane(9);
+            item.MarkNotificationsReadForPane(9);
             VERIFY_ARE_EQUAL(1u, item.UnreadCount());
+            VERIFY_ARE_EQUAL(2u, item.NotificationHistoryCount());
+            VERIFY_IS_TRUE(latest.IsRead());
             VERIFY_ARE_EQUAL(7u, item.LatestUnreadNotification().PaneId());
 
-            item.ClearNotifications();
+            item.MarkAllNotificationsRead();
             VERIFY_ARE_EQUAL(0u, item.UnreadCount());
             VERIFY_IS_NULL(item.LatestUnreadNotification());
             VERIFY_IS_TRUE(item.LatestNotification().empty());
+            VERIFY_ARE_EQUAL(2u, item.NotificationHistoryCount());
+
+            item.ClearNotificationHistory();
+            VERIFY_ARE_EQUAL(0u, item.NotificationHistoryCount());
+            VERIFY_ARE_EQUAL(0u, item.Notifications().Size());
+
+            for (uint32_t paneId = 0; paneId < 101; ++paneId)
+            {
+                item.AddNotification(paneId, L"Agent", L"History entry");
+            }
+            VERIFY_ARE_EQUAL(100u, item.UnreadCount());
+            VERIFY_ARE_EQUAL(100u, item.NotificationHistoryCount());
+            VERIFY_ARE_EQUAL(1u, item.Notifications().GetAt(0).PaneId());
+            VERIFY_ARE_EQUAL(100u, item.Notifications().GetAt(99).PaneId());
         });
     }
 
@@ -283,6 +305,13 @@ namespace TerminalAppLocalTests
             VERIFY_IS_TRUE(page->_FocusWorkspaceNotification(item));
             VERIFY_IS_FALSE(pane->HasAttention());
             VERIFY_ARE_EQUAL(0u, item.UnreadCount());
+            VERIFY_ARE_EQUAL(1u, item.NotificationHistoryCount());
+            VERIFY_IS_TRUE(item.Notifications().GetAt(0).IsRead());
+
+            page->_RefreshWorkspaceNotifications();
+            VERIFY_ARE_EQUAL(1u, page->_workspaceSidebar.NotificationHistory().Size());
+            page->_ClearAllWorkspaceNotificationHistory();
+            VERIFY_ARE_EQUAL(0u, page->_workspaceSidebar.NotificationHistory().Size());
         });
     }
 

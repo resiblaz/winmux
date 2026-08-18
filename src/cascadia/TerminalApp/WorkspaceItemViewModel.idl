@@ -21,12 +21,15 @@ namespace TerminalApp
         String SwitchShortcutText { get; };
         String UnreadBadgeText { get; };
         String NotificationAutomationName { get; };
+        UInt32 NotificationHistoryCount { get; };
+        String NotificationHistoryCountText { get; };
         WorkspaceNotification LatestUnreadNotification { get; };
         Windows.Foundation.Collections.IObservableVector<WorkspaceNotification> Notifications { get; };
 
         void AddNotification(UInt32 paneId, String title, String message);
-        void ClearNotifications();
-        void ClearNotificationsForPane(UInt32 paneId);
+        void MarkAllNotificationsRead();
+        void MarkNotificationsReadForPane(UInt32 paneId);
+        void ClearNotificationHistory();
 
         Boolean IsSelected;
         UInt32 UnreadCount;

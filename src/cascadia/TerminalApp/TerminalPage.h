@@ -44,6 +44,7 @@ namespace winrt::Microsoft::Terminal::Settings
 namespace winrt::TerminalApp::implementation
 {
     struct TerminalSettingsCache;
+    class WorkspaceAutomationServer;
 
     inline constexpr uint32_t DefaultRowsToScroll{ 3 };
     inline constexpr std::wstring_view TabletInputServiceKey{ L"TabletInputService" };
@@ -148,6 +149,7 @@ namespace winrt::TerminalApp::implementation
     {
     public:
         TerminalPage(TerminalApp::WindowProperties properties, const TerminalApp::ContentManager& manager);
+        ~TerminalPage();
 
         // This implements shobjidl's IInitializeWithWindow, but due to a XAML Compiler bug we cannot
         // put it in our inheritance graph. https://github.com/microsoft/microsoft-ui-xaml/issues/3331
@@ -322,6 +324,7 @@ namespace winrt::TerminalApp::implementation
         bool _removing{ false };
         bool _workspaceSidebarEnabled{ false };
         bool _workspaceSidebarLayoutInitialized{ false };
+        std::unique_ptr<WorkspaceAutomationServer> _workspaceAutomationServer;
         bool _syncingWorkspaceSelection{ false };
         bool _workspaceReordering{ false };
         std::optional<uint32_t> _workspaceReorderFrom{};
@@ -429,6 +432,8 @@ namespace winrt::TerminalApp::implementation
         void _UpdateTabView();
         void _UpdateTabWidthMode();
         void _UpdateWorkspaceSidebar();
+        void _UpdateWorkspaceAutomationServer();
+        std::string _HandleWorkspaceAutomationRequest(std::string_view request);
         void _SyncWorkspaceSelection(const winrt::TerminalApp::Tab& tab);
         uint32_t _PinnedTabCount() const;
         int32_t _ClampTabIndexForPinnedState(const winrt::TerminalApp::Tab& tab, int32_t suggestedIndex) const;

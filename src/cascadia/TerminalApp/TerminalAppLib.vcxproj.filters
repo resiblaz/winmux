@@ -42,6 +42,9 @@
     <ClCompile Include="WorkspaceGitBranch.cpp">
       <Filter>workspace</Filter>
     </ClCompile>
+    <ClCompile Include="WorkspaceAutomation.cpp">
+      <Filter>workspace</Filter>
+    </ClCompile>
     <ClCompile Include="WorkspaceNotification.cpp">
       <Filter>workspace</Filter>
     </ClCompile>
@@ -84,6 +87,9 @@
       <Filter>workspace</Filter>
     </ClInclude>
     <ClInclude Include="WorkspaceAgentResume.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
+    <ClInclude Include="WorkspaceAutomation.h">
       <Filter>workspace</Filter>
     </ClInclude>
     <ClInclude Include="WorkspaceNotification.h">

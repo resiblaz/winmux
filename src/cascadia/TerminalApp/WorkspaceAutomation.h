@@ -1,0 +1,73 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+#pragma once
+
+#include <winrt/Windows.Data.Json.h>
+#include <winrt/Windows.System.h>
+
+namespace winrt::TerminalApp::implementation
+{
+    enum class WorkspaceAutomationMethod
+    {
+        List,
+        Select,
+        Create,
+        Close,
+    };
+
+    struct WorkspaceAutomationRequest
+    {
+        std::string Id;
+        WorkspaceAutomationMethod Method{ WorkspaceAutomationMethod::List };
+        std::optional<winrt::guid> WorkspaceId;
+    };
+
+    struct WorkspaceAutomationParseResult
+    {
+        std::optional<WorkspaceAutomationRequest> Request;
+        std::string Id;
+        std::string ErrorCode;
+        std::string ErrorMessage;
+
+        explicit operator bool() const noexcept
+        {
+            return Request.has_value();
+        }
+    };
+
+    class WorkspaceAutomationProtocol final
+    {
+    public:
+        static constexpr uint32_t Version{ 1 };
+        static constexpr size_t MaximumMessageBytes{ 64 * 1024 };
+
+        static WorkspaceAutomationParseResult ParseRequest(std::string_view request);
+        static std::string MakeResult(std::string_view id, const winrt::Windows::Data::Json::JsonObject& result);
+        static std::string MakeError(std::string_view id, std::string_view code, std::string_view message);
+    };
+
+    class WorkspaceAutomationServer final
+    {
+    public:
+        using RequestHandler = std::function<std::string(std::string_view)>;
+
+        WorkspaceAutomationServer(std::wstring pipeName,
+                                  winrt::Windows::System::DispatcherQueue dispatcher,
+                                  RequestHandler handler);
+        ~WorkspaceAutomationServer();
+
+        WorkspaceAutomationServer(const WorkspaceAutomationServer&) = delete;
+        WorkspaceAutomationServer& operator=(const WorkspaceAutomationServer&) = delete;
+
+        bool Start();
+        void Stop() noexcept;
+        std::wstring_view PipeName() const noexcept;
+
+        static std::wstring MakePipeName(uint32_t processId, uint64_t windowId);
+
+    private:
+        struct Impl;
+        std::unique_ptr<Impl> _impl;
+    };
+}

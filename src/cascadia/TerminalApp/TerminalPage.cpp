@@ -23,6 +23,7 @@
 #include "SnippetsPaneContent.h"
 #include "TabRowControl.h"
 #include "TerminalSettingsCache.h"
+#include "WorkspaceAutomation.h"
 
 #include "LaunchPositionRequest.g.cpp"
 #include "WindowListEntry.g.cpp"
@@ -39,6 +40,7 @@ using namespace winrt::Microsoft::Terminal::Settings::Model;
 using namespace winrt::Microsoft::Terminal::TerminalConnection;
 using namespace winrt::Microsoft::Terminal;
 using namespace winrt::Windows::ApplicationModel::DataTransfer;
+using namespace winrt::Windows::Data::Json;
 using namespace winrt::Windows::Foundation::Collections;
 using namespace winrt::Windows::System;
 using namespace winrt::Windows::UI;
@@ -228,6 +230,11 @@ namespace winrt::TerminalApp::implementation
     {
         InitializeComponent();
         _WindowProperties.PropertyChanged({ get_weak(), &TerminalPage::_windowPropertyChanged });
+    }
+
+    TerminalPage::~TerminalPage()
+    {
+        _workspaceAutomationServer.reset();
     }
 
     // Method Description:
@@ -546,7 +553,157 @@ namespace winrt::TerminalApp::implementation
 
         _workspaceSidebarEnabled = enabled;
         _workspaceSidebarLayoutInitialized = true;
+        _UpdateWorkspaceAutomationServer();
         _UpdateTabView();
+    }
+
+    void TerminalPage::_UpdateWorkspaceAutomationServer()
+    {
+        if (!_workspaceSidebarEnabled)
+        {
+            _workspaceAutomationServer.reset();
+            return;
+        }
+
+        if (_workspaceAutomationServer)
+        {
+            return;
+        }
+
+        const auto pipeName = WorkspaceAutomationServer::MakePipeName(GetCurrentProcessId(), _WindowProperties.WindowId());
+        auto server = std::make_unique<WorkspaceAutomationServer>(
+            pipeName,
+            DispatcherQueue::GetForCurrentThread(),
+            [weakThis{ get_weak() }](const std::string_view request) {
+                if (const auto page = weakThis.get(); page && page->_workspaceSidebarEnabled)
+                {
+                    return page->_HandleWorkspaceAutomationRequest(request);
+                }
+                return WorkspaceAutomationProtocol::MakeError({}, "server_unavailable", "Workspace automation is not available");
+            });
+        _workspaceAutomationServer = std::move(server);
+        if (!_workspaceAutomationServer->Start())
+        {
+            _workspaceAutomationServer.reset();
+        }
+    }
+
+    std::string TerminalPage::_HandleWorkspaceAutomationRequest(const std::string_view message)
+    {
+        assert(Dispatcher().HasThreadAccess());
+
+        const auto parsed = WorkspaceAutomationProtocol::ParseRequest(message);
+        if (!parsed)
+        {
+            return WorkspaceAutomationProtocol::MakeError(parsed.Id, parsed.ErrorCode, parsed.ErrorMessage);
+        }
+
+        const auto& request = parsed.Request.value();
+        const auto workspaceJson = [](const TerminalApp::WorkspaceItemViewModel& item, const uint32_t index) {
+            JsonObject workspace;
+            workspace.Insert(L"id", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(item.WorkspaceId())));
+            workspace.Insert(L"index", JsonValue::CreateNumberValue(index));
+            workspace.Insert(L"title", JsonValue::CreateStringValue(item.Title()));
+            workspace.Insert(L"selected", JsonValue::CreateBooleanValue(item.IsSelected()));
+            workspace.Insert(L"pinned", JsonValue::CreateBooleanValue(item.IsPinned()));
+            workspace.Insert(L"workingDirectory", JsonValue::CreateStringValue(item.WorkingDirectory()));
+            workspace.Insert(L"gitBranch", JsonValue::CreateStringValue(item.GitBranch()));
+            return workspace;
+        };
+        const auto findWorkspace = [&](const winrt::guid& id) -> std::optional<uint32_t> {
+            for (uint32_t index = 0; index < _workspaceItems.Size(); ++index)
+            {
+                if (_workspaceItems.GetAt(index).WorkspaceId() == id)
+                {
+                    return index;
+                }
+            }
+            return std::nullopt;
+        };
+
+        switch (request.Method)
+        {
+        case WorkspaceAutomationMethod::List:
+        {
+            JsonArray workspaces;
+            for (uint32_t index = 0; index < _workspaceItems.Size(); ++index)
+            {
+                workspaces.Append(workspaceJson(_workspaceItems.GetAt(index), index));
+            }
+
+            JsonObject result;
+            result.Insert(L"windowId", JsonValue::CreateStringValue(winrt::to_hstring(_WindowProperties.WindowId())));
+            result.Insert(L"pipe", JsonValue::CreateStringValue(_workspaceAutomationServer ? _workspaceAutomationServer->PipeName() : std::wstring_view{}));
+            result.Insert(L"workspaces", workspaces);
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        case WorkspaceAutomationMethod::Select:
+        {
+            const auto index = findWorkspace(request.WorkspaceId.value());
+            if (!index)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+            _SelectTab(index.value());
+
+            JsonObject result;
+            result.Insert(L"workspace", workspaceJson(_workspaceItems.GetAt(index.value()), index.value()));
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        case WorkspaceAutomationMethod::Create:
+        {
+            std::unordered_set<winrt::guid> existingIds;
+            for (const auto& item : _workspaceItems)
+            {
+                existingIds.emplace(item.WorkspaceId());
+            }
+
+            const auto resultCode = _OpenNewTab(NewTerminalArgs());
+            if (resultCode != S_OK)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "Unable to create a workspace");
+            }
+
+            for (uint32_t index = 0; index < _workspaceItems.Size(); ++index)
+            {
+                const auto item = _workspaceItems.GetAt(index);
+                if (!existingIds.contains(item.WorkspaceId()))
+                {
+                    JsonObject result;
+                    result.Insert(L"workspace", workspaceJson(item, index));
+                    return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+                }
+            }
+            return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "Workspace creation did not add a local workspace");
+        }
+        case WorkspaceAutomationMethod::Close:
+        {
+            const auto index = findWorkspace(request.WorkspaceId.value());
+            if (!index)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+
+            const auto tab = _workspaceItems.GetAt(index.value()).SourceTab();
+            const auto closeQueued = DispatcherQueue::GetForCurrentThread().TryEnqueue([weakThis{ get_weak() }, tab]() {
+                if (const auto page = weakThis.get())
+                {
+                    page->_HandleCloseTabRequested(tab);
+                }
+            });
+            if (!closeQueued)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "server_unavailable", "Unable to queue the close request");
+            }
+
+            JsonObject result;
+            result.Insert(L"accepted", JsonValue::CreateBooleanValue(true));
+            result.Insert(L"id", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(request.WorkspaceId.value())));
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        }
+
+        return WorkspaceAutomationProtocol::MakeError(request.Id, "method_not_found", "Unknown automation method");
     }
 
     void TerminalPage::_SyncWorkspaceSelection(const winrt::TerminalApp::Tab& tab)

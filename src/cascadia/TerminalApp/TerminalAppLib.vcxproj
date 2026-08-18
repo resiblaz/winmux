@@ -131,6 +131,7 @@
     </ClInclude>
     <ClInclude Include="WorkspaceGitBranch.h" />
     <ClInclude Include="WorkspaceAgentResume.h" />
+    <ClInclude Include="WorkspaceAutomation.h" />
     <ClInclude Include="WorkspaceNotification.h">
       <DependentUpon>WorkspaceNotification.idl</DependentUpon>
     </ClInclude>
@@ -252,6 +253,7 @@
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClCompile>
     <ClCompile Include="WorkspaceGitBranch.cpp" />
+    <ClCompile Include="WorkspaceAutomation.cpp" />
     <ClCompile Include="WorkspaceNotification.cpp">
       <DependentUpon>WorkspaceNotification.idl</DependentUpon>
     </ClCompile>

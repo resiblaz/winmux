@@ -66,6 +66,56 @@ namespace winrt::TerminalApp::implementation
             return std::nullopt;
         }
 
+        std::optional<uint32_t> _parsePaneId(const JsonObject& params)
+        {
+            if (!_isValueType(params, L"paneId", JsonValueType::Number))
+            {
+                return std::nullopt;
+            }
+
+            const auto value = params.GetNamedNumber(L"paneId");
+            if (!std::isfinite(value) || std::floor(value) != value || value < 0 || value > std::numeric_limits<uint32_t>::max())
+            {
+                return std::nullopt;
+            }
+            return gsl::narrow_cast<uint32_t>(value);
+        }
+
+        std::optional<WorkspaceAutomationSplitDirection> _parseSplitDirection(const JsonObject& params)
+        {
+            if (!params.HasKey(L"direction"))
+            {
+                return WorkspaceAutomationSplitDirection::Automatic;
+            }
+            if (!_isValueType(params, L"direction", JsonValueType::String))
+            {
+                return std::nullopt;
+            }
+
+            const auto value = params.GetNamedString(L"direction");
+            if (value == L"automatic")
+            {
+                return WorkspaceAutomationSplitDirection::Automatic;
+            }
+            if (value == L"up")
+            {
+                return WorkspaceAutomationSplitDirection::Up;
+            }
+            if (value == L"right")
+            {
+                return WorkspaceAutomationSplitDirection::Right;
+            }
+            if (value == L"down")
+            {
+                return WorkspaceAutomationSplitDirection::Down;
+            }
+            if (value == L"left")
+            {
+                return WorkspaceAutomationSplitDirection::Left;
+            }
+            return std::nullopt;
+        }
+
         std::string _stringify(const JsonObject& object)
         {
             return winrt::to_string(object.Stringify());
@@ -161,6 +211,88 @@ namespace winrt::TerminalApp::implementation
                     .Id = id,
                     .Method = method == L"workspace.select" ? WorkspaceAutomationMethod::Select : WorkspaceAutomationMethod::Close,
                     .WorkspaceId = workspaceId,
+                },
+                .Id = std::move(id),
+            };
+        }
+
+        if (method == L"pane.list" || method == L"pane.focus" || method == L"pane.split")
+        {
+            const auto allowedKeys = method == L"pane.list" ?
+                                         std::initializer_list<std::wstring_view>{ L"workspaceId" } :
+                                     method == L"pane.focus" ?
+                                         std::initializer_list<std::wstring_view>{ L"workspaceId", L"paneId" } :
+                                         std::initializer_list<std::wstring_view>{ L"workspaceId", L"paneId", L"direction", L"size" };
+            if (!_hasOnlyKeys(params, allowedKeys) || !_isValueType(params, L"workspaceId", JsonValueType::String))
+            {
+                return _parseError(std::move(id), "invalid_params", "Pane methods require a workspaceId and only documented parameters");
+            }
+
+            const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
+            if (!workspaceId)
+            {
+                return _parseError(std::move(id), "invalid_params", "params.workspaceId must be a non-zero canonical UUID");
+            }
+
+            if (method == L"pane.list")
+            {
+                return {
+                    .Request = WorkspaceAutomationRequest{
+                        .Id = id,
+                        .Method = WorkspaceAutomationMethod::PaneList,
+                        .WorkspaceId = workspaceId,
+                    },
+                    .Id = std::move(id),
+                };
+            }
+
+            const auto paneId = _parsePaneId(params);
+            if (!paneId)
+            {
+                return _parseError(std::move(id), "invalid_params", "params.paneId must be a UInt32");
+            }
+
+            if (method == L"pane.focus")
+            {
+                return {
+                    .Request = WorkspaceAutomationRequest{
+                        .Id = id,
+                        .Method = WorkspaceAutomationMethod::PaneFocus,
+                        .WorkspaceId = workspaceId,
+                        .PaneId = paneId,
+                    },
+                    .Id = std::move(id),
+                };
+            }
+
+            const auto direction = _parseSplitDirection(params);
+            if (!direction)
+            {
+                return _parseError(std::move(id), "invalid_params", "params.direction must be automatic, up, right, down, or left");
+            }
+
+            double splitSize = 0.5;
+            if (params.HasKey(L"size"))
+            {
+                if (!_isValueType(params, L"size", JsonValueType::Number))
+                {
+                    return _parseError(std::move(id), "invalid_params", "params.size must be a number from 0.1 through 0.9");
+                }
+                splitSize = params.GetNamedNumber(L"size");
+                if (!std::isfinite(splitSize) || splitSize < 0.1 || splitSize > 0.9)
+                {
+                    return _parseError(std::move(id), "invalid_params", "params.size must be a number from 0.1 through 0.9");
+                }
+            }
+
+            return {
+                .Request = WorkspaceAutomationRequest{
+                    .Id = id,
+                    .Method = WorkspaceAutomationMethod::PaneSplit,
+                    .WorkspaceId = workspaceId,
+                    .PaneId = paneId,
+                    .SplitDirection = direction.value(),
+                    .SplitSize = gsl::narrow_cast<float>(splitSize),
                 },
                 .Id = std::move(id),
             };

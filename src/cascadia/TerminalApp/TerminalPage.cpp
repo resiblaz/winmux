@@ -620,6 +620,27 @@ namespace winrt::TerminalApp::implementation
             }
             return std::nullopt;
         };
+        const auto paneJson = [](const std::shared_ptr<Pane>& pane, const bool active) {
+            JsonObject value;
+            value.Insert(L"id", JsonValue::CreateNumberValue(pane->Id().value()));
+            value.Insert(L"active", JsonValue::CreateBooleanValue(active));
+            value.Insert(L"connectionClosed", JsonValue::CreateBooleanValue(pane->IsConnectionClosed()));
+
+            if (const auto content = pane->GetContent())
+            {
+                value.Insert(L"title", JsonValue::CreateStringValue(content.Title()));
+                value.Insert(L"readOnly", JsonValue::CreateBooleanValue(content.ReadOnly()));
+            }
+            if (const auto profile = pane->GetProfile())
+            {
+                value.Insert(L"profile", JsonValue::CreateStringValue(profile.Name()));
+            }
+            if (const auto control = pane->GetTerminalControl())
+            {
+                value.Insert(L"workingDirectory", JsonValue::CreateStringValue(control.WorkingDirectory()));
+            }
+            return value;
+        };
 
         switch (request.Method)
         {
@@ -658,11 +679,12 @@ namespace winrt::TerminalApp::implementation
                 existingIds.emplace(item.WorkspaceId());
             }
 
-            const auto resultCode = _OpenNewTab(NewTerminalArgs());
-            if (resultCode != S_OK)
+            const auto newPane = _MakePane(NewTerminalArgs(), nullptr, nullptr, false);
+            if (!newPane)
             {
                 return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "Unable to create a workspace");
             }
+            _CreateNewTabFromPane(newPane);
 
             for (uint32_t index = 0; index < _workspaceItems.Size(); ++index)
             {
@@ -699,6 +721,164 @@ namespace winrt::TerminalApp::implementation
             JsonObject result;
             result.Insert(L"accepted", JsonValue::CreateBooleanValue(true));
             result.Insert(L"id", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(request.WorkspaceId.value())));
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        case WorkspaceAutomationMethod::PaneList:
+        {
+            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
+            if (!workspaceIndex)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+
+            const auto tab = _workspaceItems.GetAt(workspaceIndex.value()).SourceTab();
+            const auto tabImpl = _GetTabImpl(tab);
+            if (!tabImpl || !tabImpl->GetRootPane())
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "pane_not_supported", "Workspace does not expose a Pane tree");
+            }
+
+            const auto activePane = tabImpl->GetActivePane();
+            JsonArray panes;
+            tabImpl->GetRootPane()->WalkTree([&](const auto& pane) {
+                if (pane->Id())
+                {
+                    panes.Append(paneJson(pane, pane == activePane));
+                }
+            });
+
+            JsonObject result;
+            result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(request.WorkspaceId.value())));
+            result.Insert(L"panes", panes);
+            if (activePane && activePane->Id())
+            {
+                result.Insert(L"activePaneId", JsonValue::CreateNumberValue(activePane->Id().value()));
+            }
+            else
+            {
+                result.Insert(L"activePaneId", JsonValue::CreateNullValue());
+            }
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        case WorkspaceAutomationMethod::PaneFocus:
+        {
+            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
+            if (!workspaceIndex)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+
+            const auto tab = _workspaceItems.GetAt(workspaceIndex.value()).SourceTab();
+            const auto tabImpl = _GetTabImpl(tab);
+            const auto pane = tabImpl && tabImpl->GetRootPane() ? tabImpl->GetRootPane()->FindPane(request.PaneId.value()) : nullptr;
+            if (!pane)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "pane_not_found", "Pane was not found in the requested workspace");
+            }
+
+            _SelectTab(workspaceIndex.value());
+            if (!tabImpl->FocusPane(request.PaneId.value()))
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "Unable to focus Pane");
+            }
+
+            JsonObject result;
+            result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(request.WorkspaceId.value())));
+            result.Insert(L"pane", paneJson(pane, true));
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        case WorkspaceAutomationMethod::PaneSplit:
+        {
+            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
+            if (!workspaceIndex)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+
+            const auto tab = _workspaceItems.GetAt(workspaceIndex.value()).SourceTab();
+            const auto tabImpl = _GetTabImpl(tab);
+            const auto rootPane = tabImpl ? tabImpl->GetRootPane() : nullptr;
+            const auto targetPane = rootPane ? rootPane->FindPane(request.PaneId.value()) : nullptr;
+            if (!targetPane)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "pane_not_found", "Pane was not found in the requested workspace");
+            }
+            if (*tabImpl == _settingsTab)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "pane_not_supported", "Settings workspaces cannot be split");
+            }
+            if (!targetPane->GetTerminalControl())
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "pane_not_supported", "Only terminal Panes can be split through automation");
+            }
+
+            _SelectTab(workspaceIndex.value());
+            if (!tabImpl->FocusPane(request.PaneId.value()))
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "Unable to focus the target Pane");
+            }
+
+            SplitDirection direction{ SplitDirection::Automatic };
+            switch (request.SplitDirection)
+            {
+            case WorkspaceAutomationSplitDirection::Up:
+                direction = SplitDirection::Up;
+                break;
+            case WorkspaceAutomationSplitDirection::Right:
+                direction = SplitDirection::Right;
+                break;
+            case WorkspaceAutomationSplitDirection::Down:
+                direction = SplitDirection::Down;
+                break;
+            case WorkspaceAutomationSplitDirection::Left:
+                direction = SplitDirection::Left;
+                break;
+            case WorkspaceAutomationSplitDirection::Automatic:
+                break;
+            }
+
+            const Windows::Foundation::Size availableSpace{
+                static_cast<float>(_tabContent.ActualWidth()),
+                static_cast<float>(_tabContent.ActualHeight()),
+            };
+            const auto realDirection = tabImpl->PreCalculateCanSplit(direction, request.SplitSize, availableSpace);
+            if (!realDirection)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "cannot_split", "Target Pane does not have enough space for this split");
+            }
+
+            std::unordered_set<uint32_t> existingPaneIds;
+            rootPane->WalkTree([&](const auto& pane) {
+                if (const auto paneId = pane->Id())
+                {
+                    existingPaneIds.emplace(paneId.value());
+                }
+            });
+
+            const auto newPane = _MakePane(nullptr, *tabImpl, nullptr, false);
+            if (!newPane)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "Unable to duplicate the target Pane");
+            }
+            _SplitPane(tabImpl, realDirection.value(), request.SplitSize, newPane);
+
+            std::shared_ptr<Pane> createdPane;
+            rootPane->WalkTree([&](const auto& pane) -> bool {
+                if (const auto paneId = pane->Id(); paneId && !existingPaneIds.contains(paneId.value()))
+                {
+                    createdPane = pane;
+                    return true;
+                }
+                return false;
+            });
+            if (!createdPane)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "Pane split did not create a local Pane");
+            }
+
+            JsonObject result;
+            result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(request.WorkspaceId.value())));
+            result.Insert(L"pane", paneJson(createdPane, true));
             return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
         }
         }
@@ -4656,7 +4836,8 @@ namespace winrt::TerminalApp::implementation
     //   Pane for this connection.
     std::shared_ptr<Pane> TerminalPage::_MakeTerminalPane(const NewTerminalArgs& newTerminalArgs,
                                                           const winrt::TerminalApp::Tab& sourceTab,
-                                                          TerminalConnection::ITerminalConnection existingConnection)
+                                                          TerminalConnection::ITerminalConnection existingConnection,
+                                                          const bool allowDebugTap)
     {
         // First things first - Check for making a pane from content ID.
         if (newTerminalArgs &&
@@ -4710,7 +4891,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         TerminalConnection::ITerminalConnection debugConnection{ nullptr };
-        if (_settings.GlobalSettings().DebugFeaturesEnabled())
+        if (allowDebugTap && _settings.GlobalSettings().DebugFeaturesEnabled())
         {
             const auto window = CoreWindow::GetForCurrentThread();
             const auto rAltState = window.GetKeyState(VirtualKey::RightMenu);
@@ -4766,14 +4947,15 @@ namespace winrt::TerminalApp::implementation
     // value gracefully.
     std::shared_ptr<Pane> TerminalPage::_MakePane(const INewContentArgs& contentArgs,
                                                   const winrt::TerminalApp::Tab& sourceTab,
-                                                  TerminalConnection::ITerminalConnection existingConnection)
+                                                  TerminalConnection::ITerminalConnection existingConnection,
+                                                  const bool allowDebugTap)
 
     {
         const auto& newTerminalArgs{ contentArgs.try_as<NewTerminalArgs>() };
         if (contentArgs == nullptr || newTerminalArgs != nullptr || contentArgs.Type().empty())
         {
             // Terminals are of course special, and have to deal with debug taps, duplicating the tab, etc.
-            return _MakeTerminalPane(newTerminalArgs, sourceTab, existingConnection);
+            return _MakeTerminalPane(newTerminalArgs, sourceTab, existingConnection, allowDebugTap);
         }
 
         IPaneContent content{ nullptr };

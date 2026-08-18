@@ -14,6 +14,18 @@ namespace winrt::TerminalApp::implementation
         Select,
         Create,
         Close,
+        PaneList,
+        PaneFocus,
+        PaneSplit,
+    };
+
+    enum class WorkspaceAutomationSplitDirection
+    {
+        Automatic,
+        Up,
+        Right,
+        Down,
+        Left,
     };
 
     struct WorkspaceAutomationRequest
@@ -21,6 +33,9 @@ namespace winrt::TerminalApp::implementation
         std::string Id;
         WorkspaceAutomationMethod Method{ WorkspaceAutomationMethod::List };
         std::optional<winrt::guid> WorkspaceId;
+        std::optional<uint32_t> PaneId;
+        WorkspaceAutomationSplitDirection SplitDirection{ WorkspaceAutomationSplitDirection::Automatic };
+        float SplitSize{ 0.5f };
     };
 
     struct WorkspaceAutomationParseResult

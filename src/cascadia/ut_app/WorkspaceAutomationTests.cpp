@@ -47,6 +47,22 @@ namespace TerminalAppUnitTests
         const auto close = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"close-1","method":"workspace.close","params":{"id":"01020304-0506-0708-090a-0b0c0d0e0f10"}})");
         VERIFY_IS_TRUE(static_cast<bool>(close));
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::Close), static_cast<int>(close.Request->Method));
+
+        const auto paneList = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"panes-1","method":"pane.list","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10"}})");
+        VERIFY_IS_TRUE(static_cast<bool>(paneList));
+        VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::PaneList), static_cast<int>(paneList.Request->Method));
+
+        const auto paneFocus = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"focus-1","method":"pane.focus","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0}})");
+        VERIFY_IS_TRUE(static_cast<bool>(paneFocus));
+        VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::PaneFocus), static_cast<int>(paneFocus.Request->Method));
+        VERIFY_ARE_EQUAL(0u, paneFocus.Request->PaneId.value());
+
+        const auto paneSplit = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"split-1","method":"pane.split","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":3,"direction":"left","size":0.25}})");
+        VERIFY_IS_TRUE(static_cast<bool>(paneSplit));
+        VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::PaneSplit), static_cast<int>(paneSplit.Request->Method));
+        VERIFY_ARE_EQUAL(3u, paneSplit.Request->PaneId.value());
+        VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationSplitDirection::Left), static_cast<int>(paneSplit.Request->SplitDirection));
+        VERIFY_ARE_EQUAL(0.25f, paneSplit.Request->SplitSize);
     }
 
     void WorkspaceAutomationTests::RejectsUnsafeOrMalformedRequests()
@@ -68,6 +84,22 @@ namespace TerminalAppUnitTests
         const auto badId = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"workspace.select","params":{"id":"not-a-guid"}})");
         VERIFY_IS_FALSE(static_cast<bool>(badId));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, badId.ErrorCode);
+
+        const auto unsafeSplit = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"pane.split","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"commandline":"calc.exe"}})");
+        VERIFY_IS_FALSE(static_cast<bool>(unsafeSplit));
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, unsafeSplit.ErrorCode);
+
+        const auto fractionalPane = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"pane.focus","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":1.5}})");
+        VERIFY_IS_FALSE(static_cast<bool>(fractionalPane));
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, fractionalPane.ErrorCode);
+
+        const auto badDirection = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"pane.split","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"direction":"diagonal"}})");
+        VERIFY_IS_FALSE(static_cast<bool>(badDirection));
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, badDirection.ErrorCode);
+
+        const auto badSize = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"pane.split","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"size":0.01}})");
+        VERIFY_IS_FALSE(static_cast<bool>(badSize));
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, badSize.ErrorCode);
 
         std::string oversized(WorkspaceAutomationProtocol::MaximumMessageBytes + 1, 'x');
         const auto tooLarge = WorkspaceAutomationProtocol::ParseRequest(oversized);

@@ -28,7 +28,7 @@ namespace SettingsModelUnitTests
         TEST_METHOD(ValidateDuplicateProfiles);
         TEST_METHOD(ValidateManyWarnings);
         TEST_METHOD(LayerGlobalProperties);
-        TEST_METHOD(WorkspaceSidebarSetting);
+        TEST_METHOD(TabLayoutSetting);
         TEST_METHOD(WorkspaceAutomationPermissionsSetting);
         TEST_METHOD(ValidateProfileOrdering);
         TEST_METHOD(ValidateHideProfiles);
@@ -384,19 +384,34 @@ namespace SettingsModelUnitTests
         VERIFY_ARE_EQUAL(false, settings->WindowSettingsDefaults().ShowTabsInTitlebar());
     }
 
-    void DeserializationTests::WorkspaceSidebarSetting()
+    void DeserializationTests::TabLayoutSetting()
     {
         const auto defaultSettings = createSettings(R"({
             "profiles": [ { "name": "profile0" } ]
         })");
-        VERIFY_IS_FALSE(defaultSettings->WindowSettingsDefaults().WorkspaceSidebar());
+        VERIFY_ARE_EQUAL(TabLayout::Horizontal, defaultSettings->WindowSettingsDefaults().TabLayout());
 
         static constexpr std::string_view userSettings{ R"({
-            "experimental.workspaceSidebar": true,
+            "tabLayout": "workspaceSidebar",
             "profiles": [ { "name": "profile0" } ]
         })" };
         const auto enabledSettings = createSettings(userSettings);
-        VERIFY_IS_TRUE(enabledSettings->WindowSettingsDefaults().WorkspaceSidebar());
+        VERIFY_ARE_EQUAL(TabLayout::WorkspaceSidebar, enabledSettings->WindowSettingsDefaults().TabLayout());
+
+        static constexpr std::string_view legacySettings{ R"({
+            "experimental.workspaceSidebar": true,
+            "profiles": [ { "name": "profile0" } ]
+        })" };
+        const auto migratedSettings = createSettings(legacySettings);
+        VERIFY_ARE_EQUAL(TabLayout::WorkspaceSidebar, migratedSettings->WindowSettingsDefaults().TabLayout());
+
+        static constexpr std::string_view preferredSettings{ R"({
+            "tabLayout": "horizontal",
+            "experimental.workspaceSidebar": true,
+            "profiles": [ { "name": "profile0" } ]
+        })" };
+        const auto preferred = createSettings(preferredSettings);
+        VERIFY_ARE_EQUAL(TabLayout::Horizontal, preferred->WindowSettingsDefaults().TabLayout());
     }
 
     void DeserializationTests::WorkspaceAutomationPermissionsSetting()

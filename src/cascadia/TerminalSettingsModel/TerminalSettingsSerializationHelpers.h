@@ -278,6 +278,14 @@ JSON_ENUM_MAPPER(::winrt::Microsoft::Terminal::Settings::Model::NewTabPosition)
     };
 };
 
+JSON_ENUM_MAPPER(::winrt::Microsoft::Terminal::Settings::Model::TabLayout)
+{
+    JSON_MAPPINGS(2) = {
+        pair_type{ "horizontal", ValueType::Horizontal },
+        pair_type{ "workspaceSidebar", ValueType::WorkspaceSidebar },
+    };
+};
+
 JSON_ENUM_MAPPER(::winrt::Microsoft::Terminal::Settings::Model::FirstWindowPreference)
 {
     JSON_MAPPINGS(4) = {

@@ -19,6 +19,7 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
 
         WINRT_PROPERTY(Windows::Foundation::Collections::IObservableVector<Model::Theme>, ThemeList, nullptr);
         GETSET_BINDABLE_ENUM_SETTING(NewTabPosition, Model::NewTabPosition, _WindowSettings.NewTabPosition);
+        GETSET_BINDABLE_ENUM_SETTING(TabLayout, Model::TabLayout, _WindowSettings.TabLayout);
         GETSET_BINDABLE_ENUM_SETTING(TabWidthMode, winrt::Microsoft::UI::Xaml::Controls::TabViewWidthMode, _WindowSettings.TabWidthMode);
 
     public:
@@ -32,7 +33,6 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         void ShowTitlebarToggled(const winrt::Windows::Foundation::IInspectable& sender, const winrt::Windows::UI::Xaml::RoutedEventArgs& args);
 
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_WindowSettings, AlwaysShowTabs);
-        PERMANENT_OBSERVABLE_PROJECTED_SETTING(_WindowSettings, WorkspaceSidebar);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_WindowSettings, WorkspaceAutomationAllowInput);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_WindowSettings, WorkspaceAutomationAllowContentRead);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_WindowSettings, ShowTabsFullscreen);

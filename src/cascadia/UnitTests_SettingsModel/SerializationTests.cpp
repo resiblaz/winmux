@@ -120,7 +120,7 @@ namespace SettingsModelUnitTests
                 "wordDelimiters": " /\\()\"'-.,:;<>~!@#$%^&*|+=[]{}~?\u2502",
 
                 "alwaysShowTabs": true,
-                "experimental.workspaceSidebar": true,
+                "tabLayout": "workspaceSidebar",
                 "experimental.workspaceAutomation.allowInput": true,
                 "experimental.workspaceAutomation.allowContentRead": true,
                 "showTabsInTitlebar": true,

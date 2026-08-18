@@ -68,26 +68,27 @@
                           Style="{StaticResource ToggleSwitchInExpanderStyle}" />
         </local:SettingContainer>
 
-        <!--  Workspace sidebar  -->
-        <local:SettingContainer x:Name="WorkspaceSidebar"
-                                x:Uid="Globals_WorkspaceSidebar">
-            <ToggleSwitch IsOn="{x:Bind ViewModel.WorkspaceSidebar, Mode=TwoWay}"
-                          Style="{StaticResource ToggleSwitchInExpanderStyle}" />
+        <!--  Tab layout  -->
+        <local:SettingContainer x:Name="TabLayout"
+                                x:Uid="Globals_TabLayout">
+            <ComboBox AutomationProperties.AccessibilityView="Content"
+                      ItemTemplate="{StaticResource EnumComboBoxTemplate}"
+                      ItemsSource="{x:Bind ViewModel.TabLayoutList, Mode=OneWay}"
+                      SelectedItem="{x:Bind ViewModel.CurrentTabLayout, Mode=TwoWay}"
+                      Style="{StaticResource ComboBoxSettingStyle}" />
         </local:SettingContainer>
 
         <!--  Workspace automation input permission  -->
         <local:SettingContainer x:Name="WorkspaceAutomationAllowInput"
                                 x:Uid="Globals_WorkspaceAutomationAllowInput">
-            <ToggleSwitch IsEnabled="{x:Bind ViewModel.WorkspaceSidebar, Mode=OneWay}"
-                          IsOn="{x:Bind ViewModel.WorkspaceAutomationAllowInput, Mode=TwoWay}"
+            <ToggleSwitch IsOn="{x:Bind ViewModel.WorkspaceAutomationAllowInput, Mode=TwoWay}"
                           Style="{StaticResource ToggleSwitchInExpanderStyle}" />
         </local:SettingContainer>
 
         <!--  Workspace automation content read permission  -->
         <local:SettingContainer x:Name="WorkspaceAutomationAllowContentRead"
                                 x:Uid="Globals_WorkspaceAutomationAllowContentRead">
-            <ToggleSwitch IsEnabled="{x:Bind ViewModel.WorkspaceSidebar, Mode=OneWay}"
-                          IsOn="{x:Bind ViewModel.WorkspaceAutomationAllowContentRead, Mode=TwoWay}"
+            <ToggleSwitch IsOn="{x:Bind ViewModel.WorkspaceAutomationAllowContentRead, Mode=TwoWay}"
                           Style="{StaticResource ToggleSwitchInExpanderStyle}" />
         </local:SettingContainer>
 

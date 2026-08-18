@@ -49,7 +49,7 @@ Author(s):
     X(bool, TrimBlockSelection, "trimBlockSelection", true)                                                                                                                                           \
     X(bool, DetectURLs, "experimental.detectURLs", true)                                                                                                                                              \
     X(bool, AlwaysShowTabs, "alwaysShowTabs", true)                                                                                                                                                   \
-    X(bool, WorkspaceSidebar, "experimental.workspaceSidebar", false)                                                                                                                               \
+    X(Model::TabLayout, TabLayout, "tabLayout", Model::TabLayout::Horizontal)                                                                                                                        \
     X(bool, WorkspaceAutomationAllowInput, "experimental.workspaceAutomation.allowInput", false)                                                                                                    \
     X(bool, WorkspaceAutomationAllowContentRead, "experimental.workspaceAutomation.allowContentRead", false)                                                                                        \
     X(Model::NewTabPosition, NewTabPosition, "newTabPosition", Model::NewTabPosition::AfterLastTab)                                                                                                   \

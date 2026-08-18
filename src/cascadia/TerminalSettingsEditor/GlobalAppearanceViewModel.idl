@@ -18,6 +18,9 @@ namespace Microsoft.Terminal.Settings.Editor
         IInspectable CurrentNewTabPosition;
         Windows.Foundation.Collections.IObservableVector<Microsoft.Terminal.Settings.Editor.EnumEntry> NewTabPositionList { get; };
 
+        IInspectable CurrentTabLayout;
+        Windows.Foundation.Collections.IObservableVector<Microsoft.Terminal.Settings.Editor.EnumEntry> TabLayoutList { get; };
+
         IInspectable CurrentTabWidthMode;
         Windows.Foundation.Collections.IObservableVector<Microsoft.Terminal.Settings.Editor.EnumEntry> TabWidthModeList { get; };
 
@@ -26,7 +29,6 @@ namespace Microsoft.Terminal.Settings.Editor
         void ShowTitlebarToggled(IInspectable sender, Windows.UI.Xaml.RoutedEventArgs args);
 
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(Boolean, AlwaysShowTabs);
-        PERMANENT_OBSERVABLE_PROJECTED_SETTING(Boolean, WorkspaceSidebar);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(Boolean, WorkspaceAutomationAllowInput);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(Boolean, WorkspaceAutomationAllowContentRead);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(Boolean, ShowTabsFullscreen);

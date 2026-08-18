@@ -50,6 +50,12 @@ namespace Microsoft.Terminal.Settings.Model
         AfterCurrentTab,
     };
 
+    enum TabLayout
+    {
+        Horizontal,
+        WorkspaceSidebar,
+    };
+
     enum ConfirmOnClose
     {
         Never = 0,
@@ -98,7 +104,7 @@ namespace Microsoft.Terminal.Settings.Model
         INHERITABLE_SETTING(Int32, InitialRows);
         INHERITABLE_SETTING(Int32, InitialCols);
         INHERITABLE_SETTING(Boolean, AlwaysShowTabs);
-        INHERITABLE_SETTING(Boolean, WorkspaceSidebar);
+        INHERITABLE_SETTING(TabLayout, TabLayout);
         INHERITABLE_SETTING(Boolean, WorkspaceAutomationAllowInput);
         INHERITABLE_SETTING(Boolean, WorkspaceAutomationAllowContentRead);
         INHERITABLE_SETTING(Boolean, ShowTabsFullscreen);

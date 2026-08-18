@@ -523,7 +523,7 @@ namespace winrt::TerminalApp::implementation
             return;
         }
 
-        const auto enabled = _currentWindowSettings().WorkspaceSidebar();
+        const auto enabled = _currentWindowSettings().TabLayout() == Settings::Model::TabLayout::WorkspaceSidebar;
 
         // With tabs in the titlebar, swap its content between the TabRow and
         // an empty drag area. Reparenting the TabRow keeps hot reload working

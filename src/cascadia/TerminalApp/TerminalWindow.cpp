@@ -698,7 +698,7 @@ namespace winrt::TerminalApp::implementation
             proposedSize.Height += (titlebarHeight)*scale;
         }
         else if (_currentWindowSettings().AlwaysShowTabs() &&
-                 !_currentWindowSettings().WorkspaceSidebar() &&
+                 _currentWindowSettings().TabLayout() != Settings::Model::TabLayout::WorkspaceSidebar &&
                  !focusMode)
         {
             // Same comment as above, but with a TabRowControl.
@@ -1405,7 +1405,7 @@ namespace winrt::TerminalApp::implementation
                 pixelSize.Height += (titlebarHeight)*scale;
             }
             else if (!_currentWindowSettings().ShowTabsInTitlebar() &&
-                     !_currentWindowSettings().WorkspaceSidebar())
+                     _currentWindowSettings().TabLayout() != Settings::Model::TabLayout::WorkspaceSidebar)
             {
                 // Hide the title bar = off, Always show tabs = on.
                 static constexpr auto titlebarAndTabBarHeight = 40;

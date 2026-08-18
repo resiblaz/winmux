@@ -23,6 +23,8 @@ static constexpr std::string_view ThemeKey{ "theme" };
 static constexpr std::string_view DefaultProfileKey{ "defaultProfile" };
 static constexpr std::string_view FirstWindowPreferenceKey{ "firstWindowPreference" };
 static constexpr std::string_view LegacyUseTabSwitcherModeKey{ "useTabSwitcher" };
+static constexpr std::string_view TabLayoutKey{ "tabLayout" };
+static constexpr std::string_view LegacyWorkspaceSidebarKey{ "experimental.workspaceSidebar" };
 static constexpr std::string_view LegacyReloadEnvironmentVariablesKey{ "compatibility.reloadEnvironmentVariables" };
 static constexpr std::string_view LegacyForceVTInputKey{ "experimental.input.forceVT" };
 static constexpr std::string_view LegacyInputServiceWarningKey{ "inputServiceWarning" };
@@ -164,6 +166,19 @@ void GlobalAppSettings::LayerJson(const Json::Value& json, const OriginTag origi
     // "useTabSwitcher" to "tabSwitcherMode". Continue supporting
     // "useTabSwitcher", but prefer "tabSwitcherMode"
     _fixupsAppliedDuringLoad = JsonUtils::GetValueForKey(json, LegacyUseTabSwitcherModeKey, _TabSwitcherMode) || _fixupsAppliedDuringLoad;
+
+    // Migrate the experimental workspace sidebar bool to the extensible tabLayout
+    // enum. An explicitly specified tabLayout always wins over the legacy key.
+    if (!json.isMember(TabLayoutKey.data()))
+    {
+        std::optional<bool> legacyWorkspaceSidebar;
+        if (JsonUtils::GetValueForKey(json, LegacyWorkspaceSidebarKey, legacyWorkspaceSidebar))
+        {
+            _TabLayout = legacyWorkspaceSidebar.value() ? TabLayout::WorkspaceSidebar : TabLayout::Horizontal;
+            _fixupsAppliedDuringLoad = true;
+            _logSettingSet(LegacyWorkspaceSidebarKey);
+        }
+    }
 
     _fixupsAppliedDuringLoad = JsonUtils::GetValueForKey(json, LegacyInputServiceWarningKey, _InputServiceWarning) || _fixupsAppliedDuringLoad;
     _fixupsAppliedDuringLoad = JsonUtils::GetValueForKey(json, LegacyWarnAboutLargePasteKey, _WarnAboutLargePaste) || _fixupsAppliedDuringLoad;

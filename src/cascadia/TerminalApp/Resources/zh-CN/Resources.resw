@@ -1006,4 +1006,64 @@
 如需了解所有可用选项，请运行 "wt new-tab --help"。</value>
     <comment>{Locked="wt","new-tab","-p","-d","--help"}</comment>
   </data>
+  <data name="WorkspaceSidebarTitle.Text" xml:space="preserve">
+    <value>工作区</value>
+  </data>
+  <data name="WorkspaceSidebarList.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>工作区</value>
+  </data>
+  <data name="WorkspaceSidebarCloseButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>关闭工作区</value>
+  </data>
+  <data name="WorkspaceSidebarRenameMenuItem.Text" xml:space="preserve">
+    <value>重命名</value>
+  </data>
+  <data name="WorkspaceSidebarCloseMenuItem.Text" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="WorkspaceSidebarCloseOthersMenuItem.Text" xml:space="preserve">
+    <value>关闭其他工作区</value>
+  </data>
+  <data name="WorkspaceSidebarNewButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>新建工作区</value>
+  </data>
+  <data name="WorkspaceSidebarNewButtonText.Text" xml:space="preserve">
+    <value>新建工作区</value>
+  </data>
+  <data name="WorkspaceSidebarResizeHandle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>调整工作区侧边栏大小</value>
+  </data>
+  <data name="WorkspaceSidebarResizeToolTip.Content" xml:space="preserve">
+    <value>拖动以调整侧边栏大小</value>
+  </data>
+  <data name="WorkspaceSidebar_PinAction" xml:space="preserve">
+    <value>固定</value>
+  </data>
+  <data name="WorkspaceSidebar_UnpinAction" xml:space="preserve">
+    <value>取消固定</value>
+  </data>
+  <data name="WorkspaceSidebar_PinAutomationName" xml:space="preserve">
+    <value>固定工作区</value>
+  </data>
+  <data name="WorkspaceSidebar_UnpinAutomationName" xml:space="preserve">
+    <value>取消固定工作区</value>
+  </data>
+  <data name="WorkspaceSidebar_CollapseAutomationName" xml:space="preserve">
+    <value>折叠工作区侧边栏</value>
+  </data>
+  <data name="WorkspaceSidebar_ExpandAutomationName" xml:space="preserve">
+    <value>展开工作区侧边栏</value>
+  </data>
+  <data name="WorkspaceSidebar_RenameDialogTitle" xml:space="preserve">
+    <value>重命名工作区</value>
+  </data>
+  <data name="WorkspaceSidebar_RenameDialogSave" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="WorkspaceSidebar_RenameDialogCancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="WorkspaceSidebar_RenameDialogPlaceholder" xml:space="preserve">
+    <value>工作区名称</value>
+  </data>
 </root>

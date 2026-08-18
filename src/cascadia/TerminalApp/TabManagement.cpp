@@ -128,7 +128,7 @@ namespace winrt::TerminalApp::implementation
 
         // Add the new tab to the list of our tabs.
         _tabs.InsertAt(insertPosition, *newTabImpl);
-        _workspaceTabs.InsertAt(insertPosition, *newTabImpl);
+        _workspaceItems.InsertAt(insertPosition, TerminalApp::WorkspaceItemViewModel{ *newTabImpl });
         _mruTabs.Append(*newTabImpl);
 
         newTabImpl->SetDispatch(*_actionDispatch);
@@ -545,7 +545,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         _tabs.RemoveAt(tabIndex);
-        _workspaceTabs.RemoveAt(tabIndex);
+        _workspaceItems.RemoveAt(tabIndex);
         _tabView.TabItems().RemoveAt(tabIndex);
         _UpdateTabIndices();
 
@@ -1233,13 +1233,14 @@ namespace winrt::TerminalApp::implementation
         if (currentTabIndex != newTabIndex)
         {
             auto tabViewItem = tab.TabViewItem();
+            const auto workspaceItem = _workspaceItems.GetAt(currentTabIndex);
             const auto previouslySelectedItem = _tabView.SelectedItem();
             _tabs.RemoveAt(currentTabIndex);
             _tabs.InsertAt(newTabIndex, tab);
             if (!_workspaceReordering)
             {
-                _workspaceTabs.RemoveAt(currentTabIndex);
-                _workspaceTabs.InsertAt(newTabIndex, tab);
+                _workspaceItems.RemoveAt(currentTabIndex);
+                _workspaceItems.InsertAt(newTabIndex, workspaceItem);
             }
             _UpdateTabIndices();
 
@@ -1279,11 +1280,12 @@ namespace winrt::TerminalApp::implementation
             {
                 auto& tabs{ _tabs };
                 auto tab = tabs.GetAt(from.value());
+                const auto workspaceItem = _workspaceItems.GetAt(from.value());
                 const auto targetIndex = _ClampTabIndexForPinnedState(tab, to.value());
                 tabs.RemoveAt(from.value());
                 tabs.InsertAt(targetIndex, tab);
-                _workspaceTabs.RemoveAt(from.value());
-                _workspaceTabs.InsertAt(targetIndex, tab);
+                _workspaceItems.RemoveAt(from.value());
+                _workspaceItems.InsertAt(targetIndex, workspaceItem);
                 _UpdateTabIndices();
 
                 // TabView has already performed the visual move. Put it back

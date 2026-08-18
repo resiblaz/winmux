@@ -13,144 +13,6 @@
       Background="Transparent"
       mc:Ignorable="d">
 
-    <Page.Resources>
-        <Style x:Key="ExpandedWorkspaceItemContainerStyle"
-               TargetType="ListViewItem">
-            <Setter Property="MinHeight"
-                    Value="72" />
-            <Setter Property="Margin"
-                    Value="8,3" />
-            <Setter Property="Padding"
-                    Value="0" />
-            <Setter Property="HorizontalContentAlignment"
-                    Value="Stretch" />
-            <Setter Property="CornerRadius"
-                    Value="8" />
-        </Style>
-
-        <Style x:Key="CollapsedWorkspaceItemContainerStyle"
-               TargetType="ListViewItem">
-            <Setter Property="MinHeight"
-                    Value="40" />
-            <Setter Property="Margin"
-                    Value="4,3" />
-            <Setter Property="Padding"
-                    Value="0" />
-            <Setter Property="HorizontalContentAlignment"
-                    Value="Stretch" />
-            <Setter Property="CornerRadius"
-                    Value="6" />
-        </Style>
-
-        <DataTemplate x:Key="ExpandedWorkspaceTemplate"
-                      x:DataType="local:Tab">
-            <Grid MinHeight="72"
-                  Padding="10,6,6,6"
-                  AutomationProperties.Name="{x:Bind Title, Mode=OneWay}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="24" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <IconSourceElement Width="16"
-                                   Height="16"
-                                   VerticalAlignment="Center"
-                                   IconSource="{x:Bind mtu:IconPathConverter.IconSourceWUX(Icon), Mode=OneWay}" />
-                <StackPanel Grid.Column="1"
-                            Margin="8,0,4,0"
-                            VerticalAlignment="Center"
-                            Spacing="3">
-                    <TextBlock FontSize="14"
-                               FontWeight="SemiBold"
-                               Text="{x:Bind Title, Mode=OneWay}"
-                               TextTrimming="CharacterEllipsis" />
-                    <TextBlock FontFamily="Consolas"
-                               FontSize="11"
-                               Opacity="0.72"
-                               Text="{x:Bind SwitchShortcutText, Mode=OneWay}"
-                               TextTrimming="CharacterEllipsis"
-                               Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(SwitchShortcutText), Mode=OneWay}" />
-                </StackPanel>
-                <Button Grid.Column="2"
-                        Width="28"
-                        Height="28"
-                        Padding="0"
-                        AutomationProperties.Name="Pin or unpin workspace"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Click="_WorkspacePinButton_Click"
-                        Content="{x:Bind PinIconGlyph, Mode=OneWay}"
-                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                        FontSize="12"
-                        Tag="{Binding}" />
-                <Button Grid.Column="3"
-                        Width="28"
-                        Height="28"
-                        Padding="0"
-                        AutomationProperties.Name="Close workspace"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Click="_WorkspaceCloseButton_Click"
-                        Content="&#xE711;"
-                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                        FontSize="10"
-                        Tag="{Binding}" />
-
-                <Grid.ContextFlyout>
-                    <MenuFlyout>
-                        <MenuFlyoutItem Click="_WorkspacePin_Click"
-                                            Tag="{Binding}"
-                                            Text="{x:Bind PinActionText, Mode=OneWay}" />
-                        <MenuFlyoutItem Click="_WorkspaceRename_Click"
-                                            Tag="{Binding}"
-                                            Text="Rename" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Click="_WorkspaceClose_Click"
-                                            Tag="{Binding}"
-                                            Text="Close" />
-                        <MenuFlyoutItem Click="_WorkspaceCloseOthers_Click"
-                                            Tag="{Binding}"
-                                            Text="Close other workspaces" />
-                    </MenuFlyout>
-                </Grid.ContextFlyout>
-            </Grid>
-        </DataTemplate>
-
-        <DataTemplate x:Key="CollapsedWorkspaceTemplate"
-                      x:DataType="local:Tab">
-            <Grid MinHeight="36"
-                  AutomationProperties.Name="{x:Bind Title, Mode=OneWay}">
-                <IconSourceElement Width="16"
-                                   Height="16"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   IconSource="{x:Bind mtu:IconPathConverter.IconSourceWUX(Icon), Mode=OneWay}" />
-                <ToolTipService.ToolTip>
-                    <ToolTip Content="{x:Bind Title, Mode=OneWay}" />
-                </ToolTipService.ToolTip>
-                <Grid.ContextFlyout>
-                    <MenuFlyout>
-                        <MenuFlyoutItem Click="_WorkspacePin_Click"
-                                            Tag="{Binding}"
-                                            Text="{x:Bind PinActionText, Mode=OneWay}" />
-                        <MenuFlyoutItem Click="_WorkspaceRename_Click"
-                                            Tag="{Binding}"
-                                            Text="Rename" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Click="_WorkspaceClose_Click"
-                                            Tag="{Binding}"
-                                            Text="Close" />
-                        <MenuFlyoutItem Click="_WorkspaceCloseOthers_Click"
-                                            Tag="{Binding}"
-                                            Text="Close other workspaces" />
-                    </MenuFlyout>
-                </Grid.ContextFlyout>
-            </Grid>
-        </DataTemplate>
-    </Page.Resources>
-
     <Grid x:Name="Root"
           Background="Transparent">
         <Grid.ColumnDefinitions>
@@ -163,130 +25,13 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border x:Name="WorkspaceSidebar"
-                Grid.RowSpan="3"
-                Width="280"
-                Background="{ThemeResource TabViewBackground}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="0,0,1,0"
-                Visibility="Collapsed">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="6" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="48" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="48" />
-                </Grid.RowDefinitions>
-
-                <Grid Grid.Row="0"
-                      Grid.Column="0">
-                    <TextBlock x:Name="WorkspaceSidebarTitle"
-                               Margin="12,0,40,0"
-                               VerticalAlignment="Center"
-                               FontSize="11"
-                               FontWeight="SemiBold"
-                               Opacity="0.72"
-                               Text="WORKSPACES"
-                               TextTrimming="CharacterEllipsis" />
-                    <Button x:Name="WorkspaceSidebarToggle"
-                            Width="32"
-                            Height="32"
-                            Margin="4"
-                            Padding="0"
-                            HorizontalAlignment="Right"
-                            AutomationProperties.Name="Collapse workspace sidebar"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Click="_WorkspaceSidebarToggle_Click"
-                            Content="&#xE76B;"
-                            FontFamily="{ThemeResource SymbolThemeFontFamily}" />
-                </Grid>
-
-                <ListView x:Name="WorkspaceList"
-                          Grid.Row="1"
-                          Grid.Column="0"
-                          AllowDrop="True"
-                          AutomationProperties.Name="Workspaces"
-                          Background="Transparent"
-                          BorderThickness="0"
-                          CanDragItems="True"
-                          CanReorderItems="True"
-                          DragItemsCompleted="_WorkspaceList_DragItemsCompleted"
-                          DragItemsStarting="_WorkspaceList_DragItemsStarting"
-                          IsSwipeEnabled="False"
-                          ItemContainerStyle="{StaticResource ExpandedWorkspaceItemContainerStyle}"
-                          ItemTemplate="{StaticResource ExpandedWorkspaceTemplate}"
-                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                          SelectionChanged="_WorkspaceList_SelectionChanged"
-                          SelectionMode="Single">
-                    <ListView.Resources>
-                        <SolidColorBrush x:Key="ListViewItemBackgroundSelected"
-                                         Color="#0A84FF" />
-                        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver"
-                                         Color="#0A84FF" />
-                        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed"
-                                         Color="#0A84FF" />
-                        <SolidColorBrush x:Key="ListViewItemForegroundSelected"
-                                         Color="White" />
-                        <SolidColorBrush x:Key="ListViewItemForegroundSelectedPointerOver"
-                                         Color="White" />
-                        <SolidColorBrush x:Key="ListViewItemForegroundSelectedPressed"
-                                         Color="White" />
-                    </ListView.Resources>
-                </ListView>
-
-                <Button x:Name="WorkspaceNewButton"
-                        Grid.Row="2"
-                        Grid.Column="0"
-                        Height="36"
-                        Margin="8,6"
-                        Padding="10,0"
-                        HorizontalContentAlignment="Left"
-                        AutomationProperties.Name="New workspace"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Click="_WorkspaceNewButton_Click">
-                    <StackPanel Orientation="Horizontal"
-                                Spacing="8">
-                        <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                  FontSize="12"
-                                  Glyph="&#xE710;" />
-                        <TextBlock x:Name="WorkspaceNewButtonText"
-                                   VerticalAlignment="Center"
-                                   Text="New workspace" />
-                    </StackPanel>
-                </Button>
-
-                <Thumb x:Name="WorkspaceSidebarResizeHandle"
-                       Grid.RowSpan="3"
-                       Grid.Column="1"
-                       MinWidth="0"
-                       AutomationProperties.AutomationId="WorkspaceSidebarResizeHandle"
-                       AutomationProperties.Name="Resize workspace sidebar"
-                       Background="Transparent"
-                       DragDelta="_WorkspaceSidebarResizeHandle_DragDelta">
-                    <Thumb.Template>
-                        <ControlTemplate TargetType="Thumb">
-                            <Grid Background="{TemplateBinding Background}">
-                                <Border Width="1"
-                                        HorizontalAlignment="Right"
-                                        Background="{ThemeResource CardStrokeColorDefaultBrush}" />
-                            </Grid>
-                        </ControlTemplate>
-                    </Thumb.Template>
-                    <ToolTipService.ToolTip>
-                        <ToolTip Content="Drag to resize sidebar" />
-                    </ToolTipService.ToolTip>
-                </Thumb>
-            </Grid>
-        </Border>
+        <local:WorkspaceSidebar x:Name="WorkspaceSidebar"
+                                Grid.RowSpan="3"
+                                Visibility="Collapsed" />
 
         <local:TabRowControl x:Name="TabRow"
-                             Grid.Column="1"
                              Grid.Row="0"
+                             Grid.Column="1"
                              KeyUp="_KeyDownHandler" />
 
         <StackPanel Grid.Row="1"
@@ -322,8 +67,8 @@
         </StackPanel>
 
         <Grid x:Name="TabContent"
-              Grid.Column="1"
               Grid.Row="2"
+              Grid.Column="1"
               HorizontalAlignment="Stretch"
               VerticalAlignment="Stretch">
             <Grid.Background>
@@ -338,24 +83,22 @@
             ContentDialog a Row, I believe it's assigned Row 0 by default. So,
             when the dialog gets opened, the dialog seemingly causes a giant
             hole to appear in the body of the app.
-
             Assigning all the dialogs to Row 2 (where the rest of the content
             is) makes the "hole" appear in the same space as the rest of the
             TabContent, fixing the issue.
-
             Note that the actual content in a content dialog gets parented to
             the PopupRoot, so it actually always appeared in the correct place, it's
             just this weird hole that appeared in Row 0.
         -->
 
         <local:AboutDialog x:Name="AboutDialog"
-                           Grid.Column="1"
                            Grid.Row="2"
+                           Grid.Column="1"
                            x:Load="False" />
 
         <ContentDialog x:Name="ConfirmCloseDialog"
-                       Grid.Column="1"
                        Grid.Row="2"
+                       Grid.Column="1"
                        x:Load="False"
                        DefaultButton="Primary">
             <CheckBox x:Uid="DontAskAgainCheckBox" />
@@ -363,15 +106,15 @@
 
         <ContentDialog x:Name="CloseReadOnlyDialog"
                        x:Uid="CloseReadOnlyDialog"
-                       Grid.Column="1"
                        Grid.Row="2"
+                       Grid.Column="1"
                        x:Load="False"
                        DefaultButton="Close" />
 
         <ContentDialog x:Name="MultiLinePasteDialog"
                        x:Uid="MultiLinePasteDialog"
-                       Grid.Column="1"
                        Grid.Row="2"
+                       Grid.Column="1"
                        x:Load="False"
                        DefaultButton="Primary">
             <StackPanel>
@@ -391,15 +134,15 @@
 
         <ContentDialog x:Name="LargePasteDialog"
                        x:Uid="LargePasteDialog"
-                       Grid.Column="1"
                        Grid.Row="2"
+                       Grid.Column="1"
                        x:Load="False"
                        DefaultButton="Primary" />
 
         <ContentDialog x:Name="ControlNoticeDialog"
                        x:Uid="ControlNoticeDialog"
-                       Grid.Column="1"
                        Grid.Row="2"
+                       Grid.Column="1"
                        x:Load="False"
                        DefaultButton="Primary">
             <TextBlock IsTextSelectionEnabled="True"
@@ -413,8 +156,8 @@
 
         <ContentDialog x:Name="UriErrorDialog"
                        x:Uid="UriErrorDialog"
-                       Grid.Column="1"
                        Grid.Row="2"
+                       Grid.Column="1"
                        x:Load="False"
                        DefaultButton="Close">
             <TextBlock IsTextSelectionEnabled="True"
@@ -429,16 +172,16 @@
         </ContentDialog>
 
         <local:CommandPalette x:Name="CommandPaletteElement"
-                              Grid.Column="1"
                               Grid.Row="2"
+                              Grid.Column="1"
                               VerticalAlignment="Stretch"
                               x:Load="False"
                               PreviewKeyDown="_KeyDownHandler"
                               Visibility="Collapsed" />
 
         <local:SuggestionsControl x:Name="SuggestionsElement"
-                                  Grid.Column="1"
                                   Grid.Row="2"
+                                  Grid.Column="1"
                                   HorizontalAlignment="Left"
                                   VerticalAlignment="Top"
                                   x:Load="False"
@@ -451,16 +194,16 @@
             tracked by MUX#4382
         -->
         <mux:TeachingTip x:Name="WindowIdToast"
-                         Grid.Column="1"
                          Title="{x:Bind WindowProperties.WindowIdForDisplay}"
+                         Grid.Column="1"
                          x:Load="False"
                          IsLightDismissEnabled="True"
                          Subtitle="{x:Bind WindowProperties.WindowNameForDisplay, Mode=OneWay}" />
 
         <mux:TeachingTip x:Name="WindowRenamer"
                          x:Uid="WindowRenamer"
-                         Grid.Column="1"
                          Title="{x:Bind WindowProperties.WindowIdForDisplay}"
+                         Grid.Column="1"
                          x:Load="False"
                          ActionButtonClick="_WindowRenamerActionClick"
                          ActionButtonStyle="{ThemeResource AccentButtonStyle}"
@@ -479,15 +222,15 @@
 
         <mux:TeachingTip x:Name="WindowCwdToast"
                          x:Uid="WindowCwdToast"
-                         Grid.Column="1"
                          Title="{x:Bind WindowProperties.VirtualWorkingDirectory, Mode=OneWay}"
+                         Grid.Column="1"
                          x:Load="False"
                          IsLightDismissEnabled="True" />
 
         <mux:TeachingTip x:Name="ActionSavedToast"
                          x:Uid="ActionSavedToast"
-                         Grid.Column="1"
                          Title="Action Saved"
+                         Grid.Column="1"
                          HorizontalAlignment="Stretch"
                          x:Load="False"
                          IsLightDismissEnabled="True">
@@ -514,8 +257,8 @@
         </mux:TeachingTip>
         <mux:TeachingTip x:Name="ActionSaveFailedToast"
                          x:Uid="ActionSaveFailedToast"
-                         Grid.Column="1"
                          Title="Action Save Failed"
+                         Grid.Column="1"
                          x:Load="False"
                          IsLightDismissEnabled="True">
             <mux:TeachingTip.Content>

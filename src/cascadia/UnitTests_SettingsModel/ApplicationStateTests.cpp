@@ -29,6 +29,7 @@ namespace SettingsModelUnitTests
         TEST_METHOD(RenameWorkspaceNoOpForMissingEntry);
         TEST_METHOD(TakeWorkspaceRemovesAndReturns);
         TEST_METHOD(TakeWorkspaceReturnsNullWhenMissing);
+        TEST_METHOD(WorkspaceSidebarStateRoundTrips);
 
     private:
         static std::filesystem::path _tempRoot()
@@ -134,5 +135,21 @@ namespace SettingsModelUnitTests
     {
         auto state = _make();
         VERIFY_IS_NULL(state->TakeWorkspace(L"missing"));
+    }
+
+    void ApplicationStateTests::WorkspaceSidebarStateRoundTrips()
+    {
+        const auto root = _tempRoot();
+        auto state = winrt::make_self<implementation::ApplicationState>(root);
+        VERIFY_ARE_EQUAL(280.0, state->WorkspaceSidebarWidth());
+        VERIFY_IS_TRUE(state->WorkspaceSidebarExpanded());
+
+        state->WorkspaceSidebarWidth(356.0);
+        state->WorkspaceSidebarExpanded(false);
+        state->Flush();
+
+        auto reloaded = winrt::make_self<implementation::ApplicationState>(root);
+        VERIFY_ARE_EQUAL(356.0, reloaded->WorkspaceSidebarWidth());
+        VERIFY_IS_FALSE(reloaded->WorkspaceSidebarExpanded());
     }
 }

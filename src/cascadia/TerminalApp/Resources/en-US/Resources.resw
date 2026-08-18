@@ -1006,4 +1006,64 @@ For example, 'wt -p "Ubuntu" -d C:\' is equivalent to 'wt new-tab -p "Ubuntu" -d
 For all available options, run 'wt new-tab --help'.</value>
     <comment>{Locked="wt","new-tab","-p","-d","--help"}</comment>
   </data>
+  <data name="WorkspaceSidebarTitle.Text" xml:space="preserve">
+    <value>WORKSPACES</value>
+  </data>
+  <data name="WorkspaceSidebarList.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Workspaces</value>
+  </data>
+  <data name="WorkspaceSidebarCloseButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Close workspace</value>
+  </data>
+  <data name="WorkspaceSidebarRenameMenuItem.Text" xml:space="preserve">
+    <value>Rename</value>
+  </data>
+  <data name="WorkspaceSidebarCloseMenuItem.Text" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="WorkspaceSidebarCloseOthersMenuItem.Text" xml:space="preserve">
+    <value>Close other workspaces</value>
+  </data>
+  <data name="WorkspaceSidebarNewButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>New workspace</value>
+  </data>
+  <data name="WorkspaceSidebarNewButtonText.Text" xml:space="preserve">
+    <value>New workspace</value>
+  </data>
+  <data name="WorkspaceSidebarResizeHandle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Resize workspace sidebar</value>
+  </data>
+  <data name="WorkspaceSidebarResizeToolTip.Content" xml:space="preserve">
+    <value>Drag to resize sidebar</value>
+  </data>
+  <data name="WorkspaceSidebar_PinAction" xml:space="preserve">
+    <value>Pin</value>
+  </data>
+  <data name="WorkspaceSidebar_UnpinAction" xml:space="preserve">
+    <value>Unpin</value>
+  </data>
+  <data name="WorkspaceSidebar_PinAutomationName" xml:space="preserve">
+    <value>Pin workspace</value>
+  </data>
+  <data name="WorkspaceSidebar_UnpinAutomationName" xml:space="preserve">
+    <value>Unpin workspace</value>
+  </data>
+  <data name="WorkspaceSidebar_CollapseAutomationName" xml:space="preserve">
+    <value>Collapse workspace sidebar</value>
+  </data>
+  <data name="WorkspaceSidebar_ExpandAutomationName" xml:space="preserve">
+    <value>Expand workspace sidebar</value>
+  </data>
+  <data name="WorkspaceSidebar_RenameDialogTitle" xml:space="preserve">
+    <value>Rename workspace</value>
+  </data>
+  <data name="WorkspaceSidebar_RenameDialogSave" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="WorkspaceSidebar_RenameDialogCancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="WorkspaceSidebar_RenameDialogPlaceholder" xml:space="preserve">
+    <value>Workspace name</value>
+  </data>
 </root>

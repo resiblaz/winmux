@@ -32,6 +32,7 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         void ShowTitlebarToggled(const winrt::Windows::Foundation::IInspectable& sender, const winrt::Windows::UI::Xaml::RoutedEventArgs& args);
 
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_WindowSettings, AlwaysShowTabs);
+        PERMANENT_OBSERVABLE_PROJECTED_SETTING(_WindowSettings, WorkspaceSidebar);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_WindowSettings, ShowTabsFullscreen);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_WindowSettings, ShowTabsInTitlebar);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_WindowSettings, UseAcrylicInTabRow);

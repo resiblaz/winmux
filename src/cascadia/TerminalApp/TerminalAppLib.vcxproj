@@ -58,6 +58,9 @@
     <Page Include="TabRowControl.xaml">
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="WorkspaceSidebar.xaml">
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="TabHeaderControl.xaml">
       <SubType>Designer</SubType>
     </Page>
@@ -119,6 +122,12 @@
     </ClInclude>
     <ClInclude Include="TabRowControl.h">
       <DependentUpon>TabRowControl.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="WorkspaceSidebar.h">
+      <DependentUpon>WorkspaceSidebar.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="WorkspaceItemViewModel.h">
+      <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClInclude>
     <ClInclude Include="TabHeaderControl.h">
       <DependentUpon>TabHeaderControl.xaml</DependentUpon>
@@ -231,6 +240,12 @@
     <ClCompile Include="TabRowControl.cpp">
       <DependentUpon>TabRowControl.xaml</DependentUpon>
     </ClCompile>
+    <ClCompile Include="WorkspaceSidebar.cpp">
+      <DependentUpon>WorkspaceSidebar.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="WorkspaceItemViewModel.cpp">
+      <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
+    </ClCompile>
     <ClCompile Include="TabHeaderControl.cpp">
       <DependentUpon>TabHeaderControl.xaml</DependentUpon>
     </ClCompile>
@@ -337,6 +352,13 @@
     </Midl>
     <Midl Include="TabRowControl.idl">
       <DependentUpon>TabRowControl.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="WorkspaceSidebar.idl">
+      <DependentUpon>WorkspaceSidebar.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="WorkspaceItemViewModel.idl">
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="TabHeaderControl.idl">

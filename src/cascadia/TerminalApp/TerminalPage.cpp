@@ -220,7 +220,7 @@ namespace winrt::TerminalApp::implementation
 {
     TerminalPage::TerminalPage(TerminalApp::WindowProperties properties, const TerminalApp::ContentManager& manager) :
         _tabs{ winrt::single_threaded_observable_vector<TerminalApp::Tab>() },
-        _workspaceTabs{ winrt::single_threaded_observable_vector<TerminalApp::Tab>() },
+        _workspaceItems{ winrt::single_threaded_observable_vector<TerminalApp::WorkspaceItemViewModel>() },
         _mruTabs{ winrt::single_threaded_observable_vector<TerminalApp::Tab>() },
         _manager{ manager },
         _hostingHwnd{},
@@ -333,21 +333,27 @@ namespace winrt::TerminalApp::implementation
         _tabRow = this->TabRow();
         _tabView = _tabRow.TabView();
         _workspaceSidebar = this->WorkspaceSidebar();
-        _workspaceSidebarResizeHandle = this->WorkspaceSidebarResizeHandle();
-        _workspaceList = this->WorkspaceList();
-        _workspaceSidebarToggle = this->WorkspaceSidebarToggle();
-        _workspaceNewButton = this->WorkspaceNewButton();
-        _workspaceSidebarTitle = this->WorkspaceSidebarTitle();
-        _workspaceNewButtonText = this->WorkspaceNewButtonText();
-        _workspaceList.ItemsSource(_workspaceTabs);
+        _workspaceList = _workspaceSidebar.WorkspaceList();
+        _workspaceList.ItemsSource(_workspaceItems);
         _rearranging = false;
 
         const auto canDragDrop = CanDragDrop();
 
         _tabView.CanReorderTabs(canDragDrop);
         _tabView.CanDragTabs(canDragDrop);
+        _workspaceList.CanReorderItems(canDragDrop);
+        _workspaceList.CanDragItems(canDragDrop);
         _tabView.TabDragStarting({ get_weak(), &TerminalPage::_TabDragStarted });
         _tabView.TabDragCompleted({ get_weak(), &TerminalPage::_TabDragCompleted });
+
+        _workspaceSidebar.NewRequested({ get_weak(), &TerminalPage::_WorkspaceNewRequested });
+        _workspaceSidebar.PinRequested({ get_weak(), &TerminalPage::_WorkspacePinRequested });
+        _workspaceSidebar.CloseRequested({ get_weak(), &TerminalPage::_WorkspaceCloseRequested });
+        _workspaceSidebar.CloseOthersRequested({ get_weak(), &TerminalPage::_WorkspaceCloseOthersRequested });
+        _workspaceSidebar.RenameRequested({ get_weak(), &TerminalPage::_WorkspaceRenameRequested });
+        _workspaceList.SelectionChanged({ get_weak(), &TerminalPage::_WorkspaceList_SelectionChanged });
+        _workspaceList.DragItemsStarting({ get_weak(), &TerminalPage::_WorkspaceList_DragItemsStarting });
+        _workspaceList.DragItemsCompleted({ get_weak(), &TerminalPage::_WorkspaceList_DragItemsCompleted });
 
         auto tabRowImpl = winrt::get_self<implementation::TabRowControl>(_tabRow);
         _newTabButton = tabRowImpl->NewTabButton();
@@ -524,19 +530,6 @@ namespace winrt::TerminalApp::implementation
 
         _workspaceSidebarEnabled = enabled;
         _workspaceSidebarLayoutInitialized = true;
-        _workspaceSidebar.Width(_workspaceSidebarExpanded ? _workspaceSidebarWidth : 48.0);
-        _workspaceSidebarResizeHandle.Visibility(_workspaceSidebarExpanded ? Visibility::Visible : Visibility::Collapsed);
-        _workspaceSidebarTitle.Visibility(_workspaceSidebarExpanded ? Visibility::Visible : Visibility::Collapsed);
-        _workspaceNewButtonText.Visibility(_workspaceSidebarExpanded ? Visibility::Visible : Visibility::Collapsed);
-        _workspaceSidebarToggle.Content(box_value(_workspaceSidebarExpanded ? L"\uE76B" : L"\uE76C"));
-        Automation::AutomationProperties::SetName(_workspaceSidebarToggle,
-                                                   _workspaceSidebarExpanded ? L"Collapse workspace sidebar" : L"Expand workspace sidebar");
-
-        const auto templateKey = _workspaceSidebarExpanded ? L"ExpandedWorkspaceTemplate" : L"CollapsedWorkspaceTemplate";
-        const auto itemStyleKey = _workspaceSidebarExpanded ? L"ExpandedWorkspaceItemContainerStyle" : L"CollapsedWorkspaceItemContainerStyle";
-        _workspaceList.ItemTemplate(Resources().Lookup(box_value(templateKey)).as<DataTemplate>());
-        _workspaceList.ItemContainerStyle(Resources().Lookup(box_value(itemStyleKey)).as<WUX::Style>());
-
         _UpdateTabView();
     }
 
@@ -548,9 +541,14 @@ namespace winrt::TerminalApp::implementation
         }
 
         uint32_t tabIndex{};
-        if (!_workspaceTabs.IndexOf(tab, tabIndex))
+        if (!_tabs.IndexOf(tab, tabIndex))
         {
             return;
+        }
+
+        for (uint32_t index = 0; index < _workspaceItems.Size(); ++index)
+        {
+            _workspaceItems.GetAt(index).IsSelected(index == tabIndex);
         }
 
         const auto selectedIndex = gsl::narrow_cast<int32_t>(tabIndex);
@@ -561,32 +559,14 @@ namespace winrt::TerminalApp::implementation
             _syncingWorkspaceSelection = false;
         }
 
-        if (const auto container = _workspaceList.ContainerFromItem(tab).try_as<FrameworkElement>())
+        const auto item = _workspaceItems.GetAt(tabIndex);
+        if (const auto container = _workspaceList.ContainerFromItem(item).try_as<FrameworkElement>())
         {
             container.StartBringIntoView();
         }
     }
 
-    void TerminalPage::_WorkspaceSidebarToggle_Click(const IInspectable&, const RoutedEventArgs&)
-    {
-        _workspaceSidebarExpanded = !_workspaceSidebarExpanded;
-        _UpdateWorkspaceSidebar();
-    }
-
-    void TerminalPage::_WorkspaceSidebarResizeHandle_DragDelta(const IInspectable&, const WUX::Controls::Primitives::DragDeltaEventArgs& args)
-    {
-        if (!_workspaceSidebarExpanded || !_workspaceSidebar)
-        {
-            return;
-        }
-
-        constexpr double minimumWidth = 220.0;
-        constexpr double maximumWidth = 480.0;
-        _workspaceSidebarWidth = std::clamp(_workspaceSidebarWidth + args.HorizontalChange(), minimumWidth, maximumWidth);
-        _workspaceSidebar.Width(_workspaceSidebarWidth);
-    }
-
-    void TerminalPage::_WorkspaceNewButton_Click(const IInspectable&, const RoutedEventArgs&)
+    void TerminalPage::_WorkspaceNewRequested(const TerminalApp::WorkspaceSidebar&, const IInspectable&)
     {
         _OpenNewTerminalViaDropdown(NewTerminalArgs());
     }
@@ -626,40 +606,30 @@ namespace winrt::TerminalApp::implementation
         _TryMoveTab(currentIndex, gsl::narrow_cast<int32_t>(targetIndex), false);
     }
 
-    void TerminalPage::_WorkspacePinButton_Click(const IInspectable& sender, const RoutedEventArgs&)
+    void TerminalPage::_WorkspacePinRequested(const TerminalApp::WorkspaceSidebar&, const TerminalApp::WorkspaceItemViewModel& item)
     {
-        if (const auto element = sender.try_as<FrameworkElement>())
+        if (item)
         {
-            _ToggleWorkspacePin(element.Tag().try_as<TerminalApp::Tab>());
+            _ToggleWorkspacePin(item.SourceTab());
         }
     }
 
-    void TerminalPage::_WorkspacePin_Click(const IInspectable& sender, const RoutedEventArgs& args)
+    void TerminalPage::_WorkspaceCloseRequested(const TerminalApp::WorkspaceSidebar&, const TerminalApp::WorkspaceItemViewModel& item)
     {
-        _WorkspacePinButton_Click(sender, args);
-    }
-
-    void TerminalPage::_WorkspaceCloseButton_Click(const IInspectable& sender, const RoutedEventArgs&)
-    {
-        if (const auto element = sender.try_as<FrameworkElement>())
+        if (item)
         {
-            if (const auto tab = element.Tag().try_as<TerminalApp::Tab>())
+            if (const auto tab = item.SourceTab())
             {
                 _HandleCloseTabRequested(tab);
             }
         }
     }
 
-    void TerminalPage::_WorkspaceClose_Click(const IInspectable& sender, const RoutedEventArgs& args)
+    void TerminalPage::_WorkspaceCloseOthersRequested(const TerminalApp::WorkspaceSidebar&, const TerminalApp::WorkspaceItemViewModel& item)
     {
-        _WorkspaceCloseButton_Click(sender, args);
-    }
-
-    void TerminalPage::_WorkspaceCloseOthers_Click(const IInspectable& sender, const RoutedEventArgs&)
-    {
-        if (const auto element = sender.try_as<FrameworkElement>())
+        if (item)
         {
-            if (const auto keepTab = element.Tag().try_as<TerminalApp::Tab>())
+            if (const auto keepTab = item.SourceTab())
             {
                 std::vector<TerminalApp::Tab> tabsToClose;
                 for (const auto& tab : _tabs)
@@ -674,11 +644,11 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void TerminalPage::_WorkspaceRename_Click(const IInspectable& sender, const RoutedEventArgs&)
+    void TerminalPage::_WorkspaceRenameRequested(const TerminalApp::WorkspaceSidebar&, const TerminalApp::WorkspaceItemViewModel& item)
     {
-        if (const auto element = sender.try_as<FrameworkElement>())
+        if (item)
         {
-            if (const auto tab = element.Tag().try_as<TerminalApp::Tab>())
+            if (const auto tab = item.SourceTab())
             {
                 _RenameWorkspace(tab);
             }
@@ -689,15 +659,15 @@ namespace winrt::TerminalApp::implementation
     {
         const auto weakThis = get_weak();
         ContentDialog dialog{};
-        dialog.Title(box_value(L"Rename workspace"));
-        dialog.PrimaryButtonText(L"Save");
-        dialog.CloseButtonText(L"Cancel");
+        dialog.Title(box_value(RS_(L"WorkspaceSidebar_RenameDialogTitle")));
+        dialog.PrimaryButtonText(RS_(L"WorkspaceSidebar_RenameDialogSave"));
+        dialog.CloseButtonText(RS_(L"WorkspaceSidebar_RenameDialogCancel"));
         dialog.DefaultButton(ContentDialogButton::Primary);
 
         TextBox textBox{};
         textBox.Text(tab.Title());
-        textBox.PlaceholderText(L"Workspace name");
-        Automation::AutomationProperties::SetName(textBox, L"Workspace name");
+        textBox.PlaceholderText(RS_(L"WorkspaceSidebar_RenameDialogPlaceholder"));
+        Automation::AutomationProperties::SetName(textBox, RS_(L"WorkspaceSidebar_RenameDialogPlaceholder"));
         dialog.Content(textBox);
 
         if (const auto presenter = _dialogPresenter.get())
@@ -736,9 +706,12 @@ namespace winrt::TerminalApp::implementation
 
         if (const auto list = sender.try_as<ListView>())
         {
-            if (const auto tab = list.SelectedItem().try_as<TerminalApp::Tab>())
+            if (const auto item = list.SelectedItem().try_as<TerminalApp::WorkspaceItemViewModel>())
             {
-                _tabView.SelectedItem(tab.TabViewItem());
+                if (const auto tab = item.SourceTab())
+                {
+                    _tabView.SelectedItem(tab.TabViewItem());
+                }
             }
         }
     }
@@ -746,17 +719,20 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_WorkspaceList_DragItemsStarting(const IInspectable&, const DragItemsStartingEventArgs& args)
     {
         _workspaceReorderFrom = std::nullopt;
-        _workspaceReorderTab = nullptr;
+        _workspaceReorderItem = nullptr;
 
         if (args.Items().Size() == 1)
         {
-            if (const auto tab = args.Items().GetAt(0).try_as<TerminalApp::Tab>())
+            if (const auto item = args.Items().GetAt(0).try_as<TerminalApp::WorkspaceItemViewModel>())
             {
-                uint32_t index{};
-                if (_tabs.IndexOf(tab, index))
+                if (const auto tab = item.SourceTab())
                 {
-                    _workspaceReorderFrom = index;
-                    _workspaceReorderTab = tab;
+                    uint32_t index{};
+                    if (_tabs.IndexOf(tab, index))
+                    {
+                        _workspaceReorderFrom = index;
+                        _workspaceReorderItem = item;
+                    }
                 }
             }
         }
@@ -764,10 +740,10 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_WorkspaceList_DragItemsCompleted(const IInspectable&, const DragItemsCompletedEventArgs&)
     {
-        if (_workspaceReorderFrom.has_value() && _workspaceReorderTab)
+        if (_workspaceReorderFrom.has_value() && _workspaceReorderItem)
         {
             uint32_t newIndex{};
-            if (_workspaceTabs.IndexOf(_workspaceReorderTab, newIndex))
+            if (_workspaceItems.IndexOf(_workspaceReorderItem, newIndex))
             {
                 _workspaceReordering = true;
                 _TryMoveTab(_workspaceReorderFrom.value(), gsl::narrow_cast<int32_t>(newIndex));
@@ -777,19 +753,19 @@ namespace winrt::TerminalApp::implementation
                 // match the clamped canonical tab order.
                 uint32_t desiredIndex{};
                 uint32_t actualIndex{};
-                if (_tabs.IndexOf(_workspaceReorderTab, desiredIndex) &&
-                    _workspaceTabs.IndexOf(_workspaceReorderTab, actualIndex) &&
+                if (_tabs.IndexOf(_workspaceReorderItem.SourceTab(), desiredIndex) &&
+                    _workspaceItems.IndexOf(_workspaceReorderItem, actualIndex) &&
                     desiredIndex != actualIndex)
                 {
-                    _workspaceTabs.RemoveAt(actualIndex);
-                    _workspaceTabs.InsertAt(desiredIndex, _workspaceReorderTab);
+                    _workspaceItems.RemoveAt(actualIndex);
+                    _workspaceItems.InsertAt(desiredIndex, _workspaceReorderItem);
                 }
                 _workspaceReordering = false;
             }
         }
 
         _workspaceReorderFrom = std::nullopt;
-        _workspaceReorderTab = nullptr;
+        _workspaceReorderItem = nullptr;
     }
 
     Windows::UI::Xaml::Automation::Peers::AutomationPeer TerminalPage::OnCreateAutomationPeer()

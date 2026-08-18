@@ -17,6 +17,8 @@
 #include "WindowListEntry.g.h"
 #include "WindowListRequest.g.h"
 #include "Toast.h"
+#include "WorkspaceItemViewModel.h"
+#include "WorkspaceSidebar.h"
 
 #include "WindowsPackageManagerFactory.h"
 
@@ -282,13 +284,8 @@ namespace winrt::TerminalApp::implementation
         Microsoft::UI::Xaml::Controls::TabView _tabView{ nullptr };
         TerminalApp::TabRowControl _tabRow{ nullptr };
         Windows::UI::Xaml::Controls::Grid _tabContent{ nullptr };
-        Windows::UI::Xaml::Controls::Border _workspaceSidebar{ nullptr };
-        Windows::UI::Xaml::Controls::Primitives::Thumb _workspaceSidebarResizeHandle{ nullptr };
+        TerminalApp::WorkspaceSidebar _workspaceSidebar{ nullptr };
         Windows::UI::Xaml::Controls::ListView _workspaceList{ nullptr };
-        Windows::UI::Xaml::Controls::Button _workspaceSidebarToggle{ nullptr };
-        Windows::UI::Xaml::Controls::Button _workspaceNewButton{ nullptr };
-        Windows::UI::Xaml::Controls::TextBlock _workspaceSidebarTitle{ nullptr };
-        Windows::UI::Xaml::Controls::TextBlock _workspaceNewButtonText{ nullptr };
         Microsoft::UI::Xaml::Controls::SplitButton _newTabButton{ nullptr };
         Windows::UI::Xaml::Controls::MenuFlyout _workspaceFlyout{ nullptr };
         Windows::UI::Xaml::Controls::Button _workspaceDropdown{ nullptr };
@@ -297,7 +294,7 @@ namespace winrt::TerminalApp::implementation
         Microsoft::Terminal::Settings::Model::CascadiaSettings _settings{ nullptr };
 
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _tabs;
-        Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _workspaceTabs;
+        Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel> _workspaceItems;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _mruTabs;
         static winrt::com_ptr<Tab> _GetTabImpl(const TerminalApp::Tab& tab);
 
@@ -319,12 +316,10 @@ namespace winrt::TerminalApp::implementation
         bool _removing{ false };
         bool _workspaceSidebarEnabled{ false };
         bool _workspaceSidebarLayoutInitialized{ false };
-        bool _workspaceSidebarExpanded{ true };
-        double _workspaceSidebarWidth{ 280.0 };
         bool _syncingWorkspaceSelection{ false };
         bool _workspaceReordering{ false };
         std::optional<uint32_t> _workspaceReorderFrom{};
-        TerminalApp::Tab _workspaceReorderTab{ nullptr };
+        TerminalApp::WorkspaceItemViewModel _workspaceReorderItem{ nullptr };
 
         bool _activated{ false };
         bool _visible{ true };
@@ -425,15 +420,11 @@ namespace winrt::TerminalApp::implementation
         uint32_t _PinnedTabCount() const;
         int32_t _ClampTabIndexForPinnedState(const winrt::TerminalApp::Tab& tab, int32_t suggestedIndex) const;
         void _ToggleWorkspacePin(const winrt::TerminalApp::Tab& tab);
-        void _WorkspaceSidebarToggle_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
-        void _WorkspaceSidebarResizeHandle_DragDelta(const IInspectable& sender, const Windows::UI::Xaml::Controls::Primitives::DragDeltaEventArgs& eventArgs);
-        void _WorkspaceNewButton_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
-        void _WorkspacePinButton_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
-        void _WorkspacePin_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
-        void _WorkspaceCloseButton_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
-        void _WorkspaceClose_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
-        void _WorkspaceCloseOthers_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
-        void _WorkspaceRename_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
+        void _WorkspaceNewRequested(const TerminalApp::WorkspaceSidebar& sender, const IInspectable& eventArgs);
+        void _WorkspacePinRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        void _WorkspaceCloseRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        void _WorkspaceCloseOthersRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        void _WorkspaceRenameRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         safe_void_coroutine _RenameWorkspace(winrt::TerminalApp::Tab tab);
         void _WorkspaceList_SelectionChanged(const IInspectable& sender, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs& eventArgs);
         void _WorkspaceList_DragItemsStarting(const IInspectable& sender, const Windows::UI::Xaml::Controls::DragItemsStartingEventArgs& eventArgs);

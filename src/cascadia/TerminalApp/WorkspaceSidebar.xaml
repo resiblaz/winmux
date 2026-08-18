@@ -1,0 +1,287 @@
+<!--
+    Copyright (c) Microsoft Corporation. All rights reserved. Licensed under
+    the MIT License. See LICENSE in the project root for license information.
+-->
+<ContentPresenter x:Class="TerminalApp.WorkspaceSidebar"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                  xmlns:local="using:TerminalApp"
+                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                  xmlns:mtu="using:Microsoft.Terminal.UI"
+                  mc:Ignorable="d">
+
+    <ContentPresenter.Resources>
+        <Style x:Key="ExpandedWorkspaceItemContainerStyle"
+               TargetType="ListViewItem">
+            <Setter Property="MinHeight" Value="72" />
+            <Setter Property="Margin" Value="8,3" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+
+        <Style x:Key="CollapsedWorkspaceItemContainerStyle"
+               TargetType="ListViewItem">
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Margin" Value="4,3" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+
+        <DataTemplate x:Key="ExpandedWorkspaceTemplate"
+                      x:DataType="local:WorkspaceItemViewModel">
+            <Grid MinHeight="72"
+                  Padding="10,6,6,6"
+                  AutomationProperties.Name="{x:Bind Title, Mode=OneWay}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="24" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <IconSourceElement Width="16"
+                                   Height="16"
+                                   VerticalAlignment="Center"
+                                   IconSource="{x:Bind mtu:IconPathConverter.IconSourceWUX(Icon), Mode=OneWay}" />
+                <StackPanel Grid.Column="1"
+                            Margin="8,0,4,0"
+                            VerticalAlignment="Center"
+                            Spacing="3">
+                    <TextBlock FontSize="14"
+                               FontWeight="SemiBold"
+                               Text="{x:Bind Title, Mode=OneWay}"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock FontFamily="Consolas"
+                               FontSize="11"
+                               Opacity="0.72"
+                               Text="{x:Bind SwitchShortcutText, Mode=OneWay}"
+                               TextTrimming="CharacterEllipsis"
+                               Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(SwitchShortcutText), Mode=OneWay}" />
+                </StackPanel>
+                <Button Grid.Column="2"
+                        Width="28"
+                        Height="28"
+                        Padding="0"
+                        AutomationProperties.Name="{x:Bind PinAutomationName, Mode=OneWay}"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="_Pin_Click"
+                        Content="{x:Bind PinIconGlyph, Mode=OneWay}"
+                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                        FontSize="12"
+                        Tag="{Binding}" />
+                <Button x:Uid="WorkspaceSidebarCloseButton"
+                        Grid.Column="3"
+                        Width="28"
+                        Height="28"
+                        Padding="0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="_Close_Click"
+                        Content="&#xE711;"
+                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                        FontSize="10"
+                        Tag="{Binding}" />
+
+                <Grid.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Click="_Pin_Click"
+                                        Tag="{Binding}"
+                                        Text="{x:Bind PinActionText, Mode=OneWay}" />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarRenameMenuItem"
+                                        Click="_Rename_Click"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarCloseMenuItem"
+                                        Click="_Close_Click"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarCloseOthersMenuItem"
+                                        Click="_CloseOthers_Click"
+                                        Tag="{Binding}" />
+                    </MenuFlyout>
+                </Grid.ContextFlyout>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="CollapsedWorkspaceTemplate"
+                      x:DataType="local:WorkspaceItemViewModel">
+            <Grid MinHeight="36"
+                  AutomationProperties.Name="{x:Bind Title, Mode=OneWay}">
+                <IconSourceElement Width="16"
+                                   Height="16"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   IconSource="{x:Bind mtu:IconPathConverter.IconSourceWUX(Icon), Mode=OneWay}" />
+                <ToolTipService.ToolTip>
+                    <ToolTip Content="{x:Bind Title, Mode=OneWay}" />
+                </ToolTipService.ToolTip>
+                <Grid.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Click="_Pin_Click"
+                                        Tag="{Binding}"
+                                        Text="{x:Bind PinActionText, Mode=OneWay}" />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarRenameMenuItem"
+                                        Click="_Rename_Click"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarCloseMenuItem"
+                                        Click="_Close_Click"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarCloseOthersMenuItem"
+                                        Click="_CloseOthers_Click"
+                                        Tag="{Binding}" />
+                    </MenuFlyout>
+                </Grid.ContextFlyout>
+            </Grid>
+        </DataTemplate>
+    </ContentPresenter.Resources>
+
+    <Border Background="{ThemeResource TabViewBackground}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="0,0,1,0">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="6" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="48" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="48" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0"
+                  Grid.Column="0">
+                <TextBlock x:Name="SidebarTitle"
+                           x:Uid="WorkspaceSidebarTitle"
+                           Margin="12,0,40,0"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           FontWeight="SemiBold"
+                           Opacity="0.72"
+                           TextTrimming="CharacterEllipsis" />
+                <Button x:Name="ToggleButton"
+                        Width="32"
+                        Height="32"
+                        Margin="4"
+                        Padding="0"
+                        HorizontalAlignment="Right"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="_Toggle_Click"
+                        FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+            </Grid>
+
+            <ListView x:Name="WorkspaceList"
+                      x:Uid="WorkspaceSidebarList"
+                      Grid.Row="1"
+                      Grid.Column="0"
+                      AllowDrop="True"
+                      Background="Transparent"
+                      BorderThickness="0"
+                      CanDragItems="True"
+                      CanReorderItems="True"
+                      IsSwipeEnabled="False"
+                      ItemContainerStyle="{StaticResource ExpandedWorkspaceItemContainerStyle}"
+                      ItemTemplate="{StaticResource ExpandedWorkspaceTemplate}"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                      SelectionMode="Single">
+                <ListView.Resources>
+                    <ResourceDictionary>
+                        <ResourceDictionary.ThemeDictionaries>
+                            <ResourceDictionary x:Key="Light">
+                                <SolidColorBrush x:Key="ListViewItemBackgroundSelected"
+                                                 Color="#0A84FF" />
+                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver"
+                                                 Color="#0A84FF" />
+                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed"
+                                                 Color="#0A84FF" />
+                                <SolidColorBrush x:Key="ListViewItemForegroundSelected"
+                                                 Color="White" />
+                                <SolidColorBrush x:Key="ListViewItemForegroundSelectedPointerOver"
+                                                 Color="White" />
+                                <SolidColorBrush x:Key="ListViewItemForegroundSelectedPressed"
+                                                 Color="White" />
+                            </ResourceDictionary>
+                            <ResourceDictionary x:Key="Dark">
+                                <SolidColorBrush x:Key="ListViewItemBackgroundSelected"
+                                                 Color="#0A84FF" />
+                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver"
+                                                 Color="#0A84FF" />
+                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed"
+                                                 Color="#0A84FF" />
+                                <SolidColorBrush x:Key="ListViewItemForegroundSelected"
+                                                 Color="White" />
+                                <SolidColorBrush x:Key="ListViewItemForegroundSelectedPointerOver"
+                                                 Color="White" />
+                                <SolidColorBrush x:Key="ListViewItemForegroundSelectedPressed"
+                                                 Color="White" />
+                            </ResourceDictionary>
+                            <ResourceDictionary x:Key="HighContrast">
+                                <SolidColorBrush x:Key="ListViewItemBackgroundSelected"
+                                                 Color="{ThemeResource SystemColorHighlightColor}" />
+                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver"
+                                                 Color="{ThemeResource SystemColorHighlightColor}" />
+                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed"
+                                                 Color="{ThemeResource SystemColorHighlightColor}" />
+                                <SolidColorBrush x:Key="ListViewItemForegroundSelected"
+                                                 Color="{ThemeResource SystemColorHighlightTextColor}" />
+                                <SolidColorBrush x:Key="ListViewItemForegroundSelectedPointerOver"
+                                                 Color="{ThemeResource SystemColorHighlightTextColor}" />
+                                <SolidColorBrush x:Key="ListViewItemForegroundSelectedPressed"
+                                                 Color="{ThemeResource SystemColorHighlightTextColor}" />
+                            </ResourceDictionary>
+                        </ResourceDictionary.ThemeDictionaries>
+                    </ResourceDictionary>
+                </ListView.Resources>
+            </ListView>
+
+            <Button x:Name="NewButton"
+                    x:Uid="WorkspaceSidebarNewButton"
+                    Grid.Row="2"
+                    Grid.Column="0"
+                    Height="36"
+                    Margin="8,6"
+                    Padding="10,0"
+                    HorizontalContentAlignment="Left"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="_New_Click">
+                <StackPanel Orientation="Horizontal"
+                            Spacing="8">
+                    <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                              FontSize="12"
+                              Glyph="&#xE710;" />
+                    <TextBlock x:Name="NewButtonText"
+                               x:Uid="WorkspaceSidebarNewButtonText"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+
+            <Thumb x:Name="ResizeHandle"
+                   x:Uid="WorkspaceSidebarResizeHandle"
+                   Grid.RowSpan="3"
+                   Grid.Column="1"
+                   MinWidth="0"
+                   AutomationProperties.AutomationId="WorkspaceSidebarResizeHandle"
+                   Background="Transparent"
+                   DragDelta="_Resize_DragDelta">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Border Width="1"
+                                    HorizontalAlignment="Right"
+                                    Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+                        </Grid>
+                    </ControlTemplate>
+                </Thumb.Template>
+                <ToolTipService.ToolTip>
+                    <ToolTip x:Uid="WorkspaceSidebarResizeToolTip" />
+                </ToolTipService.ToolTip>
+            </Thumb>
+        </Grid>
+    </Border>
+</ContentPresenter>

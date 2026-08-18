@@ -33,6 +33,12 @@
     <ClCompile Include="Toast.cpp" />
     <ClCompile Include="LanguageProfileNotifier.cpp" />
     <ClCompile Include="TerminalSettingsCache.cpp" />
+    <ClCompile Include="WorkspaceSidebar.cpp">
+      <Filter>controls</Filter>
+    </ClCompile>
+    <ClCompile Include="WorkspaceItemViewModel.cpp">
+      <Filter>workspace</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -62,6 +68,12 @@
     <ClInclude Include="LanguageProfileNotifier.h" />
     <ClInclude Include="WindowsPackageManagerFactory.h" />
     <ClInclude Include="TerminalSettingsCache.h" />
+    <ClInclude Include="WorkspaceSidebar.h">
+      <Filter>controls</Filter>
+    </ClInclude>
+    <ClInclude Include="WorkspaceItemViewModel.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Midl Include="AppLogic.idl">
@@ -86,6 +98,12 @@
     <Midl Include="IPaneContent.idl" />
     <Midl Include="Remoting.idl" />
     <Midl Include="HighlightedTextControl.idl" />
+    <Midl Include="WorkspaceSidebar.idl">
+      <Filter>controls</Filter>
+    </Midl>
+    <Midl Include="WorkspaceItemViewModel.idl">
+      <Filter>workspace</Filter>
+    </Midl>
   </ItemGroup>
   <ItemGroup>
     <Page Include="MinMaxCloseControl.xaml">
@@ -98,6 +116,9 @@
       <Filter>controls</Filter>
     </Page>
     <Page Include="TerminalPage.xaml">
+      <Filter>controls</Filter>
+    </Page>
+    <Page Include="WorkspaceSidebar.xaml">
       <Filter>controls</Filter>
     </Page>
     <Page Include="TitlebarControl.xaml">
@@ -144,6 +165,9 @@
     </Filter>
     <Filter Include="fzf">
       <UniqueIdentifier>{e4588ff4-c80a-40f7-be57-3e81f570a93d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="workspace">
+      <UniqueIdentifier>{ad450625-38da-48c5-9021-94986140d481}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

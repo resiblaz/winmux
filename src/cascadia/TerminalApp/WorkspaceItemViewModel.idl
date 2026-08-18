@@ -1,0 +1,28 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+import "Tab.idl";
+
+namespace TerminalApp
+{
+    runtimeclass WorkspaceItemViewModel : Windows.UI.Xaml.Data.INotifyPropertyChanged
+    {
+        WorkspaceItemViewModel(Tab tab);
+
+        Guid WorkspaceId { get; };
+        Tab SourceTab { get; };
+        String Title { get; };
+        String Icon { get; };
+        Boolean IsPinned { get; set; };
+        String PinIconGlyph { get; };
+        String PinActionText { get; };
+        String PinAutomationName { get; };
+        String SwitchShortcutText { get; };
+
+        Boolean IsSelected;
+        UInt32 UnreadCount;
+        String WorkingDirectory;
+        String StatusText;
+        String LatestNotification;
+    }
+}

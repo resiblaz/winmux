@@ -68,6 +68,13 @@
                           Style="{StaticResource ToggleSwitchInExpanderStyle}" />
         </local:SettingContainer>
 
+        <!--  Workspace sidebar  -->
+        <local:SettingContainer x:Name="WorkspaceSidebar"
+                                x:Uid="Globals_WorkspaceSidebar">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.WorkspaceSidebar, Mode=TwoWay}"
+                          Style="{StaticResource ToggleSwitchInExpanderStyle}" />
+        </local:SettingContainer>
+
         <!--  Show tabs in full screen  -->
         <local:SettingContainer x:Name="ShowTabsFullscreen"
                                 x:Uid="Globals_ShowTabsFullscreen">

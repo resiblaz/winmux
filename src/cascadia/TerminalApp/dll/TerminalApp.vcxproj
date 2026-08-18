@@ -36,6 +36,8 @@
     <ClInclude Include="../AppKeyBindings.h" />
     <ClInclude Include="../TitlebarControl.h" />
     <ClInclude Include="../TabRowControl.h" />
+    <ClInclude Include="../WorkspaceSidebar.h" />
+    <ClInclude Include="../WorkspaceItemViewModel.h" />
     <ClInclude Include="../App.h" />
   </ItemGroup>
   <!-- ========================= Cpp Files ======================== -->

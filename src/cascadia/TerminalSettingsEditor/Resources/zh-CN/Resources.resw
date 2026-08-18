@@ -2792,4 +2792,12 @@
     <value>此文本将在放置到终端的多个文件的路径之间插入。</value>
     <comment>A description for what the "drag drop delimiter" setting does.</comment>
   </data>
+  <data name="Globals_WorkspaceSidebar.Header" xml:space="preserve">
+    <value>使用工作区侧边栏</value>
+    <comment>Header for the setting that replaces the horizontal tab row with a vertical workspace sidebar.</comment>
+  </data>
+  <data name="Globals_WorkspaceSidebar.HelpText" xml:space="preserve">
+    <value>在垂直侧边栏中以工作区形式显示选项卡。侧边栏宽度和折叠状态会自动记忆。</value>
+    <comment>Description for the workspace sidebar setting.</comment>
+  </data>
 </root>

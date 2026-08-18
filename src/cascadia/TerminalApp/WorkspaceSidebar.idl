@@ -1,0 +1,23 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+import "WorkspaceItemViewModel.idl";
+
+namespace TerminalApp
+{
+    [default_interface] runtimeclass WorkspaceSidebar : Windows.UI.Xaml.Controls.ContentPresenter,
+                                                         Windows.UI.Xaml.Data.INotifyPropertyChanged
+    {
+        WorkspaceSidebar();
+
+        Windows.UI.Xaml.Controls.ListView WorkspaceList { get; };
+        Boolean IsExpanded { get; set; };
+        Double ExpandedWidth { get; set; };
+
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, Object> NewRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> PinRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> CloseRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> CloseOthersRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> RenameRequested;
+    }
+}

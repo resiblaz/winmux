@@ -7,6 +7,8 @@
 #include "../TerminalApp/TerminalWindow.h"
 #include "../TerminalApp/MinMaxCloseControl.h"
 #include "../TerminalApp/TabRowControl.h"
+#include "../TerminalApp/WorkspaceItemViewModel.h"
+#include "../TerminalApp/WorkspaceSidebar.h"
 #include "../TerminalApp/ShortcutActionDispatch.h"
 #include "../TerminalApp/Tab.h"
 #include "../TerminalApp/CommandPalette.h"
@@ -75,6 +77,8 @@ namespace TerminalAppLocalTests
         TEST_METHOD(CreateTerminalMuxXamlType);
 
         TEST_METHOD(CreateTerminalPage);
+        TEST_METHOD(CreateWorkspaceSidebarXamlType);
+        TEST_METHOD(WorkspaceItemViewModelTracksTab);
 
         TEST_METHOD(TryDuplicateBadTab);
         TEST_METHOD(TryDuplicateBadPane);
@@ -197,6 +201,34 @@ namespace TerminalAppLocalTests
             VERIFY_IS_NOT_NULL(page);
         });
         VERIFY_SUCCEEDED(result);
+    }
+
+    void TabTests::CreateWorkspaceSidebarXamlType()
+    {
+        auto result = RunOnUIThread([]() {
+            const winrt::TerminalApp::WorkspaceSidebar sidebar{};
+            VERIFY_IS_NOT_NULL(sidebar);
+            VERIFY_IS_NOT_NULL(sidebar.WorkspaceList());
+            VERIFY_IS_TRUE(sidebar.ExpandedWidth() >= 220.0);
+            VERIFY_IS_TRUE(sidebar.ExpandedWidth() <= 480.0);
+        });
+        VERIFY_SUCCEEDED(result);
+    }
+
+    void TabTests::WorkspaceItemViewModelTracksTab()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            const auto tab = page->_tabs.GetAt(0);
+            const winrt::TerminalApp::WorkspaceItemViewModel item{ tab };
+
+            VERIFY_ARE_EQUAL(tab.Title(), item.Title());
+            VERIFY_ARE_EQUAL(tab.Icon(), item.Icon());
+            VERIFY_IS_FALSE(item.IsPinned());
+
+            tab.IsPinned(true);
+            VERIFY_IS_TRUE(item.IsPinned());
+        });
     }
 
     // Method Description:

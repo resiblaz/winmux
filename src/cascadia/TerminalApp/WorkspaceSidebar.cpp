@@ -13,6 +13,11 @@ using namespace winrt::Windows::UI::Xaml::Controls;
 
 namespace winrt::TerminalApp::implementation
 {
+    namespace
+    {
+        constexpr uint32_t MaximumNotificationHistory{ 1000 };
+    }
+
     WorkspaceSidebar::WorkspaceSidebar() :
         _notificationHistory{ winrt::single_threaded_observable_vector<TerminalApp::WorkspaceNotification>() }
     {
@@ -111,12 +116,12 @@ namespace winrt::TerminalApp::implementation
         std::sort(history.begin(), history.end(), [](const auto& left, const auto& right) {
             return left.Timestamp() > right.Timestamp();
         });
-
-        _notificationHistory.Clear();
-        for (const auto& notification : history)
+        if (history.size() > MaximumNotificationHistory)
         {
-            _notificationHistory.Append(notification);
+            history.erase(history.begin() + MaximumNotificationHistory, history.end());
         }
+
+        _notificationHistory.ReplaceAll({ history.data(), gsl::narrow_cast<uint32_t>(history.size()) });
 
         const auto hasHistory = !history.empty();
         NotificationCenterBadgeText().Text(unreadCount == 0 ? winrt::hstring{} : winrt::to_hstring(unreadCount));

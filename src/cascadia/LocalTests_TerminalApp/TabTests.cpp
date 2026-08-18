@@ -88,6 +88,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceStatusPillTracksStructuredState);
         TEST_METHOD(WorkspaceLayoutPersistsMetadata);
         TEST_METHOD(WorkspaceNotificationStateTracksUnread);
+        TEST_METHOD(WorkspaceNotificationRefreshIsBounded);
         TEST_METHOD(PaneAttentionState);
 
         TEST_METHOD(TryDuplicateBadTab);
@@ -525,6 +526,47 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(100u, item.NotificationHistoryCount());
             VERIFY_ARE_EQUAL(1u, item.Notifications().GetAt(0).PaneId());
             VERIFY_ARE_EQUAL(100u, item.Notifications().GetAt(99).PaneId());
+        });
+    }
+
+    void TabTests::WorkspaceNotificationRefreshIsBounded()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            const auto tab = page->_tabs.GetAt(0);
+            const auto items = winrt::single_threaded_observable_vector<winrt::TerminalApp::WorkspaceItemViewModel>();
+            constexpr uint32_t workspaceCount = 12;
+            constexpr uint32_t notificationsPerWorkspace = 125;
+
+            for (uint32_t workspaceIndex = 0; workspaceIndex < workspaceCount; ++workspaceIndex)
+            {
+                const winrt::TerminalApp::WorkspaceItemViewModel item{ tab };
+                for (uint32_t notificationIndex = 0; notificationIndex < notificationsPerWorkspace; ++notificationIndex)
+                {
+                    item.AddNotification(notificationIndex, L"Stress", winrt::to_hstring(notificationIndex));
+                }
+                VERIFY_ARE_EQUAL(100u, item.NotificationHistoryCount());
+                items.Append(item);
+            }
+
+            page->_workspaceSidebar.WorkspaceList().ItemsSource(items);
+            uint32_t vectorChangeCount = 0;
+            const auto vectorChangedRevoker = page->_workspaceSidebar.NotificationHistory().VectorChanged(winrt::auto_revoke, [&](auto&&, auto&&) {
+                ++vectorChangeCount;
+            });
+
+            constexpr uint32_t refreshCount = 25;
+            const auto startedAt = std::chrono::steady_clock::now();
+            for (uint32_t refreshIndex = 0; refreshIndex < refreshCount; ++refreshIndex)
+            {
+                page->_workspaceSidebar.RefreshNotifications();
+            }
+            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startedAt);
+
+            constexpr uint32_t maximumNotificationHistory = 1000;
+            VERIFY_ARE_EQUAL(maximumNotificationHistory, page->_workspaceSidebar.NotificationHistory().Size());
+            VERIFY_ARE_EQUAL(refreshCount, vectorChangeCount);
+            Log::Comment(NoThrowString().Format(L"25 notification projection refreshes completed in %lld ms", elapsed.count()));
         });
     }
 

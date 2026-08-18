@@ -75,8 +75,12 @@ namespace winrt::TerminalApp::implementation
                     else
                     {
                         self->PropertyChanged.raise(*self, args);
-                        self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
-                        if (args.PropertyName() == L"IsPinned")
+                        const auto propertyName = args.PropertyName();
+                        if (propertyName == L"Title" || propertyName == L"IsPinned" || propertyName == L"SwitchShortcutText")
+                        {
+                            self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
+                        }
+                        if (propertyName == L"IsPinned")
                         {
                             self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"PinAutomationName" });
                         }
@@ -363,10 +367,15 @@ namespace winrt::TerminalApp::implementation
 
         if (const auto self = weakThis.get(); self && self->_gitBranchRequestGeneration == generation && self->WorkingDirectory() == directory)
         {
-            self->GitBranch(result.IsRepository ? result.Branch : winrt::hstring{});
+            const auto branch = result.IsRepository ? result.Branch : winrt::hstring{};
+            const auto branchChanged = self->GitBranch() != branch;
+            self->GitBranch(branch);
             self->GitRepositoryRoot(result.IsRepository ? result.RepositoryRoot : winrt::hstring{});
             self->IsGitBranchLoading(false);
-            self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
+            if (branchChanged)
+            {
+                self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
+            }
         }
     }
 
@@ -449,7 +458,17 @@ namespace winrt::TerminalApp::implementation
 
     void WorkspaceItemViewModel::_UpdateWorkingDirectory(const bool refreshGit)
     {
-        WorkingDirectory(_tab ? _tab.WorkingDirectory() : winrt::hstring{});
+        const auto workingDirectory = _tab ? _tab.WorkingDirectory() : winrt::hstring{};
+        if (WorkingDirectory() == workingDirectory)
+        {
+            if (refreshGit)
+            {
+                RefreshGitBranch();
+            }
+            return;
+        }
+
+        WorkingDirectory(workingDirectory);
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"WorkingDirectoryDisplay" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
         if (refreshGit)
@@ -526,7 +545,10 @@ namespace winrt::TerminalApp::implementation
                 }
             }
         }
-        StatusText(text);
-        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
+        if (StatusText() != text)
+        {
+            StatusText(text);
+            PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
+        }
     }
 }

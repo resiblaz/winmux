@@ -9,6 +9,7 @@ namespace TerminalApp
     {
         String Title { get; };
         String Icon { get; };
+        String WorkingDirectory { get; };
         Boolean ReadOnly { get; };
         Boolean IsPinned { get; set; };
         String PinIconGlyph { get; };

@@ -345,6 +345,15 @@ namespace winrt::TerminalApp::implementation
         return _activePane ? _activePane->GetContent() : nullptr;
     }
 
+    winrt::hstring Tab::WorkingDirectory() const
+    {
+        if (const auto control = GetActiveTerminalControl())
+        {
+            return control.WorkingDirectory();
+        }
+        return {};
+    }
+
     // Method Description:
     // - Called after construction of a Tab object to bind event handlers to its
     //   associated Pane and TermControl objects
@@ -1240,6 +1249,21 @@ namespace winrt::TerminalApp::implementation
         if (const auto& terminal{ content.try_as<TerminalApp::TerminalPaneContent>() })
         {
             events.RestartTerminalRequested = terminal.RestartTerminalRequested(winrt::auto_revoke, { get_weak(), &Tab::_bubbleRestartTerminalRequested });
+
+            const auto weakContent = winrt::make_weak(terminal);
+            events.WorkingDirectoryChanged = terminal.GetTermControl().WorkingDirectoryChanged(
+                winrt::auto_revoke,
+                [dispatcher, weakThis, weakContent](auto&&, auto&&) -> safe_void_coroutine {
+                    const auto weakThisCopy = weakThis;
+                    co_await wil::resume_foreground(dispatcher);
+                    if (const auto tab = weakThisCopy.get())
+                    {
+                        if (const auto terminalContent = weakContent.get(); terminalContent && tab->GetActiveContent() == terminalContent)
+                        {
+                            tab->PropertyChanged.raise(*tab, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"WorkingDirectory" });
+                        }
+                    }
+                });
         }
 
         events.NotificationRequested = content.NotificationRequested(
@@ -1409,6 +1433,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         _RecalculateAndApplyReadOnly();
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"WorkingDirectory" });
 
         // Raise our own ActivePaneChanged event.
         ActivePaneChanged.raise(*this, nullptr);

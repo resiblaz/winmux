@@ -231,7 +231,14 @@ void Terminal::SetWorkingDirectory(std::wstring_view uri)
         logged = true;
     }
 
-    _workingDirectory = uri;
+    if (_workingDirectory != uri)
+    {
+        _workingDirectory = uri;
+        if (_pfnWorkingDirectoryChanged)
+        {
+            _pfnWorkingDirectoryChanged();
+        }
+    }
 }
 
 void Terminal::PlayMidiNote(const int noteNumber, const int velocity, const std::chrono::microseconds duration)

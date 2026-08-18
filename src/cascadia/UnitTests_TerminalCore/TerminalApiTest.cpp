@@ -335,6 +335,10 @@ void TerminalCoreUnitTests::TerminalApiTest::SetWorkingDirectory()
     term.Create({ 100, 100 }, 0, renderer);
 
     auto& stateMachine = *(term._stateMachine);
+    size_t workingDirectoryChangedCount = 0;
+    term.SetWorkingDirectoryChangedCallback([&]() {
+        ++workingDirectoryChangedCount;
+    });
 
     // Test setting working directory using OSC 9;9
     // Initial CWD should be empty
@@ -370,13 +374,20 @@ void TerminalCoreUnitTests::TerminalApiTest::SetWorkingDirectory()
 
     stateMachine.ProcessString(L"\x1b]9;9;No quotes \"until\" later\x1b\\");
     VERIFY_IS_TRUE(term.GetWorkingDirectory().empty());
+    VERIFY_ARE_EQUAL(0u, workingDirectoryChangedCount);
 
     // Valid sequences should change CWD
     stateMachine.ProcessString(L"\x1b]9;9;\"C:\\\"\x1b\\");
     VERIFY_ARE_EQUAL(term.GetWorkingDirectory(), L"C:\\");
+    VERIFY_ARE_EQUAL(1u, workingDirectoryChangedCount);
+
+    // Setting the same directory again must not raise a redundant event.
+    stateMachine.ProcessString(L"\x1b]9;9;\"C:\\\"\x1b\\");
+    VERIFY_ARE_EQUAL(1u, workingDirectoryChangedCount);
 
     stateMachine.ProcessString(L"\x1b]9;9;\"C:\\Program Files\"\x1b\\");
     VERIFY_ARE_EQUAL(term.GetWorkingDirectory(), L"C:\\Program Files");
+    VERIFY_ARE_EQUAL(2u, workingDirectoryChangedCount);
 
     stateMachine.ProcessString(L"\x1b]9;9;\"D:\\中文\"\x1b\\");
     VERIFY_ARE_EQUAL(term.GetWorkingDirectory(), L"D:\\中文");
@@ -390,4 +401,9 @@ void TerminalCoreUnitTests::TerminalApiTest::SetWorkingDirectory()
 
     stateMachine.ProcessString(L"\x1b]9;9;D:\\中文\x1b\\");
     VERIFY_ARE_EQUAL(term.GetWorkingDirectory(), L"D:\\中文");
+
+    // OSC 7 uses a file URI, but must feed the same observable CWD state.
+    stateMachine.ProcessString(L"\x1b]7;file:///E:/workspace/src\x1b\\");
+    VERIFY_ARE_EQUAL(term.GetWorkingDirectory(), L"E:\\workspace\\src");
+    VERIFY_ARE_EQUAL(7u, workingDirectoryChangedCount);
 }

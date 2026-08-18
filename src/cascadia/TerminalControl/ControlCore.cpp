@@ -121,6 +121,9 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         auto pfnTitleChanged = [this](auto&& PH1) { _terminalTitleChanged(std::forward<decltype(PH1)>(PH1)); };
         _terminal->SetTitleChangedCallback(pfnTitleChanged);
 
+        auto pfnWorkingDirectoryChanged = [this] { _terminalWorkingDirectoryChanged(); };
+        _terminal->SetWorkingDirectoryChangedCallback(pfnWorkingDirectoryChanged);
+
         auto pfnScrollPositionChanged = [this](auto&& PH1, auto&& PH2, auto&& PH3) { _terminalScrollPositionChanged(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2), std::forward<decltype(PH3)>(PH3)); };
         _terminal->SetScrollPositionChangedCallback(pfnScrollPositionChanged);
 
@@ -1634,6 +1637,11 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         // then the Terminal already has the write lock when calling this
         // callback.
         TitleChanged.raise(*this, winrt::make<TitleChangedEventArgs>(winrt::hstring{ wstr }));
+    }
+
+    void ControlCore::_terminalWorkingDirectoryChanged()
+    {
+        WorkingDirectoryChanged.raise(*this, nullptr);
     }
 
     // Method Description:

@@ -8,6 +8,51 @@
 
 namespace winrt::TerminalApp::implementation
 {
+    namespace
+    {
+        winrt::hstring _compactWorkingDirectory(const winrt::hstring& workingDirectory)
+        {
+            const std::wstring_view path{ workingDirectory };
+            std::vector<std::wstring_view> components;
+            for (size_t index = 0; index < path.size();)
+            {
+                while (index < path.size() && (path[index] == L'\\' || path[index] == L'/'))
+                {
+                    ++index;
+                }
+
+                const auto start = index;
+                while (index < path.size() && path[index] != L'\\' && path[index] != L'/')
+                {
+                    ++index;
+                }
+
+                if (index > start)
+                {
+                    const auto component = path.substr(start, index - start);
+                    if (!(components.empty() && component.size() == 2 && component[1] == L':'))
+                    {
+                        components.emplace_back(component);
+                    }
+                }
+            }
+
+            if (components.empty())
+            {
+                return workingDirectory;
+            }
+
+            const auto first = components.size() > 1 ? components.size() - 2 : 0;
+            std::wstring compact{ components[first] };
+            for (auto index = first + 1; index < components.size(); ++index)
+            {
+                compact.push_back(L'\\');
+                compact.append(components[index]);
+            }
+            return winrt::hstring{ compact };
+        }
+    }
+
     WorkspaceItemViewModel::WorkspaceItemViewModel(const TerminalApp::Tab& tab) :
         _tab{ tab },
         _notifications{ winrt::single_threaded_observable_vector<TerminalApp::WorkspaceNotification>() }
@@ -21,10 +66,17 @@ namespace winrt::TerminalApp::implementation
             _tabChangedRevoker = _tab.PropertyChanged(winrt::auto_revoke, [weakThis{ get_weak() }](const auto&, const auto& args) {
                 if (const auto self = weakThis.get())
                 {
-                    self->PropertyChanged.raise(*self, args);
-                    if (args.PropertyName() == L"IsPinned")
+                    if (args.PropertyName() == L"WorkingDirectory")
                     {
-                        self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"PinAutomationName" });
+                        self->_UpdateWorkingDirectory();
+                    }
+                    else
+                    {
+                        self->PropertyChanged.raise(*self, args);
+                        if (args.PropertyName() == L"IsPinned")
+                        {
+                            self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"PinAutomationName" });
+                        }
                     }
                 }
             });
@@ -40,6 +92,7 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
+        _UpdateWorkingDirectory();
         _UpdateStatus();
     }
 
@@ -132,6 +185,11 @@ namespace winrt::TerminalApp::implementation
         return count == 0 ? winrt::hstring{} : winrt::to_hstring(count);
     }
 
+    winrt::hstring WorkspaceItemViewModel::WorkingDirectoryDisplay() const
+    {
+        return _compactWorkingDirectory(WorkingDirectory());
+    }
+
     Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> WorkspaceItemViewModel::Notifications() const noexcept
     {
         return _notifications;
@@ -220,6 +278,12 @@ namespace winrt::TerminalApp::implementation
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"NotificationHistoryCountText" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"LatestUnreadNotification" });
         _UpdateStatus();
+    }
+
+    void WorkspaceItemViewModel::_UpdateWorkingDirectory()
+    {
+        WorkingDirectory(_tab ? _tab.WorkingDirectory() : winrt::hstring{});
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"WorkingDirectoryDisplay" });
     }
 
     void WorkspaceItemViewModel::_UpdateStatus()

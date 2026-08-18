@@ -26,6 +26,7 @@ namespace winrt::TerminalApp::implementation
         winrt::Microsoft::Terminal::Control::TermControl GetActiveTerminalControl() const;
         winrt::Microsoft::Terminal::Settings::Model::Profile GetFocusedProfile() const noexcept;
         winrt::TerminalApp::IPaneContent GetActiveContent() const;
+        winrt::hstring WorkingDirectory() const;
 
         void Focus(winrt::Windows::UI::Xaml::FocusState focusState);
 
@@ -199,6 +200,7 @@ namespace winrt::TerminalApp::implementation
             winrt::Microsoft::Terminal::Control::TermControl::KeySent_revoker KeySent;
             winrt::Microsoft::Terminal::Control::TermControl::CharSent_revoker CharSent;
             winrt::Microsoft::Terminal::Control::TermControl::StringSent_revoker StringSent;
+            winrt::Microsoft::Terminal::Control::TermControl::WorkingDirectoryChanged_revoker WorkingDirectoryChanged;
 
             winrt::TerminalApp::TerminalPaneContent::RestartTerminalRequested_revoker RestartTerminalRequested;
         };

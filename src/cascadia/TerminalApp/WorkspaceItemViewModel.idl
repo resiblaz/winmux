@@ -23,6 +23,7 @@ namespace TerminalApp
         String NotificationAutomationName { get; };
         UInt32 NotificationHistoryCount { get; };
         String NotificationHistoryCountText { get; };
+        String WorkingDirectoryDisplay { get; };
         WorkspaceNotification LatestUnreadNotification { get; };
         Windows.Foundation.Collections.IObservableVector<WorkspaceNotification> Notifications { get; };
 

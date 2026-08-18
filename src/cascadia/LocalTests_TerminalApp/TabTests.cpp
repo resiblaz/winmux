@@ -79,6 +79,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(CreateTerminalPage);
         TEST_METHOD(CreateWorkspaceSidebarXamlType);
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
+        TEST_METHOD(WorkspaceWorkingDirectoryDisplayIsCompact);
         TEST_METHOD(WorkspaceStatusPillTracksStructuredState);
         TEST_METHOD(WorkspaceLayoutPersistsMetadata);
         TEST_METHOD(WorkspaceNotificationStateTracksUnread);
@@ -262,6 +263,23 @@ namespace TerminalAppLocalTests
 
             status.IsConnectionClosed(true);
             VERIFY_IS_FALSE(item.StatusText().empty());
+        });
+    }
+
+    void TabTests::WorkspaceWorkingDirectoryDisplayIsCompact()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            const auto item = page->_workspaceItems.GetAt(0);
+
+            item.WorkingDirectory(L"F:\\RicherLife\\codes\\win_terminal\\src");
+            VERIFY_ARE_EQUAL(L"win_terminal\\src", item.WorkingDirectoryDisplay());
+
+            item.WorkingDirectory(L"C:\\repo");
+            VERIFY_ARE_EQUAL(L"repo", item.WorkingDirectoryDisplay());
+
+            item.WorkingDirectory(L"C:\\");
+            VERIFY_ARE_EQUAL(L"C:\\", item.WorkingDirectoryDisplay());
         });
     }
 

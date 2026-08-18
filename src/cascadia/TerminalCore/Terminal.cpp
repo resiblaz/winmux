@@ -1155,6 +1155,11 @@ void Terminal::SetTitleChangedCallback(std::function<void(std::wstring_view)> pf
     _pfnTitleChanged.swap(pfn);
 }
 
+void Terminal::SetWorkingDirectoryChangedCallback(std::function<void()> pfn) noexcept
+{
+    _pfnWorkingDirectoryChanged.swap(pfn);
+}
+
 void Terminal::SetCopyToClipboardCallback(std::function<void(wil::zwstring_view)> pfn) noexcept
 {
     _pfnCopyToClipboard.swap(pfn);

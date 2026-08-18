@@ -273,6 +273,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         til::typed_event<IInspectable, Control::FontSizeChangedArgs> FontSizeChanged;
 
         til::typed_event<IInspectable, Control::TitleChangedEventArgs> TitleChanged;
+        til::typed_event<> WorkingDirectoryChanged;
         til::typed_event<IInspectable, Control::WriteToClipboardEventArgs> WriteToClipboard;
         til::typed_event<> WarningBell;
         til::typed_event<> TabColorChanged;
@@ -325,6 +326,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 #pragma region TerminalCoreCallbacks
         void _terminalWarningBell();
         void _terminalTitleChanged(std::wstring_view wstr);
+        void _terminalWorkingDirectoryChanged();
         void _terminalScrollPositionChanged(const int viewTop,
                                             const int viewHeight,
                                             const int bufferSize);

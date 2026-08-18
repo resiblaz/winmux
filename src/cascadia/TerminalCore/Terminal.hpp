@@ -228,6 +228,7 @@ public:
     void SetWriteInputCallback(std::function<void(std::wstring_view)> pfn) noexcept;
     void SetWarningBellCallback(std::function<void()> pfn) noexcept;
     void SetTitleChangedCallback(std::function<void(std::wstring_view)> pfn) noexcept;
+    void SetWorkingDirectoryChangedCallback(std::function<void()> pfn) noexcept;
     void SetCopyToClipboardCallback(std::function<void(wil::zwstring_view)> pfn) noexcept;
     void SetScrollPositionChangedCallback(std::function<void(const int, const int, const int)> pfn) noexcept;
     void TaskbarProgressChangedCallback(std::function<void()> pfn) noexcept;
@@ -328,6 +329,7 @@ private:
     std::function<void(std::wstring_view)> _pfnWriteInput;
     std::function<void()> _pfnWarningBell;
     std::function<void(std::wstring_view)> _pfnTitleChanged;
+    std::function<void()> _pfnWorkingDirectoryChanged;
     std::function<void(wil::zwstring_view)> _pfnCopyToClipboard;
 
     // I've specifically put this instance here as it requires

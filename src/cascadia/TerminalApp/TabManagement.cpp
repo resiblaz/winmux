@@ -311,8 +311,12 @@ namespace winrt::TerminalApp::implementation
 
         if (_tabView)
         {
-            // collapse/show the tabs themselves
-            _tabView.Visibility(isVisible ? Visibility::Visible : Visibility::Collapsed);
+            // Sidebar mode still uses the TabView as the authoritative tab
+            // lifecycle and selection control. Keep it active while hiding
+            // its zero-height visual row; collapsing it prevents the initial
+            // TermControl from being selected, laid out, and connected.
+            const auto keepTabViewActive = _workspaceSidebarEnabled || isVisible;
+            _tabView.Visibility(keepTabViewActive ? Visibility::Visible : Visibility::Collapsed);
         }
         if (_tabRow)
         {

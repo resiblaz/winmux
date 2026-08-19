@@ -23,6 +23,7 @@ namespace TerminalAppUnitTests
         TEST_METHOD(TruncatesTerminalContent);
         TEST_METHOD(SerializesVersionedResponses);
         TEST_METHOD(ServesOneRequestOverCurrentUserPipe);
+        TEST_METHOD(ServesLargeResponseWithoutTruncation);
         TEST_METHOD(StopsWhileAClientIsIdle);
     };
 
@@ -288,6 +289,70 @@ namespace TerminalAppUnitTests
 
         client.reset();
         server.Stop();
+    }
+
+    void WorkspaceAutomationTests::ServesLargeResponseWithoutTruncation()
+    {
+        using namespace winrt::TerminalApp::implementation;
+
+        const auto pipeName = WorkspaceAutomationServer::MakePipeName(GetCurrentProcessId(), GetTickCount64());
+        const std::string payload(32 * 1024, 'x');
+        WorkspaceAutomationServer server{
+            pipeName,
+            nullptr,
+            [&payload](const std::string_view request) {
+                const auto parsed = WorkspaceAutomationProtocol::ParseRequest(request);
+                if (!parsed)
+                {
+                    return WorkspaceAutomationProtocol::MakeError(parsed.Id, parsed.ErrorCode, parsed.ErrorMessage);
+                }
+                JsonObject result;
+                result.Insert(L"payload", JsonValue::CreateStringValue(winrt::to_hstring(payload)));
+                return WorkspaceAutomationProtocol::MakeResult(parsed.Request->Id, result);
+            }
+        };
+        VERIFY_IS_TRUE(server.Start());
+
+        wil::unique_hfile client;
+        for (size_t attempt = 0; attempt < 80 && !client; ++attempt)
+        {
+            client.reset(CreateFileW(pipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr));
+            if (!client)
+            {
+                Sleep(25);
+            }
+        }
+        VERIFY_IS_TRUE(static_cast<bool>(client));
+
+        static constexpr std::string_view request{ R"({"version":1,"id":"large-1","method":"workspace.list","params":{}})"
+                                                   "\n" };
+        DWORD bytesWritten = 0;
+        VERIFY_WIN32_BOOL_SUCCEEDED(WriteFile(client.get(), request.data(), gsl::narrow<DWORD>(request.size()), &bytesWritten, nullptr));
+        VERIFY_ARE_EQUAL(gsl::narrow<DWORD>(request.size()), bytesWritten);
+
+        std::string responseText;
+        std::array<char, 1024> buffer{};
+        while (responseText.find('\n') == std::string::npos)
+        {
+            DWORD bytesRead = 0;
+            VERIFY_WIN32_BOOL_SUCCEEDED(ReadFile(client.get(), buffer.data(), gsl::narrow<DWORD>(buffer.size()), &bytesRead, nullptr));
+            VERIFY_IS_GREATER_THAN(bytesRead, 0u);
+            responseText.append(buffer.data(), bytesRead);
+            VERIFY_IS_LESS_THAN(responseText.size(), WorkspaceAutomationProtocol::MaximumMessageBytes + 2);
+        }
+
+        {
+            const auto newline = responseText.find('\n');
+            const auto response = JsonObject::Parse(winrt::to_hstring(responseText.substr(0, newline)));
+            VERIFY_ARE_EQUAL(winrt::hstring{ L"large-1" }, response.GetNamedString(L"id"));
+            VERIFY_ARE_EQUAL(winrt::to_hstring(payload), response.GetNamedObject(L"result").GetNamedString(L"payload"));
+        }
+
+        const auto started = std::chrono::steady_clock::now();
+        server.Stop();
+        const auto elapsed = std::chrono::steady_clock::now() - started;
+        VERIFY_IS_TRUE(elapsed < std::chrono::seconds{ 2 });
+        client.reset();
     }
 
     void WorkspaceAutomationTests::StopsWhileAClientIsIdle()

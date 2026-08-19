@@ -950,6 +950,59 @@ namespace winrt::TerminalApp::implementation
             return IoResult::Completed;
         }
 
+        IoResult _waitForClientDisconnect(const HANDLE pipe) const
+        {
+            // DisconnectNamedPipe discards unread response bytes. Wait until the
+            // newline-framed client has consumed the response and closed its end,
+            // while preserving the server's bounded stop and timeout behavior.
+            const auto deadline = std::chrono::steady_clock::now() + PipeRequestTimeout;
+            std::array<char, 256> buffer{};
+
+            for (;;)
+            {
+                const auto now = std::chrono::steady_clock::now();
+                if (now >= deadline)
+                {
+                    return IoResult::TimedOut;
+                }
+
+                wil::unique_handle event{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+                if (!event)
+                {
+                    return IoResult::Failed;
+                }
+                OVERLAPPED overlapped{};
+                overlapped.hEvent = event.get();
+                DWORD bytesTransferred = 0;
+                auto result = IoResult::Completed;
+                if (!ReadFile(pipe, buffer.data(), gsl::narrow<DWORD>(buffer.size()), &bytesTransferred, &overlapped))
+                {
+                    const auto error = GetLastError();
+                    if (error == ERROR_BROKEN_PIPE || error == ERROR_PIPE_NOT_CONNECTED)
+                    {
+                        return IoResult::Disconnected;
+                    }
+                    if (error != ERROR_IO_PENDING)
+                    {
+                        return IoResult::Failed;
+                    }
+                    result = _waitForIo(pipe,
+                                        overlapped,
+                                        std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now),
+                                        bytesTransferred);
+                }
+
+                if (result != IoResult::Completed)
+                {
+                    return result;
+                }
+                if (bytesTransferred == 0)
+                {
+                    return IoResult::Disconnected;
+                }
+            }
+        }
+
         std::string _dispatchRequest(std::string request) const
         {
             if (!Dispatcher)
@@ -1023,7 +1076,10 @@ namespace winrt::TerminalApp::implementation
                 {
                     response = WorkspaceAutomationProtocol::MakeError({}, "response_too_large", "Response exceeds the 64 KiB limit");
                 }
-                _writeResponse(pipe, std::move(response));
+                if (_writeResponse(pipe, std::move(response)) == IoResult::Completed)
+                {
+                    _waitForClientDisconnect(pipe);
+                }
             }
         }
 

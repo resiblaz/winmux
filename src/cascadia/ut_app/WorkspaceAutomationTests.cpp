@@ -24,6 +24,7 @@ namespace TerminalAppUnitTests
         TEST_METHOD(SerializesVersionedResponses);
         TEST_METHOD(ServesOneRequestOverCurrentUserPipe);
         TEST_METHOD(ServesLargeResponseWithoutTruncation);
+        TEST_METHOD(DoesNotLeakHandlesAcrossRequests);
         TEST_METHOD(StopsWhileAClientIsIdle);
     };
 
@@ -353,6 +354,79 @@ namespace TerminalAppUnitTests
         const auto elapsed = std::chrono::steady_clock::now() - started;
         VERIFY_IS_TRUE(elapsed < std::chrono::seconds{ 2 });
         client.reset();
+    }
+
+    void WorkspaceAutomationTests::DoesNotLeakHandlesAcrossRequests()
+    {
+        using namespace winrt::TerminalApp::implementation;
+
+        const auto controller = winrt::Windows::System::DispatcherQueueController::CreateOnDedicatedThread();
+        const auto pipeName = WorkspaceAutomationServer::MakePipeName(GetCurrentProcessId(), GetTickCount64());
+        WorkspaceAutomationServer server{
+            pipeName,
+            controller.DispatcherQueue(),
+            [](const std::string_view request) {
+                const auto parsed = WorkspaceAutomationProtocol::ParseRequest(request);
+                if (!parsed)
+                {
+                    return WorkspaceAutomationProtocol::MakeError(parsed.Id, parsed.ErrorCode, parsed.ErrorMessage);
+                }
+
+                JsonObject result;
+                result.Insert(L"ok", JsonValue::CreateBooleanValue(true));
+                return WorkspaceAutomationProtocol::MakeResult(parsed.Request->Id, result);
+            }
+        };
+        VERIFY_IS_TRUE(server.Start());
+
+        const auto invoke = [&]() {
+            wil::unique_hfile client;
+            for (size_t attempt = 0; attempt < 80 && !client; ++attempt)
+            {
+                client.reset(CreateFileW(pipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr));
+                if (!client)
+                {
+                    Sleep(25);
+                }
+            }
+            THROW_LAST_ERROR_IF(!client);
+
+            static constexpr std::string_view request{ R"({"version":1,"id":"handles","method":"workspace.list","params":{}})"
+                                                       "\n" };
+            DWORD bytesWritten = 0;
+            THROW_IF_WIN32_BOOL_FALSE(WriteFile(client.get(), request.data(), gsl::narrow<DWORD>(request.size()), &bytesWritten, nullptr));
+            THROW_HR_IF(E_UNEXPECTED, bytesWritten != request.size());
+
+            std::array<char, 256> buffer{};
+            for (;;)
+            {
+                DWORD bytesRead = 0;
+                THROW_IF_WIN32_BOOL_FALSE(ReadFile(client.get(), buffer.data(), gsl::narrow<DWORD>(buffer.size()), &bytesRead, nullptr));
+                THROW_HR_IF(E_UNEXPECTED, bytesRead == 0);
+                if (std::find(buffer.begin(), buffer.begin() + bytesRead, '\n') != buffer.begin() + bytesRead)
+                {
+                    break;
+                }
+            }
+        };
+
+        invoke();
+        Sleep(100);
+        DWORD handlesBefore = 0;
+        VERIFY_WIN32_BOOL_SUCCEEDED(GetProcessHandleCount(GetCurrentProcess(), &handlesBefore));
+
+        for (size_t request = 0; request < 100; ++request)
+        {
+            invoke();
+        }
+        Sleep(250);
+
+        DWORD handlesAfter = 0;
+        VERIFY_WIN32_BOOL_SUCCEEDED(GetProcessHandleCount(GetCurrentProcess(), &handlesAfter));
+        VERIFY_IS_TRUE(handlesAfter <= handlesBefore + 4);
+
+        server.Stop();
+        controller.ShutdownQueueAsync().get();
     }
 
     void WorkspaceAutomationTests::StopsWhileAClientIsIdle()

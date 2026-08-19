@@ -110,10 +110,27 @@ namespace WindowsTerminal.UIA.Tests
                     () => HasUnreadNotification(app),
                     "The Sidebar did not expose the background OSC 777 as unread.");
 
+                AppiumWebElement desktopToast = null;
                 WaitFor(
-                    () => app.Session.FindElementsByName(FirstNotificationTitle).Count > 0,
+                    () =>
+                    {
+                        var matches = app.Session.FindElementsByName(FirstNotificationTitle);
+                        desktopToast = matches.Count > 0 ? matches[0] : null;
+                        return desktopToast != null;
+                    },
                     "The desktop Toast did not expose the OSC 777 title through UI Automation.",
                     TimeSpan.FromSeconds(8));
+                desktopToast.Click();
+                WaitFor(
+                    () => IsWorkspaceSelected(app, 1),
+                    "Clicking the desktop Toast did not focus the source workspace.");
+                WaitFor(
+                    () => !HasUnreadNotification(app),
+                    "Desktop Toast activation did not mark the source notification as read.");
+
+                // The in-app history remains available after Toast activation.
+                // Switch away again before validating its independent navigation path.
+                SelectWorkspace(app, 0);
 
                 GetNotificationCenter(app).Click();
                 WaitFor(

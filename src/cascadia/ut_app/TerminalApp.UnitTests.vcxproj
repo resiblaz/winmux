@@ -21,6 +21,7 @@
 
   <!-- ========================= Cpp Files ======================== -->
   <ItemGroup>
+    <ClCompile Include="DesktopNotificationTests.cpp" />
     <ClCompile Include="JsonUtilsTests.cpp" />
     <ClCompile Include="FzfTests.cpp" />
     <ClCompile Include="WorkspaceGitBranchTests.cpp" />

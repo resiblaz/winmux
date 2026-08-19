@@ -12,6 +12,111 @@ using namespace winrt::Windows::Data::Xml::Dom;
 namespace winrt::TerminalApp::implementation
 {
     std::atomic<uint64_t> DesktopNotification::_lastNotificationTime{ 0 };
+    std::mutex DesktopNotification::_trackedActivationsMutex;
+    std::unordered_map<std::wstring, DesktopNotification::TrackedActivation> DesktopNotification::_trackedActivations;
+    uint64_t DesktopNotification::_nextActivationSequence{ 0 };
+
+    void DesktopNotification::_RevokeActivation(TrackedActivation& activation) noexcept
+    {
+        try
+        {
+            if (activation.Notification)
+            {
+                activation.Notification.Activated(activation.Token);
+                activation.Notification = nullptr;
+            }
+        }
+        catch (...)
+        {
+            LOG_CAUGHT_EXCEPTION();
+        }
+    }
+
+    bool DesktopNotification::_TrackActivation(const winrt::hstring& tag,
+                                               const ToastNotification& notification,
+                                               const winrt::event_token token)
+    {
+        std::optional<TrackedActivation> retired;
+        try
+        {
+            const std::wstring key{ tag };
+            const std::scoped_lock lock{ _trackedActivationsMutex };
+            TrackedActivation replacement{ notification, token, ++_nextActivationSequence };
+
+            if (const auto existing = _trackedActivations.find(key); existing != _trackedActivations.end())
+            {
+                retired.emplace(std::move(existing->second));
+                existing->second = std::move(replacement);
+            }
+            else
+            {
+                _trackedActivations.emplace(key, std::move(replacement));
+                if (_trackedActivations.size() > MaximumTrackedActivations)
+                {
+                    const auto oldest = std::min_element(_trackedActivations.begin(), _trackedActivations.end(), [](const auto& lhs, const auto& rhs) {
+                        return lhs.second.Sequence < rhs.second.Sequence;
+                    });
+                    retired.emplace(std::move(oldest->second));
+                    _trackedActivations.erase(oldest);
+                }
+            }
+        }
+        catch (...)
+        {
+            LOG_CAUGHT_EXCEPTION();
+            return false;
+        }
+
+        if (retired)
+        {
+            _RevokeActivation(retired.value());
+        }
+        return true;
+    }
+
+    bool DesktopNotification::TrackActivationForTests(const winrt::hstring& tag)
+    {
+        auto xml = ToastNotificationManager::GetTemplateContent(ToastTemplateType::ToastText02);
+        auto notification = ToastNotification{ xml };
+        const auto token = notification.Activated([](const auto&, const auto&) {});
+        if (_TrackActivation(tag, notification, token))
+        {
+            return true;
+        }
+
+        notification.Activated(token);
+        return false;
+    }
+
+    size_t DesktopNotification::TrackedActivationCountForTests()
+    {
+        const std::scoped_lock lock{ _trackedActivationsMutex };
+        return _trackedActivations.size();
+    }
+
+    size_t DesktopNotification::MaximumTrackedActivationsForTests() noexcept
+    {
+        return MaximumTrackedActivations;
+    }
+
+    void DesktopNotification::ClearTrackedActivationsForTests()
+    {
+        std::vector<TrackedActivation> activations;
+        {
+            const std::scoped_lock lock{ _trackedActivationsMutex };
+            activations.reserve(_trackedActivations.size());
+            for (auto& [tag, activation] : _trackedActivations)
+            {
+                activations.emplace_back(std::move(activation));
+            }
+            _trackedActivations.clear();
+        }
+
+        for (auto& activation : activations)
+        {
+            _RevokeActivation(activation);
+        }
+    }
 
     // Method Description:
     // - Rate-limits toast notifications so we don't spam the user.
@@ -89,12 +194,27 @@ namespace winrt::TerminalApp::implementation
             toast.Group(L"WindowsTerminal");
 
             // When the user activates (clicks) the toast, fire the callback.
+            std::optional<winrt::event_token> activationToken;
             if (activatedFunc)
             {
-                toast.Activated([activatedFunc = std::move(activatedFunc)](const auto& /*sender*/, const auto& /*eventArgs*/) {
+                activationToken.emplace(toast.Activated([activatedFunc = std::move(activatedFunc)](const auto& /*sender*/, const auto& /*eventArgs*/) {
                     activatedFunc();
-                });
+                }));
             }
+            bool activationTracked = false;
+            const auto revokeUntrackedActivation = wil::scope_exit([&]() noexcept {
+                if (activationToken && !activationTracked)
+                {
+                    try
+                    {
+                        toast.Activated(activationToken.value());
+                    }
+                    catch (...)
+                    {
+                        LOG_CAUGHT_EXCEPTION();
+                    }
+                }
+            });
 
             // For packaged apps, CreateToastNotifier() uses the package identity automatically.
             // For unpackaged apps, we must pass the explicit AUMID that was registered
@@ -116,6 +236,10 @@ namespace winrt::TerminalApp::implementation
             if (notifier)
             {
                 notifier.Show(toast);
+                if (activationToken)
+                {
+                    activationTracked = _TrackActivation(args.Tag, toast, activationToken.value());
+                }
             }
         }
         catch (...)

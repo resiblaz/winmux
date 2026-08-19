@@ -52,6 +52,26 @@ namespace winrt::TerminalApp::implementation
             }
             return winrt::hstring{ compact };
         }
+
+        winrt::hstring _formatPorts(const std::span<const uint16_t> ports, const size_t maximumCount, const bool showOverflow)
+        {
+            std::wstring text;
+            const auto count = std::min(ports.size(), maximumCount);
+            for (size_t index = 0; index < count; ++index)
+            {
+                if (!text.empty())
+                {
+                    text.append(L" · ");
+                }
+                text.append(std::to_wstring(ports[index]));
+            }
+            if (showOverflow && ports.size() > count)
+            {
+                text.append(L" · +");
+                text.append(std::to_wstring(ports.size() - count));
+            }
+            return winrt::hstring{ text };
+        }
     }
 
     WorkspaceItemViewModel::WorkspaceItemViewModel(const TerminalApp::Tab& tab) :
@@ -162,6 +182,7 @@ namespace winrt::TerminalApp::implementation
         {
             append(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_ItemAutomationGitBranch", branch) });
         }
+        append(ListeningPortsTooltip());
         if (const auto status = StatusText(); !status.empty())
         {
             append(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_ItemAutomationStatus", status) });
@@ -250,6 +271,41 @@ namespace winrt::TerminalApp::implementation
     winrt::hstring WorkspaceItemViewModel::WorkingDirectoryDisplay() const
     {
         return _compactWorkingDirectory(WorkingDirectory());
+    }
+
+    winrt::hstring WorkspaceItemViewModel::ListeningPortsDisplay() const
+    {
+        return _formatPorts(_listeningPorts, MaximumDisplayedListeningPorts, true);
+    }
+
+    winrt::hstring WorkspaceItemViewModel::ListeningPortsTooltip() const
+    {
+        if (_listeningPorts.empty())
+        {
+            return {};
+        }
+        return winrt::hstring{ RS_fmt(L"WorkspaceSidebar_ListeningPortsTooltip",
+                                      _formatPorts(_listeningPorts, _listeningPorts.size(), false)) };
+    }
+
+    void WorkspaceItemViewModel::UpdateListeningPorts(std::vector<uint16_t> ports)
+    {
+        std::sort(ports.begin(), ports.end());
+        ports.erase(std::unique(ports.begin(), ports.end()), ports.end());
+        if (_listeningPorts == ports)
+        {
+            return;
+        }
+
+        _listeningPorts = std::move(ports);
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"ListeningPortsDisplay" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"ListeningPortsTooltip" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
+    }
+
+    const std::vector<uint16_t>& WorkspaceItemViewModel::ListeningPorts() const noexcept
+    {
+        return _listeningPorts;
     }
 
     bool WorkspaceItemViewModel::HasAgentResume() const noexcept

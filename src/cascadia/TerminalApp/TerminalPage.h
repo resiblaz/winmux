@@ -326,6 +326,10 @@ namespace winrt::TerminalApp::implementation
         bool _workspaceSidebarLayoutInitialized{ false };
         std::unique_ptr<WorkspaceAutomationServer> _workspaceAutomationServer;
         std::deque<std::chrono::steady_clock::time_point> _workspaceAutomationNotificationTimes;
+        SafeDispatcherTimer _workspaceListeningPortsTimer;
+        bool _workspaceListeningPortsRefreshInFlight{ false };
+        bool _workspaceListeningPortsRefreshPending{ false };
+        uint64_t _workspaceListeningPortsGeneration{ 0 };
         bool _syncingWorkspaceSelection{ false };
         bool _workspaceReordering{ false };
         std::optional<uint32_t> _workspaceReorderFrom{};
@@ -433,6 +437,16 @@ namespace winrt::TerminalApp::implementation
         void _UpdateTabView();
         void _UpdateTabWidthMode();
         void _UpdateWorkspaceSidebar();
+        void _UpdateWorkspaceListeningPortsTimer();
+        void _RefreshWorkspaceListeningPorts();
+        struct WorkspaceProcessRoots
+        {
+            winrt::guid WorkspaceId{};
+            std::vector<uint32_t> RootProcessIds;
+        };
+        safe_void_coroutine _RefreshWorkspaceListeningPortsAsync(uint64_t generation,
+                                                                 std::vector<WorkspaceProcessRoots> workspaces,
+                                                                 std::vector<uint32_t> rootProcessIds);
         void _UpdateWorkspaceSidebarForWindowWidth(double width);
         void _Root_SizeChanged(const IInspectable& sender, const Windows::UI::Xaml::SizeChangedEventArgs& args);
         void _UpdateWorkspaceAutomationServer();

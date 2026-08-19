@@ -84,6 +84,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
         TEST_METHOD(WorkspaceWorkingDirectoryDisplayIsCompact);
         TEST_METHOD(WorkspaceGitBranchParsesStructuredOutput);
+        TEST_METHOD(WorkspaceListeningPortsProjectMetadata);
         TEST_METHOD(WorkspaceAgentResumeRejectsUntrustedInput);
         TEST_METHOD(WorkspaceStatusPillTracksStructuredState);
         TEST_METHOD(WorkspaceLayoutPersistsMetadata);
@@ -381,6 +382,25 @@ namespace TerminalAppLocalTests
         VERIFY_IS_TRUE(invalid.Branch.empty());
 
         VERIFY_IS_FALSE(winrt::TerminalApp::implementation::WorkspaceGitBranch::IsSupportedDirectory(L"\\\\wsl.localhost\\Ubuntu\\home\\repo"));
+    }
+
+    void TabTests::WorkspaceListeningPortsProjectMetadata()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            const auto item = page->_workspaceItems.GetAt(0);
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+
+            itemImpl->UpdateListeningPorts({ 5173, 80, 65535, 3000, 5173 });
+            VERIFY_ARE_EQUAL(L"80 · 3000 · 5173 · +1", item.ListeningPortsDisplay());
+            VERIFY_IS_TRUE(std::wstring_view{ item.ListeningPortsTooltip() }.find(L"65535") != std::wstring_view::npos);
+            VERIFY_IS_TRUE(std::wstring_view{ item.AutomationName() }.find(L"65535") != std::wstring_view::npos);
+            VERIFY_ARE_EQUAL(static_cast<size_t>(4), itemImpl->ListeningPorts().size());
+
+            itemImpl->UpdateListeningPorts({});
+            VERIFY_IS_TRUE(item.ListeningPortsDisplay().empty());
+            VERIFY_IS_TRUE(item.ListeningPortsTooltip().empty());
+        });
     }
 
     void TabTests::WorkspaceAgentResumeRejectsUntrustedInput()

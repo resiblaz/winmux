@@ -1063,6 +1063,9 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebar_ItemAutomationGitBranch" xml:space="preserve">
     <value>Git branch {0}</value>
   </data>
+  <data name="WorkspaceSidebar_ListeningPortsTooltip" xml:space="preserve">
+    <value>Listening ports: {0}</value>
+  </data>
   <data name="WorkspaceSidebar_ItemAutomationStatus" xml:space="preserve">
     <value>status {0}</value>
   </data>

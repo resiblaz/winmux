@@ -28,6 +28,8 @@ namespace winrt::TerminalApp::implementation
         uint32_t NotificationHistoryCount() const noexcept;
         winrt::hstring NotificationHistoryCountText() const;
         winrt::hstring WorkingDirectoryDisplay() const;
+        winrt::hstring ListeningPortsDisplay() const;
+        winrt::hstring ListeningPortsTooltip() const;
         bool HasAgentResume() const noexcept;
         winrt::hstring AgentResumeProvider() const noexcept;
         winrt::hstring AgentResumeSessionId() const noexcept;
@@ -36,6 +38,8 @@ namespace winrt::TerminalApp::implementation
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> Notifications() const noexcept;
         void RestoreWorkspaceId(const winrt::guid& workspaceId) noexcept;
         void RefreshGitBranch();
+        void UpdateListeningPorts(std::vector<uint16_t> ports);
+        const std::vector<uint16_t>& ListeningPorts() const noexcept;
 
         void AddNotification(uint32_t paneId, const winrt::hstring& title, const winrt::hstring& message);
         void MarkAllNotificationsRead();
@@ -78,8 +82,10 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring _automationStatus;
         uint64_t _automationProgressState{ 0 };
         uint32_t _automationProgressValue{ 0 };
+        std::vector<uint16_t> _listeningPorts;
 
         static constexpr uint32_t MaximumNotifications{ 100 };
+        static constexpr size_t MaximumDisplayedListeningPorts{ 3 };
         static constexpr auto GitQueryTimeout{ std::chrono::milliseconds{ 1500 } };
         static constexpr auto GitCacheMaximumAge{ std::chrono::seconds{ 10 } };
         safe_void_coroutine _RefreshGitBranchAsync(winrt::hstring directory, uint64_t generation);

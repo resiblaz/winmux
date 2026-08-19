@@ -1063,6 +1063,9 @@
   <data name="WorkspaceSidebar_ItemAutomationGitBranch" xml:space="preserve">
     <value>Git 分支 {0}</value>
   </data>
+  <data name="WorkspaceSidebar_ListeningPortsTooltip" xml:space="preserve">
+    <value>监听端口：{0}</value>
+  </data>
   <data name="WorkspaceSidebar_ItemAutomationStatus" xml:space="preserve">
     <value>状态 {0}</value>
   </data>

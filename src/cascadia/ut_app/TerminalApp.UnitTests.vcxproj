@@ -24,6 +24,7 @@
     <ClCompile Include="JsonUtilsTests.cpp" />
     <ClCompile Include="FzfTests.cpp" />
     <ClCompile Include="WorkspaceGitBranchTests.cpp" />
+    <ClCompile Include="WorkspaceListeningPortsTests.cpp" />
     <ClCompile Include="WorkspaceAutomationTests.cpp" />
     <ClCompile Include="precomp.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>

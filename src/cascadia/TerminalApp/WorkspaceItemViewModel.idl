@@ -25,6 +25,8 @@ namespace TerminalApp
         UInt32 NotificationHistoryCount { get; };
         String NotificationHistoryCountText { get; };
         String WorkingDirectoryDisplay { get; };
+        String ListeningPortsDisplay { get; };
+        String ListeningPortsTooltip { get; };
         Boolean HasAgentResume { get; };
         String AgentResumeProvider { get; };
         String AgentResumeSessionId { get; };

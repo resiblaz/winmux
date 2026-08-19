@@ -47,10 +47,11 @@ The sidebar can show:
 
 - the terminal-reported working directory;
 - the current local Git branch;
+- TCP ports listened to by the Windows process tree under any pane;
 - connection, unread, progress, broadcast-input, and read-only status;
 - unread counts and the latest notification.
 
-Git lookup applies to local Windows directories. Remote WSL/SSH paths without a reliable local directory remain blank.
+Git lookup applies to local Windows directories. Remote WSL/SSH paths without a reliable local directory remain blank. Listening ports are refreshed in the background while Workspace Sidebar is enabled. The compact row shows up to three sorted ports and an overflow count; the tooltip and accessibility name contain the full deduplicated list.
 
 OSC 777 notifications and bells can mark a pane for attention. Open the notification center for read and unread history, or press `Ctrl+Shift+U` to jump to the latest unread source pane. Each workspace retains up to 100 notifications in memory; the notification center displays the newest 1000 across all open workspaces. Notification history is not persisted across process restarts.
 
@@ -62,7 +63,7 @@ Agent Resume currently supports a constrained Codex session UUID. It stores neit
 
 ## Local automation permissions
 
-Workspace Sidebar starts a current-user local Named Pipe API while the sidebar layout is enabled. Workspace, pane, notification, status, and progress operations use strict versioned request fields.
+Workspace Sidebar starts a current-user local Named Pipe API while the sidebar layout is enabled. Workspace, pane, notification, status, and progress operations use strict versioned request fields. Workspace query results include a `listeningPorts` number array.
 
 Sending terminal input and reading terminal content are separate high-risk capabilities and are disabled by default. Enable only the capability a trusted local client needs, either in Settings or with:
 
@@ -88,6 +89,7 @@ Requests must identify an exact workspace and pane and remain subject to length/
 - No embedded browser or browser automation.
 - No second-level Surface tabs inside a pane.
 - Remote Git branch discovery is not included.
+- Port discovery covers Windows TCP listeners owned by the ConPTY root process or its descendants. UDP, remote SSH hosts, and listeners owned by WSL service processes outside that tree are not included.
 - Notification history is process-local.
 - The global notification-center view shows the newest 1000 records.
 - Narrator, High Contrast visual behavior, mixed-DPI movement, and long production soaks should be validated on the target Windows build before broad deployment.

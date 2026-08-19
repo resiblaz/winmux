@@ -24,6 +24,7 @@
 #include "TabRowControl.h"
 #include "TerminalSettingsCache.h"
 #include "WorkspaceAutomation.h"
+#include "WorkspaceListeningPorts.h"
 
 #include "LaunchPositionRequest.g.cpp"
 #include "WindowListEntry.g.cpp"
@@ -346,9 +347,20 @@ namespace winrt::TerminalApp::implementation
             if (const auto page = weakThis.get())
             {
                 page->_RefreshWorkspaceNotifications();
+                page->_RefreshWorkspaceListeningPorts();
             }
         });
         _RefreshWorkspaceNotifications();
+        _workspaceListeningPortsTimer.Interval(5s);
+        _workspaceListeningPortsTimer.Tick([weakThis{ get_weak() }](const auto&, const auto&) {
+            if (const auto page = weakThis.get())
+            {
+                if (!page->_workspaceListeningPortsRefreshInFlight)
+                {
+                    page->_RefreshWorkspaceListeningPorts();
+                }
+            }
+        });
         _rearranging = false;
 
         const auto canDragDrop = CanDragDrop();
@@ -553,8 +565,146 @@ namespace winrt::TerminalApp::implementation
 
         _workspaceSidebarEnabled = enabled;
         _workspaceSidebarLayoutInitialized = true;
+        _UpdateWorkspaceListeningPortsTimer();
         _UpdateWorkspaceAutomationServer();
         _UpdateTabView();
+    }
+
+    void TerminalPage::_UpdateWorkspaceListeningPortsTimer()
+    {
+        if (_workspaceSidebarEnabled)
+        {
+            if (!_workspaceListeningPortsTimer.IsEnabled())
+            {
+                _workspaceListeningPortsTimer.Start();
+                _RefreshWorkspaceListeningPorts();
+            }
+            return;
+        }
+
+        _workspaceListeningPortsTimer.Stop();
+        _workspaceListeningPortsRefreshPending = false;
+        ++_workspaceListeningPortsGeneration;
+        for (const auto& item : _workspaceItems)
+        {
+            winrt::get_self<WorkspaceItemViewModel>(item)->UpdateListeningPorts({});
+        }
+    }
+
+    void TerminalPage::_RefreshWorkspaceListeningPorts()
+    {
+        if (!_workspaceSidebarEnabled)
+        {
+            return;
+        }
+        if (_workspaceListeningPortsRefreshInFlight)
+        {
+            _workspaceListeningPortsRefreshPending = true;
+            return;
+        }
+
+        _workspaceListeningPortsRefreshPending = false;
+
+        std::vector<WorkspaceProcessRoots> workspaces;
+        std::vector<uint32_t> allRootProcessIds;
+        workspaces.reserve(_workspaceItems.Size());
+
+        for (const auto& item : _workspaceItems)
+        {
+            WorkspaceProcessRoots workspace{ item.WorkspaceId() };
+            if (const auto tab = _GetTabImpl(item.SourceTab()); tab && tab->GetRootPane())
+            {
+                tab->GetRootPane()->WalkTree([&](const auto& pane) {
+                    if (const auto control = pane->GetTerminalControl())
+                    {
+                        if (const auto connection = control.Connection())
+                        {
+                            if (const auto conpty = connection.try_as<TerminalConnection::ConptyConnection>())
+                            {
+                                const auto handle = reinterpret_cast<HANDLE>(conpty.RootProcessHandle());
+                                if (handle)
+                                {
+                                    if (const auto processId = GetProcessId(handle); processId != 0)
+                                    {
+                                        workspace.RootProcessIds.emplace_back(processId);
+                                        allRootProcessIds.emplace_back(processId);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            std::sort(workspace.RootProcessIds.begin(), workspace.RootProcessIds.end());
+            workspace.RootProcessIds.erase(std::unique(workspace.RootProcessIds.begin(), workspace.RootProcessIds.end()),
+                                           workspace.RootProcessIds.end());
+            workspaces.emplace_back(std::move(workspace));
+        }
+
+        std::sort(allRootProcessIds.begin(), allRootProcessIds.end());
+        allRootProcessIds.erase(std::unique(allRootProcessIds.begin(), allRootProcessIds.end()), allRootProcessIds.end());
+        const auto generation = ++_workspaceListeningPortsGeneration;
+        if (allRootProcessIds.empty())
+        {
+            for (const auto& item : _workspaceItems)
+            {
+                winrt::get_self<WorkspaceItemViewModel>(item)->UpdateListeningPorts({});
+            }
+            return;
+        }
+
+        _workspaceListeningPortsRefreshInFlight = true;
+        _RefreshWorkspaceListeningPortsAsync(generation, std::move(workspaces), std::move(allRootProcessIds));
+    }
+
+    safe_void_coroutine TerminalPage::_RefreshWorkspaceListeningPortsAsync(const uint64_t generation,
+                                                                           std::vector<WorkspaceProcessRoots> workspaces,
+                                                                           std::vector<uint32_t> rootProcessIds)
+    {
+        const auto weakThis = get_weak();
+        const auto dispatcher = Dispatcher();
+        co_await winrt::resume_background();
+        const auto snapshot = WorkspaceListeningPorts::Query(rootProcessIds);
+        co_await wil::resume_foreground(dispatcher);
+
+        if (const auto page = weakThis.get())
+        {
+            page->_workspaceListeningPortsRefreshInFlight = false;
+            const auto refreshPending = std::exchange(page->_workspaceListeningPortsRefreshPending, false);
+            if (snapshot.Succeeded &&
+                generation == page->_workspaceListeningPortsGeneration &&
+                page->_workspaceSidebarEnabled)
+            {
+                for (const auto& workspace : workspaces)
+                {
+                    std::vector<uint16_t> ports;
+                    for (const auto processId : workspace.RootProcessIds)
+                    {
+                        if (const auto entry = snapshot.Ports.find(processId); entry != snapshot.Ports.end())
+                        {
+                            ports.insert(ports.end(), entry->second.begin(), entry->second.end());
+                        }
+                    }
+                    std::sort(ports.begin(), ports.end());
+                    ports.erase(std::unique(ports.begin(), ports.end()), ports.end());
+
+                    for (const auto& item : page->_workspaceItems)
+                    {
+                        if (item.WorkspaceId() == workspace.WorkspaceId)
+                        {
+                            winrt::get_self<WorkspaceItemViewModel>(item)->UpdateListeningPorts(std::move(ports));
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (refreshPending)
+            {
+                page->_RefreshWorkspaceListeningPorts();
+            }
+        }
     }
 
     void TerminalPage::_UpdateWorkspaceSidebarForWindowWidth(const double width)
@@ -622,6 +772,12 @@ namespace winrt::TerminalApp::implementation
             workspace.Insert(L"pinned", JsonValue::CreateBooleanValue(item.IsPinned()));
             workspace.Insert(L"workingDirectory", JsonValue::CreateStringValue(item.WorkingDirectory()));
             workspace.Insert(L"gitBranch", JsonValue::CreateStringValue(item.GitBranch()));
+            JsonArray listeningPorts;
+            for (const auto port : winrt::get_self<WorkspaceItemViewModel>(item)->ListeningPorts())
+            {
+                listeningPorts.Append(JsonValue::CreateNumberValue(port));
+            }
+            workspace.Insert(L"listeningPorts", listeningPorts);
             return workspace;
         };
         const auto findWorkspace = [&](const winrt::guid& id) -> std::optional<uint32_t> {

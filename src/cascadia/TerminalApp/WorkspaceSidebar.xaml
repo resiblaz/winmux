@@ -95,6 +95,21 @@
                                        Opacity="0.88"
                                        Text="{x:Bind StatusText, Mode=OneWay}" />
                         </Border>
+                        <StackPanel VerticalAlignment="Center"
+                                    Orientation="Horizontal"
+                                    Spacing="3"
+                                    ToolTipService.ToolTip="{x:Bind ListeningPortsTooltip, Mode=OneWay}"
+                                    Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(ListeningPortsDisplay), Mode=OneWay}">
+                            <FontIcon FontSize="10"
+                                      Glyph="&#xE774;"
+                                      Opacity="0.72" />
+                            <TextBlock MaxWidth="112"
+                                       FontFamily="Consolas"
+                                       FontSize="11"
+                                       Opacity="0.72"
+                                       Text="{x:Bind ListeningPortsDisplay, Mode=OneWay}"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
                         <TextBlock VerticalAlignment="Center"
                                    FontFamily="Consolas"
                                    FontSize="11"
@@ -218,7 +233,7 @@
                         Tag="{Binding}"
                         Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(UnreadBadgeText), Mode=OneWay}" />
                 <ToolTipService.ToolTip>
-                    <ToolTip Content="{x:Bind Title, Mode=OneWay}" />
+                    <ToolTip Content="{x:Bind AutomationName, Mode=OneWay}" />
                 </ToolTipService.ToolTip>
                 <Grid.ContextFlyout>
                     <MenuFlyout>

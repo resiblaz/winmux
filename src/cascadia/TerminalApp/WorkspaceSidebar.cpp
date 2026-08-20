@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "WorkspaceSidebar.h"
+#include "WorkspaceItemViewModel.h"
 
 #include "WorkspaceSidebar.g.cpp"
 
@@ -10,6 +11,7 @@ using namespace winrt;
 using namespace winrt::Microsoft::Terminal::Settings::Model;
 using namespace winrt::Windows::UI::Xaml;
 using namespace winrt::Windows::UI::Xaml::Controls;
+using namespace winrt::Windows::UI::Xaml::Media::Animation;
 
 namespace winrt::TerminalApp::implementation
 {
@@ -24,9 +26,26 @@ namespace winrt::TerminalApp::implementation
         InitializeComponent();
 
         const auto state = ApplicationState::SharedInstance();
-        _expandedWidth = std::clamp(state.WorkspaceSidebarWidth(), MinimumExpandedWidth, MaximumExpandedWidth);
+        const auto savedWidth = state.WorkspaceSidebarWidth();
+        const auto usesPreviousDefault = savedWidth == PreviousDefaultExpandedWidth || savedWidth == LegacyDefaultExpandedWidth;
+        _expandedWidth = std::clamp(usesPreviousDefault ? DefaultExpandedWidth : savedWidth,
+                                    MinimumExpandedWidth,
+                                    MaximumExpandedWidth);
+        if (usesPreviousDefault)
+        {
+            state.WorkspaceSidebarWidth(_expandedWidth);
+        }
         _isExpanded = state.WorkspaceSidebarExpanded();
         _ApplyLayout();
+
+        Loaded([weakThis{ get_weak() }](auto&&, auto&&) {
+            if (const auto self = weakThis.get())
+            {
+                self->_layoutElementsReady = true;
+                self->_ApplyLayout();
+                self->_layoutAnimationsEnabled = true;
+            }
+        });
     }
 
     bool WorkspaceSidebar::IsExpanded() const noexcept
@@ -137,14 +156,96 @@ namespace winrt::TerminalApp::implementation
         Automation::AutomationProperties::SetName(NotificationCenterButton(), automationName);
     }
 
+    void WorkspaceSidebar::OpenNotificationCenter(const FrameworkElement& target)
+    {
+        RefreshNotifications();
+        NotificationCenterFlyout().ShowAt(target);
+    }
+
+    void WorkspaceSidebar::ShowSwitchHints(const bool value)
+    {
+        if (const auto workspaces = WorkspaceList().ItemsSource().try_as<Windows::Foundation::Collections::IIterable<IInspectable>>())
+        {
+            for (const auto& workspace : workspaces)
+            {
+                if (const auto item = workspace.try_as<TerminalApp::WorkspaceItemViewModel>())
+                {
+                    winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item)->ShowSwitchShortcutHint(value);
+                }
+            }
+        }
+    }
+
+    void WorkspaceSidebar::_SetExpandedContentVisibility(const Windows::UI::Xaml::Visibility visibility)
+    {
+        SidebarTitle().Visibility(visibility);
+        NotificationCenterButton().Visibility(visibility);
+        WorkspaceList().Visibility(visibility);
+    }
+
     void WorkspaceSidebar::_ApplyLayout()
     {
         const auto expanded = IsEffectivelyExpanded();
-        Width(expanded ? _expandedWidth : CollapsedWidth);
+        const auto targetWidth = expanded ? _expandedWidth : CollapsedWidth;
+        const auto targetOpacity = expanded ? 1.0 : 0.0;
+
+        // When this control is created from another XAML file, its constructor can
+        // run before the named child elements have been connected. The outer width
+        // is safe to initialize immediately; child state is applied once Loaded.
+        if (!_layoutElementsReady)
+        {
+            Width(targetWidth);
+            return;
+        }
+
         ResizeHandle().Visibility(expanded ? Visibility::Visible : Visibility::Collapsed);
-        SidebarTitle().Visibility(expanded ? Visibility::Visible : Visibility::Collapsed);
-        NotificationCenterButton().Visibility(expanded ? Visibility::Visible : Visibility::Collapsed);
-        NewButtonText().Visibility(expanded ? Visibility::Visible : Visibility::Collapsed);
+        _SetExpandedContentVisibility(expanded ? Visibility::Visible : Visibility::Collapsed);
+
+        if (_layoutAnimationsEnabled)
+        {
+            const auto startWidth = ActualWidth();
+            const auto startOpacity = SidebarChrome().Opacity();
+            if (_layoutStoryboard)
+            {
+                _layoutStoryboard.Stop();
+            }
+
+            Width(targetWidth);
+            SidebarChrome().Opacity(targetOpacity);
+
+            const auto duration = DurationHelper::FromTimeSpan(Windows::Foundation::TimeSpan{ std::chrono::milliseconds{ 150 } });
+            _layoutStoryboard = Storyboard{};
+            _layoutStoryboard.Duration(duration);
+
+            DoubleAnimation widthAnimation{};
+            widthAnimation.Duration(duration);
+            widthAnimation.From(startWidth);
+            widthAnimation.To(targetWidth);
+            widthAnimation.EasingFunction(QuadraticEase{});
+            widthAnimation.EnableDependentAnimation(true);
+            widthAnimation.FillBehavior(FillBehavior::Stop);
+            _layoutStoryboard.Children().Append(widthAnimation);
+            _layoutStoryboard.SetTarget(widthAnimation, *this);
+            _layoutStoryboard.SetTargetProperty(widthAnimation, L"Width");
+
+            DoubleAnimation opacityAnimation{};
+            opacityAnimation.Duration(DurationHelper::FromTimeSpan(Windows::Foundation::TimeSpan{ std::chrono::milliseconds{ 90 } }));
+            opacityAnimation.From(startOpacity);
+            opacityAnimation.To(targetOpacity);
+            opacityAnimation.FillBehavior(FillBehavior::Stop);
+            _layoutStoryboard.Children().Append(opacityAnimation);
+            _layoutStoryboard.SetTarget(opacityAnimation, SidebarChrome());
+            _layoutStoryboard.SetTargetProperty(opacityAnimation, L"Opacity");
+
+            _layoutStoryboard.Begin();
+        }
+        else
+        {
+            Width(targetWidth);
+            SidebarChrome().Opacity(targetOpacity);
+            _SetExpandedContentVisibility(expanded ? Visibility::Visible : Visibility::Collapsed);
+        }
+
         ToggleButton().Content(box_value(expanded ? L"\uE76B" : L"\uE76C"));
         ToggleButton().IsEnabled(!_isWindowNarrow);
         Automation::AutomationProperties::SetName(ToggleButton(),
@@ -153,10 +254,8 @@ namespace winrt::TerminalApp::implementation
                                                                                 RS_(L"WorkspaceSidebar_ExpandAutomationName"));
         Automation::AutomationProperties::SetHelpText(ToggleButton(), _isWindowNarrow ? RS_(L"WorkspaceSidebar_NarrowHelpText") : winrt::hstring{});
 
-        const auto templateKey = expanded ? L"ExpandedWorkspaceTemplate" : L"CollapsedWorkspaceTemplate";
-        const auto itemStyleKey = expanded ? L"ExpandedWorkspaceItemContainerStyle" : L"CollapsedWorkspaceItemContainerStyle";
-        WorkspaceList().ItemTemplate(Resources().Lookup(box_value(templateKey)).as<DataTemplate>());
-        WorkspaceList().ItemContainerStyle(Resources().Lookup(box_value(itemStyleKey)).as<Windows::UI::Xaml::Style>());
+        WorkspaceList().ItemTemplate(Resources().Lookup(box_value(L"ExpandedWorkspaceTemplate")).as<DataTemplate>());
+        WorkspaceList().ItemContainerStyle(Resources().Lookup(box_value(L"ExpandedWorkspaceItemContainerStyle")).as<Windows::UI::Xaml::Style>());
     }
 
     TerminalApp::WorkspaceItemViewModel WorkspaceSidebar::_ItemFromSender(const IInspectable& sender) const
@@ -225,9 +324,25 @@ namespace winrt::TerminalApp::implementation
         args.Handled(true);
     }
 
-    void WorkspaceSidebar::_New_Click(const IInspectable&, const RoutedEventArgs&)
+    void WorkspaceSidebar::_SetWorkspaceItemCloseButtonVisibility(const IInspectable& sender, const Windows::UI::Xaml::Visibility visibility) const
     {
-        NewRequested.raise(*this, nullptr);
+        if (const auto itemRoot = sender.try_as<FrameworkElement>())
+        {
+            if (const auto closeButton = itemRoot.FindName(L"WorkspaceItemCloseButton").try_as<Button>())
+            {
+                closeButton.Visibility(visibility);
+            }
+        }
+    }
+
+    void WorkspaceSidebar::_WorkspaceItem_PointerEntered(const IInspectable& sender, const Input::PointerRoutedEventArgs&)
+    {
+        _SetWorkspaceItemCloseButtonVisibility(sender, Visibility::Visible);
+    }
+
+    void WorkspaceSidebar::_WorkspaceItem_PointerExited(const IInspectable& sender, const Input::PointerRoutedEventArgs&)
+    {
+        _SetWorkspaceItemCloseButtonVisibility(sender, Visibility::Collapsed);
     }
 
     void WorkspaceSidebar::_Pin_Click(const IInspectable& sender, const RoutedEventArgs&)

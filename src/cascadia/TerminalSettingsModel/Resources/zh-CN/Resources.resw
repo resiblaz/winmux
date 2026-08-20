@@ -747,6 +747,15 @@
   <data name="OpenCWDCommandKey" xml:space="preserve">
     <value>打开当前工作目录</value>
   </data>
+  <data name="ToggleWorkspacePinCommandKey" xml:space="preserve">
+    <value>固定或取消固定当前工作区</value>
+  </data>
+  <data name="ToggleWorkspaceSidebarCommandKey" xml:space="preserve">
+    <value>展开或收起工作区侧边栏</value>
+  </data>
+  <data name="OpenWorkspaceNotificationCenterCommandKey" xml:space="preserve">
+    <value>打开工作区通知中心</value>
+  </data>
   <data name="WorkspacesCommandKey" xml:space="preserve">
     <value>工作区...</value>
   </data>

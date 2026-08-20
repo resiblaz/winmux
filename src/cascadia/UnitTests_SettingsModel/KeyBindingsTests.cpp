@@ -24,6 +24,7 @@ namespace SettingsModelUnitTests
         TEST_CLASS(KeyBindingsTests);
 
         TEST_METHOD(KeyChords);
+        TEST_METHOD(WorkspaceActionsCanBeCustomized);
         TEST_METHOD(ManyKeysSameAction);
         TEST_METHOD(LayerKeybindings);
         TEST_METHOD(HashDeduplication);
@@ -103,6 +104,26 @@ namespace SettingsModelUnitTests
             VERIFY_ARE_EQUAL(expectedVkey, actualKeyChord.Vkey());
             VERIFY_ARE_EQUAL(tc.scanCode, actualKeyChord.ScanCode());
         }
+    }
+
+    void KeyBindingsTests::WorkspaceActionsCanBeCustomized()
+    {
+        const auto json = VerifyParseSucceeded(R"([
+            { "command": "toggleWorkspacePin", "keys": "ctrl+alt+p" },
+            { "command": "toggleWorkspaceSidebar", "keys": "ctrl+alt+s" },
+            { "command": "openWorkspaceNotificationCenter", "keys": "ctrl+alt+n" }
+        ])");
+
+        const auto actionMap = winrt::make_self<implementation::ActionMap>();
+        actionMap->LayerJson(json, OriginTag::User);
+
+        const auto modifiers = VirtualKeyModifiers::Control | VirtualKeyModifiers::Menu;
+        VERIFY_ARE_EQUAL(ShortcutAction::ToggleWorkspacePin,
+                         ::TestUtils::GetActionAndArgs(*actionMap, { modifiers, 'P', 0 }).Action());
+        VERIFY_ARE_EQUAL(ShortcutAction::ToggleWorkspaceSidebar,
+                         ::TestUtils::GetActionAndArgs(*actionMap, { modifiers, 'S', 0 }).Action());
+        VERIFY_ARE_EQUAL(ShortcutAction::OpenWorkspaceNotificationCenter,
+                         ::TestUtils::GetActionAndArgs(*actionMap, { modifiers, 'N', 0 }).Action());
     }
 
     void KeyBindingsTests::ManyKeysSameAction()

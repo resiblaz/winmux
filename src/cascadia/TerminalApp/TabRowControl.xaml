@@ -25,7 +25,23 @@
         tab row.
     -->
 
-    <mux:TabView x:Name="TabView"
+    <ContentPresenter.Resources>
+        <Style x:Key="WorkspaceTitleBarIconButtonStyle"
+               TargetType="Button">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinWidth" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Foreground" Value="{ThemeResource WorkspaceChromeTextSecondaryBrush}" />
+        </Style>
+    </ContentPresenter.Resources>
+
+    <Grid>
+        <mux:TabView x:Name="TabView"
                  VerticalAlignment="Bottom"
                  HorizontalContentAlignment="Stretch"
                  AllowDropTabs="True"
@@ -167,6 +183,104 @@
             </Grid>
         </mux:TabView.TabStripFooter>
 
-    </mux:TabView>
+        </mux:TabView>
+
+        <Grid x:Name="WorkspaceTitleBar"
+              Height="40"
+              Padding="8,0,6,0"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Bottom"
+              Background="{ThemeResource WorkspaceChromeSurfaceBrush}"
+              RequestedTheme="Dark"
+              Visibility="{x:Bind mtu:Converters.BooleanToVisibility(WorkspaceSidebarMode), Mode=OneWay}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Grid.Resources>
+                <SolidColorBrush x:Key="ButtonBackground"
+                                 Color="Transparent" />
+                <StaticResource x:Key="ButtonBackgroundPointerOver"
+                                ResourceKey="WorkspaceChromeButtonHoverBrush" />
+                <StaticResource x:Key="ButtonBackgroundPressed"
+                                ResourceKey="WorkspaceChromeButtonPressedBrush" />
+                <StaticResource x:Key="ButtonForeground"
+                                ResourceKey="WorkspaceChromeTextSecondaryBrush" />
+                <StaticResource x:Key="ButtonForegroundPointerOver"
+                                ResourceKey="WorkspaceChromeTextPrimaryBrush" />
+                <StaticResource x:Key="ButtonForegroundPressed"
+                                ResourceKey="WorkspaceChromeTextPrimaryBrush" />
+                <SolidColorBrush x:Key="SplitButtonBackground"
+                                 Color="Transparent" />
+                <StaticResource x:Key="SplitButtonBackgroundPointerOver"
+                                ResourceKey="WorkspaceChromeButtonHoverBrush" />
+                <StaticResource x:Key="SplitButtonBackgroundPressed"
+                                ResourceKey="WorkspaceChromeButtonPressedBrush" />
+                <StaticResource x:Key="SplitButtonForeground"
+                                ResourceKey="WorkspaceChromeTextSecondaryBrush" />
+                <StaticResource x:Key="SplitButtonForegroundPointerOver"
+                                ResourceKey="WorkspaceChromeTextPrimaryBrush" />
+                <StaticResource x:Key="SplitButtonForegroundPressed"
+                                ResourceKey="WorkspaceChromeTextPrimaryBrush" />
+                <x:Double x:Key="SplitButtonPrimaryButtonSize">28</x:Double>
+                <x:Double x:Key="SplitButtonSecondaryButtonSize">20</x:Double>
+            </Grid.Resources>
+
+            <Button x:Name="WorkspaceSidebarToggleButton"
+                    Grid.Column="0"
+                    Margin="0,0,4,0"
+                    FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                    FontSize="13"
+                    Style="{StaticResource WorkspaceTitleBarIconButtonStyle}" />
+
+            <Button x:Name="WorkspaceNotificationButton"
+                    Grid.Column="1"
+                    Margin="0,0,4,0"
+                    Style="{StaticResource WorkspaceTitleBarIconButtonStyle}">
+                <Grid Width="20"
+                      Height="20">
+                    <FontIcon HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                              FontSize="12"
+                              Glyph="&#xEA8F;" />
+                    <Border x:Name="WorkspaceNotificationBadge"
+                            Height="12"
+                            MinWidth="12"
+                            Padding="2,0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Background="{ThemeResource WorkspaceChromeAccentBrush}"
+                            CornerRadius="6"
+                            IsHitTestVisible="False"
+                            Visibility="Collapsed">
+                        <TextBlock x:Name="WorkspaceNotificationBadgeText"
+                                   VerticalAlignment="Center"
+                                   FontSize="7"
+                                   Foreground="{ThemeResource WorkspaceChromeSelectedForegroundBrush}" />
+                    </Border>
+                </Grid>
+            </Button>
+
+            <mux:SplitButton x:Name="WorkspaceNewTabButton"
+                             x:Uid="NewTabSplitButton"
+                             Grid.Column="2"
+                             Width="48"
+                             Height="28"
+                             Padding="0"
+                             VerticalAlignment="Center"
+                             AutomationProperties.AccessibilityView="Control"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Content="&#xE710;"
+                             CornerRadius="6"
+                             FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                             FontSize="12"
+                             Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}" />
+        </Grid>
+    </Grid>
 
 </ContentPresenter>

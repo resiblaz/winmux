@@ -10,6 +10,7 @@ namespace TerminalApp
         Microsoft.UI.Xaml.Controls.TabView TabView { get; };
         Boolean ShowElevationShield;
         Boolean ShowWorkspacesButton;
+        Boolean WorkspaceSidebarMode;
         String WorkspaceName;
     }
 }

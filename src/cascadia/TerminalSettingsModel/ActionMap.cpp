@@ -118,6 +118,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 { ShortcutAction::OpenTabRenamer, USES_RESOURCE(L"OpenTabRenamerCommandKey") },
                 { ShortcutAction::OpenWindowRenamer, USES_RESOURCE(L"OpenWindowRenamerCommandKey") },
                 { ShortcutAction::OpenWorkspace, USES_RESOURCE(L"OpenWorkspaceDefaultCommandKey") },
+                { ShortcutAction::OpenWorkspaceNotificationCenter, USES_RESOURCE(L"OpenWorkspaceNotificationCenterCommandKey") },
                 { ShortcutAction::PasteText, USES_RESOURCE(L"PasteTextCommandKey") },
                 { ShortcutAction::PrevTab, USES_RESOURCE(L"PrevTabCommandKey") },
                 { ShortcutAction::QuickFix, USES_RESOURCE(L"QuickFixCommandKey") },
@@ -164,6 +165,8 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 { ShortcutAction::TogglePaneZoom, USES_RESOURCE(L"TogglePaneZoomCommandKey") },
                 { ShortcutAction::ToggleShaderEffects, USES_RESOURCE(L"ToggleShaderEffectsCommandKey") },
                 { ShortcutAction::ToggleSplitOrientation, USES_RESOURCE(L"ToggleSplitOrientationCommandKey") },
+                { ShortcutAction::ToggleWorkspacePin, USES_RESOURCE(L"ToggleWorkspacePinCommandKey") },
+                { ShortcutAction::ToggleWorkspaceSidebar, USES_RESOURCE(L"ToggleWorkspaceSidebarCommandKey") },
                 { ShortcutAction::Workspaces, USES_RESOURCE(L"WorkspacesCommandKey") },
             };
         }();

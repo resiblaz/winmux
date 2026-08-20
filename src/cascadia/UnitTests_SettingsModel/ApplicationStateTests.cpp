@@ -142,7 +142,7 @@ namespace SettingsModelUnitTests
     {
         const auto root = _tempRoot();
         auto state = winrt::make_self<implementation::ApplicationState>(root);
-        VERIFY_ARE_EQUAL(280.0, state->WorkspaceSidebarWidth());
+        VERIFY_ARE_EQUAL(176.0, state->WorkspaceSidebarWidth());
         VERIFY_IS_TRUE(state->WorkspaceSidebarExpanded());
 
         state->WorkspaceSidebarWidth(356.0);

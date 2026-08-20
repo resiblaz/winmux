@@ -100,6 +100,10 @@ namespace winrt::TerminalApp::implementation
                         {
                             self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
                         }
+                        if (propertyName == L"SwitchShortcutText")
+                        {
+                            self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"SwitchShortcutHintText" });
+                        }
                         if (propertyName == L"IsPinned")
                         {
                             self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"PinAutomationName" });
@@ -230,6 +234,32 @@ namespace winrt::TerminalApp::implementation
     winrt::hstring WorkspaceItemViewModel::SwitchShortcutText() const
     {
         return _tab ? _tab.SwitchShortcutText() : winrt::hstring{};
+    }
+
+    winrt::hstring WorkspaceItemViewModel::SwitchShortcutHintText() const
+    {
+        if (!_showSwitchShortcutHint)
+        {
+            return {};
+        }
+
+        const std::wstring_view shortcut{ SwitchShortcutText() };
+        if (shortcut.empty())
+        {
+            return {};
+        }
+
+        const auto separator = shortcut.find_last_of(L'+');
+        return winrt::hstring{ shortcut.substr(separator == std::wstring_view::npos ? 0 : separator + 1) };
+    }
+
+    void WorkspaceItemViewModel::ShowSwitchShortcutHint(const bool value)
+    {
+        if (_showSwitchShortcutHint != value)
+        {
+            _showSwitchShortcutHint = value;
+            PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"SwitchShortcutHintText" });
+        }
     }
 
     winrt::hstring WorkspaceItemViewModel::UnreadBadgeText() const

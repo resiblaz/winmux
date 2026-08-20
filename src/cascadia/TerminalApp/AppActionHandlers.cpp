@@ -1625,6 +1625,44 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void TerminalPage::_HandleToggleWorkspacePin(const IInspectable& /*sender*/,
+                                                 const ActionEventArgs& args)
+    {
+        if (_workspaceSidebarEnabled)
+        {
+            if (const auto tab = _GetFocusedTab())
+            {
+                _ToggleWorkspacePin(tab);
+                args.Handled(true);
+            }
+        }
+    }
+
+    void TerminalPage::_HandleToggleWorkspaceSidebar(const IInspectable& /*sender*/,
+                                                     const ActionEventArgs& args)
+    {
+        if (_workspaceSidebarEnabled && _workspaceSidebar)
+        {
+            const auto sidebar = winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar);
+            if (!sidebar->IsWindowNarrow())
+            {
+                sidebar->IsExpanded(!sidebar->IsExpanded());
+                _UpdateWorkspaceTitleBar();
+                args.Handled(true);
+            }
+        }
+    }
+
+    void TerminalPage::_HandleOpenWorkspaceNotificationCenter(const IInspectable& /*sender*/,
+                                                              const ActionEventArgs& args)
+    {
+        if (_workspaceSidebarEnabled && _workspaceSidebar && _workspaceNotificationButton)
+        {
+            winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar)->OpenNotificationCenter(_workspaceNotificationButton);
+            args.Handled(true);
+        }
+    }
+
     void TerminalPage::_HandleWorkspaces(const IInspectable& /*sender*/,
                                          const ActionEventArgs& args)
     {

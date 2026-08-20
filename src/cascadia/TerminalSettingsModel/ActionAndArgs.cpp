@@ -74,6 +74,9 @@ static constexpr std::string_view IdentifyWindowKey{ "identifyWindow" };
 static constexpr std::string_view IdentifyWindowsKey{ "identifyWindows" };
 static constexpr std::string_view RenameWindowKey{ "renameWindow" };
 static constexpr std::string_view OpenWorkspaceKey{ "openWorkspace" };
+static constexpr std::string_view ToggleWorkspacePinKey{ "toggleWorkspacePin" };
+static constexpr std::string_view ToggleWorkspaceSidebarKey{ "toggleWorkspaceSidebar" };
+static constexpr std::string_view OpenWorkspaceNotificationCenterKey{ "openWorkspaceNotificationCenter" };
 
 static constexpr std::string_view OpenWindowRenamerKey{ "openWindowRenamer" };
 static constexpr std::string_view DisplayWorkingDirectoryKey{ "debugTerminalCwd" };

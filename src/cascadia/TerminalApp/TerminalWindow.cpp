@@ -935,6 +935,17 @@ namespace winrt::TerminalApp::implementation
     {
         if (_root)
         {
+            // Workspace navigation uses modifier-only feedback and Ctrl+P.
+            // Give the page a non-consuming preview before TermControl handles
+            // and consumes the same low-level keyboard event.
+            if (vkey == VK_CONTROL || vkey == VK_LCONTROL || vkey == VK_RCONTROL || vkey == L'P')
+            {
+                if (const auto keyListener{ _root.try_as<UI::IDirectKeyListener>() }; keyListener && keyListener.OnDirectKeyEvent(vkey, scanCode, down))
+                {
+                    return true;
+                }
+            }
+
             // Manually bubble the OnDirectKeyEvent event up through the focus tree.
             auto xamlRoot{ _root->XamlRoot() };
             if (!xamlRoot)

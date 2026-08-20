@@ -317,12 +317,16 @@ namespace winrt::TerminalApp::implementation
             // TermControl from being selected, laid out, and connected.
             const auto keepTabViewActive = _workspaceSidebarEnabled || isVisible;
             _tabView.Visibility(keepTabViewActive ? Visibility::Visible : Visibility::Collapsed);
+            _tabView.Opacity(_workspaceSidebarEnabled ? 0.0 : 1.0);
+            _tabView.IsHitTestVisible(!_workspaceSidebarEnabled);
+            _tabView.Width(_workspaceSidebarEnabled ? 0.0 : NAN);
         }
         if (_tabRow)
         {
             // collapse/show the row that the tabs are in.
             // NaN is the special value XAML uses for "Auto" sizing.
-            _tabRow.Height(isVisible ? NAN : 0);
+            const auto titleBarVisible = isVisible || (_workspaceSidebarEnabled && navigationVisible);
+            _tabRow.Height(titleBarVisible ? NAN : 0);
         }
         if (_workspaceSidebar)
         {

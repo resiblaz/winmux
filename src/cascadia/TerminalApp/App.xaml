@@ -169,6 +169,39 @@
                             <!--  Define resources for Dark mode here  -->
 
                             <!--
+                                Compact, dark workspace chrome inspired by cmux's
+                                visual hierarchy. These role-based resources keep
+                                the titlebar, sidebar, and workspace rows aligned
+                                without coupling them to the terminal color scheme.
+                            -->
+                            <SolidColorBrush x:Key="WorkspaceChromeSurfaceBrush"
+                                             Color="#16181C" />
+                            <SolidColorBrush x:Key="WorkspaceChromeSurfaceRaisedBrush"
+                                             Color="#1C1F24" />
+                            <SolidColorBrush x:Key="WorkspaceChromeDividerBrush"
+                                             Color="#30343B" />
+                            <SolidColorBrush x:Key="WorkspaceChromeButtonHoverBrush"
+                                             Color="#18FFFFFF" />
+                            <SolidColorBrush x:Key="WorkspaceChromeButtonPressedBrush"
+                                             Color="#28FFFFFF" />
+                            <SolidColorBrush x:Key="WorkspaceChromeTextPrimaryBrush"
+                                             Color="#F4F6F8" />
+                            <SolidColorBrush x:Key="WorkspaceChromeTextSecondaryBrush"
+                                             Color="#A9B0BA" />
+                            <SolidColorBrush x:Key="WorkspaceChromeTextTertiaryBrush"
+                                             Color="#747C88" />
+                            <SolidColorBrush x:Key="WorkspaceChromeAccentBrush"
+                                             Color="#0091FF" />
+                            <SolidColorBrush x:Key="WorkspaceChromeAccentHoverBrush"
+                                             Color="#168BE8" />
+                            <SolidColorBrush x:Key="WorkspaceChromeAccentPressedBrush"
+                                             Color="#0879C9" />
+                            <SolidColorBrush x:Key="WorkspaceChromeSelectedForegroundBrush"
+                                             Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="WorkspaceChromeStatusFillBrush"
+                                             Color="#24FFFFFF" />
+
+                            <!--
                                 Originally, we were using the raw value of
                                 ApplicationPageBackgroundThemeBrush here, which is
                                 evaluated as SolidBackgroundFillColorBase. If we try
@@ -206,6 +239,39 @@
                             <!--  Define resources for Light mode here  -->
 
                             <!--
+                                Workspace mode intentionally supports a single dark
+                                appearance. Define the same semantic palette here so
+                                controls can resolve it while the app theme is still
+                                being initialized.
+                            -->
+                            <SolidColorBrush x:Key="WorkspaceChromeSurfaceBrush"
+                                             Color="#16181C" />
+                            <SolidColorBrush x:Key="WorkspaceChromeSurfaceRaisedBrush"
+                                             Color="#1C1F24" />
+                            <SolidColorBrush x:Key="WorkspaceChromeDividerBrush"
+                                             Color="#30343B" />
+                            <SolidColorBrush x:Key="WorkspaceChromeButtonHoverBrush"
+                                             Color="#18FFFFFF" />
+                            <SolidColorBrush x:Key="WorkspaceChromeButtonPressedBrush"
+                                             Color="#28FFFFFF" />
+                            <SolidColorBrush x:Key="WorkspaceChromeTextPrimaryBrush"
+                                             Color="#F4F6F8" />
+                            <SolidColorBrush x:Key="WorkspaceChromeTextSecondaryBrush"
+                                             Color="#A9B0BA" />
+                            <SolidColorBrush x:Key="WorkspaceChromeTextTertiaryBrush"
+                                             Color="#747C88" />
+                            <SolidColorBrush x:Key="WorkspaceChromeAccentBrush"
+                                             Color="#0091FF" />
+                            <SolidColorBrush x:Key="WorkspaceChromeAccentHoverBrush"
+                                             Color="#168BE8" />
+                            <SolidColorBrush x:Key="WorkspaceChromeAccentPressedBrush"
+                                             Color="#0879C9" />
+                            <SolidColorBrush x:Key="WorkspaceChromeSelectedForegroundBrush"
+                                             Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="WorkspaceChromeStatusFillBrush"
+                                             Color="#24FFFFFF" />
+
+                            <!--
                                 GH #12398 has more history on this value, as well as GH #12400
                             -->
                             <SolidColorBrush x:Key="TabViewBackground"
@@ -228,6 +294,33 @@
 
                         <ResourceDictionary x:Key="HighContrast">
                             <!--  Define resources for HighContrast mode here  -->
+
+                            <StaticResource x:Key="WorkspaceChromeSurfaceBrush"
+                                            ResourceKey="SystemColorWindowColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeSurfaceRaisedBrush"
+                                            ResourceKey="SystemColorButtonFaceColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeDividerBrush"
+                                            ResourceKey="SystemColorWindowTextColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeButtonHoverBrush"
+                                            ResourceKey="SystemColorHighlightColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeButtonPressedBrush"
+                                            ResourceKey="SystemColorHighlightColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeTextPrimaryBrush"
+                                            ResourceKey="SystemColorWindowTextColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeTextSecondaryBrush"
+                                            ResourceKey="SystemColorWindowTextColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeTextTertiaryBrush"
+                                            ResourceKey="SystemColorGrayTextColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeAccentBrush"
+                                            ResourceKey="SystemColorHighlightColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeAccentHoverBrush"
+                                            ResourceKey="SystemColorHighlightColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeAccentPressedBrush"
+                                            ResourceKey="SystemColorHighlightColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeSelectedForegroundBrush"
+                                            ResourceKey="SystemColorHighlightTextColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeStatusFillBrush"
+                                            ResourceKey="SystemColorButtonFaceColorBrush" />
 
                             <!--
                                 MSFT:38264744

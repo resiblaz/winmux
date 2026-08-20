@@ -11,6 +11,8 @@
       x:Name="Root"
       HorizontalAlignment="Stretch"
       VerticalAlignment="Top"
+      Background="{ThemeResource WorkspaceChromeSurfaceBrush}"
+      RequestedTheme="Dark"
       d:DesignHeight="36"
       d:DesignWidth="400"
       SizeChanged="Root_SizeChanged"
@@ -48,6 +50,6 @@
             Grid.ColumnSpan="2"
             Height="1"
             VerticalAlignment="Bottom"
-            Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+            Background="{ThemeResource WorkspaceChromeDividerBrush}" />
 </Grid>
 

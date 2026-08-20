@@ -20,6 +20,7 @@ namespace TerminalApp
         String PinActionText { get; };
         String PinAutomationName { get; };
         String SwitchShortcutText { get; };
+        String SwitchShortcutHintText { get; };
         String UnreadBadgeText { get; };
         String NotificationAutomationName { get; };
         UInt32 NotificationHistoryCount { get; };

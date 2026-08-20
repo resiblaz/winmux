@@ -115,6 +115,9 @@
     ON_ALL_ACTIONS(QuickFix)                \
     ON_ALL_ACTIONS(OpenCWD)                 \
     ON_ALL_ACTIONS(OpenWorkspace)           \
+    ON_ALL_ACTIONS(ToggleWorkspacePin)      \
+    ON_ALL_ACTIONS(ToggleWorkspaceSidebar)  \
+    ON_ALL_ACTIONS(OpenWorkspaceNotificationCenter) \
     ON_ALL_ACTIONS(FocusLatestNotification) \
     ON_ALL_ACTIONS(Workspaces)
 

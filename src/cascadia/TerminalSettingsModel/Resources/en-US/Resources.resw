@@ -747,6 +747,15 @@
   <data name="OpenCWDCommandKey" xml:space="preserve">
     <value>Open current working directory</value>
   </data>
+  <data name="ToggleWorkspacePinCommandKey" xml:space="preserve">
+    <value>Pin or unpin current workspace</value>
+  </data>
+  <data name="ToggleWorkspaceSidebarCommandKey" xml:space="preserve">
+    <value>Expand or collapse workspace sidebar</value>
+  </data>
+  <data name="OpenWorkspaceNotificationCenterCommandKey" xml:space="preserve">
+    <value>Open workspace notification center</value>
+  </data>
   <data name="WorkspacesCommandKey" xml:space="preserve">
     <value>Workspaces...</value>
   </data>

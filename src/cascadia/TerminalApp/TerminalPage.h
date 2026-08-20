@@ -294,6 +294,9 @@ namespace winrt::TerminalApp::implementation
         TerminalApp::WorkspaceSidebar _workspaceSidebar{ nullptr };
         Windows::UI::Xaml::Controls::ListView _workspaceList{ nullptr };
         Microsoft::UI::Xaml::Controls::SplitButton _newTabButton{ nullptr };
+        Microsoft::UI::Xaml::Controls::SplitButton _workspaceNewTabButton{ nullptr };
+        Windows::UI::Xaml::Controls::Button _workspaceNotificationButton{ nullptr };
+        Windows::UI::Xaml::Controls::Button _workspaceSidebarToggleButton{ nullptr };
         Windows::UI::Xaml::Controls::MenuFlyout _workspaceFlyout{ nullptr };
         Windows::UI::Xaml::Controls::Button _workspaceDropdown{ nullptr };
         winrt::TerminalApp::ColorPickupFlyout _tabColorPicker{ nullptr };
@@ -401,6 +404,7 @@ namespace winrt::TerminalApp::implementation
         winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::UI::Xaml::Controls::ContentDialogResult> _ShowLargePasteWarningDialog();
 
         void _CreateNewTabFlyout();
+        void _CreateNewTabFlyoutForButton(const Microsoft::UI::Xaml::Controls::SplitButton& button);
         std::vector<winrt::Windows::UI::Xaml::Controls::MenuFlyoutItemBase> _CreateNewTabFlyoutItems(winrt::Windows::Foundation::Collections::IVector<Microsoft::Terminal::Settings::Model::NewTabMenuEntry> entries);
         winrt::Windows::UI::Xaml::Controls::IconElement _CreateNewTabFlyoutIcon(const winrt::hstring& icon);
         winrt::Windows::UI::Xaml::Controls::MenuFlyoutItem _CreateNewTabFlyoutProfile(const Microsoft::Terminal::Settings::Model::Profile profile, int profileIndex, const winrt::hstring& iconPathOverride);
@@ -437,6 +441,7 @@ namespace winrt::TerminalApp::implementation
         void _UpdateTabView();
         void _UpdateTabWidthMode();
         void _UpdateWorkspaceSidebar();
+        void _UpdateWorkspaceTitleBar();
         void _UpdateWorkspaceListeningPortsTimer();
         void _RefreshWorkspaceListeningPorts();
         struct WorkspaceProcessRoots
@@ -455,7 +460,6 @@ namespace winrt::TerminalApp::implementation
         uint32_t _PinnedTabCount() const;
         int32_t _ClampTabIndexForPinnedState(const winrt::TerminalApp::Tab& tab, int32_t suggestedIndex) const;
         void _ToggleWorkspacePin(const winrt::TerminalApp::Tab& tab);
-        void _WorkspaceNewRequested(const TerminalApp::WorkspaceSidebar& sender, const IInspectable& eventArgs);
         void _WorkspacePinRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceCloseRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceCloseOthersRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);

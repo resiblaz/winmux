@@ -223,8 +223,8 @@ namespace TerminalAppLocalTests
             VERIFY_IS_NOT_NULL(sidebar.WorkspaceList());
             VERIFY_IS_NOT_NULL(sidebar.NotificationHistory());
             VERIFY_ARE_EQUAL(0u, sidebar.NotificationHistory().Size());
-            VERIFY_IS_TRUE(sidebar.ExpandedWidth() >= 220.0);
-            VERIFY_IS_TRUE(sidebar.ExpandedWidth() <= 480.0);
+            VERIFY_IS_TRUE(sidebar.ExpandedWidth() >= 152.0);
+            VERIFY_IS_TRUE(sidebar.ExpandedWidth() <= 240.0);
             const auto resizeHandle = sidebar.FindName(L"ResizeHandle").as<winrt::Windows::UI::Xaml::Controls::Primitives::Thumb>();
             VERIFY_IS_NOT_NULL(resizeHandle);
             VERIFY_IS_TRUE(resizeHandle.IsTabStop());
@@ -264,8 +264,31 @@ namespace TerminalAppLocalTests
         TestOnUIThread([&]() {
             VERIFY_IS_TRUE(page->_workspaceSidebarEnabled);
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSidebar.Visibility());
+            VERIFY_IS_TRUE(page->_tabRow.WorkspaceSidebarMode());
+            VERIFY_ARE_EQUAL(0.0, page->_tabView.Width());
 
             const auto sidebar = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceSidebar>(page->_workspaceSidebar);
+            const auto tabRow = winrt::get_self<winrt::TerminalApp::implementation::TabRowControl>(page->_tabRow);
+            VERIFY_IS_NOT_NULL(tabRow->WorkspaceNewTabButton());
+            VERIFY_IS_NOT_NULL(tabRow->WorkspaceNotificationButton());
+            VERIFY_IS_NOT_NULL(tabRow->WorkspaceSidebarToggleButton());
+            const auto regularNewTabFlyout = page->_newTabButton.Flyout().as<MenuFlyout>();
+            const auto workspaceNewTabFlyout = tabRow->WorkspaceNewTabButton().Flyout().as<MenuFlyout>();
+            VERIFY_IS_NOT_NULL(workspaceNewTabFlyout);
+            VERIFY_ARE_EQUAL(regularNewTabFlyout.Items().Size(), workspaceNewTabFlyout.Items().Size());
+
+            const auto workspaceItem = page->_workspaceItems.GetAt(0);
+            sidebar->ShowSwitchHints(true);
+            const std::wstring_view shortcut{ workspaceItem.SwitchShortcutText() };
+            const auto separator = shortcut.find_last_of(L'+');
+            const std::wstring_view expectedHint = shortcut.substr(separator == std::wstring_view::npos ? 0 : separator + 1);
+            VERIFY_IS_TRUE(expectedHint == std::wstring_view{ workspaceItem.SwitchShortcutHintText() });
+            sidebar->ShowSwitchHints(false);
+            VERIFY_IS_TRUE(workspaceItem.SwitchShortcutHintText().empty());
+
+            page->_workspaceSidebar.IsExpanded(false);
+            VERIFY_ARE_EQUAL(0.0, page->_workspaceSidebar.Width());
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_workspaceSidebar.WorkspaceList().Visibility());
             page->_workspaceSidebar.IsExpanded(true);
             page->_UpdateWorkspaceSidebarForWindowWidth(winrt::TerminalApp::implementation::WorkspaceSidebar::NarrowWindowThreshold - 1.0);
             VERIFY_IS_TRUE(sidebar->IsWindowNarrow());
@@ -307,6 +330,16 @@ namespace TerminalAppLocalTests
 
             tab.IsPinned(true);
             VERIFY_IS_TRUE(item.IsPinned());
+
+            VERIFY_IS_TRUE(item.SwitchShortcutHintText().empty());
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            itemImpl->ShowSwitchShortcutHint(true);
+            const std::wstring_view shortcut{ item.SwitchShortcutText() };
+            const auto separator = shortcut.find_last_of(L'+');
+            const std::wstring_view expectedHint = shortcut.substr(separator == std::wstring_view::npos ? 0 : separator + 1);
+            VERIFY_IS_TRUE(expectedHint == std::wstring_view{ item.SwitchShortcutHintText() });
+            itemImpl->ShowSwitchShortcutHint(false);
+            VERIFY_IS_TRUE(item.SwitchShortcutHintText().empty());
         });
     }
 

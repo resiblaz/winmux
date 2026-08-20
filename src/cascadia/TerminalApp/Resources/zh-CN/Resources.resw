@@ -1027,12 +1027,6 @@
   <data name="WorkspaceSidebarCloseOthersMenuItem.Text" xml:space="preserve">
     <value>关闭其他工作区</value>
   </data>
-  <data name="WorkspaceSidebarNewButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>新建工作区</value>
-  </data>
-  <data name="WorkspaceSidebarNewButtonText.Text" xml:space="preserve">
-    <value>新建工作区</value>
-  </data>
   <data name="WorkspaceSidebarResizeHandle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>调整工作区侧边栏大小</value>
   </data>

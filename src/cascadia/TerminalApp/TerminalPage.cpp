@@ -372,7 +372,6 @@ namespace winrt::TerminalApp::implementation
         _tabView.TabDragStarting({ get_weak(), &TerminalPage::_TabDragStarted });
         _tabView.TabDragCompleted({ get_weak(), &TerminalPage::_TabDragCompleted });
 
-        _workspaceSidebar.NewRequested({ get_weak(), &TerminalPage::_WorkspaceNewRequested });
         _workspaceSidebar.PinRequested({ get_weak(), &TerminalPage::_WorkspacePinRequested });
         _workspaceSidebar.CloseRequested({ get_weak(), &TerminalPage::_WorkspaceCloseRequested });
         _workspaceSidebar.CloseOthersRequested({ get_weak(), &TerminalPage::_WorkspaceCloseOthersRequested });
@@ -392,6 +391,9 @@ namespace winrt::TerminalApp::implementation
 
         auto tabRowImpl = winrt::get_self<implementation::TabRowControl>(_tabRow);
         _newTabButton = tabRowImpl->NewTabButton();
+        _workspaceNewTabButton = tabRowImpl->WorkspaceNewTabButton();
+        _workspaceNotificationButton = tabRowImpl->WorkspaceNotificationButton();
+        _workspaceSidebarToggleButton = tabRowImpl->WorkspaceSidebarToggleButton();
         _workspaceFlyout = tabRowImpl->WorkspaceFlyout();
         _workspaceDropdown = tabRowImpl->WorkspaceDropdown();
 
@@ -461,7 +463,7 @@ namespace winrt::TerminalApp::implementation
         _RegisterActionCallbacks();
 
         //Event Bindings (Early)
-        _newTabButton.Click([weakThis{ get_weak() }](auto&&, auto&&) {
+        const auto openDefaultProfile = [weakThis{ get_weak() }](auto&&, auto&&) {
             if (auto page{ weakThis.get() })
             {
                 TraceLoggingWrite(
@@ -473,6 +475,21 @@ namespace winrt::TerminalApp::implementation
                     TelemetryPrivacyDataTag(PDT_ProductAndServiceUsage));
 
                 page->_OpenNewTerminalViaDropdown(NewTerminalArgs());
+            }
+        };
+        _newTabButton.Click(openDefaultProfile);
+        _workspaceNewTabButton.Click(openDefaultProfile);
+        _workspaceNotificationButton.Click([weakThis{ get_weak() }](auto&&, auto&&) {
+            if (auto page{ weakThis.get() })
+            {
+                winrt::get_self<implementation::WorkspaceSidebar>(page->_workspaceSidebar)->OpenNotificationCenter(page->_workspaceNotificationButton);
+            }
+        });
+        _workspaceSidebarToggleButton.Click([weakThis{ get_weak() }](auto&&, auto&&) {
+            if (auto page{ weakThis.get() })
+            {
+                page->_workspaceSidebar.IsExpanded(!page->_workspaceSidebar.IsExpanded());
+                page->_UpdateWorkspaceTitleBar();
             }
         });
         _newTabButton.Drop({ get_weak(), &TerminalPage::_NewTerminalByDrop });
@@ -486,6 +503,7 @@ namespace winrt::TerminalApp::implementation
         _tabView.TabDroppedOutside({ this, &TerminalPage::_onTabDroppedOutside });
 
         _CreateNewTabFlyout();
+        _RefreshWorkspaceNotifications();
 
         _UpdateTabWidthMode();
 
@@ -537,37 +555,60 @@ namespace winrt::TerminalApp::implementation
 
         const auto enabled = _currentWindowSettings().TabLayout() == Settings::Model::TabLayout::WorkspaceSidebar;
 
-        // With tabs in the titlebar, swap its content between the TabRow and
-        // an empty drag area. Reparenting the TabRow keeps hot reload working
-        // in both directions without recreating the existing TabView.
+        _tabRow.WorkspaceSidebarMode(enabled);
+
+        // The titlebar keeps hosting TabRow in both layouts. In sidebar mode,
+        // TabRow replaces the horizontal tabs with the compact workspace
+        // controls while retaining the existing new-terminal flyout.
         if (_currentWindowSettings().ShowTabsInTitlebar() &&
             (!_workspaceSidebarLayoutInitialized || enabled != _workspaceSidebarEnabled))
         {
             uint32_t tabRowIndex{};
             const auto tabRowIsInPage = Root().Children().IndexOf(_tabRow, tabRowIndex);
-            if (enabled)
+            if (tabRowIsInPage)
             {
-                SetTitleBarContent.raise(*this, winrt::Windows::UI::Xaml::UIElement{ nullptr });
-                if (!tabRowIsInPage)
-                {
-                    Root().Children().Append(_tabRow);
-                }
+                Root().Children().RemoveAt(tabRowIndex);
             }
-            else
-            {
-                if (tabRowIsInPage)
-                {
-                    Root().Children().RemoveAt(tabRowIndex);
-                }
-                SetTitleBarContent.raise(*this, _tabRow);
-            }
+            SetTitleBarContent.raise(*this, _tabRow);
         }
 
         _workspaceSidebarEnabled = enabled;
         _workspaceSidebarLayoutInitialized = true;
+        _UpdateWorkspaceTitleBar();
         _UpdateWorkspaceListeningPortsTimer();
         _UpdateWorkspaceAutomationServer();
         _UpdateTabView();
+    }
+
+    void TerminalPage::_UpdateWorkspaceTitleBar()
+    {
+        if (!_tabRow || !_workspaceSidebarToggleButton || !_workspaceNotificationButton)
+        {
+            return;
+        }
+
+        _tabRow.WorkspaceSidebarMode(_workspaceSidebarEnabled);
+        if (!_workspaceSidebarEnabled)
+        {
+            winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar)->ShowSwitchHints(false);
+            return;
+        }
+
+        const auto sidebar = winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar);
+        const auto expanded = sidebar->IsEffectivelyExpanded();
+        const auto toggleName = sidebar->IsWindowNarrow() ?
+                                    RS_(L"WorkspaceSidebar_NarrowAutomationName") :
+                                    expanded ? RS_(L"WorkspaceSidebar_CollapseAutomationName") :
+                                               RS_(L"WorkspaceSidebar_ExpandAutomationName");
+
+        _workspaceSidebarToggleButton.Content(box_value(expanded ? L"\uE76B" : L"\uE76C"));
+        _workspaceSidebarToggleButton.IsEnabled(!sidebar->IsWindowNarrow());
+        Automation::AutomationProperties::SetName(_workspaceSidebarToggleButton, toggleName);
+        ToolTipService::SetToolTip(_workspaceSidebarToggleButton, box_value(toggleName));
+
+        const auto notificationName = RS_(L"WorkspaceSidebar_NotificationCenterAutomationName");
+        Automation::AutomationProperties::SetName(_workspaceNotificationButton, notificationName);
+        ToolTipService::SetToolTip(_workspaceNotificationButton, box_value(notificationName));
     }
 
     void TerminalPage::_UpdateWorkspaceListeningPortsTimer()
@@ -713,6 +754,7 @@ namespace winrt::TerminalApp::implementation
         {
             const auto sidebar = winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar);
             sidebar->SetWindowNarrow(width < implementation::WorkspaceSidebar::NarrowWindowThreshold);
+            _UpdateWorkspaceTitleBar();
         }
     }
 
@@ -1379,11 +1421,6 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void TerminalPage::_WorkspaceNewRequested(const TerminalApp::WorkspaceSidebar&, const IInspectable&)
-    {
-        _OpenNewTerminalViaDropdown(NewTerminalArgs());
-    }
-
     uint32_t TerminalPage::_PinnedTabCount() const
     {
         uint32_t count = 0;
@@ -1847,6 +1884,24 @@ namespace winrt::TerminalApp::implementation
         if (_workspaceSidebar)
         {
             _workspaceSidebar.RefreshNotifications();
+        }
+
+        if (_tabRow && _workspaceNotificationButton)
+        {
+            uint32_t unreadCount = 0;
+            for (const auto& item : _workspaceItems)
+            {
+                unreadCount += item.UnreadCount();
+            }
+
+            const auto tabRow = winrt::get_self<implementation::TabRowControl>(_tabRow);
+            tabRow->WorkspaceNotificationBadgeText().Text(unreadCount == 0 ? winrt::hstring{} : winrt::to_hstring(unreadCount));
+            tabRow->WorkspaceNotificationBadge().Visibility(unreadCount == 0 ? Visibility::Collapsed : Visibility::Visible);
+
+            const auto automationName = unreadCount == 0 ?
+                                            RS_(L"WorkspaceSidebar_NotificationCenterAutomationName") :
+                                            winrt::hstring{ RS_fmt(L"WorkspaceSidebar_NotificationCenterUnreadAutomationName", unreadCount) };
+            Automation::AutomationProperties::SetName(_workspaceNotificationButton, automationName);
         }
     }
 
@@ -2510,6 +2565,17 @@ namespace winrt::TerminalApp::implementation
     //   Below the profiles are the static menu items: settings, command palette
     void TerminalPage::_CreateNewTabFlyout()
     {
+        _CreateNewTabFlyoutForButton(_newTabButton);
+        _CreateNewTabFlyoutForButton(_workspaceNewTabButton);
+    }
+
+    void TerminalPage::_CreateNewTabFlyoutForButton(const MUX::Controls::SplitButton& button)
+    {
+        if (!button)
+        {
+            return;
+        }
+
         auto newTabFlyout = WUX::Controls::MenuFlyout{};
         newTabFlyout.Placement(WUX::Controls::Primitives::FlyoutPlacementMode::BottomEdgeAlignedLeft);
 
@@ -2629,7 +2695,7 @@ namespace winrt::TerminalApp::implementation
                     TelemetryPrivacyDataTag(PDT_ProductAndServiceUsage));
             }
         });
-        _newTabButton.Flyout(newTabFlyout);
+        button.Flyout(newTabFlyout);
     }
 
     // Method Description:
@@ -2924,7 +2990,8 @@ namespace winrt::TerminalApp::implementation
     // Shows the dropdown flyout.
     void TerminalPage::_OpenNewTabDropdown()
     {
-        _newTabButton.Flyout().ShowAt(_newTabButton);
+        const auto button = _workspaceSidebarEnabled ? _workspaceNewTabButton : _newTabButton;
+        button.Flyout().ShowAt(button);
     }
 
     void TerminalPage::_OpenNewTerminalViaDropdown(const NewTerminalArgs newTerminalArgs)
@@ -3377,6 +3444,13 @@ namespace winrt::TerminalApp::implementation
     bool TerminalPage::OnDirectKeyEvent(const uint32_t vkey, const uint8_t scanCode, const bool down)
     {
         const auto modifiers = _GetPressedModifierKeys();
+
+        if (_workspaceSidebarEnabled && (vkey == VK_CONTROL || vkey == VK_LCONTROL || vkey == VK_RCONTROL))
+        {
+            winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar)->ShowSwitchHints(down);
+            return false;
+        }
+
         if (vkey == VK_SPACE && modifiers.IsAltPressed() && down)
         {
             if (const auto actionMap = _settings.ActionMap())
@@ -6746,7 +6820,16 @@ namespace winrt::TerminalApp::implementation
                                                             theme.TabRow().UnfocusedBackground()) :
                                               ThemeColor{ nullptr } };
 
-        if (_currentWindowSettings().UseAcrylicInTabRow() && (_activated || _currentWindowSettings().EnableUnfocusedAcrylic()))
+        if (_workspaceSidebarEnabled)
+        {
+            // Workspace chrome uses one consistent dark surface instead of
+            // inheriting the configurable horizontal tab-row background.
+            const auto workspaceSurfaceKey = winrt::box_value(L"WorkspaceChromeSurfaceBrush");
+            const auto workspaceSurfaceBrush = ThemeLookup(res, requestedTheme, workspaceSurfaceKey).as<Media::SolidColorBrush>();
+            bgColor = workspaceSurfaceBrush.Color();
+            TitlebarBrush(workspaceSurfaceBrush);
+        }
+        else if (_currentWindowSettings().UseAcrylicInTabRow() && (_activated || _currentWindowSettings().EnableUnfocusedAcrylic()))
         {
             if (tabRowBg)
             {

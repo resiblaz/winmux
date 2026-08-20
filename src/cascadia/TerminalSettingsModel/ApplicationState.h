@@ -44,7 +44,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
     X(FileSource::Local, Windows::Foundation::Collections::IVector<hstring>, AllowedCommandlines, "allowedCommandlines")                                                  \
     X(FileSource::Local, std::unordered_set<hstring>, DismissedBadges, "dismissedBadges")                                                                                 \
     X(FileSource::Local, Windows::Foundation::Collections::IMap<hstring COMMA Model::WindowLayout>, PersistedWorkspaces, "persistedWorkspaces")                           \
-    X(FileSource::Local, double, WorkspaceSidebarWidth, "workspaceSidebarWidth", 280.0)                                                                                   \
+    X(FileSource::Local, double, WorkspaceSidebarWidth, "workspaceSidebarWidth", 176.0)                                                                                   \
     X(FileSource::Local, bool, WorkspaceSidebarExpanded, "workspaceSidebarExpanded", true)                                                                                \
     X(FileSource::Shared, bool, SSHFolderGenerated, "sshFolderGenerated", false)
 

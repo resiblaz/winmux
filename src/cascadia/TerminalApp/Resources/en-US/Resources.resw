@@ -1027,12 +1027,6 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebarCloseOthersMenuItem.Text" xml:space="preserve">
     <value>Close other workspaces</value>
   </data>
-  <data name="WorkspaceSidebarNewButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>New workspace</value>
-  </data>
-  <data name="WorkspaceSidebarNewButtonText.Text" xml:space="preserve">
-    <value>New workspace</value>
-  </data>
   <data name="WorkspaceSidebarResizeHandle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Resize workspace sidebar</value>
   </data>

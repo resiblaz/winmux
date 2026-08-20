@@ -23,6 +23,7 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring PinActionText() const;
         winrt::hstring PinAutomationName() const;
         winrt::hstring SwitchShortcutText() const;
+        winrt::hstring SwitchShortcutHintText() const;
         winrt::hstring UnreadBadgeText() const;
         winrt::hstring NotificationAutomationName() const;
         uint32_t NotificationHistoryCount() const noexcept;
@@ -37,6 +38,7 @@ namespace winrt::TerminalApp::implementation
         TerminalApp::WorkspaceNotification LatestUnreadNotification() const;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> Notifications() const noexcept;
         void RestoreWorkspaceId(const winrt::guid& workspaceId) noexcept;
+        void ShowSwitchShortcutHint(bool value);
         void RefreshGitBranch();
         void UpdateListeningPorts(std::vector<uint16_t> ports);
         const std::vector<uint16_t>& ListeningPorts() const noexcept;
@@ -75,6 +77,7 @@ namespace winrt::TerminalApp::implementation
         Windows::UI::Xaml::Data::INotifyPropertyChanged::PropertyChanged_revoker _tabStatusChangedRevoker;
         Windows::System::DispatcherQueue _dispatcher{ nullptr };
         bool _isSelected{ false };
+        bool _showSwitchShortcutHint{ false };
         uint64_t _gitBranchRequestGeneration{ 0 };
         winrt::hstring _agentResumeProvider;
         winrt::hstring _agentResumeSessionId;

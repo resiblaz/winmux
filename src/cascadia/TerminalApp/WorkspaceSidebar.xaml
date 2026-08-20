@@ -9,22 +9,17 @@
                   xmlns:local="using:TerminalApp"
                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                   xmlns:mtu="using:Microsoft.Terminal.UI"
+                  RequestedTheme="Dark"
                   mc:Ignorable="d">
 
     <ContentPresenter.Resources>
+        <SolidColorBrush x:Key="WorkspaceSelectionIndicatorBrush"
+                         Color="#E6FFFFFF" />
+
         <Style x:Key="ExpandedWorkspaceItemContainerStyle"
                TargetType="ListViewItem">
-            <Setter Property="MinHeight" Value="72" />
-            <Setter Property="Margin" Value="8,3" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="CornerRadius" Value="8" />
-        </Style>
-
-        <Style x:Key="CollapsedWorkspaceItemContainerStyle"
-               TargetType="ListViewItem">
-            <Setter Property="MinHeight" Value="40" />
-            <Setter Property="Margin" Value="4,3" />
+            <Setter Property="MinHeight" Value="36" />
+            <Setter Property="Margin" Value="4,2" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="CornerRadius" Value="6" />
@@ -32,126 +27,151 @@
 
         <DataTemplate x:Key="ExpandedWorkspaceTemplate"
                       x:DataType="local:WorkspaceItemViewModel">
-            <Grid MinHeight="72"
-                  Padding="10,6,6,6"
+            <Grid MinHeight="36"
+                  Padding="4,4,4,4"
                   AutomationProperties.HelpText="{x:Bind StatusText, Mode=OneWay}"
-                  AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
+                  AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
+                  PointerEntered="_WorkspaceItem_PointerEntered"
+                  PointerExited="_WorkspaceItem_PointerExited">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="24" />
+                    <ColumnDefinition Width="3" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="28" />
                 </Grid.ColumnDefinitions>
 
-                <IconSourceElement Width="16"
-                                   Height="16"
-                                   VerticalAlignment="Center"
-                                   IconSource="{x:Bind mtu:IconPathConverter.IconSourceWUX(Icon), Mode=OneWay}" />
+                <Border Width="2"
+                        Height="28"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Background="{StaticResource WorkspaceSelectionIndicatorBrush}"
+                        CornerRadius="1"
+                        IsHitTestVisible="False"
+                        Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsSelected), Mode=OneWay}" />
                 <StackPanel Grid.Column="1"
-                            Margin="8,0,4,0"
                             VerticalAlignment="Center"
-                            Spacing="3">
-                    <TextBlock FontSize="14"
-                               FontWeight="SemiBold"
-                               Text="{x:Bind Title, Mode=OneWay}"
-                               TextTrimming="CharacterEllipsis" />
+                            Orientation="Horizontal">
+                    <Button Width="22"
+                            Height="22"
+                            MinWidth="22"
+                            Margin="6,0,0,0"
+                            Padding="4,0"
+                            AutomationProperties.Name="{x:Bind NotificationAutomationName, Mode=OneWay}"
+                            Background="{ThemeResource WorkspaceChromeAccentBrush}"
+                            BorderThickness="0"
+                            Click="_Notification_Click"
+                            Content="{x:Bind UnreadBadgeText, Mode=OneWay}"
+                            CornerRadius="11"
+                            FontSize="10"
+                            Foreground="{ThemeResource WorkspaceChromeSelectedForegroundBrush}"
+                            IsTabStop="False"
+                            Tag="{Binding}"
+                            Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(UnreadBadgeText), Mode=OneWay}" />
+                    <Button Width="22"
+                            Height="22"
+                            MinWidth="22"
+                            Margin="6,0,0,0"
+                            Padding="0"
+                            AutomationProperties.Name="{x:Bind PinAutomationName, Mode=OneWay}"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="_Pin_Click"
+                            Content="{x:Bind PinIconGlyph, Mode=OneWay}"
+                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                            FontSize="10"
+                            IsTabStop="False"
+                            Opacity="0.76"
+                            Tag="{Binding}"
+                            Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsPinned), Mode=OneWay}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2"
+                            Margin="6,0,4,0"
+                            VerticalAlignment="Center"
+                            Spacing="1">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+                        <TextBlock FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Text="{x:Bind Title, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTipService.ToolTip="{x:Bind Title, Mode=OneWay}" />
+                        <Border Grid.Column="1"
+                                MaxWidth="54"
+                                Margin="6,0,0,0"
+                                Padding="4,0"
+                                VerticalAlignment="Center"
+                                Background="{ThemeResource WorkspaceChromeStatusFillBrush}"
+                                CornerRadius="5"
+                                ToolTipService.ToolTip="{x:Bind StatusText, Mode=OneWay}"
+                                Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(StatusText), Mode=OneWay}">
+                            <TextBlock FontSize="9"
+                                       Opacity="0.8"
+                                       Text="{x:Bind StatusText, Mode=OneWay}"
+                                       TextTrimming="CharacterEllipsis" />
+                        </Border>
+                    </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
                         <TextBlock FontFamily="Consolas"
-                                   FontSize="11"
-                                   Opacity="0.72"
+                                   FontSize="10"
+                                   Opacity="0.66"
                                    Text="{x:Bind WorkingDirectoryDisplay, Mode=OneWay}"
                                    TextTrimming="CharacterEllipsis"
                                    ToolTipService.ToolTip="{x:Bind WorkingDirectory, Mode=OneWay}"
                                    Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(WorkingDirectoryDisplay), Mode=OneWay}" />
                         <TextBlock Grid.Column="1"
-                                   MaxWidth="104"
-                                   Margin="8,0,0,0"
+                                   MaxWidth="54"
+                                   Margin="6,0,0,0"
                                    FontFamily="Consolas"
-                                   FontSize="11"
-                                   Opacity="0.72"
+                                   FontSize="10"
+                                   Opacity="0.66"
                                    Text="{x:Bind GitBranch, Mode=OneWay}"
                                    TextTrimming="CharacterEllipsis"
                                    ToolTipService.ToolTip="{x:Bind GitRepositoryRoot, Mode=OneWay}"
                                    Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(GitBranch), Mode=OneWay}" />
+                        <FontIcon Grid.Column="2"
+                                  Margin="6,0,0,0"
+                                  VerticalAlignment="Center"
+                                  FontSize="9"
+                                  Glyph="&#xE774;"
+                                  Opacity="0.66"
+                                  ToolTipService.ToolTip="{x:Bind ListeningPortsTooltip, Mode=OneWay}"
+                                  Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(ListeningPortsDisplay), Mode=OneWay}" />
                     </Grid>
-                    <TextBlock FontFamily="Consolas"
-                               FontSize="11"
-                               Foreground="{ThemeResource AttentionPaneBorderColor}"
-                               Text="{x:Bind LatestNotification, Mode=OneWay}"
-                               TextTrimming="CharacterEllipsis"
-                               Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(LatestNotification), Mode=OneWay}" />
-                    <StackPanel Orientation="Horizontal"
-                                Spacing="6">
-                        <Border Padding="6,1"
-                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                CornerRadius="8"
-                                Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(StatusText), Mode=OneWay}">
-                            <TextBlock FontSize="10"
-                                       Opacity="0.88"
-                                       Text="{x:Bind StatusText, Mode=OneWay}" />
-                        </Border>
-                        <StackPanel VerticalAlignment="Center"
-                                    Orientation="Horizontal"
-                                    Spacing="3"
-                                    ToolTipService.ToolTip="{x:Bind ListeningPortsTooltip, Mode=OneWay}"
-                                    Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(ListeningPortsDisplay), Mode=OneWay}">
-                            <FontIcon FontSize="10"
-                                      Glyph="&#xE774;"
-                                      Opacity="0.72" />
-                            <TextBlock MaxWidth="112"
-                                       FontFamily="Consolas"
-                                       FontSize="11"
-                                       Opacity="0.72"
-                                       Text="{x:Bind ListeningPortsDisplay, Mode=OneWay}"
-                                       TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                        <TextBlock VerticalAlignment="Center"
-                                   FontFamily="Consolas"
-                                   FontSize="11"
-                                   Opacity="0.72"
-                                   Text="{x:Bind SwitchShortcutText, Mode=OneWay}"
-                                   TextTrimming="CharacterEllipsis"
-                                   Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(SwitchShortcutText), Mode=OneWay}" />
-                    </StackPanel>
                 </StackPanel>
-                <Button Grid.Column="2"
-                        Height="24"
+                <Border Grid.Column="2"
+                        Grid.ColumnSpan="2"
                         MinWidth="24"
-                        Margin="2"
-                        Padding="5,0"
-                        AutomationProperties.Name="{x:Bind NotificationAutomationName, Mode=OneWay}"
-                        Background="{ThemeResource AttentionPaneBorderColor}"
-                        BorderThickness="0"
-                        Click="_Notification_Click"
-                        Content="{x:Bind UnreadBadgeText, Mode=OneWay}"
+                        Height="24"
+                        Margin="0,0,4,0"
+                        Padding="6,0"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Background="{ThemeResource WorkspaceChromeAccentBrush}"
+                        Canvas.ZIndex="10"
                         CornerRadius="12"
-                        FontSize="11"
-                        Foreground="{ThemeResource AttentionPaneForegroundBrush}"
-                        IsTabStop="False"
-                        Tag="{Binding}"
-                        Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(UnreadBadgeText), Mode=OneWay}" />
-                <Button Grid.Column="3"
-                        Width="28"
-                        Height="28"
-                        Padding="0"
-                        AutomationProperties.Name="{x:Bind PinAutomationName, Mode=OneWay}"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Click="_Pin_Click"
-                        Content="{x:Bind PinIconGlyph, Mode=OneWay}"
-                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                        FontSize="12"
-                        IsTabStop="False"
-                        Tag="{Binding}" />
-                <Button x:Uid="WorkspaceSidebarCloseButton"
-                        Grid.Column="4"
-                        Width="28"
-                        Height="28"
+                        IsHitTestVisible="False"
+                        Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(SwitchShortcutHintText), Mode=OneWay}">
+                    <TextBlock HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontFamily="Consolas"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{ThemeResource WorkspaceChromeSelectedForegroundBrush}"
+                               Text="{x:Bind SwitchShortcutHintText, Mode=OneWay}" />
+                </Border>
+                <Button x:Name="WorkspaceItemCloseButton"
+                        x:Uid="WorkspaceSidebarCloseButton"
+                        Grid.Column="3"
+                        Width="24"
+                        Height="24"
                         Padding="0"
                         Background="Transparent"
                         BorderThickness="0"
@@ -160,81 +180,9 @@
                         FontFamily="{ThemeResource SymbolThemeFontFamily}"
                         FontSize="10"
                         IsTabStop="False"
-                        Tag="{Binding}" />
-
-                <Grid.ContextFlyout>
-                    <MenuFlyout>
-                        <MenuFlyoutItem x:Uid="WorkspaceSidebarOpenNotificationMenuItem"
-                                        Click="_Notification_Click"
-                                        IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(UnreadBadgeText), Mode=OneWay}"
-                                        Tag="{Binding}" />
-                        <MenuFlyoutItem x:Uid="WorkspaceSidebarMarkNotificationsReadMenuItem"
-                                        Click="_MarkNotificationsRead_Click"
-                                        IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(UnreadBadgeText), Mode=OneWay}"
-                                        Tag="{Binding}" />
-                        <MenuFlyoutItem x:Uid="WorkspaceSidebarClearNotificationHistoryMenuItem"
-                                        Click="_ClearNotificationHistory_Click"
-                                        IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(NotificationHistoryCountText), Mode=OneWay}"
-                                        Tag="{Binding}" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem x:Uid="WorkspaceSidebarConfigureAgentResumeMenuItem"
-                                        Click="_ConfigureAgentResume_Click"
-                                        Tag="{Binding}" />
-                        <MenuFlyoutItem x:Uid="WorkspaceSidebarResumeAgentMenuItem"
-                                        Click="_ResumeAgent_Click"
-                                        IsEnabled="{x:Bind HasAgentResume, Mode=OneWay}"
-                                        Tag="{Binding}" />
-                        <MenuFlyoutItem x:Uid="WorkspaceSidebarClearAgentResumeMenuItem"
-                                        Click="_ClearAgentResume_Click"
-                                        IsEnabled="{x:Bind HasAgentResume, Mode=OneWay}"
-                                        Tag="{Binding}" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Click="_Pin_Click"
-                                        Tag="{Binding}"
-                                        Text="{x:Bind PinActionText, Mode=OneWay}" />
-                        <MenuFlyoutItem x:Uid="WorkspaceSidebarRenameMenuItem"
-                                        Click="_Rename_Click"
-                                        Tag="{Binding}" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem x:Uid="WorkspaceSidebarCloseMenuItem"
-                                        Click="_Close_Click"
-                                        Tag="{Binding}" />
-                        <MenuFlyoutItem x:Uid="WorkspaceSidebarCloseOthersMenuItem"
-                                        Click="_CloseOthers_Click"
-                                        Tag="{Binding}" />
-                    </MenuFlyout>
-                </Grid.ContextFlyout>
-            </Grid>
-        </DataTemplate>
-
-        <DataTemplate x:Key="CollapsedWorkspaceTemplate"
-                      x:DataType="local:WorkspaceItemViewModel">
-            <Grid MinHeight="36"
-                  AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
-                <IconSourceElement Width="16"
-                                   Height="16"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   IconSource="{x:Bind mtu:IconPathConverter.IconSourceWUX(Icon), Mode=OneWay}" />
-                <Button Height="18"
-                        MinWidth="18"
-                        Padding="3,0"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Top"
-                        AutomationProperties.Name="{x:Bind NotificationAutomationName, Mode=OneWay}"
-                        Background="{ThemeResource AttentionPaneBorderColor}"
-                        BorderThickness="0"
-                        Click="_Notification_Click"
-                        Content="{x:Bind UnreadBadgeText, Mode=OneWay}"
-                        CornerRadius="9"
-                        FontSize="9"
-                        Foreground="{ThemeResource AttentionPaneForegroundBrush}"
-                        IsTabStop="False"
                         Tag="{Binding}"
-                        Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(UnreadBadgeText), Mode=OneWay}" />
-                <ToolTipService.ToolTip>
-                    <ToolTip Content="{x:Bind AutomationName, Mode=OneWay}" />
-                </ToolTipService.ToolTip>
+                        Visibility="Collapsed" />
+
                 <Grid.ContextFlyout>
                     <MenuFlyout>
                         <MenuFlyoutItem x:Uid="WorkspaceSidebarOpenNotificationMenuItem"
@@ -281,22 +229,23 @@
         </DataTemplate>
     </ContentPresenter.Resources>
 
-    <Border Background="{ThemeResource TabViewBackground}"
-            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+    <Border Background="{ThemeResource WorkspaceChromeSurfaceBrush}"
+            BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
             BorderThickness="0,0,1,0">
-        <Grid>
+        <Grid x:Name="SidebarChrome">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="6" />
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
-                <RowDefinition Height="48" />
+                <RowDefinition Height="0" />
                 <RowDefinition Height="*" />
-                <RowDefinition Height="48" />
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0"
-                  Grid.Column="0">
+            <Grid x:Name="SidebarHeader"
+                  Grid.Row="0"
+                  Grid.Column="0"
+                  Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -456,6 +405,8 @@
                       ItemContainerStyle="{StaticResource ExpandedWorkspaceItemContainerStyle}"
                       ItemTemplate="{StaticResource ExpandedWorkspaceTemplate}"
                       KeyDown="_WorkspaceList_KeyDown"
+                      Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
+                      Padding="0,4,0,4"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                       SelectionMode="Single">
                 <ListView.Resources>
@@ -463,31 +414,40 @@
                         <ResourceDictionary.ThemeDictionaries>
                             <ResourceDictionary x:Key="Light">
                                 <SolidColorBrush x:Key="ListViewItemBackgroundSelected"
-                                                 Color="#0A84FF" />
+                                                 Color="{ThemeResource SystemAccentColor}"
+                                                 Opacity="0.1" />
                                 <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver"
-                                                 Color="#0A84FF" />
+                                                 Color="{ThemeResource SystemAccentColor}"
+                                                 Opacity="0.14" />
                                 <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed"
-                                                 Color="#0A84FF" />
-                                <SolidColorBrush x:Key="ListViewItemForegroundSelected"
-                                                 Color="White" />
-                                <SolidColorBrush x:Key="ListViewItemForegroundSelectedPointerOver"
-                                                 Color="White" />
-                                <SolidColorBrush x:Key="ListViewItemForegroundSelectedPressed"
-                                                 Color="White" />
+                                                 Color="{ThemeResource SystemAccentColor}"
+                                                 Opacity="0.18" />
+                                <StaticResource x:Key="ListViewItemForegroundSelected"
+                                                ResourceKey="TextFillColorPrimaryBrush" />
+                                <StaticResource x:Key="ListViewItemForegroundSelectedPointerOver"
+                                                ResourceKey="TextFillColorPrimaryBrush" />
+                                <StaticResource x:Key="ListViewItemForegroundSelectedPressed"
+                                                ResourceKey="TextFillColorPrimaryBrush" />
                             </ResourceDictionary>
                             <ResourceDictionary x:Key="Dark">
-                                <SolidColorBrush x:Key="ListViewItemBackgroundSelected"
-                                                 Color="#0A84FF" />
-                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver"
-                                                 Color="#0A84FF" />
-                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed"
-                                                 Color="#0A84FF" />
-                                <SolidColorBrush x:Key="ListViewItemForegroundSelected"
-                                                 Color="White" />
-                                <SolidColorBrush x:Key="ListViewItemForegroundSelectedPointerOver"
-                                                 Color="White" />
-                                <SolidColorBrush x:Key="ListViewItemForegroundSelectedPressed"
-                                                 Color="White" />
+                                <StaticResource x:Key="ListViewItemBackgroundPointerOver"
+                                                ResourceKey="WorkspaceChromeButtonHoverBrush" />
+                                <StaticResource x:Key="ListViewItemBackgroundPressed"
+                                                ResourceKey="WorkspaceChromeButtonPressedBrush" />
+                                <StaticResource x:Key="ListViewItemBackgroundSelected"
+                                                ResourceKey="WorkspaceChromeAccentBrush" />
+                                <StaticResource x:Key="ListViewItemBackgroundSelectedPointerOver"
+                                                ResourceKey="WorkspaceChromeAccentHoverBrush" />
+                                <StaticResource x:Key="ListViewItemBackgroundSelectedPressed"
+                                                ResourceKey="WorkspaceChromeAccentPressedBrush" />
+                                <StaticResource x:Key="ListViewItemForegroundPointerOver"
+                                                ResourceKey="WorkspaceChromeTextPrimaryBrush" />
+                                <StaticResource x:Key="ListViewItemForegroundSelected"
+                                                ResourceKey="WorkspaceChromeSelectedForegroundBrush" />
+                                <StaticResource x:Key="ListViewItemForegroundSelectedPointerOver"
+                                                ResourceKey="WorkspaceChromeSelectedForegroundBrush" />
+                                <StaticResource x:Key="ListViewItemForegroundSelectedPressed"
+                                                ResourceKey="WorkspaceChromeSelectedForegroundBrush" />
                             </ResourceDictionary>
                             <ResourceDictionary x:Key="HighContrast">
                                 <SolidColorBrush x:Key="ListViewItemBackgroundSelected"
@@ -508,31 +468,9 @@
                 </ListView.Resources>
             </ListView>
 
-            <Button x:Name="NewButton"
-                    x:Uid="WorkspaceSidebarNewButton"
-                    Grid.Row="2"
-                    Grid.Column="0"
-                    Height="36"
-                    Margin="8,6"
-                    Padding="10,0"
-                    HorizontalContentAlignment="Left"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    Click="_New_Click">
-                <StackPanel Orientation="Horizontal"
-                            Spacing="8">
-                    <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                              FontSize="12"
-                              Glyph="&#xE710;" />
-                    <TextBlock x:Name="NewButtonText"
-                               x:Uid="WorkspaceSidebarNewButtonText"
-                               VerticalAlignment="Center" />
-                </StackPanel>
-            </Button>
-
             <Thumb x:Name="ResizeHandle"
                    x:Uid="WorkspaceSidebarResizeHandle"
-                   Grid.RowSpan="3"
+                   Grid.RowSpan="2"
                    Grid.Column="1"
                    MinWidth="0"
                    AutomationProperties.AutomationId="WorkspaceSidebarResizeHandle"
@@ -545,7 +483,7 @@
                         <Grid Background="{TemplateBinding Background}">
                             <Border Width="1"
                                     HorizontalAlignment="Right"
-                                    Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+                                    Background="{ThemeResource WorkspaceChromeDividerBrush}" />
                         </Grid>
                     </ControlTemplate>
                 </Thumb.Template>

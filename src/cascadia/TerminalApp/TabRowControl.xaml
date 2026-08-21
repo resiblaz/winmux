@@ -221,9 +221,13 @@
                                 ResourceKey="WorkspaceChromeButtonPressedBrush" />
                 <StaticResource x:Key="SplitButtonForeground"
                                 ResourceKey="WorkspaceChromeTextSecondaryBrush" />
+                <StaticResource x:Key="SplitButtonForegroundSecondary"
+                                ResourceKey="WorkspaceChromeTextSecondaryBrush" />
                 <StaticResource x:Key="SplitButtonForegroundPointerOver"
                                 ResourceKey="WorkspaceChromeTextPrimaryBrush" />
                 <StaticResource x:Key="SplitButtonForegroundPressed"
+                                ResourceKey="WorkspaceChromeTextPrimaryBrush" />
+                <StaticResource x:Key="SplitButtonForegroundSecondaryPressed"
                                 ResourceKey="WorkspaceChromeTextPrimaryBrush" />
                 <x:Double x:Key="SplitButtonPrimaryButtonSize">28</x:Double>
                 <x:Double x:Key="SplitButtonSecondaryButtonSize">20</x:Double>
@@ -279,7 +283,21 @@
                              CornerRadius="6"
                              FontFamily="{ThemeResource SymbolThemeFontFamily}"
                              FontSize="12"
-                             Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}" />
+                             Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}">
+                <mux:SplitButton.Resources>
+                    <Style x:Key="WorkspaceMenuFlyoutPresenterStyle"
+                           TargetType="MenuFlyoutPresenter">
+                        <Setter Property="RequestedTheme" Value="Dark" />
+                        <Setter Property="MinWidth" Value="224" />
+                        <Setter Property="Padding" Value="4" />
+                        <Setter Property="Background" Value="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}" />
+                        <Setter Property="BorderBrush" Value="{ThemeResource WorkspaceChromeDividerBrush}" />
+                        <Setter Property="BorderThickness" Value="1" />
+                        <Setter Property="CornerRadius" Value="8" />
+                        <Setter Property="Foreground" Value="{ThemeResource WorkspaceChromeTextPrimaryBrush}" />
+                    </Style>
+                </mux:SplitButton.Resources>
+            </mux:SplitButton>
         </Grid>
     </Grid>
 

@@ -1218,6 +1218,8 @@ namespace winrt::TerminalApp::implementation
                 co_await wil::resume_foreground(dispatcher);
                 if (const auto tab{ weakThisCopy.get() })
                 {
+                    const auto isNewBell = !tab->_tabStatus.BellIndicator();
+
                     if (bellArgs.FlashTaskbar())
                     {
                         // If visual is set, we need to bubble this event all the way to app host to flash the taskbar
@@ -1228,9 +1230,18 @@ namespace winrt::TerminalApp::implementation
                     // Send a desktop toast notification if requested, but only if
                     // the pane isn't already in the belled state. This prevents
                     // sending repeated toasts for repeated BEL characters.
-                    if (bellArgs.SendNotification() && !tab->_tabStatus.BellIndicator())
+                    if (isNewBell)
                     {
-                        tab->TabToastNotificationRequested.raise(tab->Title(), L"", sender);
+                        if (bellArgs.SendNotification())
+                        {
+                            tab->TabToastNotificationRequested.raise(tab->Title(), L"", sender);
+                        }
+                        else
+                        {
+                            // Audible-only bells still need a persistent marker in the
+                            // workspace sidebar, even when desktop toasts are disabled.
+                            tab->TabBellNotificationRequested.raise(sender);
+                        }
                     }
 
                     // Show the bell indicator in the tab header

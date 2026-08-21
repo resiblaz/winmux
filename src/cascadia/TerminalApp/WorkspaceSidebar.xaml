@@ -40,6 +40,14 @@
                     <ColumnDefinition Width="28" />
                 </Grid.ColumnDefinitions>
 
+                <Border Grid.Column="1"
+                        Grid.ColumnSpan="3"
+                        Margin="2,0"
+                        Background="{ThemeResource AttentionPaneBorderColor}"
+                        CornerRadius="6"
+                        IsHitTestVisible="False"
+                        Opacity="0.1"
+                        Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(UnreadBadgeText), Mode=OneWay}" />
                 <Border Width="2"
                         Height="28"
                         HorizontalAlignment="Left"
@@ -51,22 +59,32 @@
                 <StackPanel Grid.Column="1"
                             VerticalAlignment="Center"
                             Orientation="Horizontal">
-                    <Button Width="22"
-                            Height="22"
+                    <Button Height="22"
                             MinWidth="22"
                             Margin="6,0,0,0"
-                            Padding="4,0"
+                            Padding="0"
                             AutomationProperties.Name="{x:Bind NotificationAutomationName, Mode=OneWay}"
-                            Background="{ThemeResource WorkspaceChromeAccentBrush}"
+                            Background="Transparent"
                             BorderThickness="0"
                             Click="_Notification_Click"
-                            Content="{x:Bind UnreadBadgeText, Mode=OneWay}"
                             CornerRadius="11"
-                            FontSize="10"
-                            Foreground="{ThemeResource WorkspaceChromeSelectedForegroundBrush}"
                             IsTabStop="False"
                             Tag="{Binding}"
-                            Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(UnreadBadgeText), Mode=OneWay}" />
+                            ToolTipService.ToolTip="{x:Bind LatestNotification, Mode=OneWay}"
+                            Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(UnreadBadgeText), Mode=OneWay}">
+                        <Border Height="22"
+                                MinWidth="22"
+                                Padding="5,0"
+                                Background="{ThemeResource AttentionPaneBorderColor}"
+                                CornerRadius="11">
+                            <TextBlock HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="{ThemeResource AttentionPaneForegroundBrush}"
+                                       Text="{x:Bind UnreadBadgeText, Mode=OneWay}" />
+                        </Border>
+                    </Button>
                     <Button Width="22"
                             Height="22"
                             MinWidth="22"

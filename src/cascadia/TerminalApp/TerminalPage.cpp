@@ -1712,6 +1712,15 @@ namespace winrt::TerminalApp::implementation
             return false;
         }
 
+        // The user is already looking at this pane, so its bell is not unread.
+        if (_activated && tab == _GetFocusedTabImpl())
+        {
+            if (const auto activePane = tab->GetActivePane(); activePane && activePane->GetContent() == content)
+            {
+                return false;
+            }
+        }
+
         const auto sourcePane = tab->GetRootPane()->WalkTree([&](const auto& pane) -> std::shared_ptr<Pane> {
             return pane->GetContent() == content ? pane : nullptr;
         });
@@ -2578,6 +2587,15 @@ namespace winrt::TerminalApp::implementation
 
         auto newTabFlyout = WUX::Controls::MenuFlyout{};
         newTabFlyout.Placement(WUX::Controls::Primitives::FlyoutPlacementMode::BottomEdgeAlignedLeft);
+
+        // The workspace titlebar uses its own compact dark chrome. Apply the
+        // matching presenter style to its popup as MenuFlyout is hosted outside
+        // the titlebar's visual tree and does not inherit those local resources.
+        const auto presenterStyleKey = box_value(L"WorkspaceMenuFlyoutPresenterStyle");
+        if (button.Resources().HasKey(presenterStyleKey))
+        {
+            newTabFlyout.MenuFlyoutPresenterStyle(button.Resources().Lookup(presenterStyleKey).as<WUX::Style>());
+        }
 
         // Create profile entries from the NewTabMenu configuration using a
         // recursive helper function. This returns a std::vector of FlyoutItemBases,

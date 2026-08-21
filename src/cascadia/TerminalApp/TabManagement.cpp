@@ -196,6 +196,20 @@ namespace winrt::TerminalApp::implementation
             }
         });
 
+        // A plain BEL commonly has only the audible bell style enabled. Record it
+        // for the workspace sidebar without forcing a desktop toast notification.
+        newTabImpl->TabBellNotificationRequested([weakTab, weakThis{ get_weak() }](const winrt::TerminalApp::IPaneContent& content) {
+            if (const auto page{ weakThis.get() })
+            {
+                if (const auto tab{ weakTab.get() })
+                {
+                    const auto tabTitle = tab->Title();
+                    const winrt::hstring message{ RS_fmt(L"NotificationMessage_TabActivity", std::wstring_view{ tabTitle }) };
+                    page->_RecordWorkspaceNotification(tab, content, CascadiaSettings::ApplicationDisplayName(), message);
+                }
+            }
+        });
+
         // When a tab requests a desktop toast notification, send the toast
         // and handle activation by summoning this window and switching to the tab.
         newTabImpl->TabToastNotificationRequested([weakThis{ get_weak() }, weakTab{ newTabImpl->get_weak() }](const winrt::hstring& title, const winrt::hstring& body, const winrt::TerminalApp::IPaneContent& content) {

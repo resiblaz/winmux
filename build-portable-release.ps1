@@ -1,0 +1,338 @@
+[CmdletBinding()]
+param(
+    [ValidateSet('x64')]
+    [string]$Platform = 'x64',
+
+    [switch]$SkipBuild,
+
+    [switch]$NoLaunch,
+
+    [string]$OutputDirectory
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+$repoRoot = [System.IO.Path]::GetFullPath($PSScriptRoot)
+$configuration = 'Release'
+$packageRoot = Join-Path $repoRoot 'src\cascadia\CascadiaPackage\AppPackages'
+$localBuildScript = Join-Path $repoRoot 'tools\Deploy-LocalRelease.ps1'
+$portableBuildScript = Join-Path $repoRoot 'build\scripts\New-UnpackagedTerminalDistribution.ps1'
+$Verbose = $PSBoundParameters.ContainsKey('Verbose')
+
+if ([string]::IsNullOrWhiteSpace($OutputDirectory))
+{
+    $outputRoot = Join-Path $repoRoot 'dist'
+}
+elseif ([System.IO.Path]::IsPathRooted($OutputDirectory))
+{
+    $outputRoot = [System.IO.Path]::GetFullPath($OutputDirectory)
+}
+else
+{
+    $outputRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $OutputDirectory))
+}
+
+function Assert-ChildPath
+{
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [string]$Parent
+    )
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    $fullParent = [System.IO.Path]::GetFullPath($Parent).TrimEnd('\') + '\'
+    if (-not $fullPath.StartsWith($fullParent, [System.StringComparison]::OrdinalIgnoreCase))
+    {
+        throw "Path is outside the expected parent directory: $fullPath"
+    }
+
+    return $fullPath
+}
+
+function Set-WorkspaceSidebarLayout
+{
+    param(
+        [Parameter(Mandatory)]
+        [string]$SettingsPath
+    )
+
+    $content = [System.IO.File]::ReadAllText($SettingsPath)
+    $tabLayoutPattern = '("tabLayout"\s*:\s*)"[^"]*"'
+    $tabLayoutRegex = [regex]::new($tabLayoutPattern)
+    if ($tabLayoutRegex.IsMatch($content))
+    {
+        $content = $tabLayoutRegex.Replace($content, '${1}"workspaceSidebar"', 1)
+    }
+    else
+    {
+        $openingBrace = $content.IndexOf('{')
+        if ($openingBrace -lt 0)
+        {
+            throw "Settings file is not a JSON object: $SettingsPath"
+        }
+
+        $content = $content.Insert($openingBrace + 1, "`r`n    `"tabLayout`": `"workspaceSidebar`",")
+    }
+
+    [System.IO.File]::WriteAllText($SettingsPath, $content, [System.Text.UTF8Encoding]::new($false))
+}
+
+function Stop-PortableTerminal
+{
+    param(
+        [Parameter(Mandatory)]
+        [string]$ExecutablePath
+    )
+
+    $normalizedExecutable = [System.IO.Path]::GetFullPath($ExecutablePath)
+    $processes = @(Get-Process WindowsTerminal -ErrorAction SilentlyContinue | Where-Object {
+        $_.Path -and
+        [System.IO.Path]::GetFullPath($_.Path).Equals($normalizedExecutable, [System.StringComparison]::OrdinalIgnoreCase)
+    })
+
+    foreach ($process in $processes)
+    {
+        $null = $process.CloseMainWindow()
+    }
+
+    if ($processes.Count -gt 0)
+    {
+        Start-Sleep -Seconds 2
+    }
+
+    Get-Process WindowsTerminal -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Path -and
+            [System.IO.Path]::GetFullPath($_.Path).Equals($normalizedExecutable, [System.StringComparison]::OrdinalIgnoreCase)
+        } |
+        Stop-Process -Force
+}
+
+if (-not $SkipBuild)
+{
+    Write-Host "Building Windows Terminal $Platform $configuration..." -ForegroundColor Cyan
+    & $localBuildScript -Platform $Platform -BuildOnly
+}
+
+$terminalAppx = Get-ChildItem -LiteralPath $packageRoot -Recurse -File -Filter '*.msix' |
+    Where-Object {
+        $_.Directory.Name -like "*_${Platform}_Test" -and
+        $_.Name -notlike '*_Debug.msix'
+    } |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+if (-not $terminalAppx)
+{
+    throw "No $Platform $configuration Terminal MSIX was found under $packageRoot. Run without -SkipBuild."
+}
+
+$xamlDependencyDirectory = Join-Path $terminalAppx.Directory.FullName "Dependencies\$Platform"
+$xamlAppx = Get-ChildItem -LiteralPath $xamlDependencyDirectory -File -Filter 'Microsoft.UI.Xaml*.appx' |
+    Select-Object -First 1
+if (-not $xamlAppx)
+{
+    throw "Microsoft.UI.Xaml dependency was not found under $xamlDependencyDirectory."
+}
+
+New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+
+$systemTempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
+$workRoot = Join-Path $systemTempRoot ("windows-terminal-portable-{0}" -f [guid]::NewGuid().ToString('N'))
+$workRoot = Assert-ChildPath -Path $workRoot -Parent $systemTempRoot
+$officialOutput = Join-Path $workRoot 'official'
+$extractedOutput = Join-Path $workRoot 'extracted'
+$preservedSettings = Join-Path $workRoot 'preserved-settings'
+$newDeployment = $null
+$backupDeployment = $null
+$temporaryZip = $null
+
+try
+{
+    New-Item -ItemType Directory -Path $officialOutput, $extractedOutput -Force | Out-Null
+
+    Write-Host 'Creating the official unpackaged portable layout...' -ForegroundColor Cyan
+    $null = & $portableBuildScript `
+        -TerminalAppX $terminalAppx.FullName `
+        -XamlAppX $xamlAppx.FullName `
+        -Destination $officialOutput `
+        -PortableMode `
+        -Verbose:$Verbose *>&1
+
+    $officialZip = Get-ChildItem -LiteralPath $officialOutput -File -Filter '*.zip' |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if (-not $officialZip)
+    {
+        throw 'The official portable build did not produce a ZIP archive.'
+    }
+
+    Expand-Archive -LiteralPath $officialZip.FullName -DestinationPath $extractedOutput
+    $terminalRoot = Get-ChildItem -LiteralPath $extractedOutput -Directory |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'WindowsTerminal.exe') -PathType Leaf } |
+        Select-Object -First 1
+    if (-not $terminalRoot)
+    {
+        throw 'WindowsTerminal.exe was not found in the extracted portable layout.'
+    }
+
+    $settingsDirectory = Join-Path $terminalRoot.FullName 'settings'
+    $settingsPath = Join-Path $settingsDirectory 'settings.json'
+    New-Item -ItemType Directory -Path $settingsDirectory -Force | Out-Null
+    $defaultSettings = [ordered]@{
+        '$schema' = 'https://raw.githubusercontent.com/microsoft/terminal/main/doc/cascadia/profiles.schema.json'
+        tabLayout = 'workspaceSidebar'
+    } | ConvertTo-Json
+    [System.IO.File]::WriteAllText($settingsPath, $defaultSettings + "`r`n", [System.Text.UTF8Encoding]::new($false))
+
+    $configuredZipName = '{0}_workspace-sidebar.zip' -f [System.IO.Path]::GetFileNameWithoutExtension($officialZip.Name)
+    $configuredZip = Join-Path $outputRoot $configuredZipName
+    $temporaryZip = Join-Path $outputRoot ('.{0}.{1}.tmp.zip' -f [System.IO.Path]::GetFileNameWithoutExtension($configuredZipName), [guid]::NewGuid().ToString('N'))
+    $temporaryZip = Assert-ChildPath -Path $temporaryZip -Parent $outputRoot
+
+    Write-Host 'Creating the preconfigured Workspace Sidebar ZIP...' -ForegroundColor Cyan
+    & tar.exe -c --format=zip -f $temporaryZip -C $extractedOutput $terminalRoot.Name
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw "Creating the configured ZIP failed with exit code $LASTEXITCODE."
+    }
+
+    $archiveEntries = @(& tar.exe -tf $temporaryZip)
+    foreach ($requiredEntry in @(
+        "$($terminalRoot.Name)/.portable",
+        "$($terminalRoot.Name)/settings/settings.json",
+        "$($terminalRoot.Name)/WindowsTerminal.exe"
+    ))
+    {
+        if ($archiveEntries -notcontains $requiredEntry)
+        {
+            throw "Configured ZIP validation failed; missing $requiredEntry."
+        }
+    }
+
+    Move-Item -LiteralPath $temporaryZip -Destination $configuredZip -Force
+
+    $deploymentPath = Join-Path $outputRoot $terminalRoot.Name
+    $deploymentPath = Assert-ChildPath -Path $deploymentPath -Parent $outputRoot
+    $deploymentExecutable = Join-Path $deploymentPath 'WindowsTerminal.exe'
+
+    if (Test-Path -LiteralPath $deploymentExecutable -PathType Leaf)
+    {
+        Stop-PortableTerminal -ExecutablePath $deploymentExecutable
+    }
+
+    $existingSettingsDirectory = Join-Path $deploymentPath 'settings'
+    $existingSettingsPath = Join-Path $existingSettingsDirectory 'settings.json'
+    if (Test-Path -LiteralPath $existingSettingsPath -PathType Leaf)
+    {
+        Copy-Item -LiteralPath $existingSettingsDirectory -Destination $preservedSettings -Recurse
+    }
+
+    $newDeployment = Assert-ChildPath `
+        -Path (Join-Path $outputRoot ('.{0}.new-{1}' -f $terminalRoot.Name, [guid]::NewGuid().ToString('N'))) `
+        -Parent $outputRoot
+    Copy-Item -LiteralPath $terminalRoot.FullName -Destination $newDeployment -Recurse
+
+    if (Test-Path -LiteralPath $preservedSettings -PathType Container)
+    {
+        $newSettingsDirectory = Join-Path $newDeployment 'settings'
+        Get-ChildItem -LiteralPath $preservedSettings -Force |
+            Copy-Item -Destination $newSettingsDirectory -Recurse -Force
+        Set-WorkspaceSidebarLayout -SettingsPath (Join-Path $newSettingsDirectory 'settings.json')
+    }
+
+    if (Test-Path -LiteralPath $deploymentPath)
+    {
+        $backupDeployment = Assert-ChildPath `
+            -Path (Join-Path $outputRoot ('.{0}.backup-{1}' -f $terminalRoot.Name, [guid]::NewGuid().ToString('N'))) `
+            -Parent $outputRoot
+        Move-Item -LiteralPath $deploymentPath -Destination $backupDeployment
+    }
+
+    try
+    {
+        Move-Item -LiteralPath $newDeployment -Destination $deploymentPath
+        $newDeployment = $null
+    }
+    catch
+    {
+        if ($backupDeployment -and (Test-Path -LiteralPath $backupDeployment) -and -not (Test-Path -LiteralPath $deploymentPath))
+        {
+            Move-Item -LiteralPath $backupDeployment -Destination $deploymentPath
+            $backupDeployment = $null
+        }
+        throw
+    }
+
+    if ($backupDeployment -and (Test-Path -LiteralPath $backupDeployment))
+    {
+        $backupDeployment = Assert-ChildPath -Path $backupDeployment -Parent $outputRoot
+        Remove-Item -LiteralPath $backupDeployment -Recurse -Force
+        $backupDeployment = $null
+    }
+
+    $deployedSettings = Get-Content -LiteralPath (Join-Path $deploymentPath 'settings\settings.json') -Raw
+    if ($deployedSettings -notmatch '"tabLayout"\s*:\s*"workspaceSidebar"')
+    {
+        throw 'The deployed settings do not enable Workspace Sidebar.'
+    }
+
+    if (-not $NoLaunch)
+    {
+        Write-Host 'Launching the portable Workspace Sidebar build...' -ForegroundColor Cyan
+        Start-Process -FilePath $deploymentExecutable -WorkingDirectory $deploymentPath -ArgumentList @('-w', 'new')
+
+        $started = $false
+        for ($attempt = 0; $attempt -lt 20; $attempt++)
+        {
+            Start-Sleep -Milliseconds 250
+            $started = [bool](Get-Process WindowsTerminal -ErrorAction SilentlyContinue |
+                Where-Object {
+                    $_.Path -and
+                    [System.IO.Path]::GetFullPath($_.Path).Equals($deploymentExecutable, [System.StringComparison]::OrdinalIgnoreCase)
+                } |
+                Select-Object -First 1)
+            if ($started)
+            {
+                break
+            }
+        }
+
+        if (-not $started)
+        {
+            throw "The portable Terminal did not start from $deploymentExecutable."
+        }
+    }
+
+    $zipHash = Get-FileHash -LiteralPath $configuredZip -Algorithm SHA256
+    Write-Host 'Portable Workspace Sidebar Release completed.' -ForegroundColor Green
+    [pscustomobject]@{
+        Package = $configuredZip
+        Deployment = $deploymentPath
+        Launcher = $deploymentExecutable
+        SHA256 = $zipHash.Hash
+    }
+}
+finally
+{
+    if ($temporaryZip -and (Test-Path -LiteralPath $temporaryZip))
+    {
+        $temporaryZip = Assert-ChildPath -Path $temporaryZip -Parent $outputRoot
+        Remove-Item -LiteralPath $temporaryZip -Force
+    }
+
+    if ($newDeployment -and (Test-Path -LiteralPath $newDeployment))
+    {
+        $newDeployment = Assert-ChildPath -Path $newDeployment -Parent $outputRoot
+        Remove-Item -LiteralPath $newDeployment -Recurse -Force
+    }
+
+    if (Test-Path -LiteralPath $workRoot)
+    {
+        $workRoot = Assert-ChildPath -Path $workRoot -Parent $systemTempRoot
+        Remove-Item -LiteralPath $workRoot -Recurse -Force
+    }
+}

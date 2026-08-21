@@ -286,3 +286,6 @@ profiles.json
 
 # MSBuildCache
 /MSBuildCacheLogs/
+
+# Local portable Release output
+/dist/

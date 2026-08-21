@@ -11,5 +11,5 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$deploymentScript = Join-Path $PSScriptRoot 'tools\Deploy-LocalRelease.ps1'
+$deploymentScript = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\Deploy-LocalRelease.ps1'))
 & $deploymentScript @PSBoundParameters

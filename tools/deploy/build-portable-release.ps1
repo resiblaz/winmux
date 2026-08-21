@@ -13,7 +13,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = [System.IO.Path]::GetFullPath($PSScriptRoot)
+$repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $configuration = 'Release'
 $packageRoot = Join-Path $repoRoot 'src\cascadia\CascadiaPackage\AppPackages'
 $localBuildScript = Join-Path $repoRoot 'tools\Deploy-LocalRelease.ps1'

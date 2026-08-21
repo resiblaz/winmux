@@ -546,6 +546,8 @@
         { "command": "toggleWorkspaceSidebar", "id": "Terminal.ToggleWorkspaceSidebar" },
         { "command": "openWorkspaceNotificationCenter", "id": "Terminal.OpenWorkspaceNotificationCenter" },
         { "command": "focusLatestNotification", "id": "Terminal.FocusLatestNotification" },
+        { "command": "workspaceBack", "id": "Terminal.WorkspaceBack" },
+        { "command": "workspaceForward", "id": "Terminal.WorkspaceForward" },
         { "command": "workspaces", "id": "Terminal.Workspaces" },
 
         // Tab Management
@@ -739,6 +741,8 @@
         { "keys": "ctrl+shift+period", "id": "Terminal.Suggestions" },
         { "keys": "ctrl+p", "id": "Terminal.ToggleWorkspacePin" },
         { "keys": "ctrl+shift+u", "id": "Terminal.FocusLatestNotification" },
+        { "keys": "alt+pageup", "id": "Terminal.WorkspaceBack" },
+        { "keys": "alt+pagedown", "id": "Terminal.WorkspaceForward" },
 
         // Tab Management
         // "command": "closeTab" is unbound by default.

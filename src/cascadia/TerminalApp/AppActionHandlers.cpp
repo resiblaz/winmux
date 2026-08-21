@@ -1028,7 +1028,6 @@ namespace winrt::TerminalApp::implementation
         // Fun!
         // WindowRenamerTextBox().Focus(FocusState::Programmatic);
         _renamerLayoutUpdatedRevoker.revoke();
-        _renamerLayoutCount = 0;
         _renamerLayoutUpdatedRevoker = WindowRenamerTextBox().LayoutUpdated(winrt::auto_revoke, [weakThis = get_weak()](auto&&, auto&&) {
             if (auto self{ weakThis.get() })
             {
@@ -1044,6 +1043,22 @@ namespace winrt::TerminalApp::implementation
                 {
                     self->_renamerLayoutUpdatedRevoker.revoke();
                     self->WindowRenamerTextBox().Focus(FocusState::Programmatic);
+                }
+                else
+                {
+                    // Some layouts only produce one LayoutUpdated notification.
+                    // Retry on the next dispatcher turn, after the TeachingTip has
+                    // inserted its content into the live focus tree.
+                    DispatcherQueue::GetForCurrentThread().TryEnqueue([weakThis]() {
+                        if (auto page{ weakThis.get() }; page && page->WindowRenamer() && page->WindowRenamer().IsOpen())
+                        {
+                            if (page->WindowRenamerTextBox().Focus(FocusState::Programmatic))
+                            {
+                                page->_renamerLayoutCount = 2;
+                                page->_renamerLayoutUpdatedRevoker.revoke();
+                            }
+                        }
+                    });
                 }
             }
         });
@@ -1677,6 +1692,26 @@ namespace winrt::TerminalApp::implementation
                                                       const ActionEventArgs& args)
     {
         args.Handled(_FocusLatestWorkspaceNotification());
+    }
+
+    void TerminalPage::_HandleWorkspaceBack(const IInspectable& /*sender*/,
+                                            const ActionEventArgs& args)
+    {
+        if (_workspaceSidebarEnabled)
+        {
+            _NavigateWorkspaceHistory(false);
+            args.Handled(true);
+        }
+    }
+
+    void TerminalPage::_HandleWorkspaceForward(const IInspectable& /*sender*/,
+                                               const ActionEventArgs& args)
+    {
+        if (_workspaceSidebarEnabled)
+        {
+            _NavigateWorkspaceHistory(true);
+            args.Handled(true);
+        }
     }
 
 }

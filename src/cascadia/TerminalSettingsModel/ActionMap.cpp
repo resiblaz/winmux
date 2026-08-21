@@ -167,6 +167,8 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 { ShortcutAction::ToggleSplitOrientation, USES_RESOURCE(L"ToggleSplitOrientationCommandKey") },
                 { ShortcutAction::ToggleWorkspacePin, USES_RESOURCE(L"ToggleWorkspacePinCommandKey") },
                 { ShortcutAction::ToggleWorkspaceSidebar, USES_RESOURCE(L"ToggleWorkspaceSidebarCommandKey") },
+                { ShortcutAction::WorkspaceBack, USES_RESOURCE(L"WorkspaceBackCommandKey") },
+                { ShortcutAction::WorkspaceForward, USES_RESOURCE(L"WorkspaceForwardCommandKey") },
                 { ShortcutAction::Workspaces, USES_RESOURCE(L"WorkspacesCommandKey") },
             };
         }();

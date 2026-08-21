@@ -17,6 +17,7 @@ namespace winrt::TerminalApp::implementation
         PaneList,
         PaneFocus,
         PaneSplit,
+        ConclusionCreate,
         NotificationList,
         NotificationCreate,
         NotificationMarkRead,
@@ -59,6 +60,9 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring Text;
         winrt::hstring Title;
         winrt::hstring Body;
+        winrt::hstring SessionId;
+        winrt::hstring TurnId;
+        winrt::hstring Model;
         WorkspaceAutomationProgressState ProgressState{ WorkspaceAutomationProgressState::None };
         uint32_t ProgressValue{ 0 };
         uint32_t MaximumLines{ 50 };

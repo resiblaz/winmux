@@ -1201,4 +1201,28 @@
   <data name="WorkspaceSidebar_AgentCliMissingDialogBody" xml:space="preserve">
     <value>请安装 Codex CLI 或将 codex.cmd 加入 PATH 后重试。现有终端未被替换。</value>
   </data>
+  <data name="ConclusionSidebarTitle.Text" xml:space="preserve">
+    <value>工作区工具</value>
+  </data>
+  <data name="ConclusionSidebarConclusionsTab.Text" xml:space="preserve">
+    <value>结论</value>
+  </data>
+  <data name="ConclusionSidebarEmptyTitle.Text" xml:space="preserve">
+    <value>还没有结论</value>
+  </data>
+  <data name="ConclusionSidebarEmptyBody.Text" xml:space="preserve">
+    <value>在当前工作区完成一轮 Codex 对话，最终回答会显示在这里。</value>
+  </data>
+  <data name="ConclusionSidebarLiveStatus.Text" xml:space="preserve">
+    <value>Codex Hook · 进程内存</value>
+  </data>
+  <data name="ConclusionSidebar_CollapseAutomationName" xml:space="preserve">
+    <value>收起结论侧边栏</value>
+  </data>
+  <data name="ConclusionSidebar_ExpandAutomationName" xml:space="preserve">
+    <value>展开结论侧边栏</value>
+  </data>
+  <data name="ConclusionSidebar_WorkspaceFallback" xml:space="preserve">
+    <value>当前工作区</value>
+  </data>
 </root>

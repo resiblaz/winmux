@@ -19,6 +19,7 @@
 #include "Toast.h"
 #include "WorkspaceItemViewModel.h"
 #include "WorkspaceSidebar.h"
+#include "ConclusionSidebar.h"
 #include "WorkspaceAgentResume.h"
 
 #include "WindowsPackageManagerFactory.h"
@@ -292,6 +293,7 @@ namespace winrt::TerminalApp::implementation
         TerminalApp::TabRowControl _tabRow{ nullptr };
         Windows::UI::Xaml::Controls::Grid _tabContent{ nullptr };
         TerminalApp::WorkspaceSidebar _workspaceSidebar{ nullptr };
+        TerminalApp::ConclusionSidebar _conclusionSidebar{ nullptr };
         Windows::UI::Xaml::Controls::ListView _workspaceList{ nullptr };
         Microsoft::UI::Xaml::Controls::SplitButton _newTabButton{ nullptr };
         Microsoft::UI::Xaml::Controls::SplitButton _workspaceNewTabButton{ nullptr };
@@ -334,6 +336,10 @@ namespace winrt::TerminalApp::implementation
         bool _workspaceListeningPortsRefreshPending{ false };
         uint64_t _workspaceListeningPortsGeneration{ 0 };
         bool _syncingWorkspaceSelection{ false };
+        static constexpr size_t MaximumWorkspaceNavigationHistory{ 100 };
+        std::vector<winrt::guid> _workspaceBackHistory;
+        std::vector<winrt::guid> _workspaceForwardHistory;
+        std::optional<winrt::guid> _workspaceNavigationCurrent;
         bool _workspaceReordering{ false };
         std::optional<uint32_t> _workspaceReorderFrom{};
         TerminalApp::WorkspaceItemViewModel _workspaceReorderItem{ nullptr };
@@ -441,6 +447,7 @@ namespace winrt::TerminalApp::implementation
         void _UpdateTabView();
         void _UpdateTabWidthMode();
         void _UpdateWorkspaceSidebar();
+        void _UpdateConclusionSidebar();
         void _UpdateWorkspaceTitleBar();
         void _UpdateWorkspaceListeningPortsTimer();
         void _RefreshWorkspaceListeningPorts();
@@ -457,6 +464,9 @@ namespace winrt::TerminalApp::implementation
         void _UpdateWorkspaceAutomationServer();
         std::string _HandleWorkspaceAutomationRequest(std::string_view request);
         void _SyncWorkspaceSelection(const winrt::TerminalApp::Tab& tab);
+        std::optional<uint32_t> _FindWorkspaceIndex(const winrt::guid& workspaceId) const;
+        void _RecordWorkspaceNavigation(const winrt::TerminalApp::Tab& tab);
+        bool _NavigateWorkspaceHistory(bool forward);
         uint32_t _PinnedTabCount() const;
         int32_t _ClampTabIndexForPinnedState(const winrt::TerminalApp::Tab& tab, int32_t suggestedIndex) const;
         void _ToggleWorkspacePin(const winrt::TerminalApp::Tab& tab);

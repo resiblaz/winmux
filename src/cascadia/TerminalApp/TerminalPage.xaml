@@ -19,6 +19,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -29,6 +30,11 @@
         <local:WorkspaceSidebar x:Name="WorkspaceSidebar"
                                 Grid.RowSpan="3"
                                 Visibility="Collapsed" />
+
+        <local:ConclusionSidebar x:Name="ConclusionSidebar"
+                                 Grid.RowSpan="3"
+                                 Grid.Column="2"
+                                 Visibility="Collapsed" />
 
         <local:TabRowControl x:Name="TabRow"
                              Grid.Row="0"

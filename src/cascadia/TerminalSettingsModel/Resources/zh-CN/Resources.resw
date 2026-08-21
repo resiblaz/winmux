@@ -762,6 +762,12 @@
   <data name="FocusLatestNotificationCommandKey" xml:space="preserve">
     <value>聚焦最近的未读通知</value>
   </data>
+  <data name="WorkspaceBackCommandKey" xml:space="preserve">
+    <value>返回上一个工作区</value>
+  </data>
+  <data name="WorkspaceForwardCommandKey" xml:space="preserve">
+    <value>前进到下一个工作区</value>
+  </data>
   <data name="CloseTab" xml:space="preserve">
     <value>关闭标签页</value>
   </data>

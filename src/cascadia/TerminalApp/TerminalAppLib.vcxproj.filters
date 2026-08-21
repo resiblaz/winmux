@@ -36,6 +36,9 @@
     <ClCompile Include="WorkspaceSidebar.cpp">
       <Filter>controls</Filter>
     </ClCompile>
+    <ClCompile Include="ConclusionSidebar.cpp">
+      <Filter>controls</Filter>
+    </ClCompile>
     <ClCompile Include="WorkspaceItemViewModel.cpp">
       <Filter>workspace</Filter>
     </ClCompile>
@@ -80,6 +83,9 @@
     <ClInclude Include="WorkspaceSidebar.h">
       <Filter>controls</Filter>
     </ClInclude>
+    <ClInclude Include="ConclusionSidebar.h">
+      <Filter>controls</Filter>
+    </ClInclude>
     <ClInclude Include="WorkspaceItemViewModel.h">
       <Filter>workspace</Filter>
     </ClInclude>
@@ -122,6 +128,9 @@
     <Midl Include="WorkspaceSidebar.idl">
       <Filter>controls</Filter>
     </Midl>
+    <Midl Include="ConclusionSidebar.idl">
+      <Filter>controls</Filter>
+    </Midl>
     <Midl Include="WorkspaceItemViewModel.idl">
       <Filter>workspace</Filter>
     </Midl>
@@ -143,6 +152,9 @@
       <Filter>controls</Filter>
     </Page>
     <Page Include="WorkspaceSidebar.xaml">
+      <Filter>controls</Filter>
+    </Page>
+    <Page Include="ConclusionSidebar.xaml">
       <Filter>controls</Filter>
     </Page>
     <Page Include="TitlebarControl.xaml">

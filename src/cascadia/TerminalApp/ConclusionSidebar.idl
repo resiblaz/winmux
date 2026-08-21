@@ -1,0 +1,22 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+import "WorkspaceNotification.idl";
+
+namespace TerminalApp
+{
+    [default_interface] runtimeclass ConclusionSidebar : Windows.UI.Xaml.Controls.ContentPresenter
+    {
+        ConclusionSidebar();
+
+        Windows.Foundation.Collections.IObservableVector<WorkspaceNotification> Conclusions { get; };
+        Boolean IsExpanded;
+
+        Boolean RegisterToolTab(String id,
+                                String title,
+                                String iconGlyph,
+                                Windows.UI.Xaml.UIElement content);
+        Boolean RemoveToolTab(String id);
+        Boolean SelectToolTab(String id);
+    }
+}

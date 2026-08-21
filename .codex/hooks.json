@@ -1,0 +1,17 @@
+{
+  "description": "Send completed Codex turns to the in-app conclusions sidebar.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -Command \"$repo = git rev-parse --show-toplevel; & (Join-Path $repo '.codex/hooks/capture-conclusion.ps1')\"",
+            "timeout": 3,
+            "statusMessage": "Updating conclusions sidebar"
+          }
+        ]
+      }
+    ]
+  }
+}

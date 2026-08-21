@@ -107,6 +107,8 @@ static constexpr std::string_view OpenAboutKey{ "openAbout" };
 static constexpr std::string_view QuickFixKey{ "quickFix" };
 static constexpr std::string_view OpenCWDKey{ "openCWD" };
 static constexpr std::string_view FocusLatestNotificationKey{ "focusLatestNotification" };
+static constexpr std::string_view WorkspaceBackKey{ "workspaceBack" };
+static constexpr std::string_view WorkspaceForwardKey{ "workspaceForward" };
 static constexpr std::string_view WorkspacesKey{ "workspaces" };
 
 static constexpr std::string_view ActionKey{ "action" };

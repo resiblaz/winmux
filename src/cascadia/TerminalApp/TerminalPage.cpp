@@ -341,6 +341,7 @@ namespace winrt::TerminalApp::implementation
         _tabRow = this->TabRow();
         _tabView = _tabRow.TabView();
         _workspaceSidebar = this->WorkspaceSidebar();
+        _conclusionSidebar = this->ConclusionSidebar();
         _workspaceList = _workspaceSidebar.WorkspaceList();
         _workspaceList.ItemsSource(_workspaceItems);
         _workspaceItemsChangedRevoker = _workspaceItems.VectorChanged(winrt::auto_revoke, [weakThis{ get_weak() }](auto&&, auto&&) {
@@ -348,6 +349,7 @@ namespace winrt::TerminalApp::implementation
             {
                 page->_RefreshWorkspaceNotifications();
                 page->_RefreshWorkspaceListeningPorts();
+                page->_UpdateConclusionSidebar();
             }
         });
         _RefreshWorkspaceNotifications();
@@ -574,10 +576,32 @@ namespace winrt::TerminalApp::implementation
 
         _workspaceSidebarEnabled = enabled;
         _workspaceSidebarLayoutInitialized = true;
+        _conclusionSidebar.Visibility(enabled ? Visibility::Visible : Visibility::Collapsed);
+        _UpdateConclusionSidebar();
         _UpdateWorkspaceTitleBar();
         _UpdateWorkspaceListeningPortsTimer();
         _UpdateWorkspaceAutomationServer();
         _UpdateTabView();
+    }
+
+    void TerminalPage::_UpdateConclusionSidebar()
+    {
+        if (!_conclusionSidebar || !_tabView)
+        {
+            return;
+        }
+
+        const auto sidebar = winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar);
+        const auto selectedIndex = _tabView.SelectedIndex();
+        if (_workspaceSidebarEnabled && selectedIndex >= 0 && selectedIndex < gsl::narrow_cast<int32_t>(_workspaceItems.Size()))
+        {
+            const auto item = _workspaceItems.GetAt(gsl::narrow_cast<uint32_t>(selectedIndex));
+            sidebar->SetActiveWorkspace(item.WorkspaceId(), item.Title());
+        }
+        else
+        {
+            sidebar->SetActiveWorkspace(winrt::guid{}, winrt::hstring{});
+        }
     }
 
     void TerminalPage::_UpdateWorkspaceTitleBar()
@@ -755,6 +779,11 @@ namespace winrt::TerminalApp::implementation
             const auto sidebar = winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar);
             sidebar->SetWindowNarrow(width < implementation::WorkspaceSidebar::NarrowWindowThreshold);
             _UpdateWorkspaceTitleBar();
+        }
+        if (_conclusionSidebar)
+        {
+            winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->SetWindowNarrow(
+                width < implementation::ConclusionSidebar::NarrowWindowThreshold);
         }
     }
 
@@ -1154,6 +1183,33 @@ namespace winrt::TerminalApp::implementation
             result.Insert(L"pane", paneJson(createdPane, true));
             return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
         }
+        case WorkspaceAutomationMethod::ConclusionCreate:
+        {
+            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
+            if (!workspaceIndex)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+            if (!_conclusionSidebar)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "Conclusion sidebar is not available");
+            }
+
+            const auto item = _workspaceItems.GetAt(workspaceIndex.value());
+            winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->AddConclusion(
+                item.WorkspaceId(),
+                item.Title(),
+                request.Title,
+                request.Body,
+                winrt::clock::now());
+
+            JsonObject result;
+            result.Insert(L"accepted", JsonValue::CreateBooleanValue(true));
+            result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(item.WorkspaceId())));
+            result.Insert(L"sessionId", JsonValue::CreateStringValue(request.SessionId));
+            result.Insert(L"turnId", JsonValue::CreateStringValue(request.TurnId));
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
         case WorkspaceAutomationMethod::NotificationList:
         {
             const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
@@ -1419,6 +1475,79 @@ namespace winrt::TerminalApp::implementation
         {
             container.StartBringIntoView();
         }
+    }
+
+    std::optional<uint32_t> TerminalPage::_FindWorkspaceIndex(const winrt::guid& workspaceId) const
+    {
+        for (uint32_t index = 0; index < _workspaceItems.Size(); ++index)
+        {
+            if (_workspaceItems.GetAt(index).WorkspaceId() == workspaceId)
+            {
+                return index;
+            }
+        }
+        return std::nullopt;
+    }
+
+    void TerminalPage::_RecordWorkspaceNavigation(const winrt::TerminalApp::Tab& tab)
+    {
+        uint32_t tabIndex{};
+        if (!tab || !_tabs.IndexOf(tab, tabIndex) || tabIndex >= _workspaceItems.Size())
+        {
+            return;
+        }
+
+        const auto workspaceId = _workspaceItems.GetAt(tabIndex).WorkspaceId();
+        if (!_workspaceNavigationCurrent)
+        {
+            _workspaceNavigationCurrent = workspaceId;
+            return;
+        }
+        if (_workspaceNavigationCurrent.value() == workspaceId)
+        {
+            return;
+        }
+
+        if (_FindWorkspaceIndex(_workspaceNavigationCurrent.value()))
+        {
+            _workspaceBackHistory.emplace_back(_workspaceNavigationCurrent.value());
+            if (_workspaceBackHistory.size() > MaximumWorkspaceNavigationHistory)
+            {
+                _workspaceBackHistory.erase(_workspaceBackHistory.begin());
+            }
+        }
+
+        _workspaceNavigationCurrent = workspaceId;
+        _workspaceForwardHistory.clear();
+    }
+
+    bool TerminalPage::_NavigateWorkspaceHistory(const bool forward)
+    {
+        auto& source = forward ? _workspaceForwardHistory : _workspaceBackHistory;
+        auto& destination = forward ? _workspaceBackHistory : _workspaceForwardHistory;
+
+        while (!source.empty())
+        {
+            const auto target = source.back();
+            source.pop_back();
+            if ((_workspaceNavigationCurrent && _workspaceNavigationCurrent.value() == target) || !_FindWorkspaceIndex(target))
+            {
+                continue;
+            }
+
+            if (_workspaceNavigationCurrent && _FindWorkspaceIndex(_workspaceNavigationCurrent.value()))
+            {
+                destination.emplace_back(_workspaceNavigationCurrent.value());
+                if (destination.size() > MaximumWorkspaceNavigationHistory)
+                {
+                    destination.erase(destination.begin());
+                }
+            }
+
+            _workspaceNavigationCurrent = target;
+            return _SelectTab(_FindWorkspaceIndex(target).value());
+        }
+        return false;
     }
 
     uint32_t TerminalPage::_PinnedTabCount() const
@@ -3819,6 +3948,10 @@ namespace winrt::TerminalApp::implementation
         p.RegisterPropertyChangedCallback(UIElement::VisibilityProperty(), [this](auto&&, auto&&) {
             if (_commandPaletteIs(Visibility::Collapsed))
             {
+                if (const auto tab = _GetFocusedTab())
+                {
+                    _RecordWorkspaceNavigation(tab);
+                }
                 _FocusActiveControl(nullptr, nullptr);
             }
         });

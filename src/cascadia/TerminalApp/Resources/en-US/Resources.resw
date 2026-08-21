@@ -1201,4 +1201,28 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebar_AgentCliMissingDialogBody" xml:space="preserve">
     <value>Install Codex CLI or add codex.cmd to PATH, then try again. The existing terminal was left unchanged.</value>
   </data>
+  <data name="ConclusionSidebarTitle.Text" xml:space="preserve">
+    <value>Workspace tools</value>
+  </data>
+  <data name="ConclusionSidebarConclusionsTab.Text" xml:space="preserve">
+    <value>Conclusions</value>
+  </data>
+  <data name="ConclusionSidebarEmptyTitle.Text" xml:space="preserve">
+    <value>No conclusions yet</value>
+  </data>
+  <data name="ConclusionSidebarEmptyBody.Text" xml:space="preserve">
+    <value>Finish a Codex turn in this workspace. Its final answer will appear here.</value>
+  </data>
+  <data name="ConclusionSidebarLiveStatus.Text" xml:space="preserve">
+    <value>Codex Hook · process memory</value>
+  </data>
+  <data name="ConclusionSidebar_CollapseAutomationName" xml:space="preserve">
+    <value>Collapse conclusions sidebar</value>
+  </data>
+  <data name="ConclusionSidebar_ExpandAutomationName" xml:space="preserve">
+    <value>Expand conclusions sidebar</value>
+  </data>
+  <data name="ConclusionSidebar_WorkspaceFallback" xml:space="preserve">
+    <value>Current workspace</value>
+  </data>
 </root>

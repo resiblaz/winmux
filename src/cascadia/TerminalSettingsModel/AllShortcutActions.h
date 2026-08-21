@@ -119,6 +119,8 @@
     ON_ALL_ACTIONS(ToggleWorkspaceSidebar)  \
     ON_ALL_ACTIONS(OpenWorkspaceNotificationCenter) \
     ON_ALL_ACTIONS(FocusLatestNotification) \
+    ON_ALL_ACTIONS(WorkspaceBack)           \
+    ON_ALL_ACTIONS(WorkspaceForward)        \
     ON_ALL_ACTIONS(Workspaces)
 
 #define ALL_SHORTCUT_ACTIONS_WITH_ARGS             \

@@ -61,6 +61,9 @@
     <Page Include="WorkspaceSidebar.xaml">
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="ConclusionSidebar.xaml">
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="TabHeaderControl.xaml">
       <SubType>Designer</SubType>
     </Page>
@@ -125,6 +128,9 @@
     </ClInclude>
     <ClInclude Include="WorkspaceSidebar.h">
       <DependentUpon>WorkspaceSidebar.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="ConclusionSidebar.h">
+      <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
     </ClInclude>
     <ClInclude Include="WorkspaceItemViewModel.h">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
@@ -250,6 +256,9 @@
     <ClCompile Include="WorkspaceSidebar.cpp">
       <DependentUpon>WorkspaceSidebar.xaml</DependentUpon>
     </ClCompile>
+    <ClCompile Include="ConclusionSidebar.cpp">
+      <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
+    </ClCompile>
     <ClCompile Include="WorkspaceItemViewModel.cpp">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClCompile>
@@ -369,6 +378,10 @@
     </Midl>
     <Midl Include="WorkspaceSidebar.idl">
       <DependentUpon>WorkspaceSidebar.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="ConclusionSidebar.idl">
+      <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="WorkspaceItemViewModel.idl">

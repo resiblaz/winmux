@@ -762,6 +762,12 @@
   <data name="FocusLatestNotificationCommandKey" xml:space="preserve">
     <value>Focus latest unread notification</value>
   </data>
+  <data name="WorkspaceBackCommandKey" xml:space="preserve">
+    <value>Go back to previous workspace</value>
+  </data>
+  <data name="WorkspaceForwardCommandKey" xml:space="preserve">
+    <value>Go forward to next workspace</value>
+  </data>
   <data name="CloseTab" xml:space="preserve">
     <value>Close tab</value>
   </data>

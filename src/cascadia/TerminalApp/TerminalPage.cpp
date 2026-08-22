@@ -834,7 +834,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         const auto& request = parsed.Request.value();
-        const auto workspaceJson = [](const TerminalApp::WorkspaceItemViewModel& item, const uint32_t index) {
+        const auto workspaceJson = [&](const TerminalApp::WorkspaceItemViewModel& item, const uint32_t index) {
             JsonObject workspace;
             workspace.Insert(L"id", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(item.WorkspaceId())));
             workspace.Insert(L"index", JsonValue::CreateNumberValue(index));
@@ -849,6 +849,24 @@ namespace winrt::TerminalApp::implementation
                 listeningPorts.Append(JsonValue::CreateNumberValue(port));
             }
             workspace.Insert(L"listeningPorts", listeningPorts);
+
+            JsonArray terminalSessionIds;
+            if (const auto tabImpl = _GetTabImpl(item.SourceTab()); tabImpl && tabImpl->GetRootPane())
+            {
+                tabImpl->GetRootPane()->WalkTree([&](const auto& pane) {
+                    if (const auto control = pane->GetTerminalControl())
+                    {
+                        if (const auto connection = control.Connection())
+                        {
+                            if (const auto sessionId = connection.SessionId(); sessionId != winrt::guid{})
+                            {
+                                terminalSessionIds.Append(JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(sessionId)));
+                            }
+                        }
+                    }
+                });
+            }
+            workspace.Insert(L"terminalSessionIds", terminalSessionIds);
             return workspace;
         };
         const auto findWorkspace = [&](const winrt::guid& id) -> std::optional<uint32_t> {

@@ -1,5 +1,10 @@
 $ErrorActionPreference = 'Stop'
 
+# Codex writes hook payloads as UTF-8. Set the redirected-input decoder before
+# PowerShell lazily enumerates `$input`, otherwise non-ASCII text follows the
+# active Windows console code page and arrives mojibaked.
+[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+
 function Invoke-CmuxRequest {
     param(
         [Parameter(Mandatory)]
@@ -64,6 +69,36 @@ function Normalize-Directory {
     }
 }
 
+function Repair-HookTextEncoding {
+    param([string] $Text)
+
+    if ([string]::IsNullOrEmpty($Text)) {
+        return $Text
+    }
+
+    try {
+        # On Windows, `pwsh -File` can materialize redirected UTF-8 stdin through
+        # the active ANSI code page before the script starts. Reverse that
+        # transformation only when both conversions are lossless. Correctly
+        # decoded non-ASCII text fails strict UTF-8 decoding and is left intact.
+        $codePage = [System.Globalization.CultureInfo]::CurrentCulture.TextInfo.ANSICodePage
+        $legacyEncoding = [System.Text.Encoding]::GetEncoding(
+            $codePage,
+            [System.Text.EncoderFallback]::ExceptionFallback,
+            [System.Text.DecoderFallback]::ExceptionFallback)
+        $strictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
+        $repaired = $strictUtf8.GetString($legacyEncoding.GetBytes($Text))
+        if ($repaired -ne $Text) {
+            return $repaired
+        }
+    }
+    catch {
+        # The text was not a lossless ANSI mis-decoding of UTF-8.
+    }
+
+    return $Text
+}
+
 function Get-ConclusionTitle {
     param([string] $Message)
 
@@ -98,13 +133,22 @@ function Get-ConclusionTitle {
 }
 
 try {
-    $rawInput = [Console]::In.ReadToEnd()
+    # When PowerShell starts a script with `-File`, it may materialize redirected
+    # stdin as pipeline input before the script can read Console.In. Support both
+    # invocation modes because Codex launches this hook through `pwsh -File`.
+    $pipelineInput = @($input)
+    $rawInput = if ($pipelineInput.Count -gt 0) {
+        $pipelineInput -join [Environment]::NewLine
+    }
+    else {
+        [Console]::In.ReadToEnd()
+    }
     if ([string]::IsNullOrWhiteSpace($rawInput)) {
         exit 0
     }
 
     $event = $rawInput | ConvertFrom-Json
-    $message = [string] $event.last_assistant_message
+    $message = Repair-HookTextEncoding ([string] $event.last_assistant_message)
     if ([string]::IsNullOrWhiteSpace($message) -or
         [string]::IsNullOrWhiteSpace([string] $event.session_id) -or
         [string]::IsNullOrWhiteSpace([string] $event.turn_id)) {
@@ -116,11 +160,13 @@ try {
         $message = $message.Substring(0, 7999) + '…'
     }
 
-    $eventDirectory = Normalize-Directory ([string] $event.cwd)
+    $eventDirectory = Normalize-Directory (Repair-HookTextEncoding ([string] $event.cwd))
+    $eventTerminalSessionId = ([string] $env:WT_SESSION).Trim(' ', '{', '}')
     $bestMatch = $null
     $bestScore = -1
 
-    foreach ($pipeName in Get-CmuxPipeNames) {
+    $pipeNames = @(Get-CmuxPipeNames)
+    foreach ($pipeName in $pipeNames) {
         try {
             $listResponse = Invoke-CmuxRequest -PipeName $pipeName -Request @{
                 version = 1
@@ -136,7 +182,22 @@ try {
                 }
 
                 $score = -1
-                if ([string]::Equals($workspaceDirectory, $eventDirectory, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $terminalSessionMatches = $false
+                if (-not [string]::IsNullOrWhiteSpace($eventTerminalSessionId)) {
+                    foreach ($workspaceTerminalSessionId in @($workspace.terminalSessionIds)) {
+                        if ([string]::Equals(
+                                ([string] $workspaceTerminalSessionId).Trim(' ', '{', '}'),
+                                $eventTerminalSessionId,
+                                [System.StringComparison]::OrdinalIgnoreCase)) {
+                            $terminalSessionMatches = $true
+                            break
+                        }
+                    }
+                }
+                if ($terminalSessionMatches) {
+                    $score = 1000
+                }
+                elseif ([string]::Equals($workspaceDirectory, $eventDirectory, [System.StringComparison]::OrdinalIgnoreCase)) {
                     $score = 100
                 }
                 elseif ($eventDirectory.StartsWith($workspaceDirectory + '\', [System.StringComparison]::OrdinalIgnoreCase)) {

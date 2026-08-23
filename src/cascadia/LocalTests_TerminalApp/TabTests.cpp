@@ -172,6 +172,9 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceGitBranchParsesStructuredOutput);
         TEST_METHOD(WorkspaceListeningPortsProjectMetadata);
         TEST_METHOD(WorkspaceAgentResumeRejectsUntrustedInput);
+        TEST_METHOD(WorkspaceSnapshotOmitsRuntimeProcessState);
+        TEST_METHOD(WorkspaceSnapshotOpenIsNonConsuming);
+        TEST_METHOD(WorkspaceSnapshotRejectsUnsafeActions);
         TEST_METHOD(WorkspaceStatusPillTracksStructuredState);
         TEST_METHOD(WorkspaceLayoutPersistsMetadata);
         TEST_METHOD(WorkspaceNotificationStateTracksUnread);
@@ -651,6 +654,93 @@ namespace TerminalAppLocalTests
                                                           L"codex",
                                                           L"12345678-1234-abcd-9876-123456789abc",
                                                           true));
+    }
+
+    void TabTests::WorkspaceSnapshotOmitsRuntimeProcessState()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            const auto tab = page->_GetFocusedTabImpl();
+            VERIFY_IS_NOT_NULL(tab);
+
+            const auto actions = tab->BuildStartupActions(winrt::TerminalApp::BuildStartupKind::Snapshot);
+            VERIFY_IS_TRUE(!actions.empty());
+            VERIFY_ARE_EQUAL(ShortcutAction::NewTab, actions.front().Action());
+
+            const auto newTabArgs = actions.front().Args().try_as<NewTabArgs>();
+            VERIFY_IS_NOT_NULL(newTabArgs);
+            const auto terminalArgs = newTabArgs.ContentArgs().try_as<NewTerminalArgs>();
+            VERIFY_IS_NOT_NULL(terminalArgs);
+            VERIFY_IS_TRUE(!terminalArgs.Profile().empty());
+            VERIFY_IS_TRUE(terminalArgs.Commandline().empty());
+            VERIFY_ARE_EQUAL(winrt::guid{}, terminalArgs.SessionId());
+            VERIFY_ARE_EQUAL(0ull, terminalArgs.ContentId());
+        });
+    }
+
+    void TabTests::WorkspaceSnapshotOpenIsNonConsuming()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            const auto item = page->_workspaceItems.GetAt(0);
+            const auto tab = page->_GetFocusedTabImpl();
+            VERIFY_IS_NOT_NULL(tab);
+
+            const winrt::guid snapshotId{ 0xd19875d5, 0x294e, 0x47e8, { 0xa1, 0x4e, 0x4f, 0x20, 0xea, 0xbd, 0x55, 0xb5 } };
+            WorkspaceSnapshot snapshot{};
+            snapshot.Version(1);
+            snapshot.Id(snapshotId);
+            snapshot.WorkspaceId(item.WorkspaceId());
+            snapshot.Name(L"Snapshot test");
+            snapshot.CreatedAt(1);
+            snapshot.UpdatedAt(1);
+            snapshot.Actions(winrt::single_threaded_vector<ActionAndArgs>(tab->BuildStartupActions(winrt::TerminalApp::BuildStartupKind::Snapshot)));
+            snapshot.AgentResumeEntries(winrt::single_threaded_vector<AgentResumeInfo>());
+
+            const auto state = ApplicationState::SharedInstance();
+            state.RemoveWorkspaceSnapshot(snapshotId);
+            VERIFY_IS_TRUE(state.SaveWorkspaceSnapshot(snapshot));
+            const auto tabCount = page->_tabs.Size();
+
+            page->_OpenWorkspaceSnapshot(snapshotId);
+
+            VERIFY_ARE_EQUAL(tabCount, page->_tabs.Size());
+            const auto retained = state.WorkspaceSnapshotById(snapshotId);
+            VERIFY_IS_NOT_NULL(retained);
+            VERIFY_IS_TRUE(retained.LastOpenedAt() > 0);
+            VERIFY_IS_TRUE(state.RemoveWorkspaceSnapshot(snapshotId));
+        });
+    }
+
+    void TabTests::WorkspaceSnapshotRejectsUnsafeActions()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            const winrt::guid snapshotId{ 0xf3152b3f, 0x88bf, 0x4fd6, { 0xad, 0x93, 0x92, 0x34, 0x73, 0xdf, 0x90, 0x4d } };
+            const winrt::guid workspaceId{ 0x40a7643d, 0x5bc5, 0x476c, { 0x90, 0x3f, 0xd5, 0x3e, 0xf0, 0x61, 0xca, 0xeb } };
+            WorkspaceSnapshot snapshot{};
+            snapshot.Version(1);
+            snapshot.Id(snapshotId);
+            snapshot.WorkspaceId(workspaceId);
+            snapshot.Name(L"Unsafe snapshot");
+            snapshot.CreatedAt(1);
+            snapshot.UpdatedAt(1);
+            snapshot.Actions(winrt::single_threaded_vector<ActionAndArgs>({ ActionAndArgs{ ShortcutAction::CloseWindow, nullptr } }));
+            snapshot.AgentResumeEntries(winrt::single_threaded_vector<AgentResumeInfo>());
+
+            const auto state = ApplicationState::SharedInstance();
+            state.RemoveWorkspaceSnapshot(snapshotId);
+            VERIFY_IS_TRUE(state.SaveWorkspaceSnapshot(snapshot));
+            const auto tabCount = page->_tabs.Size();
+
+            page->_OpenWorkspaceSnapshot(snapshotId);
+
+            VERIFY_ARE_EQUAL(tabCount, page->_tabs.Size());
+            const auto retained = state.WorkspaceSnapshotById(snapshotId);
+            VERIFY_IS_NOT_NULL(retained);
+            VERIFY_ARE_EQUAL(0ll, retained.LastOpenedAt());
+            VERIFY_IS_TRUE(state.RemoveWorkspaceSnapshot(snapshotId));
+        });
     }
 
     void TabTests::WorkspaceLayoutPersistsMetadata()

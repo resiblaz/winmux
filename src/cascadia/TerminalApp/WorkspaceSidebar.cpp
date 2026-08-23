@@ -377,6 +377,14 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void WorkspaceSidebar::_SaveSnapshot_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            SaveSnapshotRequested.raise(*this, item);
+        }
+    }
+
     void WorkspaceSidebar::_ConfigureAgentResume_Click(const IInspectable& sender, const RoutedEventArgs&)
     {
         if (const auto item = _ItemFromSender(sender))

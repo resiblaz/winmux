@@ -1006,4 +1006,13 @@
 사용 가능한 모든 옵션에 대해 'wt new-tab --help'를 실행합니다.</value>
     <comment>{Locked="wt","new-tab","-p","-d","--help"}</comment>
   </data>
+  <data name="WorkspaceSidebarSaveSnapshotMenuItem.Text" xml:space="preserve">
+    <value>Save workspace</value>
+  </data>
+  <data name="SavedWorkspaceSnapshotsMenuItem" xml:space="preserve">
+    <value>Saved workspaces</value>
+  </data>
+  <data name="ConfirmDeleteWorkspaceSnapshotBody" xml:space="preserve">
+    <value>Removing the saved snapshot does not close an open workspace or delete AI history.</value>
+  </data>
 </root>

@@ -221,6 +221,123 @@ namespace clipboard
 
 namespace winrt::TerminalApp::implementation
 {
+    namespace
+    {
+        constexpr uint32_t CurrentWorkspaceSnapshotVersion{ 1 };
+        constexpr uint32_t MaximumWorkspaceSnapshotActions{ 256 };
+        constexpr uint32_t MaximumWorkspaceSnapshotTextCharacters{ 4096 };
+
+        bool _isSafeWorkspaceSnapshotContent(const INewContentArgs& content)
+        {
+            const auto terminalArgs = content.try_as<NewTerminalArgs>();
+            if (!terminalArgs ||
+                terminalArgs.Profile().empty() ||
+                terminalArgs.Profile().size() > MaximumWorkspaceSnapshotTextCharacters ||
+                !terminalArgs.Commandline().empty() ||
+                terminalArgs.StartingDirectory().size() > MaximumWorkspaceSnapshotTextCharacters ||
+                terminalArgs.TabTitle().size() > MaximumWorkspaceSnapshotTextCharacters ||
+                terminalArgs.ColorScheme().size() > MaximumWorkspaceSnapshotTextCharacters ||
+                terminalArgs.SessionId() != winrt::guid{} ||
+                terminalArgs.ContentId() != 0 ||
+                terminalArgs.AppendCommandLine())
+            {
+                return false;
+            }
+
+            if (const auto elevate = terminalArgs.Elevate(); elevate && elevate.Value())
+            {
+                return false;
+            }
+            return true;
+        }
+
+        bool _isSafeWorkspaceSnapshotActions(const IVector<ActionAndArgs>& actions)
+        {
+            if (!actions || actions.Size() == 0 || actions.Size() > MaximumWorkspaceSnapshotActions)
+            {
+                return false;
+            }
+
+            bool createdWorkspace = false;
+            for (uint32_t index = 0; index < actions.Size(); ++index)
+            {
+                const auto action = actions.GetAt(index);
+                if (!action)
+                {
+                    return false;
+                }
+
+                switch (action.Action())
+                {
+                case ShortcutAction::NewTab:
+                {
+                    if (createdWorkspace || index != 0)
+                    {
+                        return false;
+                    }
+                    const auto args = action.Args().try_as<NewTabArgs>();
+                    if (!args || !_isSafeWorkspaceSnapshotContent(args.ContentArgs()))
+                    {
+                        return false;
+                    }
+                    createdWorkspace = true;
+                    break;
+                }
+                case ShortcutAction::SplitPane:
+                {
+                    const auto args = action.Args().try_as<SplitPaneArgs>();
+                    if (!createdWorkspace ||
+                        !args ||
+                        !std::isfinite(args.SplitSize()) ||
+                        args.SplitSize() <= 0.0f ||
+                        args.SplitSize() >= 1.0f ||
+                        !_isSafeWorkspaceSnapshotContent(args.ContentArgs()))
+                    {
+                        return false;
+                    }
+                    break;
+                }
+                case ShortcutAction::RenameTab:
+                {
+                    const auto args = action.Args().try_as<RenameTabArgs>();
+                    if (!createdWorkspace || !args || args.Title().size() > MaximumWorkspaceSnapshotTextCharacters)
+                    {
+                        return false;
+                    }
+                    break;
+                }
+                case ShortcutAction::SetTabColor:
+                    if (!createdWorkspace || !action.Args().try_as<SetTabColorArgs>())
+                    {
+                        return false;
+                    }
+                    break;
+                case ShortcutAction::MoveFocus:
+                    if (!createdWorkspace || !action.Args().try_as<MoveFocusArgs>())
+                    {
+                        return false;
+                    }
+                    break;
+                case ShortcutAction::FocusPane:
+                    if (!createdWorkspace || !action.Args().try_as<FocusPaneArgs>())
+                    {
+                        return false;
+                    }
+                    break;
+                case ShortcutAction::TogglePaneZoom:
+                    if (!createdWorkspace || action.Args())
+                    {
+                        return false;
+                    }
+                    break;
+                default:
+                    return false;
+                }
+            }
+            return createdWorkspace;
+        }
+    }
+
     TerminalPage::TerminalPage(TerminalApp::WindowProperties properties, const TerminalApp::ContentManager& manager) :
         _tabs{ winrt::single_threaded_observable_vector<TerminalApp::Tab>() },
         _workspaceItems{ winrt::single_threaded_observable_vector<TerminalApp::WorkspaceItemViewModel>() },
@@ -378,6 +495,7 @@ namespace winrt::TerminalApp::implementation
         _workspaceSidebar.CloseRequested({ get_weak(), &TerminalPage::_WorkspaceCloseRequested });
         _workspaceSidebar.CloseOthersRequested({ get_weak(), &TerminalPage::_WorkspaceCloseOthersRequested });
         _workspaceSidebar.RenameRequested({ get_weak(), &TerminalPage::_WorkspaceRenameRequested });
+        _workspaceSidebar.SaveSnapshotRequested({ get_weak(), &TerminalPage::_WorkspaceSaveSnapshotRequested });
         _workspaceSidebar.ConfigureAgentResumeRequested({ get_weak(), &TerminalPage::_WorkspaceConfigureAgentResumeRequested });
         _workspaceSidebar.ResumeAgentRequested({ get_weak(), &TerminalPage::_WorkspaceResumeAgentRequested });
         _workspaceSidebar.ClearAgentResumeRequested({ get_weak(), &TerminalPage::_WorkspaceClearAgentResumeRequested });
@@ -1652,6 +1770,84 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void TerminalPage::_WorkspaceSaveSnapshotRequested(const TerminalApp::WorkspaceSidebar&,
+                                                        const TerminalApp::WorkspaceItemViewModel& item)
+    {
+        if (!item)
+        {
+            return;
+        }
+
+        const auto tab = item.SourceTab();
+        const auto tabImpl = tab ? _GetTabImpl(tab) : nullptr;
+        if (!tabImpl)
+        {
+            return;
+        }
+
+        auto actions = tabImpl->BuildStartupActions(BuildStartupKind::Snapshot);
+        if (actions.empty() || item.Title().empty())
+        {
+            return;
+        }
+
+        const auto state = ApplicationState::SharedInstance();
+        WorkspaceSnapshot snapshot{ nullptr };
+        if (const auto snapshots = state.AllWorkspaceSnapshots())
+        {
+            for (const auto& entry : snapshots)
+            {
+                if (entry.Value().WorkspaceId() == item.WorkspaceId())
+                {
+                    snapshot = entry.Value();
+                    break;
+                }
+            }
+        }
+
+        const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::system_clock::now().time_since_epoch())
+                             .count();
+        if (!snapshot)
+        {
+            snapshot = WorkspaceSnapshot{};
+            GUID snapshotId{};
+            THROW_IF_FAILED(CoCreateGuid(&snapshotId));
+            snapshot.Id(snapshotId);
+            snapshot.CreatedAt(now);
+            snapshot.LastOpenedAt(0);
+        }
+
+        std::vector<AgentResumeInfo> agentResumeEntries;
+        if (item.HasAgentResume())
+        {
+            AgentResumeInfo info{};
+            info.Version = WorkspaceAgentResume::CurrentVersion;
+            info.WorkspaceId = item.WorkspaceId();
+            info.Provider = item.AgentResumeProvider();
+            info.SessionId = item.AgentResumeSessionId();
+            info.WorkingDirectory = item.AgentResumeWorkingDirectory();
+            info.RequiresConfirmation = true;
+            if (WorkspaceAgentResume::IsSupported(info))
+            {
+                agentResumeEntries.emplace_back(std::move(info));
+            }
+        }
+
+        snapshot.Version(CurrentWorkspaceSnapshotVersion);
+        snapshot.WorkspaceId(item.WorkspaceId());
+        snapshot.Name(item.Title());
+        snapshot.RootDirectory(item.GitRepositoryRoot().empty() ? item.WorkingDirectory() : item.GitRepositoryRoot());
+        snapshot.UpdatedAt(now);
+        snapshot.Actions(winrt::single_threaded_vector<ActionAndArgs>(std::move(actions)));
+        snapshot.Pinned(item.IsPinned());
+        snapshot.AgentResumeEntries(winrt::single_threaded_vector<AgentResumeInfo>(std::move(agentResumeEntries)));
+        if (_isSafeWorkspaceSnapshotActions(snapshot.Actions()))
+        {
+            state.SaveWorkspaceSnapshot(snapshot);
+        }
+    }
+
     safe_void_coroutine TerminalPage::_WorkspaceConfigureAgentResumeRequested(const TerminalApp::WorkspaceSidebar&,
                                                                               const TerminalApp::WorkspaceItemViewModel& item)
     {
@@ -2411,7 +2607,10 @@ namespace winrt::TerminalApp::implementation
     //   nt -d .` from inside another directory to work as expected.
     // Return Value:
     // - <none>
-    safe_void_coroutine TerminalPage::ProcessStartupActions(std::vector<ActionAndArgs> actions, const winrt::hstring cwd, const winrt::hstring env)
+    safe_void_coroutine TerminalPage::ProcessStartupActions(std::vector<ActionAndArgs> actions,
+                                                            const winrt::hstring cwd,
+                                                            const winrt::hstring env,
+                                                            std::function<void()> completed)
     {
         const auto strong = get_strong();
 
@@ -2477,6 +2676,10 @@ namespace winrt::TerminalApp::implementation
             {
                 content.Focus(FocusState::Programmatic);
             }
+        }
+        if (completed)
+        {
+            completed();
         }
     }
 
@@ -7603,8 +7806,81 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void TerminalPage::_OpenWorkspaceSnapshot(const winrt::guid& snapshotId)
+    {
+        const auto state = ApplicationState::SharedInstance();
+        const auto snapshot = state.WorkspaceSnapshotById(snapshotId);
+        if (!snapshot ||
+            snapshot.Version() != CurrentWorkspaceSnapshotVersion ||
+            snapshot.WorkspaceId() == winrt::guid{} ||
+            !_isSafeWorkspaceSnapshotActions(snapshot.Actions()))
+        {
+            return;
+        }
+
+        if (const auto existingIndex = _FindWorkspaceIndex(snapshot.WorkspaceId()))
+        {
+            if (_SelectTab(existingIndex.value()))
+            {
+                _MarkWorkspaceSnapshotOpened(snapshotId, snapshot.WorkspaceId());
+            }
+            return;
+        }
+
+        // Startup restoration and snapshot restoration share the same small
+        // metadata handoff into _InitializeTab. Do not overlap them: the action
+        // list is replayed asynchronously and owns this state until it finishes.
+        if (_restoringWorkspaceState)
+        {
+            return;
+        }
+
+        std::vector<AgentResumeInfo> agentResumeEntries;
+        if (const auto entries = snapshot.AgentResumeEntries())
+        {
+            for (const auto& entry : entries)
+            {
+                if (WorkspaceAgentResume::IsSupported(entry) && entry.WorkspaceId == snapshot.WorkspaceId())
+                {
+                    agentResumeEntries.emplace_back(entry);
+                }
+            }
+        }
+
+        SetStartupWorkspaceState(CurrentWorkspaceStateVersion,
+                                 { snapshot.WorkspaceId() },
+                                 snapshot.Pinned() ? std::vector<uint32_t>{ 0 } : std::vector<uint32_t>{},
+                                 std::move(agentResumeEntries));
+        const auto workspaceId = snapshot.WorkspaceId();
+        ProcessStartupActions(wil::to_vector(snapshot.Actions()),
+                              {},
+                              {},
+                              [weakThis{ get_weak() }, snapshotId, workspaceId]() {
+                                  if (const auto page = weakThis.get(); page && page->_FindWorkspaceIndex(workspaceId))
+                                  {
+                                      page->_MarkWorkspaceSnapshotOpened(snapshotId, workspaceId);
+                                  }
+                              });
+    }
+
+    void TerminalPage::_MarkWorkspaceSnapshotOpened(const winrt::guid& snapshotId, const winrt::guid& workspaceId)
+    {
+        const auto state = ApplicationState::SharedInstance();
+        const auto snapshot = state.WorkspaceSnapshotById(snapshotId);
+        if (!snapshot || snapshot.WorkspaceId() != workspaceId)
+        {
+            return;
+        }
+
+        snapshot.LastOpenedAt(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  std::chrono::system_clock::now().time_since_epoch())
+                                  .count());
+        state.SaveWorkspaceSnapshot(snapshot);
+    }
+
     // Rebuild the workspace flyout contents. Called every time the flyout opens
-    // so it reflects the current set of persisted workspaces.
+    // so it reflects both durable single-Workspace snapshots and legacy named
+    // WindowSession entries.
     void TerminalPage::_PopulateWorkspaceFlyout()
     {
         if (!_workspaceFlyout)
@@ -7630,6 +7906,106 @@ namespace winrt::TerminalApp::implementation
                 }
             });
             _workspaceFlyout.Items().Append(item);
+        }
+
+        // --- Durable single-Workspace snapshots (one snapshot == one Tab) ---
+        if (const auto snapshotMap = ApplicationState::SharedInstance().AllWorkspaceSnapshots())
+        {
+            std::vector<WorkspaceSnapshot> snapshots;
+            snapshots.reserve(snapshotMap.Size());
+            for (const auto& entry : snapshotMap)
+            {
+                const auto snapshot = entry.Value();
+                const auto expectedKey = snapshot ? winrt::hstring{ ::Microsoft::Console::Utils::GuidToPlainString(snapshot.Id()) } : winrt::hstring{};
+                if (snapshot &&
+                    snapshot.Version() == CurrentWorkspaceSnapshotVersion &&
+                    snapshot.Id() != winrt::guid{} &&
+                    snapshot.WorkspaceId() != winrt::guid{} &&
+                    entry.Key() == expectedKey &&
+                    !snapshot.Name().empty() &&
+                    _isSafeWorkspaceSnapshotActions(snapshot.Actions()))
+                {
+                    snapshots.emplace_back(snapshot);
+                }
+            }
+
+            std::sort(snapshots.begin(), snapshots.end(), [](const auto& left, const auto& right) {
+                if (left.LastOpenedAt() != right.LastOpenedAt())
+                {
+                    return left.LastOpenedAt() > right.LastOpenedAt();
+                }
+                if (left.UpdatedAt() != right.UpdatedAt())
+                {
+                    return left.UpdatedAt() > right.UpdatedAt();
+                }
+                const auto leftName = left.Name();
+                const auto rightName = right.Name();
+                return std::wstring_view{ leftName } < std::wstring_view{ rightName };
+            });
+
+            if (!snapshots.empty())
+            {
+                MenuFlyoutSubItem savedWorkspaces{};
+                savedWorkspaces.Text(RS_(L"SavedWorkspaceSnapshotsMenuItem"));
+
+                for (const auto& snapshot : snapshots)
+                {
+                    MenuFlyoutItem item{};
+                    item.Text(snapshot.Name());
+
+                    const auto isOpen = _FindWorkspaceIndex(snapshot.WorkspaceId()).has_value();
+                    auto iconElement = UI::IconPathConverter::IconWUX(isOpen ? L"\uE73E" : L"\uE8F1");
+                    Automation::AutomationProperties::SetAccessibilityView(iconElement, Automation::Peers::AccessibilityView::Raw);
+                    item.Icon(iconElement);
+
+                    const auto snapshotId = snapshot.Id();
+                    item.Click([weakThis{ get_weak() }, snapshotId](auto&&, auto&&) {
+                        if (const auto page = weakThis.get())
+                        {
+                            page->_OpenWorkspaceSnapshot(snapshotId);
+                        }
+                    });
+
+                    MenuFlyout deleteFlyout{};
+                    deleteFlyout.Placement(WUX::Controls::Primitives::FlyoutPlacementMode::BottomEdgeAlignedRight);
+                    MenuFlyoutItem deleteItem{};
+                    deleteItem.Text(RS_(L"DeleteWorkspaceMenuItem"));
+                    deleteItem.Click([weakThis{ get_weak() }, snapshotId, name = snapshot.Name()](auto&&, auto&&) -> safe_void_coroutine {
+                        auto page = weakThis.get();
+                        if (!page)
+                        {
+                            co_return;
+                        }
+
+                        ContentDialog dialog{};
+                        dialog.Title(box_value(winrt::hstring{ RS_fmt(L"ConfirmDeleteWorkspaceTitle", name) }));
+                        dialog.Content(box_value(RS_(L"ConfirmDeleteWorkspaceSnapshotBody")));
+                        dialog.PrimaryButtonText(RS_(L"ConfirmDeleteWorkspaceDelete"));
+                        dialog.CloseButtonText(RS_(L"ConfirmDeleteWorkspaceCancel"));
+                        dialog.DefaultButton(ContentDialogButton::Close);
+
+                        if (const auto presenter = page->_dialogPresenter.get())
+                        {
+                            const auto result = co_await presenter.ShowDialog(dialog);
+                            page = weakThis.get();
+                            if (page && result == ContentDialogResult::Primary)
+                            {
+                                ApplicationState::SharedInstance().RemoveWorkspaceSnapshot(snapshotId);
+                                page->_PopulateWorkspaceFlyout();
+                            }
+                        }
+                    });
+                    deleteFlyout.Items().Append(deleteItem);
+                    WUX::Controls::Primitives::FlyoutBase::SetAttachedFlyout(item, deleteFlyout);
+                    item.ContextRequested([item](auto&&, auto&&) {
+                        WUX::Controls::Primitives::FlyoutBase::ShowAttachedFlyout(item);
+                    });
+
+                    savedWorkspaces.Items().Append(item);
+                }
+
+                _workspaceFlyout.Items().Append(savedWorkspaces);
+            }
         }
 
         // --- Gather open window info first so we can filter workspaces ---

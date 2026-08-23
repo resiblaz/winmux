@@ -15,7 +15,7 @@ namespace SettingsModelUnitTests
 {
     // Covers the workspace-persistence APIs added to ApplicationState:
     //   SaveWorkspace / RemoveWorkspace / RenameWorkspace / TakeWorkspace /
-    //   AllPersistedWorkspaces.
+    //   AllPersistedWorkspaces, plus the non-consuming WorkspaceSnapshot APIs.
     // All tests operate on a throw-away ApplicationState instance pointed at
     // a temp directory, so they don't touch the real user state.
     class ApplicationStateTests
@@ -31,6 +31,11 @@ namespace SettingsModelUnitTests
         TEST_METHOD(TakeWorkspaceReturnsNullWhenMissing);
         TEST_METHOD(WorkspaceSidebarStateRoundTrips);
         TEST_METHOD(WindowLayoutWorkspaceMetadataRoundTrips);
+        TEST_METHOD(WorkspaceSnapshotJsonAndDiskRoundTrips);
+        TEST_METHOD(WorkspaceSnapshotLookupIsNonConsuming);
+        TEST_METHOD(SaveWorkspaceSnapshotUpsertsById);
+        TEST_METHOD(RemoveWorkspaceSnapshotIsIdempotent);
+        TEST_METHOD(InvalidWorkspaceSnapshotsAreRejected);
 
     private:
         static std::filesystem::path _tempRoot()
@@ -55,6 +60,76 @@ namespace SettingsModelUnitTests
             WindowLayout layout;
             layout.TabLayout(winrt::single_threaded_vector<ActionAndArgs>());
             return layout;
+        }
+
+        static winrt::guid _snapshotId() noexcept
+        {
+            return { 0x1045c122, 0x29c0, 0x4d12, { 0x9f, 0xdf, 0x91, 0x06, 0x34, 0xef, 0x24, 0xa0 } };
+        }
+
+        static winrt::guid _workspaceId() noexcept
+        {
+            return { 0x43e03fd4, 0xbc4d, 0x48b7, { 0x95, 0x57, 0x12, 0xaf, 0x96, 0x68, 0xdc, 0x25 } };
+        }
+
+        static WorkspaceSnapshot _makeSnapshot(const winrt::hstring& name = L"Development")
+        {
+            WorkspaceSnapshot snapshot;
+            snapshot.Version(1);
+            snapshot.Id(_snapshotId());
+            snapshot.WorkspaceId(_workspaceId());
+            snapshot.Name(name);
+            snapshot.RootDirectory(L"C:\\src\\terminal");
+            snapshot.CreatedAt(1724371200000ll);
+            snapshot.UpdatedAt(1724457600000ll);
+            snapshot.LastOpenedAt(1724544000000ll);
+            ActionAndArgs newTabAction;
+            newTabAction.Action(ShortcutAction::NewTab);
+            snapshot.Actions(winrt::single_threaded_vector<ActionAndArgs>({ newTabAction }));
+            snapshot.Pinned(true);
+
+            AgentResumeInfo resumeInfo;
+            resumeInfo.Version = 1;
+            resumeInfo.WorkspaceId = _workspaceId();
+            resumeInfo.Provider = L"codex";
+            resumeInfo.SessionId = L"12345678-1234-1234-1234-123456789abc";
+            resumeInfo.WorkingDirectory = L"C:\\src\\terminal";
+            resumeInfo.RequiresConfirmation = true;
+            snapshot.AgentResumeEntries(winrt::single_threaded_vector<AgentResumeInfo>({ resumeInfo }));
+            return snapshot;
+        }
+
+        static void _verifySnapshot(const WorkspaceSnapshot& snapshot, const winrt::hstring& expectedName = L"Development")
+        {
+            VERIFY_IS_NOT_NULL(snapshot);
+            VERIFY_ARE_EQUAL(1u, snapshot.Version());
+            VERIFY_ARE_EQUAL(_snapshotId(), snapshot.Id());
+            VERIFY_ARE_EQUAL(_workspaceId(), snapshot.WorkspaceId());
+            VERIFY_ARE_EQUAL(expectedName, snapshot.Name());
+            VERIFY_ARE_EQUAL(L"C:\\src\\terminal", snapshot.RootDirectory());
+            VERIFY_ARE_EQUAL(1724371200000ll, snapshot.CreatedAt());
+            VERIFY_ARE_EQUAL(1724457600000ll, snapshot.UpdatedAt());
+            VERIFY_ARE_EQUAL(1724544000000ll, snapshot.LastOpenedAt());
+            VERIFY_IS_NOT_NULL(snapshot.Actions());
+            VERIFY_ARE_EQUAL(1u, snapshot.Actions().Size());
+            VERIFY_ARE_EQUAL(ShortcutAction::NewTab, snapshot.Actions().GetAt(0).Action());
+            VERIFY_IS_TRUE(snapshot.Pinned());
+            VERIFY_IS_NOT_NULL(snapshot.AgentResumeEntries());
+            VERIFY_ARE_EQUAL(1u, snapshot.AgentResumeEntries().Size());
+
+            const auto resumeInfo = snapshot.AgentResumeEntries().GetAt(0);
+            VERIFY_ARE_EQUAL(1u, resumeInfo.Version);
+            VERIFY_ARE_EQUAL(_workspaceId(), resumeInfo.WorkspaceId);
+            VERIFY_ARE_EQUAL(L"codex", resumeInfo.Provider);
+            VERIFY_ARE_EQUAL(L"12345678-1234-1234-1234-123456789abc", resumeInfo.SessionId);
+            VERIFY_ARE_EQUAL(L"C:\\src\\terminal", resumeInfo.WorkingDirectory);
+            VERIFY_IS_TRUE(resumeInfo.RequiresConfirmation);
+        }
+
+        static void _verifyNoSnapshots(const winrt::com_ptr<implementation::ApplicationState>& state)
+        {
+            const auto all = state->AllWorkspaceSnapshots();
+            VERIFY_IS_TRUE(!all || all.Size() == 0);
         }
     };
 
@@ -197,5 +272,134 @@ namespace SettingsModelUnitTests
         VERIFY_IS_NULL(legacy.WorkspaceIds());
         VERIFY_IS_NULL(legacy.PinnedWorkspaceIndices());
         VERIFY_IS_NULL(legacy.AgentResumeEntries());
+    }
+
+    void ApplicationStateTests::WorkspaceSnapshotJsonAndDiskRoundTrips()
+    {
+        const auto original = _makeSnapshot();
+        const auto fromJson = WorkspaceSnapshot::FromJson(WorkspaceSnapshot::ToJson(original));
+        _verifySnapshot(fromJson);
+
+        const auto root = _tempRoot();
+        {
+            auto state = winrt::make_self<implementation::ApplicationState>(root);
+            VERIFY_IS_TRUE(state->SaveWorkspaceSnapshot(original));
+            state->Flush();
+        }
+
+        auto reloaded = winrt::make_self<implementation::ApplicationState>(root);
+        _verifySnapshot(reloaded->WorkspaceSnapshotById(_snapshotId()));
+        const auto all = reloaded->AllWorkspaceSnapshots();
+        VERIFY_IS_NOT_NULL(all);
+        VERIFY_ARE_EQUAL(1u, all.Size());
+    }
+
+    void ApplicationStateTests::WorkspaceSnapshotLookupIsNonConsuming()
+    {
+        auto state = _make();
+        VERIFY_IS_TRUE(state->SaveWorkspaceSnapshot(_makeSnapshot()));
+
+        const auto first = state->WorkspaceSnapshotById(_snapshotId());
+        const auto second = state->WorkspaceSnapshotById(_snapshotId());
+        _verifySnapshot(first);
+        _verifySnapshot(second);
+
+        const auto all = state->AllWorkspaceSnapshots();
+        VERIFY_IS_NOT_NULL(all);
+        VERIFY_ARE_EQUAL(1u, all.Size());
+    }
+
+    void ApplicationStateTests::SaveWorkspaceSnapshotUpsertsById()
+    {
+        auto state = _make();
+        VERIFY_IS_TRUE(state->SaveWorkspaceSnapshot(_makeSnapshot(L"Before rename")));
+
+        auto updated = _makeSnapshot(L"After rename");
+        updated.UpdatedAt(1724630400000ll);
+        VERIFY_IS_TRUE(state->SaveWorkspaceSnapshot(updated));
+
+        const auto all = state->AllWorkspaceSnapshots();
+        VERIFY_IS_NOT_NULL(all);
+        VERIFY_ARE_EQUAL(1u, all.Size());
+
+        const auto restored = state->WorkspaceSnapshotById(_snapshotId());
+        VERIFY_IS_NOT_NULL(restored);
+        VERIFY_ARE_EQUAL(L"After rename", restored.Name());
+        VERIFY_ARE_EQUAL(1724630400000ll, restored.UpdatedAt());
+    }
+
+    void ApplicationStateTests::RemoveWorkspaceSnapshotIsIdempotent()
+    {
+        auto state = _make();
+        VERIFY_IS_FALSE(state->RemoveWorkspaceSnapshot(_snapshotId()));
+
+        VERIFY_IS_TRUE(state->SaveWorkspaceSnapshot(_makeSnapshot()));
+        VERIFY_IS_TRUE(state->RemoveWorkspaceSnapshot(_snapshotId()));
+        VERIFY_IS_FALSE(state->RemoveWorkspaceSnapshot(_snapshotId()));
+        VERIFY_IS_NULL(state->WorkspaceSnapshotById(_snapshotId()));
+        _verifyNoSnapshots(state);
+    }
+
+    void ApplicationStateTests::InvalidWorkspaceSnapshotsAreRejected()
+    {
+        const auto root = _tempRoot();
+        auto state = winrt::make_self<implementation::ApplicationState>(root);
+
+        VERIFY_IS_FALSE(state->SaveWorkspaceSnapshot(WorkspaceSnapshot{ nullptr }));
+
+        auto invalid = _makeSnapshot();
+        invalid.Version(0);
+        VERIFY_IS_FALSE(state->SaveWorkspaceSnapshot(invalid));
+
+        invalid = _makeSnapshot();
+        invalid.Id(winrt::guid{});
+        VERIFY_IS_FALSE(state->SaveWorkspaceSnapshot(invalid));
+
+        invalid = _makeSnapshot();
+        invalid.WorkspaceId(winrt::guid{});
+        VERIFY_IS_FALSE(state->SaveWorkspaceSnapshot(invalid));
+
+        invalid = _makeSnapshot();
+        invalid.Name(L"");
+        VERIFY_IS_FALSE(state->SaveWorkspaceSnapshot(invalid));
+
+        invalid = _makeSnapshot();
+        invalid.Actions(nullptr);
+        VERIFY_IS_FALSE(state->SaveWorkspaceSnapshot(invalid));
+
+        invalid = _makeSnapshot();
+        invalid.Actions(winrt::single_threaded_vector<ActionAndArgs>());
+        VERIFY_IS_FALSE(state->SaveWorkspaceSnapshot(invalid));
+
+        invalid = _makeSnapshot();
+        invalid.Name(winrt::hstring{ std::wstring(161, L'x') });
+        VERIFY_IS_FALSE(state->SaveWorkspaceSnapshot(invalid));
+
+        invalid = _makeSnapshot();
+        invalid.RootDirectory(winrt::hstring{ std::wstring(4097, L'x') });
+        VERIFY_IS_FALSE(state->SaveWorkspaceSnapshot(invalid));
+
+        invalid = _makeSnapshot();
+        std::vector<ActionAndArgs> tooManyActions(257);
+        for (auto& action : tooManyActions)
+        {
+            action.Action(ShortcutAction::NewTab);
+        }
+        invalid.Actions(winrt::single_threaded_vector<ActionAndArgs>(std::move(tooManyActions)));
+        VERIFY_IS_FALSE(state->SaveWorkspaceSnapshot(invalid));
+
+        invalid = _makeSnapshot();
+        ActionAndArgs oversizedAction{};
+        oversizedAction.Action(ShortcutAction::RenameTab);
+        oversizedAction.Args(RenameTabArgs{ winrt::hstring{ std::wstring(300000, L'x') } });
+        invalid.Actions(winrt::single_threaded_vector<ActionAndArgs>({ oversizedAction }));
+        VERIFY_IS_FALSE(state->SaveWorkspaceSnapshot(invalid));
+
+        _verifyNoSnapshots(state);
+        state->Flush();
+        state = nullptr;
+
+        auto reloaded = winrt::make_self<implementation::ApplicationState>(root);
+        _verifyNoSnapshots(reloaded);
     }
 }

@@ -1225,4 +1225,13 @@
   <data name="ConclusionSidebar_WorkspaceFallback" xml:space="preserve">
     <value>当前工作区</value>
   </data>
+  <data name="WorkspaceSidebarSaveSnapshotMenuItem.Text" xml:space="preserve">
+    <value>保存工作区</value>
+  </data>
+  <data name="SavedWorkspaceSnapshotsMenuItem" xml:space="preserve">
+    <value>已保存的工作区</value>
+  </data>
+  <data name="ConfirmDeleteWorkspaceSnapshotBody" xml:space="preserve">
+    <value>删除已保存的快照不会关闭已打开的工作区，也不会删除 AI 历史记录。</value>
+  </data>
 </root>

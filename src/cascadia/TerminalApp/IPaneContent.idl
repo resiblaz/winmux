@@ -9,6 +9,7 @@ namespace TerminalApp
         Content,
         MovePane,
         Persist,
+        Snapshot,
     };
 
     runtimeclass BellEventArgs

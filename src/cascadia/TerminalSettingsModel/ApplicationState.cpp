@@ -6,6 +6,7 @@
 #include "CascadiaSettings.h"
 #include "ApplicationState.g.cpp"
 #include "WindowLayout.g.cpp"
+#include "WorkspaceSnapshot.g.cpp"
 #include "ActionAndArgs.h"
 #include "JsonUtils.h"
 #include "FileUtils.h"
@@ -30,6 +31,17 @@ static constexpr std::string_view AgentResumeProviderKey{ "provider" };
 static constexpr std::string_view AgentResumeSessionIdKey{ "sessionId" };
 static constexpr std::string_view AgentResumeWorkingDirectoryKey{ "workingDirectory" };
 static constexpr std::string_view AgentResumeRequiresConfirmationKey{ "requiresConfirmation" };
+static constexpr std::string_view WorkspaceSnapshotVersionKey{ "version" };
+static constexpr std::string_view WorkspaceSnapshotIdKey{ "id" };
+static constexpr std::string_view WorkspaceSnapshotWorkspaceIdKey{ "workspaceId" };
+static constexpr std::string_view WorkspaceSnapshotNameKey{ "name" };
+static constexpr std::string_view WorkspaceSnapshotRootDirectoryKey{ "rootDirectory" };
+static constexpr std::string_view WorkspaceSnapshotCreatedAtKey{ "createdAt" };
+static constexpr std::string_view WorkspaceSnapshotUpdatedAtKey{ "updatedAt" };
+static constexpr std::string_view WorkspaceSnapshotLastOpenedAtKey{ "lastOpenedAt" };
+static constexpr std::string_view WorkspaceSnapshotActionsKey{ "actions" };
+static constexpr std::string_view WorkspaceSnapshotPinnedKey{ "pinned" };
+static constexpr std::string_view WorkspaceSnapshotAgentResumeEntriesKey{ "agentResumeEntries" };
 
 namespace Microsoft::Terminal::Settings::Model::JsonUtils
 {
@@ -118,12 +130,98 @@ namespace Microsoft::Terminal::Settings::Model::JsonUtils
             return "WindowLayout";
         }
     };
+
+    template<>
+    struct ConversionTrait<int64_t>
+    {
+        int64_t FromJson(const Json::Value& json)
+        {
+            return json.asInt64();
+        }
+
+        bool CanConvert(const Json::Value& json)
+        {
+            return json.isInt64();
+        }
+
+        Json::Value ToJson(const int64_t& val)
+        {
+            return Json::Value{ static_cast<Json::Int64>(val) };
+        }
+
+        std::string TypeDescription() const
+        {
+            return "number";
+        }
+    };
+
+    template<>
+    struct ConversionTrait<WorkspaceSnapshot>
+    {
+        WorkspaceSnapshot FromJson(const Json::Value& json)
+        {
+            auto snapshot = winrt::make_self<implementation::WorkspaceSnapshot>();
+
+            GetValueForKey(json, WorkspaceSnapshotVersionKey, snapshot->_Version);
+            GetValueForKey(json, WorkspaceSnapshotIdKey, snapshot->_Id);
+            GetValueForKey(json, WorkspaceSnapshotWorkspaceIdKey, snapshot->_WorkspaceId);
+            GetValueForKey(json, WorkspaceSnapshotNameKey, snapshot->_Name);
+            GetValueForKey(json, WorkspaceSnapshotRootDirectoryKey, snapshot->_RootDirectory);
+            GetValueForKey(json, WorkspaceSnapshotCreatedAtKey, snapshot->_CreatedAt);
+            GetValueForKey(json, WorkspaceSnapshotUpdatedAtKey, snapshot->_UpdatedAt);
+            GetValueForKey(json, WorkspaceSnapshotLastOpenedAtKey, snapshot->_LastOpenedAt);
+            GetValueForKey(json, WorkspaceSnapshotActionsKey, snapshot->_Actions);
+            GetValueForKey(json, WorkspaceSnapshotPinnedKey, snapshot->_Pinned);
+            GetValueForKey(json, WorkspaceSnapshotAgentResumeEntriesKey, snapshot->_AgentResumeEntries);
+
+            return *snapshot;
+        }
+
+        bool CanConvert(const Json::Value& json)
+        {
+            return json.isObject();
+        }
+
+        Json::Value ToJson(const WorkspaceSnapshot& val)
+        {
+            Json::Value json{ Json::objectValue };
+
+            SetValueForKey(json, WorkspaceSnapshotVersionKey, val.Version());
+            SetValueForKey(json, WorkspaceSnapshotIdKey, val.Id());
+            SetValueForKey(json, WorkspaceSnapshotWorkspaceIdKey, val.WorkspaceId());
+            SetValueForKey(json, WorkspaceSnapshotNameKey, val.Name());
+            SetValueForKey(json, WorkspaceSnapshotRootDirectoryKey, val.RootDirectory());
+            SetValueForKey(json, WorkspaceSnapshotCreatedAtKey, val.CreatedAt());
+            SetValueForKey(json, WorkspaceSnapshotUpdatedAtKey, val.UpdatedAt());
+            SetValueForKey(json, WorkspaceSnapshotLastOpenedAtKey, val.LastOpenedAt());
+            SetValueForKey(json, WorkspaceSnapshotActionsKey, val.Actions());
+            SetValueForKey(json, WorkspaceSnapshotPinnedKey, val.Pinned());
+            SetValueForKey(json, WorkspaceSnapshotAgentResumeEntriesKey, val.AgentResumeEntries());
+
+            return json;
+        }
+
+        std::string TypeDescription() const
+        {
+            return "WorkspaceSnapshot";
+        }
+    };
 }
 
 using namespace ::Microsoft::Terminal::Settings::Model;
 
 namespace winrt::Microsoft::Terminal::Settings::Model::implementation
 {
+    namespace
+    {
+        constexpr uint32_t CurrentWorkspaceSnapshotVersion{ 1 };
+        constexpr uint32_t MaximumWorkspaceSnapshots{ 128 };
+        constexpr uint32_t MaximumWorkspaceSnapshotActions{ 256 };
+        constexpr uint32_t MaximumWorkspaceSnapshotNameCharacters{ 160 };
+        constexpr uint32_t MaximumWorkspaceSnapshotRootCharacters{ 4096 };
+        constexpr uint32_t MaximumWorkspaceSnapshotSerializedCharacters{ 256 * 1024 };
+    }
+
     winrt::hstring WindowLayout::ToJson(const Model::WindowLayout& layout)
     {
         JsonUtils::ConversionTrait<Model::WindowLayout> trait;
@@ -146,6 +244,31 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
             throw winrt::hresult_error(WEB_E_INVALID_JSON_STRING, winrt::to_hstring(errs));
         }
         JsonUtils::ConversionTrait<Model::WindowLayout> trait;
+        return trait.FromJson(root);
+    }
+
+    winrt::hstring WorkspaceSnapshot::ToJson(const Model::WorkspaceSnapshot& snapshot)
+    {
+        JsonUtils::ConversionTrait<Model::WorkspaceSnapshot> trait;
+        auto json = trait.ToJson(snapshot);
+
+        Json::StreamWriterBuilder wbuilder;
+        const auto content = Json::writeString(wbuilder, json);
+        return hstring{ til::u8u16(content) };
+    }
+
+    Model::WorkspaceSnapshot WorkspaceSnapshot::FromJson(const hstring& str)
+    {
+        auto data = til::u16u8(str);
+        std::string errs;
+        std::unique_ptr<Json::CharReader> reader{ Json::CharReaderBuilder{}.newCharReader() };
+
+        Json::Value root;
+        if (!reader->parse(data.data(), data.data() + data.size(), &root, &errs))
+        {
+            throw winrt::hresult_error(WEB_E_INVALID_JSON_STRING, winrt::to_hstring(errs));
+        }
+        JsonUtils::ConversionTrait<Model::WorkspaceSnapshot> trait;
         return trait.FromJson(root);
     }
 
@@ -512,6 +635,126 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         if (state->PersistedWorkspaces && *state->PersistedWorkspaces)
         {
             return (*state->PersistedWorkspaces).GetView();
+        }
+        return nullptr;
+    }
+
+    namespace
+    {
+        hstring _workspaceSnapshotKey(const winrt::guid& id)
+        {
+            return hstring{ ::Microsoft::Console::Utils::GuidToPlainString(id) };
+        }
+    }
+
+    bool ApplicationState::SaveWorkspaceSnapshot(const Model::WorkspaceSnapshot& snapshot)
+    {
+        if (!snapshot ||
+            snapshot.Version() != CurrentWorkspaceSnapshotVersion ||
+            snapshot.Id() == winrt::guid{} ||
+            snapshot.WorkspaceId() == winrt::guid{} ||
+            snapshot.Name().empty() ||
+            snapshot.Name().size() > MaximumWorkspaceSnapshotNameCharacters ||
+            snapshot.RootDirectory().size() > MaximumWorkspaceSnapshotRootCharacters)
+        {
+            return false;
+        }
+
+        const auto actions = snapshot.Actions();
+        if (!actions ||
+            actions.Size() == 0 ||
+            actions.Size() > MaximumWorkspaceSnapshotActions)
+        {
+            return false;
+        }
+        try
+        {
+            if (Model::ActionAndArgs::Serialize(actions).size() > MaximumWorkspaceSnapshotSerializedCharacters)
+            {
+                return false;
+            }
+        }
+        catch (...)
+        {
+            return false;
+        }
+
+        {
+            const auto state = _state.lock();
+            if (!state->WorkspaceSnapshots || !*state->WorkspaceSnapshots)
+            {
+                state->WorkspaceSnapshots = winrt::single_threaded_map<hstring, Model::WorkspaceSnapshot>();
+            }
+            const auto key = _workspaceSnapshotKey(snapshot.Id());
+            const auto snapshots = *state->WorkspaceSnapshots;
+            if (!snapshots.HasKey(key) && snapshots.Size() >= MaximumWorkspaceSnapshots)
+            {
+                return false;
+            }
+            snapshots.Insert(key, snapshot);
+        }
+        _throttler();
+        return true;
+    }
+
+    Model::WorkspaceSnapshot ApplicationState::WorkspaceSnapshotById(const winrt::guid& id)
+    {
+        if (id == winrt::guid{})
+        {
+            return nullptr;
+        }
+
+        const auto state = _state.lock_shared();
+        if (state->WorkspaceSnapshots && *state->WorkspaceSnapshots)
+        {
+            const auto map = *state->WorkspaceSnapshots;
+            const auto key = _workspaceSnapshotKey(id);
+            if (map.HasKey(key))
+            {
+                const auto snapshot = map.Lookup(key);
+                if (snapshot && snapshot.Id() == id)
+                {
+                    return snapshot;
+                }
+            }
+        }
+        return nullptr;
+    }
+
+    bool ApplicationState::RemoveWorkspaceSnapshot(const winrt::guid& id)
+    {
+        if (id == winrt::guid{})
+        {
+            return false;
+        }
+
+        bool removed{ false };
+        {
+            const auto state = _state.lock();
+            if (state->WorkspaceSnapshots && *state->WorkspaceSnapshots)
+            {
+                const auto map = *state->WorkspaceSnapshots;
+                const auto key = _workspaceSnapshotKey(id);
+                if (map.HasKey(key))
+                {
+                    map.Remove(key);
+                    removed = true;
+                }
+            }
+        }
+        if (removed)
+        {
+            _throttler();
+        }
+        return removed;
+    }
+
+    Windows::Foundation::Collections::IMapView<hstring, Model::WorkspaceSnapshot> ApplicationState::AllWorkspaceSnapshots()
+    {
+        const auto state = _state.lock_shared();
+        if (state->WorkspaceSnapshots && *state->WorkspaceSnapshots)
+        {
+            return (*state->WorkspaceSnapshots).GetView();
         }
         return nullptr;
     }

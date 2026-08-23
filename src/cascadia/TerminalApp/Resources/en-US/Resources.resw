@@ -1225,4 +1225,13 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="ConclusionSidebar_WorkspaceFallback" xml:space="preserve">
     <value>Current workspace</value>
   </data>
+  <data name="WorkspaceSidebarSaveSnapshotMenuItem.Text" xml:space="preserve">
+    <value>Save workspace</value>
+  </data>
+  <data name="SavedWorkspaceSnapshotsMenuItem" xml:space="preserve">
+    <value>Saved workspaces</value>
+  </data>
+  <data name="ConfirmDeleteWorkspaceSnapshotBody" xml:space="preserve">
+    <value>Removing the saved snapshot does not close an open workspace or delete AI history.</value>
+  </data>
 </root>

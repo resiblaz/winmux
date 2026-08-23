@@ -228,6 +228,9 @@
                                         IsEnabled="{x:Bind HasAgentResume, Mode=OneWay}"
                                         Tag="{Binding}" />
                         <MenuFlyoutSeparator />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarSaveSnapshotMenuItem"
+                                        Click="_SaveSnapshot_Click"
+                                        Tag="{Binding}" />
                         <MenuFlyoutItem Click="_Pin_Click"
                                         Tag="{Binding}"
                                         Text="{x:Bind PinActionText, Mode=OneWay}" />

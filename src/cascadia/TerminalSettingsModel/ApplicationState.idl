@@ -40,6 +40,26 @@ namespace Microsoft.Terminal.Settings.Model
         Windows.Foundation.Collections.IVector<AgentResumeInfo> AgentResumeEntries;
     };
 
+    runtimeclass WorkspaceSnapshot
+    {
+        WorkspaceSnapshot();
+
+        static String ToJson(WorkspaceSnapshot snapshot);
+        static WorkspaceSnapshot FromJson(String json);
+
+        UInt32 Version;
+        Guid Id;
+        Guid WorkspaceId;
+        String Name;
+        String RootDirectory;
+        Int64 CreatedAt;
+        Int64 UpdatedAt;
+        Int64 LastOpenedAt;
+        Windows.Foundation.Collections.IVector<ActionAndArgs> Actions;
+        Boolean Pinned;
+        Windows.Foundation.Collections.IVector<AgentResumeInfo> AgentResumeEntries;
+    };
+
     [default_interface] runtimeclass ApplicationState {
         static ApplicationState SharedInstance();
 
@@ -55,6 +75,11 @@ namespace Microsoft.Terminal.Settings.Model
         Boolean RenameWorkspace(String oldName, String newName);
         WindowLayout TakeWorkspace(String name);
         Windows.Foundation.Collections.IMapView<String, WindowLayout> AllPersistedWorkspaces();
+
+        Boolean SaveWorkspaceSnapshot(WorkspaceSnapshot snapshot);
+        WorkspaceSnapshot WorkspaceSnapshotById(Guid id);
+        Boolean RemoveWorkspaceSnapshot(Guid id);
+        Windows.Foundation.Collections.IMapView<String, WorkspaceSnapshot> AllWorkspaceSnapshots();
 
         String SettingsHash;
         Windows.Foundation.Collections.IVector<WindowLayout> PersistedWindowLayouts;

@@ -14,6 +14,7 @@ Abstract:
 
 #include "ApplicationState.g.h"
 #include "WindowLayout.g.h"
+#include "WorkspaceSnapshot.g.h"
 
 #include <inc/cppwinrt_utils.h>
 #include "JsonUtils.h"
@@ -44,6 +45,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
     X(FileSource::Local, Windows::Foundation::Collections::IVector<hstring>, AllowedCommandlines, "allowedCommandlines")                                                  \
     X(FileSource::Local, std::unordered_set<hstring>, DismissedBadges, "dismissedBadges")                                                                                 \
     X(FileSource::Local, Windows::Foundation::Collections::IMap<hstring COMMA Model::WindowLayout>, PersistedWorkspaces, "persistedWorkspaces")                           \
+    X(FileSource::Local, Windows::Foundation::Collections::IMap<hstring COMMA Model::WorkspaceSnapshot>, WorkspaceSnapshots, "workspaceSnapshots")                       \
     X(FileSource::Local, double, WorkspaceSidebarWidth, "workspaceSidebarWidth", 176.0)                                                                                   \
     X(FileSource::Local, bool, WorkspaceSidebarExpanded, "workspaceSidebarExpanded", true)                                                                                \
     X(FileSource::Shared, bool, SSHFolderGenerated, "sshFolderGenerated", false)
@@ -63,6 +65,26 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::AgentResumeInfo>, AgentResumeEntries, nullptr);
 
         friend ::Microsoft::Terminal::Settings::Model::JsonUtils::ConversionTrait<Model::WindowLayout>;
+    };
+
+    struct WorkspaceSnapshot : WorkspaceSnapshotT<WorkspaceSnapshot>
+    {
+        static winrt::hstring ToJson(const Model::WorkspaceSnapshot& snapshot);
+        static Model::WorkspaceSnapshot FromJson(const winrt::hstring& json);
+
+        WINRT_PROPERTY(uint32_t, Version, 1);
+        WINRT_PROPERTY(winrt::guid, Id);
+        WINRT_PROPERTY(winrt::guid, WorkspaceId);
+        WINRT_PROPERTY(winrt::hstring, Name);
+        WINRT_PROPERTY(winrt::hstring, RootDirectory);
+        WINRT_PROPERTY(int64_t, CreatedAt, 0);
+        WINRT_PROPERTY(int64_t, UpdatedAt, 0);
+        WINRT_PROPERTY(int64_t, LastOpenedAt, 0);
+        WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::ActionAndArgs>, Actions, nullptr);
+        WINRT_PROPERTY(bool, Pinned, false);
+        WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::AgentResumeInfo>, AgentResumeEntries, nullptr);
+
+        friend ::Microsoft::Terminal::Settings::Model::JsonUtils::ConversionTrait<Model::WorkspaceSnapshot>;
     };
 
 #define COMMA ,
@@ -90,6 +112,11 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         bool RenameWorkspace(const hstring& oldName, const hstring& newName);
         Model::WindowLayout TakeWorkspace(const hstring& name);
         Windows::Foundation::Collections::IMapView<hstring, Model::WindowLayout> AllPersistedWorkspaces();
+
+        bool SaveWorkspaceSnapshot(const Model::WorkspaceSnapshot& snapshot);
+        Model::WorkspaceSnapshot WorkspaceSnapshotById(const winrt::guid& id);
+        bool RemoveWorkspaceSnapshot(const winrt::guid& id);
+        Windows::Foundation::Collections::IMapView<hstring, Model::WorkspaceSnapshot> AllWorkspaceSnapshots();
 
         // State getters/setters
 #define MTSM_APPLICATION_STATE_GEN(source, type, name, key, ...) \
@@ -126,5 +153,6 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
 namespace winrt::Microsoft::Terminal::Settings::Model::factory_implementation
 {
     BASIC_FACTORY(WindowLayout)
+    BASIC_FACTORY(WorkspaceSnapshot)
     BASIC_FACTORY(ApplicationState);
 }

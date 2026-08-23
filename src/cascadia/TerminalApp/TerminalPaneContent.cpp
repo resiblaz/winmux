@@ -100,7 +100,14 @@ namespace winrt::TerminalApp::implementation
             args.StartingDirectory(controlSettings.StartingDirectory());
         }
         args.TabTitle(controlSettings.StartingTitle());
-        args.Commandline(controlSettings.Commandline());
+        // Durable Workspace snapshots describe the terminal surface, not a
+        // running process. In particular, reopening a saved Workspace must not
+        // silently replay an agent command line. The selected profile supplies
+        // its normal command line when the snapshot is restored.
+        if (kind != BuildStartupKind::Snapshot)
+        {
+            args.Commandline(controlSettings.Commandline());
+        }
         args.SuppressApplicationTitle(controlSettings.SuppressApplicationTitle());
         if (controlSettings.TabColor() || controlSettings.StartingTabColor())
         {

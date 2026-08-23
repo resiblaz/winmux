@@ -37,6 +37,7 @@
     <ClInclude Include="../TitlebarControl.h" />
     <ClInclude Include="../TabRowControl.h" />
     <ClInclude Include="../WorkspaceSidebar.h" />
+    <ClInclude Include="../ConclusionMarkdownView.h" />
     <ClInclude Include="../WorkspaceItemViewModel.h" />
     <ClInclude Include="../WorkspaceAgentResume.h" />
     <ClInclude Include="../WorkspaceNotification.h" />

@@ -132,6 +132,9 @@
     <ClInclude Include="ConclusionSidebar.h">
       <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
     </ClInclude>
+    <ClInclude Include="ConclusionMarkdownView.h">
+      <DependentUpon>ConclusionMarkdownView.idl</DependentUpon>
+    </ClInclude>
     <ClInclude Include="WorkspaceItemViewModel.h">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClInclude>
@@ -259,6 +262,9 @@
     <ClCompile Include="ConclusionSidebar.cpp">
       <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
     </ClCompile>
+    <ClCompile Include="ConclusionMarkdownView.cpp">
+      <DependentUpon>ConclusionMarkdownView.idl</DependentUpon>
+    </ClCompile>
     <ClCompile Include="WorkspaceItemViewModel.cpp">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClCompile>
@@ -382,6 +388,9 @@
     </Midl>
     <Midl Include="ConclusionSidebar.idl">
       <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="ConclusionMarkdownView.idl">
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="WorkspaceItemViewModel.idl">

@@ -52,6 +52,7 @@
   <ItemGroup>
     <ProjectReference Include="$(OpenConsoleDir)\src\cascadia\TerminalApp\TerminalAppLib.vcxproj" />
     <ProjectReference Include="$(OpenConsoleDir)\src\types\lib\types.vcxproj" />
+    <ProjectReference Include="$(OpenConsoleDir)\src\cascadia\UIMarkdown\UIMarkdown.vcxproj" />
 
     <!-- If you don't reference these projects here, the
     _ConsoleGenerateAdditionalWinmdManifests step won't gather the winmd's -->

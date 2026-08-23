@@ -47,14 +47,9 @@
                                    Opacity="0.58"
                                    Text="{x:Bind TimestampText, Mode=OneWay}" />
                     </Grid>
-                    <TextBlock FontSize="12"
-                               LineHeight="18"
-                               MaxLines="8"
-                               Opacity="0.78"
-                               Text="{x:Bind Message, Mode=OneWay}"
-                               TextTrimming="CharacterEllipsis"
-                               TextWrapping="WrapWholeWords"
-                               ToolTipService.ToolTip="{x:Bind Message, Mode=OneWay}" />
+                    <local:ConclusionMarkdownView HorizontalContentAlignment="Stretch"
+                                                  Markdown="{x:Bind Message, Mode=OneWay}"
+                                                  Opacity="0.78" />
                 </StackPanel>
             </Border>
         </DataTemplate>

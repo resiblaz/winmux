@@ -1,0 +1,13 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+namespace TerminalApp
+{
+    [default_interface] runtimeclass ConclusionMarkdownView : Windows.UI.Xaml.Controls.ContentControl
+    {
+        ConclusionMarkdownView();
+
+        String Markdown;
+        Windows.UI.Xaml.DependencyProperty MarkdownProperty { get; };
+    }
+}

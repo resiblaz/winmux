@@ -59,6 +59,7 @@ Author(s):
 #include <winrt/Microsoft.Terminal.Core.h>
 #include <winrt/Microsoft.Terminal.Control.h>
 #include <winrt/Microsoft.Terminal.Settings.Model.h>
+#include <winrt/Microsoft.Terminal.UI.Markdown.h>
 
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 

@@ -5,7 +5,11 @@
 #include "CodeBlock.h"
 #include "MarkdownToXaml.h"
 
-#include <cmark.h>
+#include <cmark-gfm.h>
+#include <cmark-gfm-core-extensions.h>
+#include <cmark-gfm-extension_api.h>
+
+#include <mutex>
 
 namespace winrt
 {
@@ -25,6 +29,8 @@ static constexpr int WidthOfBulletPoint{ 9 };
 static constexpr int IndentWidth{ 3 * WidthOfBulletPoint };
 static constexpr int H1FontSize{ 36 };
 static constexpr int HeaderMinFontSize{ 16 };
+static constexpr int CompactHeaderFontSizes[]{ 16, 15, 14, 13, 13, 13 };
+static constexpr double CompactBodyFontSize{ 12.0 };
 
 static constexpr std::wstring_view CodeFontFamily{ L"Cascadia Mono, Consolas" };
 
@@ -41,9 +47,15 @@ static std::string_view textFromUrl(cmark_node* node) noexcept
 {
     return cmark_node_get_url(node);
 }
+static std::string_view typeFromNode(cmark_node* node) noexcept
+{
+    const auto type = cmark_node_get_type_string(node);
+    return type == nullptr ? std::string_view{} : std::string_view{ type };
+}
 
 typedef wil::unique_any<cmark_node*, decltype(&cmark_node_free), cmark_node_free> unique_node;
 typedef wil::unique_any<cmark_iter*, decltype(&cmark_iter_free), cmark_iter_free> unique_iter;
+typedef wil::unique_any<cmark_parser*, decltype(&cmark_parser_free), cmark_parser_free> unique_parser;
 
 // Function Description:
 // - Entrypoint to convert a string of markdown into a XAML RichTextBlock.
@@ -53,12 +65,34 @@ typedef wil::unique_any<cmark_iter*, decltype(&cmark_iter_free), cmark_iter_free
 //   to be appropriately resolved.
 // Return Value:
 // - a RichTextBlock with the rendered markdown in it.
-WUX::Controls::RichTextBlock MarkdownToXaml::Convert(std::string_view markdownText, const winrt::hstring& baseUrl)
+WUX::Controls::RichTextBlock MarkdownToXaml::Convert(std::string_view markdownText,
+                                                     const winrt::hstring& baseUrl,
+                                                     const MarkdownRenderMode renderMode)
 {
-    MarkdownToXaml data{ baseUrl };
+    MarkdownToXaml data{ baseUrl, renderMode };
 
-    unique_node doc{ cmark_parse_document(markdownText.data(), markdownText.size(), CMARK_OPT_DEFAULT) };
+    static std::once_flag extensionsRegistration;
+    std::call_once(extensionsRegistration, []() {
+        cmark_gfm_core_extensions_ensure_registered();
+    });
+
+    unique_parser parser{ cmark_parser_new(CMARK_OPT_DEFAULT) };
+    THROW_HR_IF_NULL(E_FAIL, parser.get());
+
+    if (renderMode == MarkdownRenderMode::CompactSafe)
+    {
+        for (const auto extensionName : { "table", "strikethrough", "autolink", "tasklist" })
+        {
+            const auto extension = cmark_find_syntax_extension(extensionName);
+            THROW_HR_IF(E_FAIL, extension == nullptr || !cmark_parser_attach_syntax_extension(parser.get(), extension));
+        }
+    }
+
+    cmark_parser_feed(parser.get(), markdownText.data(), markdownText.size());
+    unique_node doc{ cmark_parser_finish(parser.get()) };
+    THROW_HR_IF_NULL(E_FAIL, doc.get());
     unique_iter iter{ cmark_iter_new(doc.get()) };
+    THROW_HR_IF_NULL(E_FAIL, iter.get());
     cmark_event_type ev_type;
 
     while ((ev_type = cmark_iter_next(iter.get())) != CMARK_EVENT_DONE)
@@ -69,12 +103,30 @@ WUX::Controls::RichTextBlock MarkdownToXaml::Convert(std::string_view markdownTe
     return data._root;
 }
 
-MarkdownToXaml::MarkdownToXaml(const winrt::hstring& baseUrl) :
-    _baseUri{ baseUrl }
+MarkdownToXaml::MarkdownToXaml(const winrt::hstring& baseUrl, const MarkdownRenderMode renderMode) :
+    _baseUri{ baseUrl },
+    _renderMode{ renderMode }
 {
     _root.ContextFlyout(winrt::Microsoft::Terminal::UI::TextMenuFlyout{});
     _root.IsTextSelectionEnabled(true);
     _root.TextWrapping(WUX::TextWrapping::WrapWholeWords);
+    if (_isCompactSafeMode())
+    {
+        _root.FontSize(CompactBodyFontSize);
+    }
+}
+
+bool MarkdownToXaml::_isCompactSafeMode() const noexcept
+{
+    return _renderMode == MarkdownRenderMode::CompactSafe;
+}
+
+bool MarkdownToXaml::_isAllowedCompactLink(const winrt::Windows::Foundation::Uri& uri) const noexcept
+{
+    const auto scheme = uri.SchemeName();
+    return til::equals_insensitive_ascii(scheme, L"https") ||
+           til::equals_insensitive_ascii(scheme, L"http") ||
+           til::equals_insensitive_ascii(scheme, L"mailto");
 }
 
 WUX::Documents::Paragraph MarkdownToXaml::_CurrentParagraph()
@@ -132,6 +184,7 @@ WUX::Documents::Run MarkdownToXaml::_NewRun()
         newRun.FontFamily(old.FontFamily());
         newRun.FontWeight(old.FontWeight());
         newRun.FontStyle(old.FontStyle());
+        newRun.TextDecorations(old.TextDecorations());
 
         _lastRun = newRun;
         _CurrentSpan().Inlines().Append(_lastRun);
@@ -162,9 +215,55 @@ WUX::Controls::TextBlock MarkdownToXaml::_makeDefaultTextBlock()
     return b;
 }
 
+bool MarkdownToXaml::_RenderExtensionNode(cmark_node* node, const cmark_event_type ev_type)
+{
+    const bool entering = ev_type == CMARK_EVENT_ENTER;
+    const auto type = typeFromNode(node);
+
+    if (type == "table")
+    {
+        _EndParagraph();
+        return true;
+    }
+
+    if (type == "table_header" || type == "table_row")
+    {
+        _EndParagraph();
+        if (entering && type == "table_header")
+        {
+            _CurrentParagraph().FontWeight(winrt::Windows::UI::Text::FontWeights::SemiBold());
+        }
+        return true;
+    }
+
+    if (type == "table_cell")
+    {
+        if (entering && cmark_node_previous(node) != nullptr)
+        {
+            _NewRun().Text(L"  │  ");
+        }
+        return true;
+    }
+
+    if (type == "strikethrough")
+    {
+        _NewRun().TextDecorations(entering ?
+                                      winrt::Windows::UI::Text::TextDecorations::Strikethrough :
+                                      winrt::Windows::UI::Text::TextDecorations::None);
+        return true;
+    }
+
+    return false;
+}
+
 void MarkdownToXaml::_RenderNode(cmark_node* node, cmark_event_type ev_type)
 {
     const bool entering = (ev_type == CMARK_EVENT_ENTER);
+
+    if (_RenderExtensionNode(node, ev_type))
+    {
+        return;
+    }
 
     switch (cmark_node_get_type(node))
     {
@@ -201,19 +300,25 @@ void MarkdownToXaml::_RenderNode(cmark_node* node, cmark_event_type ev_type)
 
     case CMARK_NODE_LIST:
     {
-        // when `node->as.list.list_type == CMARK_BULLET_LIST`, we're an unordered list.
-        // Otherwise, we're an ordered one (and we might not start at 0).
-        //
-        // However, we don't support numbered lists for now.
+        // Track the list type and starting number so nested ordered and
+        // unordered lists can each render their own marker correctly.
         if (entering)
         {
             _EndParagraph();
             _indent++;
+            _listStack.emplace_back(ListContext{
+                .Ordered = cmark_node_get_list_type(node) == CMARK_ORDERED_LIST,
+                .NextNumber = cmark_node_get_list_start(node),
+            });
         }
         else
         {
             _EndParagraph();
             _indent = std::max(0, _indent - 1);
+            if (!_listStack.empty())
+            {
+                _listStack.pop_back();
+            }
         }
         break;
     }
@@ -223,7 +328,28 @@ void MarkdownToXaml::_RenderNode(cmark_node* node, cmark_event_type ev_type)
         if (entering)
         {
             _EndParagraph();
-            _NewRun().Text(gsl::at(bullets, std::clamp(_indent - _blockQuoteDepth - 1, 0, 2)));
+            if (typeFromNode(node) == "tasklist")
+            {
+                const auto taskMarker = cmark_gfm_extensions_get_tasklist_item_checked(node) ? L"☑" : L"☐";
+                if (!_listStack.empty() && _listStack.back().Ordered)
+                {
+                    auto& context = _listStack.back();
+                    _NewRun().Text(winrt::hstring{ fmt::format(FMT_COMPILE(L"{}. {} "), context.NextNumber++, taskMarker) });
+                }
+                else
+                {
+                    _NewRun().Text(winrt::hstring{ fmt::format(FMT_COMPILE(L"{} "), taskMarker) });
+                }
+            }
+            else if (!_listStack.empty() && _listStack.back().Ordered)
+            {
+                auto& context = _listStack.back();
+                _NewRun().Text(winrt::hstring{ fmt::format(FMT_COMPILE(L"{}. "), context.NextNumber++) });
+            }
+            else
+            {
+                _NewRun().Text(gsl::at(bullets, std::clamp(_indent - _blockQuoteDepth - 1, 0, 2)));
+            }
         }
         break;
 
@@ -236,12 +362,20 @@ void MarkdownToXaml::_RenderNode(cmark_node* node, cmark_event_type ev_type)
         // CMARK_NODE_TEXT
         if (entering)
         {
-            // Insert a blank line, just to help break up the walls of text.
-            // This better reflects the way MD is rendered to HTML
-            _root.Blocks().Append(WUX::Documents::Paragraph{});
-
             const auto level = cmark_node_get_heading_level(node);
-            _CurrentParagraph().FontSize(std::max(HeaderMinFontSize, H1FontSize - level * 6));
+            if (_isCompactSafeMode())
+            {
+                const auto index = std::clamp(level - 1, 0, gsl::narrow_cast<int>(std::size(CompactHeaderFontSizes) - 1));
+                _CurrentParagraph().FontSize(gsl::at(CompactHeaderFontSizes, index));
+                _CurrentParagraph().FontWeight(winrt::Windows::UI::Text::FontWeights::SemiBold());
+            }
+            else
+            {
+                // Insert a blank line, just to help break up the walls of text.
+                // This better reflects the way MD is rendered to HTML.
+                _root.Blocks().Append(WUX::Documents::Paragraph{});
+                _CurrentParagraph().FontSize(std::max(HeaderMinFontSize, H1FontSize - level * 6));
+            }
         }
         break;
     }
@@ -256,6 +390,10 @@ void MarkdownToXaml::_RenderNode(cmark_node* node, cmark_event_type ev_type)
         const std::wstring_view codeView{ codeHstring.c_str(), codeHstring.size() - 1 };
 
         auto codeBlock = winrt::make<winrt::Microsoft::Terminal::UI::Markdown::implementation::CodeBlock>(winrt::hstring{ codeView });
+        if (_isCompactSafeMode())
+        {
+            codeBlock.PlayButtonVisibility(WUX::Visibility::Collapsed);
+        }
         WUX::Documents::InlineUIContainer codeContainer{};
         codeContainer.Child(codeBlock);
         _CurrentParagraph().Inlines().Append(codeContainer);
@@ -275,7 +413,13 @@ void MarkdownToXaml::_RenderNode(cmark_node* node, cmark_event_type ev_type)
         break;
 
     case CMARK_NODE_THEMATIC_BREAK:
-        // A <hr>. Not currently supported.
+        if (entering)
+        {
+            _EndParagraph();
+            const auto& divider = _NewRun();
+            divider.Text(L"────────");
+            _EndParagraph();
+        }
         break;
 
     case CMARK_NODE_PARAGRAPH:
@@ -383,7 +527,7 @@ void MarkdownToXaml::_RenderNode(cmark_node* node, cmark_event_type ev_type)
         if (entering)
         {
             const auto urlHstring{ to_hstring(textFromUrl(node)) };
-            WUX::Documents::Hyperlink a{};
+            bool linkCreated = false;
 
             // Set the tooltip to display the URL
             try
@@ -392,8 +536,16 @@ void MarkdownToXaml::_RenderNode(cmark_node* node, cmark_event_type ev_type)
                 // tooltips for URLs. That has a much more comprehensive
                 // comment.
 
-                const winrt::Windows::Foundation::Uri uri{ _baseUri, urlHstring };
+                const auto uri = _isCompactSafeMode() ?
+                                     winrt::Windows::Foundation::Uri{ urlHstring } :
+                                     winrt::Windows::Foundation::Uri{ _baseUri, urlHstring };
+                if (_isCompactSafeMode() && !_isAllowedCompactLink(uri))
+                {
+                    _linkStack.emplace_back(false);
+                    break;
+                }
 
+                WUX::Documents::Hyperlink a{};
                 a.NavigateUri(uri);
 
                 auto tooltipText = urlHstring;
@@ -404,24 +556,40 @@ void MarkdownToXaml::_RenderNode(cmark_node* node, cmark_event_type ev_type)
                     tooltipText = winrt::hstring{ punycode + L"\n" + unicode };
                 }
                 WUX::Controls::ToolTipService::SetToolTip(a, box_value(tooltipText));
+
+                _CurrentParagraph().Inlines().Append(a);
+                _lastSpan = a;
+                linkCreated = true;
             }
             catch (...)
             {
             }
 
-            _CurrentParagraph().Inlines().Append(a);
-            _lastSpan = a;
+            _linkStack.emplace_back(linkCreated);
 
             // Similar to the header element, the actual text of the link
             // will later come through as a CMARK_NODE_TEXT
         }
         else
         {
-            _EndSpan();
+            if (!_linkStack.empty())
+            {
+                if (_linkStack.back())
+                {
+                    _EndSpan();
+                }
+                _linkStack.pop_back();
+            }
         }
         break;
 
     case CMARK_NODE_IMAGE:
+        if (_isCompactSafeMode())
+        {
+            // Conclusions intentionally do not load images. The image alt text
+            // still arrives as CMARK_NODE_TEXT and remains selectable.
+            break;
+        }
         if (entering)
         {
             const auto urlHstring{ to_hstring(textFromUrl(node)) };
@@ -452,17 +620,6 @@ void MarkdownToXaml::_RenderNode(cmark_node* node, cmark_event_type ev_type)
             _lastImage = nullptr;
         }
         break;
-
-        // These elements are in cmark-gfm, which we'd love to move to in the
-        // future, but isn't yet available in vcpkg.
-
-        // case CMARK_NODE_FOOTNOTE_DEFINITION:
-        //     // Not supported currently
-        //     break;
-        //
-        // case CMARK_NODE_FOOTNOTE_REFERENCE:
-        //     // Not supported currently
-        //     break;
 
     default:
         assert(false);

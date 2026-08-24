@@ -4,6 +4,8 @@
 #include "pch.h"
 #include "ConclusionSidebar.h"
 #include "AgentHistoryItem.h"
+#include "CodexAppServerClient.h"
+#include "WorkspaceAgentResume.h"
 
 #include "ConclusionSidebar.g.cpp"
 
@@ -18,6 +20,7 @@ namespace winrt::TerminalApp::implementation
     namespace
     {
         constexpr std::wstring_view ConclusionsToolId{ L"conclusions" };
+        constexpr std::wstring_view SessionsToolId{ L"sessions" };
 
         std::wstring _toolKey(const winrt::hstring& id)
         {
@@ -41,22 +44,51 @@ namespace winrt::TerminalApp::implementation
             item.IsPinned(record.Pinned);
             return item;
         }
+
+        TerminalApp::AgentHistoryItem _makeSessionItem(const AgentHistorySessionRecord& record,
+                                                       const bool canLoad,
+                                                       const bool canResume)
+        {
+            const auto item = winrt::make<implementation::AgentHistoryItem>();
+            item.WorkspaceId(record.WorkspaceId);
+            item.WorkspaceTitle(record.WorkspaceTitle);
+            item.Provider(record.Provider);
+            item.SessionId(record.SessionId);
+            item.Cwd(record.Cwd);
+            item.Title(record.DisplayName.empty() ? RS_(L"ConclusionSidebar_UntitledSession") : record.DisplayName);
+            item.Message(record.Preview);
+            item.Model(record.Model);
+            item.SourceKind(record.SourceKind);
+            item.Timestamp(winrt::clock::from_sys(std::chrono::system_clock::time_point{ std::chrono::milliseconds{ record.UpdatedAt } }));
+            item.IsSessionSummary(true);
+            item.CanLoad(canLoad);
+            item.CanResume(canResume);
+            item.HasLocalTurns(record.HasLocalTurns);
+            return item;
+        }
     }
 
     ConclusionSidebar::ConclusionSidebar() :
         _historyStore{ AgentHistoryStore::DefaultPath() },
-        _historyItems{ winrt::single_threaded_observable_vector<TerminalApp::AgentHistoryItem>() }
+        _historyItems{ winrt::single_threaded_observable_vector<TerminalApp::AgentHistoryItem>() },
+        _sessionItems{ winrt::single_threaded_observable_vector<TerminalApp::AgentHistoryItem>() }
     {
         InitializeComponent();
         _isInitialized = true;
         _ApplyLayout();
         _RefreshHistory();
+        _RefreshSessions();
         _UpdateContentState();
     }
 
     Windows::Foundation::Collections::IObservableVector<TerminalApp::AgentHistoryItem> ConclusionSidebar::HistoryItems() const noexcept
     {
         return _historyItems;
+    }
+
+    Windows::Foundation::Collections::IObservableVector<TerminalApp::AgentHistoryItem> ConclusionSidebar::SessionItems() const noexcept
+    {
+        return _sessionItems;
     }
 
     bool ConclusionSidebar::IsExpanded() const noexcept
@@ -79,7 +111,7 @@ namespace winrt::TerminalApp::implementation
                                             const Windows::UI::Xaml::UIElement& content)
     {
         const auto key = _toolKey(id);
-        if (key.empty() || key == ConclusionsToolId || title.empty() || !content || _toolTabs.contains(key))
+        if (key.empty() || key == ConclusionsToolId || key == SessionsToolId || title.empty() || !content || _toolTabs.contains(key))
         {
             return false;
         }
@@ -137,6 +169,11 @@ namespace winrt::TerminalApp::implementation
             SidebarTabs().SelectedItem(ConclusionsTab());
             return true;
         }
+        if (key == SessionsToolId)
+        {
+            SidebarTabs().SelectedItem(SessionsTab());
+            return true;
+        }
 
         if (const auto entry = _toolTabs.find(key); entry != _toolTabs.end())
         {
@@ -155,13 +192,43 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void ConclusionSidebar::SetActiveWorkspace(const winrt::guid& workspaceId, const winrt::hstring& workspaceTitle)
+    void ConclusionSidebar::SetActiveWorkspace(const winrt::guid& workspaceId,
+                                               const winrt::hstring& workspaceTitle,
+                                               const winrt::hstring& cwd)
     {
-        if (_activeWorkspaceId != workspaceId || _activeWorkspaceTitle != workspaceTitle)
+        if (_activeWorkspaceId != workspaceId || _activeWorkspaceTitle != workspaceTitle || _activeWorkspaceCwd != cwd)
         {
             _activeWorkspaceId = workspaceId;
             _activeWorkspaceTitle = workspaceTitle;
+            _activeWorkspaceCwd = cwd;
             _RefreshHistory();
+            _RefreshSessions();
+        }
+    }
+
+    void ConclusionSidebar::SetCodexHistoryHandlers(CodexHistorySyncHandler syncHandler,
+                                                    CodexHistorySessionHandler loadHandler,
+                                                    CodexHistorySessionHandler resumeHandler)
+    {
+        _codexSyncHandler = std::move(syncHandler);
+        _codexLoadHandler = std::move(loadHandler);
+        _codexResumeHandler = std::move(resumeHandler);
+        _RefreshSessions();
+    }
+
+    void ConclusionSidebar::SetCodexOperationState(const bool busy, const CodexHistoryUiState state)
+    {
+        const auto availabilityChanged = (_codexUiState == CodexHistoryUiState::Unavailable) !=
+                                         (state == CodexHistoryUiState::Unavailable);
+        _codexOperationBusy = busy;
+        _codexUiState = state;
+        if (availabilityChanged)
+        {
+            _RefreshSessions();
+        }
+        else
+        {
+            _UpdateContentState();
         }
     }
 
@@ -200,6 +267,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         _RefreshHistory();
+        _RefreshSessions();
         return true;
     }
 
@@ -243,12 +311,18 @@ namespace winrt::TerminalApp::implementation
         }
 
         _RefreshHistory();
+        _RefreshSessions();
         return true;
     }
 
     void ConclusionSidebar::RefreshHistory()
     {
         _RefreshHistory();
+    }
+
+    void ConclusionSidebar::RefreshSessions()
+    {
+        _RefreshSessions();
     }
 
     void ConclusionSidebar::_Toggle_Click(const Windows::Foundation::IInspectable&, const RoutedEventArgs&)
@@ -273,6 +347,73 @@ namespace winrt::TerminalApp::implementation
         if (_isInitialized)
         {
             _RefreshHistory();
+        }
+    }
+
+    void ConclusionSidebar::_SessionSearch_TextChanged(const Windows::Foundation::IInspectable&, const RoutedEventArgs&)
+    {
+        if (_isInitialized)
+        {
+            _RefreshSessions();
+        }
+    }
+
+    void ConclusionSidebar::_SessionSelection_Changed(const Windows::Foundation::IInspectable&, const SelectionChangedEventArgs&)
+    {
+        _UpdateSessionActions();
+    }
+
+    void ConclusionSidebar::_SyncSessions_Click(const Windows::Foundation::IInspectable&, const RoutedEventArgs&)
+    {
+        if (_codexOperationBusy || !_codexSyncHandler ||
+            _activeWorkspaceId == winrt::guid{} || _activeWorkspaceCwd.empty())
+        {
+            return;
+        }
+
+        try
+        {
+            _codexSyncHandler(_activeWorkspaceId, _activeWorkspaceTitle, _activeWorkspaceCwd);
+        }
+        catch (...)
+        {
+            SetCodexOperationState(false, CodexHistoryUiState::Error);
+        }
+    }
+
+    void ConclusionSidebar::_LoadSession_Click(const Windows::Foundation::IInspectable&, const RoutedEventArgs&)
+    {
+        const auto item = _SelectedSession();
+        if (_codexOperationBusy || !_codexLoadHandler || !item || !item.CanLoad())
+        {
+            return;
+        }
+
+        try
+        {
+            _codexLoadHandler(item.WorkspaceId(), item.WorkspaceTitle(), item.Cwd(), item.SessionId());
+        }
+        catch (...)
+        {
+            SetCodexOperationState(false, CodexHistoryUiState::Error);
+        }
+    }
+
+    void ConclusionSidebar::_ResumeSession_Click(const Windows::Foundation::IInspectable&, const RoutedEventArgs&)
+    {
+        const auto item = _SelectedSession();
+        if (_codexOperationBusy || !_codexResumeHandler || !item || !item.CanResume())
+        {
+            return;
+        }
+
+        try
+        {
+            _codexResumeHandler(item.WorkspaceId(), item.WorkspaceTitle(), item.Cwd(), item.SessionId());
+        }
+        catch (...)
+        {
+            SetCodexOperationState(false, CodexHistoryUiState::Error);
         }
     }
 
@@ -311,6 +452,7 @@ namespace winrt::TerminalApp::implementation
             if (_historyStore.DeleteTurn(item.Provider(), item.SessionId(), item.TurnId()))
             {
                 _RefreshHistory();
+                _RefreshSessions();
             }
         }
     }
@@ -365,6 +507,37 @@ namespace winrt::TerminalApp::implementation
         _UpdateContentState();
     }
 
+    void ConclusionSidebar::_RefreshSessions()
+    {
+        if (!_isInitialized)
+        {
+            return;
+        }
+
+        _sessionItems.Clear();
+        if (!_historyStore.IsAvailable() || _activeWorkspaceId == winrt::guid{})
+        {
+            _UpdateContentState();
+            return;
+        }
+
+        const auto search = SessionSearchBox().Text();
+        const auto records = _historyStore.ListSessionSummaries(_activeWorkspaceId,
+                                                                std::wstring_view{ search.c_str(), search.size() },
+                                                                MaximumSessions);
+        for (const auto& record : records)
+        {
+            const std::wstring_view sessionId{ record.SessionId };
+            const auto validSessionId = WorkspaceAgentResume::IsValidCodexSessionId(sessionId);
+            const auto validOpaqueSessionId = !sessionId.empty() &&
+                                              sessionId.size() <= CodexAppServerClient::MaximumIdentifierCharacters;
+            _sessionItems.Append(_makeSessionItem(record,
+                                                  static_cast<bool>(_codexLoadHandler) && validOpaqueSessionId,
+                                                  static_cast<bool>(_codexResumeHandler) && validSessionId));
+        }
+        _UpdateContentState();
+    }
+
     void ConclusionSidebar::_UpdateContentState()
     {
         if (!_isInitialized)
@@ -381,6 +554,66 @@ namespace winrt::TerminalApp::implementation
         WorkspaceNameText().Text(_showAllWorkspaces ?
                                      RS_(L"ConclusionSidebar_AllWorkspaces") :
                                      (_activeWorkspaceTitle.empty() ? RS_(L"ConclusionSidebar_WorkspaceFallback") : _activeWorkspaceTitle));
+
+        const auto sessionCount = _sessionItems.Size();
+        const auto hasSessions = sessionCount > 0;
+        SessionList().Visibility(hasSessions ? Visibility::Visible : Visibility::Collapsed);
+        EmptySessionsState().Visibility(hasSessions ? Visibility::Collapsed : Visibility::Visible);
+        SessionCountBadge().Visibility(hasSessions ? Visibility::Visible : Visibility::Collapsed);
+        SessionCountText().Text(hasSessions ? winrt::to_hstring(sessionCount) : winrt::hstring{});
+        SessionWorkspaceTitleText().Text(_activeWorkspaceTitle.empty() ?
+                                             RS_(L"ConclusionSidebar_WorkspaceFallback") :
+                                             _activeWorkspaceTitle);
+        ActiveWorkspaceCwdText().Text(_activeWorkspaceCwd.empty() ?
+                                          RS_(L"ConclusionSidebar_NoActiveWorkspaceCwd") :
+                                          _activeWorkspaceCwd);
+        ToolTipService::SetToolTip(ActiveWorkspaceCwdText(), box_value(ActiveWorkspaceCwdText().Text()));
+
+        SessionProgressRing().IsActive(_codexOperationBusy);
+        SessionProgressRing().Visibility(_codexOperationBusy ? Visibility::Visible : Visibility::Collapsed);
+        switch (_codexUiState)
+        {
+        case CodexHistoryUiState::Ready:
+            SessionStatusText().Text(RS_(L"ConclusionSidebar_CodexReady"));
+            break;
+        case CodexHistoryUiState::Syncing:
+            SessionStatusText().Text(RS_(L"ConclusionSidebar_CodexSyncing"));
+            break;
+        case CodexHistoryUiState::Loading:
+            SessionStatusText().Text(RS_(L"ConclusionSidebar_CodexLoading"));
+            break;
+        case CodexHistoryUiState::Resuming:
+            SessionStatusText().Text(RS_(L"ConclusionSidebar_CodexResuming"));
+            break;
+        case CodexHistoryUiState::Error:
+            SessionStatusText().Text(RS_(L"ConclusionSidebar_CodexError"));
+            break;
+        case CodexHistoryUiState::Unavailable:
+        default:
+            SessionStatusText().Text(RS_(L"ConclusionSidebar_CodexUnavailable"));
+            break;
+        }
+        _UpdateSessionActions();
+    }
+
+    void ConclusionSidebar::_UpdateSessionActions()
+    {
+        if (!_isInitialized)
+        {
+            return;
+        }
+
+        const auto selected = _SelectedSession();
+        SyncSessionsButton().IsEnabled(!_codexOperationBusy && static_cast<bool>(_codexSyncHandler) &&
+                                           _activeWorkspaceId != winrt::guid{} && !_activeWorkspaceCwd.empty());
+        SessionList().IsEnabled(!_codexOperationBusy);
+        LoadSessionButton().IsEnabled(!_codexOperationBusy && selected && selected.CanLoad());
+        ResumeSessionButton().IsEnabled(!_codexOperationBusy && selected && selected.CanResume());
+    }
+
+    TerminalApp::AgentHistoryItem ConclusionSidebar::_SelectedSession()
+    {
+        return SessionList().SelectedItem().try_as<TerminalApp::AgentHistoryItem>();
     }
 
     TerminalApp::AgentHistoryItem ConclusionSidebar::_ItemFromSender(const Windows::Foundation::IInspectable& sender) const

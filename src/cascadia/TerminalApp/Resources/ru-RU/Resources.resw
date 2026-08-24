@@ -1069,4 +1069,55 @@
   <data name="ConclusionSidebar_CopyPromptFormat" xml:space="preserve">
     <value>Prompt:&#xA;{}&#xA;&#xA;{}</value>
   </data>
+  <data name="ConclusionSidebarSessionsTab.Text" xml:space="preserve">
+    <value>Codex Sessions</value>
+  </data>
+  <data name="ConclusionSidebarSessionLocalBadge.Text" xml:space="preserve">
+    <value>Local history</value>
+  </data>
+  <data name="ConclusionSidebarSyncSessionsButton.Content" xml:space="preserve">
+    <value>Sync</value>
+  </data>
+  <data name="ConclusionSidebarLoadSessionButton.Content" xml:space="preserve">
+    <value>Load</value>
+  </data>
+  <data name="ConclusionSidebarResumeSessionButton.Content" xml:space="preserve">
+    <value>Resume</value>
+  </data>
+  <data name="ConclusionSidebarSessionSearchBox.PlaceholderText" xml:space="preserve">
+    <value>Search sessions</value>
+  </data>
+  <data name="ConclusionSidebarSessionSearchBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Search Codex sessions</value>
+  </data>
+  <data name="ConclusionSidebarEmptySessionsTitle.Text" xml:space="preserve">
+    <value>No Codex sessions</value>
+  </data>
+  <data name="ConclusionSidebarEmptySessionsBody.Text" xml:space="preserve">
+    <value>Sync the active workspace to discover saved Codex sessions.</value>
+  </data>
+  <data name="ConclusionSidebar_CodexUnavailable" xml:space="preserve">
+    <value>Codex App Server is unavailable. Saved history is still available.</value>
+  </data>
+  <data name="ConclusionSidebar_CodexReady" xml:space="preserve">
+    <value>Codex App Server is connected.</value>
+  </data>
+  <data name="ConclusionSidebar_CodexSyncing" xml:space="preserve">
+    <value>Syncing Codex sessions…</value>
+  </data>
+  <data name="ConclusionSidebar_CodexLoading" xml:space="preserve">
+    <value>Loading Codex session…</value>
+  </data>
+  <data name="ConclusionSidebar_CodexResuming" xml:space="preserve">
+    <value>Preparing to resume Codex session…</value>
+  </data>
+  <data name="ConclusionSidebar_CodexError" xml:space="preserve">
+    <value>The Codex session operation failed.</value>
+  </data>
+  <data name="ConclusionSidebar_NoActiveWorkspaceCwd" xml:space="preserve">
+    <value>No active directory for this workspace</value>
+  </data>
+  <data name="ConclusionSidebar_UntitledSession" xml:space="preserve">
+    <value>Untitled session</value>
+  </data>
 </root>

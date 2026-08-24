@@ -17,8 +17,13 @@ namespace TerminalApp
         String Prompt { get; set; };
         String Message { get; set; };
         String Model { get; set; };
+        String SourceKind { get; set; };
         Windows.Foundation.DateTime Timestamp { get; set; };
         Boolean IsPinned { get; set; };
+        Boolean IsSessionSummary { get; set; };
+        Boolean CanLoad { get; set; };
+        Boolean CanResume { get; set; };
+        Boolean HasLocalTurns { get; set; };
 
         String TimestampText { get; };
         String SessionLabel { get; };

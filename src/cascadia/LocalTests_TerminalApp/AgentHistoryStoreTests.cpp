@@ -24,6 +24,7 @@ using winrt::TerminalApp::implementation::AgentHistoryEventReceipt;
 using winrt::TerminalApp::implementation::AgentHistoryInbox;
 using winrt::TerminalApp::implementation::AgentHistoryInboxWorkspace;
 using winrt::TerminalApp::implementation::AgentHistoryRecord;
+using winrt::TerminalApp::implementation::AgentHistorySessionRecord;
 using winrt::TerminalApp::implementation::AgentHistoryStore;
 using winrt::TerminalApp::implementation::WorkspaceAutomationMethod;
 using winrt::TerminalApp::implementation::WorkspaceAutomationProtocol;
@@ -149,6 +150,27 @@ namespace TerminalAppLocalTests
             };
         }
 
+        AgentHistorySessionRecord MakeSessionSummary(const winrt::guid& workspaceId,
+                                                      const std::wstring_view sessionId,
+                                                      const int64_t createdAt,
+                                                      const int64_t updatedAt,
+                                                      const int64_t seenAt)
+        {
+            AgentHistorySessionRecord record;
+            record.WorkspaceId = workspaceId;
+            record.WorkspaceTitle = L"Workspace summary";
+            record.Provider = L"codex";
+            record.SessionId = winrt::hstring{ sessionId };
+            record.Cwd = L"C:\\summary";
+            record.DisplayName = L"App Server session";
+            record.Preview = L"Privacy-bounded preview";
+            record.SourceKind = L"cli";
+            record.CreatedAt = createdAt;
+            record.UpdatedAt = updatedAt;
+            record.SeenAt = seenAt;
+            return record;
+        }
+
         std::string HistoryEnvelope(const std::string_view eventId,
                                     const std::string_view workspaceId,
                                     const std::string_view event,
@@ -245,6 +267,10 @@ namespace TerminalAppLocalTests
 
         TEST_METHOD(InitializesSchemaAndWal);
         TEST_METHOD(MigratesVersionOneSchema);
+        TEST_METHOD(MigratesVersionTwoSchema);
+        TEST_METHOD(SessionSummariesUpsertListSortAndFilter);
+        TEST_METHOD(SessionSummaryMergePreservesHookAuthority);
+        TEST_METHOD(SessionSummaryDeletionAndValidationBoundaries);
         TEST_METHOD(UpsertIsIdempotentAndPreservesPrompt);
         TEST_METHOD(StagedUpsertHidesIncompleteTurns);
         TEST_METHOD(PromptThenFinalUsesFinalMetadata);
@@ -359,7 +385,7 @@ namespace TerminalAppLocalTests
         VERIFY_IS_TRUE(std::filesystem::is_regular_file(_databasePath));
 
         const auto database = OpenDatabase(_databasePath);
-        VERIFY_ARE_EQUAL(2, QueryInteger(database.get(), "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(3, QueryInteger(database.get(), "PRAGMA user_version;"));
         VERIFY_IS_TRUE(QueryText(database.get(), "PRAGMA journal_mode;") == "wal");
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ai_session';"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ai_turn';"));
@@ -367,9 +393,12 @@ namespace TerminalAppLocalTests
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_history_event') WHERE name='payload_digest' AND type='BLOB';"));
         VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_history_event') WHERE name IN ('cwd', 'title', 'prompt', 'final_markdown', 'model', 'event_at');"));
         VERIFY_ARE_EQUAL(3, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_turn') WHERE name IN ('prompt', 'final_markdown', 'pinned');"));
-        VERIFY_ARE_EQUAL(2, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_session') WHERE name IN ('started_at', 'pinned');"));
+        VERIFY_ARE_EQUAL(8, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_session') WHERE name IN ('started_at', 'pinned', 'summary_display_name', 'summary_preview', 'summary_source_kind', 'summary_created_at', 'summary_updated_at', 'summary_seen_at');"));
+        VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_session') WHERE name IN ('raw_json', 'tool_output', 'transcript_path', 'rollout_path', 'turns_json');"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='ai_turn_workspace_order';"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='ai_turn_global_order';"));
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='ai_session_workspace_order';"));
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='ai_session_global_order';"));
     }
 
     void AgentHistoryStoreTests::MigratesVersionOneSchema()
@@ -438,9 +467,296 @@ namespace TerminalAppLocalTests
         VERIFY_ARE_EQUAL(L"M1 final", records[0].FinalMarkdown);
 
         const auto database = OpenDatabase(_databasePath);
-        VERIFY_ARE_EQUAL(2, QueryInteger(database.get(), "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(3, QueryInteger(database.get(), "PRAGMA user_version;"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ai_history_event';"));
         VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM ai_history_event;"));
+        VERIFY_ARE_EQUAL(6, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_session') WHERE name LIKE 'summary_%';"));
+    }
+
+    void AgentHistoryStoreTests::MigratesVersionTwoSchema()
+    {
+        {
+            const auto database = OpenDatabase(_databasePath);
+            Execute(database.get(), R"sql(
+                PRAGMA foreign_keys=ON;
+                CREATE TABLE ai_session (
+                    provider TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    workspace_id TEXT NOT NULL,
+                    workspace_title TEXT NOT NULL DEFAULT '',
+                    cwd TEXT NOT NULL DEFAULT '',
+                    model TEXT NOT NULL DEFAULT '',
+                    started_at INTEGER NOT NULL DEFAULT 0,
+                    last_activity_at INTEGER NOT NULL,
+                    pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+                    PRIMARY KEY (provider, session_id)
+                ) WITHOUT ROWID;
+                CREATE TABLE ai_turn (
+                    id INTEGER PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    turn_id TEXT NOT NULL,
+                    workspace_id TEXT NOT NULL,
+                    workspace_title TEXT NOT NULL DEFAULT '',
+                    cwd TEXT NOT NULL DEFAULT '',
+                    title TEXT NOT NULL DEFAULT '',
+                    prompt TEXT NOT NULL DEFAULT '',
+                    final_markdown TEXT NOT NULL DEFAULT '',
+                    model TEXT NOT NULL DEFAULT '',
+                    event_at INTEGER NOT NULL,
+                    received_at INTEGER NOT NULL,
+                    pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+                    UNIQUE (provider, session_id, turn_id),
+                    FOREIGN KEY (provider, session_id)
+                        REFERENCES ai_session (provider, session_id)
+                        ON DELETE CASCADE
+                );
+                CREATE TABLE ai_history_event (
+                    event_id TEXT PRIMARY KEY,
+                    workspace_id TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    turn_id TEXT NOT NULL,
+                    event_kind INTEGER NOT NULL CHECK (event_kind IN (0, 1)),
+                    payload_digest BLOB NOT NULL CHECK (
+                        typeof(payload_digest) = 'blob' AND length(payload_digest) = 32
+                    )
+                ) WITHOUT ROWID;
+                INSERT INTO ai_session (
+                    provider, session_id, workspace_id, workspace_title, cwd, model,
+                    started_at, last_activity_at, pinned
+                ) VALUES (
+                    'codex', 'm2-session', '13131313-1313-4313-8313-131313131313',
+                    'M2 workspace', 'C:\m2', 'm2-model', 75, 75, 0
+                );
+                INSERT INTO ai_turn (
+                    provider, session_id, turn_id, workspace_id, workspace_title, cwd,
+                    title, prompt, final_markdown, model, event_at, received_at, pinned
+                ) VALUES (
+                    'codex', 'm2-session', 'm2-turn', '13131313-1313-4313-8313-131313131313',
+                    'M2 workspace', 'C:\m2', 'M2 title', 'M2 prompt', 'M2 final',
+                    'm2-model', 75, 76, 0
+                );
+                INSERT INTO ai_history_event (
+                    event_id, workspace_id, provider, session_id, turn_id, event_kind, payload_digest
+                ) VALUES (
+                    '93000000-0000-4000-8000-000000000001',
+                    '13131313-1313-4313-8313-131313131313',
+                    'codex', 'm2-session', 'm2-turn', 1, zeroblob(32)
+                );
+                PRAGMA user_version=2;
+            )sql");
+        }
+
+        AgentHistoryStore store{ _databasePath };
+        VERIFY_IS_TRUE(store.IsAvailable());
+
+        const auto turns = store.ListTurns(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, turns.size());
+        VERIFY_ARE_EQUAL(L"M2 prompt", turns[0].Prompt);
+        VERIFY_ARE_EQUAL(L"M2 final", turns[0].FinalMarkdown);
+
+        const auto sessions = store.ListSessionSummaries(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, sessions.size());
+        VERIFY_ARE_EQUAL(L"m2-session", sessions[0].SessionId);
+        VERIFY_IS_TRUE(sessions[0].HasLocalTurns);
+        VERIFY_ARE_EQUAL(int64_t{ 75 }, sessions[0].CreatedAt);
+        VERIFY_ARE_EQUAL(int64_t{ 75 }, sessions[0].UpdatedAt);
+        VERIFY_ARE_EQUAL(int64_t{ 0 }, sessions[0].SeenAt);
+
+        const auto database = OpenDatabase(_databasePath);
+        VERIFY_ARE_EQUAL(3, QueryInteger(database.get(), "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM ai_history_event WHERE length(payload_digest)=32;"));
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM ai_turn;"));
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM ai_session;"));
+        VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT summary_seen_at FROM ai_session WHERE session_id='m2-session';"));
+    }
+
+    void AgentHistoryStoreTests::SessionSummariesUpsertListSortAndFilter()
+    {
+        const auto workspaceOne = Guid(L"14141414-1414-4414-8414-141414141414");
+        const auto workspaceTwo = Guid(L"15151515-1515-4515-8515-151515151515");
+        AgentHistoryStore store{ _databasePath };
+
+        auto first = MakeSessionSummary(workspaceOne, L"summary-a", 10, 100, 1000);
+        first.DisplayName = L"Architecture notes";
+        first.Preview = L"Privacy-bounded App Server preview";
+        VERIFY_IS_TRUE(store.UpsertSessionSummary(first));
+        VERIFY_IS_TRUE(store.UpsertSessionSummary(first));
+
+        auto second = MakeSessionSummary(workspaceTwo, L"summary-b", 20, 300, 900);
+        second.WorkspaceTitle = L"研发工作区";
+        second.DisplayName = L"研发会话";
+        second.Preview = L"修复 Unicode 搜索";
+        second.SourceKind = L"vscode";
+        VERIFY_IS_TRUE(store.UpsertSessionSummary(second));
+
+        auto localTurn = MakeRecord(workspaceOne, L"hook-session", L"hook-turn", 200);
+        localTurn.WorkspaceTitle = L"Hook workspace";
+        VERIFY_IS_TRUE(store.UpsertTurn(localTurn));
+
+        const auto all = store.ListSessionSummaries(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 3 }, all.size());
+        VERIFY_ARE_EQUAL(L"summary-b", all[0].SessionId);
+        VERIFY_ARE_EQUAL(L"hook-session", all[1].SessionId);
+        VERIFY_ARE_EQUAL(L"summary-a", all[2].SessionId);
+        VERIFY_IS_FALSE(all[0].HasLocalTurns);
+        VERIFY_IS_TRUE(all[1].HasLocalTurns);
+        VERIFY_ARE_EQUAL(L"gpt-test", all[1].Model);
+        VERIFY_ARE_EQUAL(L"", all[2].Model);
+
+        const auto workspaceMatches = store.ListSessionSummaries(std::optional{ workspaceTwo }, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, workspaceMatches.size());
+        VERIFY_ARE_EQUAL(L"summary-b", workspaceMatches[0].SessionId);
+
+        const auto unicodeMatches = store.ListSessionSummaries(std::nullopt, L"unicode 搜索");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, unicodeMatches.size());
+        VERIFY_ARE_EQUAL(L"summary-b", unicodeMatches[0].SessionId);
+
+        const auto caseInsensitiveMatches = store.ListSessionSummaries(std::nullopt, L"PRIVACY-BOUNDED");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, caseInsensitiveMatches.size());
+        VERIFY_ARE_EQUAL(L"summary-a", caseInsensitiveMatches[0].SessionId);
+
+        const auto limited = store.ListSessionSummaries(std::nullopt, L"", 1);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, limited.size());
+        VERIFY_ARE_EQUAL(L"summary-b", limited[0].SessionId);
+        VERIFY_IS_TRUE(store.ListSessionSummaries(std::nullopt, std::wstring(1025, L'x')).empty());
+        VERIFY_IS_TRUE(store.ListSessionSummaries(std::optional{ winrt::guid{} }, L"").empty());
+        VERIFY_IS_TRUE(store.ListSessionSummaries(std::nullopt, L"", 0).empty());
+
+        const auto database = OpenDatabase(_databasePath);
+        VERIFY_ARE_EQUAL(3, QueryInteger(database.get(), "SELECT count(*) FROM ai_session;"));
+        VERIFY_ARE_EQUAL(2, QueryInteger(database.get(), "SELECT count(*) FROM ai_session WHERE summary_seen_at > 0;"));
+    }
+
+    void AgentHistoryStoreTests::SessionSummaryMergePreservesHookAuthority()
+    {
+        const auto summaryWorkspace = Guid(L"16161616-1616-4616-8616-161616161616");
+        const auto hookWorkspace = Guid(L"17171717-1717-4717-8717-171717171717");
+        const auto newerHookWorkspace = Guid(L"18181818-1818-4818-8818-181818181818");
+        AgentHistoryStore store{ _databasePath };
+
+        auto summary = MakeSessionSummary(summaryWorkspace, L"merged-session", 100, 200, 1000);
+        summary.Model = L"summary-model";
+        VERIFY_IS_TRUE(store.UpsertSessionSummary(summary));
+
+        auto hook = MakeRecord(hookWorkspace, L"merged-session", L"hook-turn-1", 500);
+        hook.WorkspaceTitle = L"Authoritative Hook workspace";
+        hook.Cwd = L"C:\\hook-authoritative";
+        hook.Model = L"gpt-hook";
+        VERIFY_IS_TRUE(store.UpsertTurn(hook));
+
+        auto staleSummary = MakeSessionSummary(summaryWorkspace, L"merged-session", 50, 100, 2000);
+        staleSummary.WorkspaceTitle = L"Must not replace Hook workspace";
+        staleSummary.Cwd = L"C:\\must-not-replace";
+        staleSummary.Model = L"must-not-replace-model";
+        staleSummary.DisplayName = L"Fresh display from an old thread";
+        staleSummary.Preview = L"Display metadata may refresh independently";
+        VERIFY_IS_TRUE(store.UpsertSessionSummary(staleSummary));
+
+        auto olderObservation = staleSummary;
+        olderObservation.SeenAt = 1500;
+        olderObservation.DisplayName = L"Must not roll back display";
+        VERIFY_IS_TRUE(store.UpsertSessionSummary(olderObservation));
+
+        auto newerSummary = staleSummary;
+        newerSummary.CreatedAt = 80;
+        newerSummary.UpdatedAt = 900;
+        newerSummary.SeenAt = 3000;
+        newerSummary.DisplayName = L"Latest display name";
+        newerSummary.Preview = L"Latest preview";
+        newerSummary.Cwd = L"C:\\newer-summary-still-supplemental";
+        VERIFY_IS_TRUE(store.UpsertSessionSummary(newerSummary));
+
+        auto newerHook = MakeRecord(newerHookWorkspace, L"merged-session", L"hook-turn-2", 1000);
+        newerHook.WorkspaceTitle = L"Newest Hook workspace";
+        newerHook.Cwd = L"C:\\newest-hook";
+        newerHook.Model = L"gpt-newest-hook";
+        VERIFY_IS_TRUE(store.UpsertTurn(newerHook));
+
+        const auto sessions = store.ListSessionSummaries(std::nullopt, L"latest display");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, sessions.size());
+        VERIFY_IS_TRUE(sessions[0].WorkspaceId == newerHookWorkspace);
+        VERIFY_ARE_EQUAL(L"Newest Hook workspace", sessions[0].WorkspaceTitle);
+        VERIFY_ARE_EQUAL(L"C:\\newest-hook", sessions[0].Cwd);
+        VERIFY_ARE_EQUAL(L"gpt-newest-hook", sessions[0].Model);
+        VERIFY_ARE_EQUAL(L"Latest display name", sessions[0].DisplayName);
+        VERIFY_ARE_EQUAL(L"Latest preview", sessions[0].Preview);
+        VERIFY_ARE_EQUAL(int64_t{ 80 }, sessions[0].CreatedAt);
+        VERIFY_ARE_EQUAL(int64_t{ 900 }, sessions[0].UpdatedAt);
+        VERIFY_ARE_EQUAL(int64_t{ 3000 }, sessions[0].SeenAt);
+        VERIFY_IS_TRUE(sessions[0].HasLocalTurns);
+
+        const auto database = OpenDatabase(_databasePath);
+        VERIFY_IS_TRUE(QueryText(database.get(), "SELECT workspace_id FROM ai_session WHERE session_id='merged-session';") ==
+                       "18181818-1818-4818-8818-181818181818");
+        VERIFY_IS_TRUE(QueryText(database.get(), "SELECT cwd FROM ai_session WHERE session_id='merged-session';") == "C:\\newest-hook");
+        VERIFY_IS_TRUE(QueryText(database.get(), "SELECT model FROM ai_session WHERE session_id='merged-session';") == "gpt-newest-hook");
+        VERIFY_ARE_EQUAL(500, QueryInteger(database.get(), "SELECT started_at FROM ai_session WHERE session_id='merged-session';"));
+        VERIFY_ARE_EQUAL(1000, QueryInteger(database.get(), "SELECT last_activity_at FROM ai_session WHERE session_id='merged-session';"));
+    }
+
+    void AgentHistoryStoreTests::SessionSummaryDeletionAndValidationBoundaries()
+    {
+        const auto workspaceId = Guid(L"19191919-1919-4919-8919-191919191919");
+        AgentHistoryStore store{ _databasePath };
+
+        const auto summary = MakeSessionSummary(workspaceId, L"retained-summary", 100, 200, 300);
+        VERIFY_IS_TRUE(store.UpsertSessionSummary(summary));
+        VERIFY_IS_TRUE(store.UpsertTurn(MakeRecord(workspaceId, L"retained-summary", L"retained-turn", 400)));
+        VERIFY_IS_TRUE(store.DeleteTurn(L"codex", L"retained-summary", L"retained-turn"));
+        VERIFY_IS_TRUE(store.ListTurns(std::nullopt, L"").empty());
+
+        auto sessions = store.ListSessionSummaries(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, sessions.size());
+        VERIFY_ARE_EQUAL(L"retained-summary", sessions[0].SessionId);
+        VERIFY_IS_FALSE(sessions[0].HasLocalTurns);
+        VERIFY_IS_TRUE(store.DeleteSession(L"codex", L"retained-summary"));
+        VERIFY_IS_TRUE(store.ListSessionSummaries(std::nullopt, L"").empty());
+
+        VERIFY_IS_TRUE(store.UpsertTurn(MakeRecord(workspaceId, L"hook-only", L"hook-only-turn", 500)));
+        VERIFY_IS_TRUE(store.DeleteTurn(L"codex", L"hook-only", L"hook-only-turn"));
+        VERIFY_IS_TRUE(store.ListSessionSummaries(std::nullopt, L"").empty());
+
+        auto invalid = MakeSessionSummary(workspaceId, L"invalid", 10, 20, 30);
+        invalid.WorkspaceId = {};
+        VERIFY_IS_FALSE(store.UpsertSessionSummary(invalid));
+        invalid = MakeSessionSummary(workspaceId, L"invalid", 10, 20, 30);
+        invalid.Provider = L"";
+        VERIFY_IS_FALSE(store.UpsertSessionSummary(invalid));
+        invalid = MakeSessionSummary(workspaceId, L"invalid", 10, 20, 30);
+        invalid.SessionId = L"";
+        VERIFY_IS_FALSE(store.UpsertSessionSummary(invalid));
+        invalid = MakeSessionSummary(workspaceId, L"invalid", 10, 20, 30);
+        invalid.SourceKind = L"";
+        VERIFY_IS_FALSE(store.UpsertSessionSummary(invalid));
+        invalid = MakeSessionSummary(workspaceId, L"invalid", 10, 20, 30);
+        invalid.DisplayName = winrt::hstring{ std::wstring(513, L'n') };
+        VERIFY_IS_FALSE(store.UpsertSessionSummary(invalid));
+        invalid = MakeSessionSummary(workspaceId, L"invalid", 10, 20, 30);
+        invalid.Preview = winrt::hstring{ std::wstring(8193, L'p') };
+        VERIFY_IS_FALSE(store.UpsertSessionSummary(invalid));
+        invalid = MakeSessionSummary(workspaceId, L"invalid", 10, 20, 30);
+        invalid.SourceKind = winrt::hstring{ std::wstring(65, L's') };
+        VERIFY_IS_FALSE(store.UpsertSessionSummary(invalid));
+        invalid = MakeSessionSummary(workspaceId, L"invalid", 10, 20, 30);
+        invalid.DisplayName = L"bad\nname";
+        VERIFY_IS_FALSE(store.UpsertSessionSummary(invalid));
+        invalid = MakeSessionSummary(workspaceId, L"invalid", -1, 20, 30);
+        VERIFY_IS_FALSE(store.UpsertSessionSummary(invalid));
+        invalid = MakeSessionSummary(workspaceId, L"invalid", 20, 10, 30);
+        VERIFY_IS_FALSE(store.UpsertSessionSummary(invalid));
+        invalid = MakeSessionSummary(workspaceId, L"invalid", 10, 20, 0);
+        VERIFY_IS_FALSE(store.UpsertSessionSummary(invalid));
+        invalid = MakeSessionSummary(workspaceId, L"invalid", 10, 20, 253402300800000);
+        VERIFY_IS_FALSE(store.UpsertSessionSummary(invalid));
+        invalid = MakeSessionSummary(workspaceId, L"invalid", 10, 20, 30);
+        invalid.HasLocalTurns = true;
+        VERIFY_IS_FALSE(store.UpsertSessionSummary(invalid));
+
+        const auto database = OpenDatabase(_databasePath);
+        VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM ai_session;"));
+        VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM ai_turn;"));
     }
 
     void AgentHistoryStoreTests::UpsertIsIdempotentAndPreservesPrompt()

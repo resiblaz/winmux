@@ -17,7 +17,7 @@ namespace winrt::TerminalApp::implementation
 {
     namespace
     {
-        constexpr int SchemaVersion{ 2 };
+        constexpr int SchemaVersion{ 3 };
         constexpr int BusyTimeoutMilliseconds{ 5000 };
 
         constexpr size_t MaximumProviderCharacters{ 64 };
@@ -27,9 +27,13 @@ namespace winrt::TerminalApp::implementation
         constexpr size_t MaximumTitleCharacters{ 4096 };
         constexpr size_t MaximumBodyCharacters{ 8 * 1024 * 1024 };
         constexpr size_t MaximumModelCharacters{ 256 };
+        constexpr size_t MaximumSessionDisplayNameCharacters{ 512 };
+        constexpr size_t MaximumSessionPreviewCharacters{ 8192 };
+        constexpr size_t MaximumSourceKindCharacters{ 64 };
         constexpr size_t MaximumSearchCharacters{ 1024 };
         constexpr uint32_t MaximumListLimit{ 10000 };
         constexpr size_t EventPayloadDigestBytes{ 32 };
+        constexpr int64_t MaximumUnixMilliseconds{ 253402300799999 };
 
         struct BCryptHashDeleter
         {
@@ -177,6 +181,11 @@ namespace winrt::TerminalApp::implementation
             });
         }
 
+        bool _containsControlCharacter(const winrt::hstring& value) noexcept
+        {
+            return _containsControlCharacter(std::wstring_view{ value.c_str(), value.size() });
+        }
+
         bool _validKey(const std::wstring_view value, const size_t maximumLength) noexcept
         {
             return !value.empty() && value.size() <= maximumLength && !_containsControlCharacter(value);
@@ -201,6 +210,55 @@ namespace winrt::TerminalApp::implementation
                    record.Model.size() <= MaximumModelCharacters &&
                    record.EventAt >= 0 &&
                    record.ReceivedAt >= 0;
+        }
+
+        bool _containsInvalidPreviewCharacter(const std::wstring_view value) noexcept
+        {
+            return std::ranges::any_of(value, [](const wchar_t character) {
+                return (character < L' ' && character != L'\t' && character != L'\r' && character != L'\n') ||
+                       character == 0x7f;
+            });
+        }
+
+        bool _containsInvalidPreviewCharacter(const winrt::hstring& value) noexcept
+        {
+            return _containsInvalidPreviewCharacter(std::wstring_view{ value.c_str(), value.size() });
+        }
+
+        bool _validSessionCommon(const AgentHistorySessionRecord& record) noexcept
+        {
+            return record.WorkspaceId != winrt::guid{} &&
+                   _validKey(record.Provider, MaximumProviderCharacters) &&
+                   _validKey(record.SessionId, MaximumIdentifierCharacters) &&
+                   record.WorkspaceTitle.size() <= MaximumWorkspaceTitleCharacters &&
+                   !_containsControlCharacter(record.WorkspaceTitle) &&
+                   record.Cwd.size() <= MaximumCwdCharacters &&
+                   !_containsControlCharacter(record.Cwd) &&
+                   record.Model.size() <= MaximumModelCharacters &&
+                   !_containsControlCharacter(record.Model) &&
+                   record.DisplayName.size() <= MaximumSessionDisplayNameCharacters &&
+                   !_containsControlCharacter(record.DisplayName) &&
+                   record.Preview.size() <= MaximumSessionPreviewCharacters &&
+                   !_containsInvalidPreviewCharacter(record.Preview) &&
+                   record.SourceKind.size() <= MaximumSourceKindCharacters &&
+                   !_containsControlCharacter(record.SourceKind) &&
+                   record.CreatedAt >= 0 && record.CreatedAt <= MaximumUnixMilliseconds &&
+                   record.UpdatedAt >= record.CreatedAt && record.UpdatedAt <= MaximumUnixMilliseconds &&
+                   record.SeenAt >= 0 && record.SeenAt <= MaximumUnixMilliseconds;
+        }
+
+        bool _validSessionSummary(const AgentHistorySessionRecord& record) noexcept
+        {
+            return _validSessionCommon(record) &&
+                   !record.SourceKind.empty() &&
+                   record.SeenAt > 0 &&
+                   !record.HasLocalTurns;
+        }
+
+        bool _validListedSession(const AgentHistorySessionRecord& record) noexcept
+        {
+            return _validSessionCommon(record) &&
+                   ((record.SeenAt > 0 && !record.SourceKind.empty()) || record.HasLocalTurns);
         }
 
         bool _validEventReceipt(const AgentHistoryRecord& record,
@@ -473,6 +531,12 @@ namespace winrt::TerminalApp::implementation
                     started_at INTEGER NOT NULL DEFAULT 0,
                     last_activity_at INTEGER NOT NULL,
                     pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+                    summary_display_name TEXT NOT NULL DEFAULT '',
+                    summary_preview TEXT NOT NULL DEFAULT '',
+                    summary_source_kind TEXT NOT NULL DEFAULT '',
+                    summary_created_at INTEGER NOT NULL DEFAULT 0 CHECK (summary_created_at >= 0),
+                    summary_updated_at INTEGER NOT NULL DEFAULT 0 CHECK (summary_updated_at >= 0),
+                    summary_seen_at INTEGER NOT NULL DEFAULT 0 CHECK (summary_seen_at >= 0),
                     PRIMARY KEY (provider, session_id)
                 ) WITHOUT ROWID;
 
@@ -536,7 +600,28 @@ namespace winrt::TerminalApp::implementation
                 return false;
             }
 
-            if (!_execute(database, "PRAGMA user_version=2;") ||
+            const auto ensureSessionColumn = [&](const std::string_view name, const char* sql) noexcept {
+                return _tableHasColumn(database, "PRAGMA table_info(ai_session);", name) || _execute(database, sql);
+            };
+            if (!ensureSessionColumn("summary_display_name", "ALTER TABLE ai_session ADD COLUMN summary_display_name TEXT NOT NULL DEFAULT '';") ||
+                !ensureSessionColumn("summary_preview", "ALTER TABLE ai_session ADD COLUMN summary_preview TEXT NOT NULL DEFAULT '';") ||
+                !ensureSessionColumn("summary_source_kind", "ALTER TABLE ai_session ADD COLUMN summary_source_kind TEXT NOT NULL DEFAULT '';") ||
+                !ensureSessionColumn("summary_created_at", "ALTER TABLE ai_session ADD COLUMN summary_created_at INTEGER NOT NULL DEFAULT 0 CHECK (summary_created_at >= 0);") ||
+                !ensureSessionColumn("summary_updated_at", "ALTER TABLE ai_session ADD COLUMN summary_updated_at INTEGER NOT NULL DEFAULT 0 CHECK (summary_updated_at >= 0);") ||
+                !ensureSessionColumn("summary_seen_at", "ALTER TABLE ai_session ADD COLUMN summary_seen_at INTEGER NOT NULL DEFAULT 0 CHECK (summary_seen_at >= 0);"))
+            {
+                return false;
+            }
+
+            constexpr auto sessionIndexes = R"sql(
+                CREATE INDEX IF NOT EXISTS ai_session_workspace_order
+                    ON ai_session (workspace_id, pinned DESC, last_activity_at DESC, summary_updated_at DESC);
+                CREATE INDEX IF NOT EXISTS ai_session_global_order
+                    ON ai_session (pinned DESC, last_activity_at DESC, summary_updated_at DESC);
+            )sql";
+
+            if (!_execute(database, sessionIndexes) ||
+                !_execute(database, "PRAGMA user_version=3;") ||
                 !transaction.Commit())
             {
                 return false;
@@ -556,6 +641,27 @@ namespace winrt::TerminalApp::implementation
                    sqlite3_bind_int64(statement, 7, record.EventAt) == SQLITE_OK &&
                    sqlite3_bind_int64(statement, 8, record.EventAt) == SQLITE_OK &&
                    sqlite3_bind_int(statement, 9, 0) == SQLITE_OK;
+        }
+
+        bool _bindSessionSummary(sqlite3_stmt* statement,
+                                 const AgentHistorySessionRecord& record,
+                                 const std::string& workspaceId) noexcept
+        {
+            return _bindText(statement, 1, record.Provider) &&
+                   _bindText(statement, 2, record.SessionId) &&
+                   sqlite3_bind_text(statement, 3, workspaceId.data(), static_cast<int>(workspaceId.size()), SQLITE_TRANSIENT) == SQLITE_OK &&
+                   _bindText(statement, 4, record.WorkspaceTitle) &&
+                   _bindText(statement, 5, record.Cwd) &&
+                   _bindText(statement, 6, record.Model) &&
+                   sqlite3_bind_int64(statement, 7, record.CreatedAt) == SQLITE_OK &&
+                   sqlite3_bind_int64(statement, 8, record.UpdatedAt) == SQLITE_OK &&
+                   sqlite3_bind_int(statement, 9, 0) == SQLITE_OK &&
+                   _bindText(statement, 10, record.DisplayName) &&
+                   _bindText(statement, 11, record.Preview) &&
+                   _bindText(statement, 12, record.SourceKind) &&
+                   sqlite3_bind_int64(statement, 13, record.CreatedAt) == SQLITE_OK &&
+                   sqlite3_bind_int64(statement, 14, record.UpdatedAt) == SQLITE_OK &&
+                   sqlite3_bind_int64(statement, 15, record.SeenAt) == SQLITE_OK;
         }
 
         bool _bindTurn(sqlite3_stmt* statement, const AgentHistoryRecord& record, const std::string& workspaceId) noexcept
@@ -717,6 +823,124 @@ namespace winrt::TerminalApp::implementation
     bool AgentHistoryStore::UpsertTurn(const AgentHistoryRecord& record) noexcept
     {
         return UpsertFinal(record);
+    }
+
+    bool AgentHistoryStore::UpsertSessionSummary(const AgentHistorySessionRecord& record) noexcept
+    {
+        try
+        {
+            if (!_impl || !_validSessionSummary(record))
+            {
+                return false;
+            }
+
+            std::string workspaceId;
+            if (!_guidToUtf8(record.WorkspaceId, workspaceId))
+            {
+                return false;
+            }
+
+            const std::scoped_lock lock{ _impl->Mutex };
+            auto* const database = _impl->Database.get();
+            if (!database)
+            {
+                return false;
+            }
+
+            Transaction transaction{ database };
+            if (!transaction)
+            {
+                return false;
+            }
+
+            constexpr auto upsertSummary = R"sql(
+                INSERT INTO ai_session (
+                    provider, session_id, workspace_id, workspace_title, cwd, model,
+                    started_at, last_activity_at, pinned,
+                    summary_display_name, summary_preview, summary_source_kind,
+                    summary_created_at, summary_updated_at, summary_seen_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (provider, session_id) DO UPDATE SET
+                    workspace_id = CASE
+                        WHEN excluded.summary_seen_at >= ai_session.summary_seen_at AND NOT EXISTS (
+                            SELECT 1 FROM ai_turn
+                            WHERE provider = ai_session.provider AND session_id = ai_session.session_id
+                        ) THEN excluded.workspace_id
+                        ELSE ai_session.workspace_id
+                    END,
+                    workspace_title = CASE
+                        WHEN excluded.summary_seen_at >= ai_session.summary_seen_at AND NOT EXISTS (
+                            SELECT 1 FROM ai_turn
+                            WHERE provider = ai_session.provider AND session_id = ai_session.session_id
+                        ) THEN excluded.workspace_title
+                        ELSE ai_session.workspace_title
+                    END,
+                    cwd = CASE
+                        WHEN excluded.summary_seen_at >= ai_session.summary_seen_at AND NOT EXISTS (
+                            SELECT 1 FROM ai_turn
+                            WHERE provider = ai_session.provider AND session_id = ai_session.session_id
+                        ) THEN excluded.cwd
+                        ELSE ai_session.cwd
+                    END,
+                    model = CASE
+                        WHEN excluded.summary_seen_at >= ai_session.summary_seen_at AND NOT EXISTS (
+                            SELECT 1 FROM ai_turn
+                            WHERE provider = ai_session.provider AND session_id = ai_session.session_id
+                        ) THEN excluded.model
+                        ELSE ai_session.model
+                    END,
+                    started_at = CASE
+                        WHEN excluded.summary_seen_at >= ai_session.summary_seen_at AND NOT EXISTS (
+                            SELECT 1 FROM ai_turn
+                            WHERE provider = ai_session.provider AND session_id = ai_session.session_id
+                        ) THEN excluded.summary_created_at
+                        ELSE ai_session.started_at
+                    END,
+                    last_activity_at = CASE
+                        WHEN excluded.summary_seen_at >= ai_session.summary_seen_at AND NOT EXISTS (
+                            SELECT 1 FROM ai_turn
+                            WHERE provider = ai_session.provider AND session_id = ai_session.session_id
+                        ) THEN excluded.summary_updated_at
+                        ELSE ai_session.last_activity_at
+                    END,
+                    summary_display_name = CASE
+                        WHEN excluded.summary_seen_at >= ai_session.summary_seen_at THEN excluded.summary_display_name
+                        ELSE ai_session.summary_display_name
+                    END,
+                    summary_preview = CASE
+                        WHEN excluded.summary_seen_at >= ai_session.summary_seen_at THEN excluded.summary_preview
+                        ELSE ai_session.summary_preview
+                    END,
+                    summary_source_kind = CASE
+                        WHEN excluded.summary_seen_at >= ai_session.summary_seen_at THEN excluded.summary_source_kind
+                        ELSE ai_session.summary_source_kind
+                    END,
+                    summary_created_at = CASE
+                        WHEN excluded.summary_seen_at >= ai_session.summary_seen_at THEN excluded.summary_created_at
+                        ELSE ai_session.summary_created_at
+                    END,
+                    summary_updated_at = CASE
+                        WHEN excluded.summary_seen_at >= ai_session.summary_seen_at THEN excluded.summary_updated_at
+                        ELSE ai_session.summary_updated_at
+                    END,
+                    summary_seen_at = MAX(ai_session.summary_seen_at, excluded.summary_seen_at);
+            )sql";
+
+            const auto statement = _prepare(database, upsertSummary);
+            if (!statement ||
+                !_bindSessionSummary(statement.get(), record, workspaceId) ||
+                sqlite3_step(statement.get()) != SQLITE_DONE ||
+                sqlite3_changes(database) != 1)
+            {
+                return false;
+            }
+
+            return transaction.Commit();
+        }
+        catch (...)
+        {
+            return false;
+        }
     }
 
     bool AgentHistoryStore::_UpsertEvent(const AgentHistoryRecord& record,
@@ -978,6 +1202,143 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    std::vector<AgentHistorySessionRecord> AgentHistoryStore::ListSessionSummaries(const std::optional<winrt::guid> workspaceId,
+                                                                                   const std::wstring_view search,
+                                                                                   const uint32_t limit) noexcept
+    {
+        try
+        {
+            if (!_impl ||
+                (workspaceId && workspaceId.value() == winrt::guid{}) ||
+                search.size() > MaximumSearchCharacters ||
+                limit == 0)
+            {
+                return {};
+            }
+
+            std::string workspaceIdUtf8;
+            if (workspaceId && !_guidToUtf8(workspaceId.value(), workspaceIdUtf8))
+            {
+                return {};
+            }
+
+            const std::scoped_lock lock{ _impl->Mutex };
+            auto* const database = _impl->Database.get();
+            if (!database)
+            {
+                return {};
+            }
+
+            constexpr auto listSessions = R"sql(
+                SELECT
+                    workspace_id, workspace_title, provider, session_id, cwd, model,
+                    summary_display_name, summary_preview, summary_source_kind,
+                    CASE WHEN summary_seen_at > 0 THEN summary_created_at ELSE started_at END,
+                    CASE WHEN summary_seen_at > 0 THEN summary_updated_at ELSE last_activity_at END,
+                    summary_seen_at,
+                    EXISTS (
+                        SELECT 1 FROM ai_turn
+                        WHERE ai_turn.provider = ai_session.provider
+                          AND ai_turn.session_id = ai_session.session_id
+                    )
+                FROM ai_session
+                WHERE (?1 IS NULL OR workspace_id = ?1)
+                  AND (summary_seen_at > 0 OR EXISTS (
+                        SELECT 1 FROM ai_turn
+                        WHERE ai_turn.provider = ai_session.provider
+                          AND ai_turn.session_id = ai_session.session_id
+                  ))
+                  AND (?2 = '' OR
+                       wt_contains_ci(workspace_title, ?2) OR
+                       wt_contains_ci(provider, ?2) OR
+                       wt_contains_ci(session_id, ?2) OR
+                       wt_contains_ci(cwd, ?2) OR
+                       wt_contains_ci(model, ?2) OR
+                       wt_contains_ci(summary_display_name, ?2) OR
+                       wt_contains_ci(summary_preview, ?2) OR
+                       wt_contains_ci(summary_source_kind, ?2))
+                ORDER BY pinned DESC,
+                         MAX(last_activity_at, summary_updated_at) DESC,
+                         summary_seen_at DESC,
+                         provider ASC,
+                         session_id ASC
+                LIMIT ?3;
+            )sql";
+
+            const auto statement = _prepare(database, listSessions);
+            if (!statement)
+            {
+                return {};
+            }
+
+            if ((workspaceId ? sqlite3_bind_text(statement.get(),
+                                                  1,
+                                                  workspaceIdUtf8.data(),
+                                                  static_cast<int>(workspaceIdUtf8.size()),
+                                                  SQLITE_TRANSIENT) :
+                               sqlite3_bind_null(statement.get(), 1)) != SQLITE_OK ||
+                !_bindText(statement.get(), 2, search) ||
+                sqlite3_bind_int64(statement.get(), 3, std::min(limit, MaximumListLimit)) != SQLITE_OK)
+            {
+                return {};
+            }
+
+            std::vector<AgentHistorySessionRecord> records;
+            records.reserve(std::min(limit, MaximumListLimit));
+            for (;;)
+            {
+                const auto result = sqlite3_step(statement.get());
+                if (result == SQLITE_DONE)
+                {
+                    return records;
+                }
+                if (result != SQLITE_ROW)
+                {
+                    return {};
+                }
+
+                const auto rowWorkspaceId = _columnGuid(statement.get(), 0);
+                const auto workspaceTitle = _columnText(statement.get(), 1);
+                const auto provider = _columnText(statement.get(), 2);
+                const auto sessionId = _columnText(statement.get(), 3);
+                const auto cwd = _columnText(statement.get(), 4);
+                const auto model = _columnText(statement.get(), 5);
+                const auto displayName = _columnText(statement.get(), 6);
+                const auto preview = _columnText(statement.get(), 7);
+                const auto sourceKind = _columnText(statement.get(), 8);
+                if (!rowWorkspaceId || !workspaceTitle || !provider || !sessionId || !cwd || !model ||
+                    !displayName || !preview || !sourceKind)
+                {
+                    continue;
+                }
+
+                AgentHistorySessionRecord record{
+                    .WorkspaceId = rowWorkspaceId.value(),
+                    .WorkspaceTitle = workspaceTitle.value(),
+                    .Provider = provider.value(),
+                    .SessionId = sessionId.value(),
+                    .Cwd = cwd.value(),
+                    .Model = model.value(),
+                    .DisplayName = displayName.value(),
+                    .Preview = preview.value(),
+                    .SourceKind = sourceKind.value(),
+                    .CreatedAt = sqlite3_column_int64(statement.get(), 9),
+                    .UpdatedAt = sqlite3_column_int64(statement.get(), 10),
+                    .SeenAt = sqlite3_column_int64(statement.get(), 11),
+                    .HasLocalTurns = sqlite3_column_int(statement.get(), 12) != 0,
+                };
+                if (_validListedSession(record))
+                {
+                    records.emplace_back(std::move(record));
+                }
+            }
+        }
+        catch (...)
+        {
+            return {};
+        }
+    }
+
     std::vector<AgentHistoryRecord> AgentHistoryStore::ListTurns(const std::optional<winrt::guid> workspaceId,
                                                                   const std::wstring_view search,
                                                                   const uint32_t limit) noexcept
@@ -1178,6 +1539,7 @@ namespace winrt::TerminalApp::implementation
             const auto deleteOrphan = _prepare(database,
                                                "DELETE FROM ai_session "
                                                "WHERE provider=?1 AND session_id=?2 "
+                                               "AND summary_seen_at=0 "
                                                "AND NOT EXISTS ("
                                                "    SELECT 1 FROM ai_turn "
                                                "    WHERE provider=?1 AND session_id=?2"

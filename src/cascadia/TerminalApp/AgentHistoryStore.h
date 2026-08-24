@@ -46,6 +46,30 @@ namespace winrt::TerminalApp::implementation
         std::optional<int64_t> EventAt;
     };
 
+    // Privacy-bounded session metadata obtained from a provider's supported
+    // summary API (for example Codex App Server thread/list). CreatedAt,
+    // UpdatedAt, and SeenAt are UTC Unix timestamps in milliseconds. Provider
+    // identifies the local adapter (for example "codex"); Model is a concrete
+    // model name only and must remain empty when the source exposes only a
+    // model-provider name. HasLocalTurns is derived by ListSessionSummaries and
+    // must be false on input to UpsertSessionSummary.
+    struct AgentHistorySessionRecord
+    {
+        winrt::guid WorkspaceId{};
+        winrt::hstring WorkspaceTitle;
+        winrt::hstring Provider;
+        winrt::hstring SessionId;
+        winrt::hstring Cwd;
+        winrt::hstring Model;
+        winrt::hstring DisplayName;
+        winrt::hstring Preview;
+        winrt::hstring SourceKind;
+        int64_t CreatedAt{};
+        int64_t UpdatedAt{};
+        int64_t SeenAt{};
+        bool HasLocalTurns{};
+    };
+
     class AgentHistoryStore final
     {
     public:
@@ -71,6 +95,14 @@ namespace winrt::TerminalApp::implementation
         // Compatibility entry point for callers that already have a completed
         // turn. This has the same validation and behavior as UpsertFinal.
         [[nodiscard]] bool UpsertTurn(const AgentHistoryRecord& record) noexcept;
+        // App-server summaries are supplemental. They may create a summary-only
+        // session and refresh display fields, but never replace routing metadata
+        // once a local Hook turn exists. A subsequent Hook turn recomputes the
+        // authoritative Workspace/cwd/model/activity metadata transactionally.
+        [[nodiscard]] bool UpsertSessionSummary(const AgentHistorySessionRecord& record) noexcept;
+        [[nodiscard]] std::vector<AgentHistorySessionRecord> ListSessionSummaries(std::optional<winrt::guid> workspaceId,
+                                                                                  std::wstring_view search,
+                                                                                  uint32_t limit = 1000) noexcept;
         [[nodiscard]] std::vector<AgentHistoryRecord> ListTurns(std::optional<winrt::guid> workspaceId,
                                                                  std::wstring_view search,
                                                                  uint32_t limit = 1000) noexcept;

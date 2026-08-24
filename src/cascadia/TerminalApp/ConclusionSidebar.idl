@@ -10,6 +10,7 @@ namespace TerminalApp
         ConclusionSidebar();
 
         Windows.Foundation.Collections.IObservableVector<AgentHistoryItem> HistoryItems { get; };
+        Windows.Foundation.Collections.IObservableVector<AgentHistoryItem> SessionItems { get; };
         Boolean IsExpanded;
 
         Boolean RegisterToolTab(String id,

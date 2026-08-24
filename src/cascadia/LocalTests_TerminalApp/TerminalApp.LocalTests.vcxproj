@@ -41,6 +41,7 @@
   <ItemGroup>
     <ClCompile Include="CommandlineTest.cpp" />
     <ClCompile Include="AgentHistoryStoreTests.cpp" />
+    <ClCompile Include="CodexAppServerTests.cpp" />
     <ClCompile Include="SettingsTests.cpp" />
     <ClCompile Include="TabTests.cpp" />
 	<ClCompile Include="FilteredCommandTests.cpp" />

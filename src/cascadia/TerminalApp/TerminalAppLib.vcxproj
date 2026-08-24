@@ -140,6 +140,7 @@
     </ClInclude>
     <ClInclude Include="AgentHistoryStore.h" />
     <ClInclude Include="AgentHistoryInbox.h" />
+    <ClInclude Include="CodexAppServerClient.h" />
     <ClInclude Include="WorkspaceItemViewModel.h">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClInclude>
@@ -275,6 +276,7 @@
     </ClCompile>
     <ClCompile Include="AgentHistoryStore.cpp" />
     <ClCompile Include="AgentHistoryInbox.cpp" />
+    <ClCompile Include="CodexAppServerClient.cpp" />
     <ClCompile Include="WorkspaceItemViewModel.cpp">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClCompile>

@@ -21,8 +21,13 @@ namespace winrt::TerminalApp::implementation
         WINRT_PROPERTY(winrt::hstring, Prompt);
         WINRT_PROPERTY(winrt::hstring, Message);
         WINRT_PROPERTY(winrt::hstring, Model);
+        WINRT_PROPERTY(winrt::hstring, SourceKind);
         WINRT_PROPERTY(Windows::Foundation::DateTime, Timestamp);
         WINRT_PROPERTY(bool, IsPinned, false);
+        WINRT_PROPERTY(bool, IsSessionSummary, false);
+        WINRT_PROPERTY(bool, CanLoad, false);
+        WINRT_PROPERTY(bool, CanResume, false);
+        WINRT_PROPERTY(bool, HasLocalTurns, false);
 
     public:
         winrt::hstring TimestampText() const;

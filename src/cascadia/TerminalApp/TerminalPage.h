@@ -339,6 +339,8 @@ namespace winrt::TerminalApp::implementation
         uint64_t _workspaceListeningPortsGeneration{ 0 };
         bool _agentHistoryInboxImportInFlight{ false };
         bool _agentHistoryInboxImportPending{ false };
+        bool _codexHistoryOperationInFlight{ false };
+        std::unordered_set<winrt::guid> _codexHistoryAutoSyncAttempted;
         bool _syncingWorkspaceSelection{ false };
         static constexpr size_t MaximumWorkspaceNavigationHistory{ 100 };
         std::vector<winrt::guid> _workspaceBackHistory;
@@ -460,6 +462,32 @@ namespace winrt::TerminalApp::implementation
         void _UpdateConclusionSidebar();
         void _ImportAgentHistoryInbox();
         safe_void_coroutine _ImportAgentHistoryInboxAsync(std::vector<AgentHistoryInboxWorkspace> workspaces);
+        void _SyncCodexHistoryRequested(const winrt::guid& workspaceId,
+                                        const winrt::hstring& workspaceTitle,
+                                        const winrt::hstring& cwd);
+        safe_void_coroutine _SyncCodexHistoryAsync(winrt::guid workspaceId,
+                                                    winrt::hstring workspaceTitle,
+                                                    winrt::hstring cwd);
+        void _LoadCodexHistoryRequested(const winrt::guid& workspaceId,
+                                        const winrt::hstring& workspaceTitle,
+                                        const winrt::hstring& cwd,
+                                        const winrt::hstring& sessionId);
+        safe_void_coroutine _LoadCodexHistoryAsync(winrt::guid workspaceId,
+                                                    winrt::hstring workspaceTitle,
+                                                    winrt::hstring cwd,
+                                                    winrt::hstring sessionId);
+        void _ResumeCodexHistoryRequested(const winrt::guid& workspaceId,
+                                          const winrt::hstring& workspaceTitle,
+                                          const winrt::hstring& cwd,
+                                          const winrt::hstring& sessionId);
+        safe_void_coroutine _ResumeCodexSession(winrt::guid workspaceId,
+                                                 winrt::hstring sessionId,
+                                                 winrt::hstring workingDirectory);
+        bool _IsCodexHistoryWorkspaceActive(const winrt::guid& workspaceId) const;
+        void _CompleteCodexHistoryOperation(const winrt::guid& workspaceId,
+                                            CodexHistoryUiState state,
+                                            bool refreshHistory,
+                                            bool refreshSessions);
         void _UpdateWorkspaceTitleBar();
         void _UpdateWorkspaceListeningPortsTimer();
         void _RefreshWorkspaceListeningPorts();

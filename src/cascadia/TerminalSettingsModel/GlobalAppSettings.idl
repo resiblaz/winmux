@@ -74,6 +74,9 @@ namespace Microsoft.Terminal.Settings.Model
         INHERITABLE_SETTING(IVector<String>, DisabledProfileSources);
         INHERITABLE_SETTING(Boolean, AllowHeadless);
         INHERITABLE_SETTING(Boolean, EnableColorSelection);
+        INHERITABLE_SETTING(UInt32, AgentHistoryRetentionDays);
+        INHERITABLE_SETTING(UInt32, AgentHistoryMaximumTurns);
+        INHERITABLE_SETTING(UInt32, AgentHistoryMaximumPayloadMiB);
         INHERITABLE_SETTING(ConfirmOnClose, ConfirmOnClose);
 
         // ---- Color schemes ----

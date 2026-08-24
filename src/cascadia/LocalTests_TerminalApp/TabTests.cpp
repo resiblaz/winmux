@@ -176,6 +176,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceSnapshotOmitsRuntimeProcessState);
         TEST_METHOD(WorkspaceSnapshotOpenIsNonConsuming);
         TEST_METHOD(WorkspaceSnapshotRejectsUnsafeActions);
+        TEST_METHOD(WorkspaceSnapshotSourceSurvivesContentAttach);
         TEST_METHOD(WorkspaceStatusPillTracksStructuredState);
         TEST_METHOD(WorkspaceLayoutPersistsMetadata);
         TEST_METHOD(WorkspaceNotificationStateTracksUnread);
@@ -730,7 +731,7 @@ namespace TerminalAppLocalTests
 
             const winrt::guid snapshotId{ 0xd19875d5, 0x294e, 0x47e8, { 0xa1, 0x4e, 0x4f, 0x20, 0xea, 0xbd, 0x55, 0xb5 } };
             WorkspaceSnapshot snapshot{};
-            snapshot.Version(1);
+            snapshot.Version(2);
             snapshot.Id(snapshotId);
             snapshot.WorkspaceId(item.WorkspaceId());
             snapshot.Name(L"Snapshot test");
@@ -747,6 +748,10 @@ namespace TerminalAppLocalTests
             page->_OpenWorkspaceSnapshot(snapshotId);
 
             VERIFY_ARE_EQUAL(tabCount, page->_tabs.Size());
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            VERIFY_IS_TRUE(itemImpl->SourceSnapshotId().has_value());
+            VERIFY_ARE_EQUAL(snapshotId, itemImpl->SourceSnapshotId().value());
+            VERIFY_ARE_EQUAL(snapshot.Revision(), itemImpl->SourceSnapshotRevision());
             const auto retained = state.WorkspaceSnapshotById(snapshotId);
             VERIFY_IS_NOT_NULL(retained);
             VERIFY_IS_TRUE(retained.LastOpenedAt() > 0);
@@ -761,7 +766,7 @@ namespace TerminalAppLocalTests
             const winrt::guid snapshotId{ 0xf3152b3f, 0x88bf, 0x4fd6, { 0xad, 0x93, 0x92, 0x34, 0x73, 0xdf, 0x90, 0x4d } };
             const winrt::guid workspaceId{ 0x40a7643d, 0x5bc5, 0x476c, { 0x90, 0x3f, 0xd5, 0x3e, 0xf0, 0x61, 0xca, 0xeb } };
             WorkspaceSnapshot snapshot{};
-            snapshot.Version(1);
+            snapshot.Version(2);
             snapshot.Id(snapshotId);
             snapshot.WorkspaceId(workspaceId);
             snapshot.Name(L"Unsafe snapshot");
@@ -772,15 +777,52 @@ namespace TerminalAppLocalTests
 
             const auto state = ApplicationState::SharedInstance();
             state.RemoveWorkspaceSnapshot(snapshotId);
-            VERIFY_IS_TRUE(state.SaveWorkspaceSnapshot(snapshot));
+            VERIFY_IS_FALSE(state.SaveWorkspaceSnapshot(snapshot));
             const auto tabCount = page->_tabs.Size();
 
             page->_OpenWorkspaceSnapshot(snapshotId);
 
             VERIFY_ARE_EQUAL(tabCount, page->_tabs.Size());
-            const auto retained = state.WorkspaceSnapshotById(snapshotId);
-            VERIFY_IS_NOT_NULL(retained);
-            VERIFY_ARE_EQUAL(0ll, retained.LastOpenedAt());
+            VERIFY_IS_NULL(state.WorkspaceSnapshotById(snapshotId));
+            VERIFY_IS_FALSE(state.RemoveWorkspaceSnapshot(snapshotId));
+        });
+    }
+
+    void TabTests::WorkspaceSnapshotSourceSurvivesContentAttach()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            const auto sourceTab = page->_GetFocusedTabImpl();
+            VERIFY_IS_NOT_NULL(sourceTab);
+            const winrt::guid workspaceId{ 0x19191919, 0x1919, 0x4919, { 0x89, 0x19, 0x19, 0x19, 0x19, 0x19, 0x19, 0x19 } };
+            const winrt::guid snapshotId{ 0x29292929, 0x2929, 0x4929, { 0x89, 0x29, 0x29, 0x29, 0x29, 0x29, 0x29, 0x29 } };
+            WorkspaceSnapshot snapshot{};
+            snapshot.Version(WorkspaceSnapshot::CurrentSchemaVersion());
+            snapshot.Id(snapshotId);
+            snapshot.WorkspaceId(workspaceId);
+            snapshot.Name(L"Move source");
+            snapshot.CreatedAt(1);
+            snapshot.UpdatedAt(1);
+            snapshot.Actions(winrt::single_threaded_vector<ActionAndArgs>(sourceTab->BuildStartupActions(winrt::TerminalApp::BuildStartupKind::Snapshot)));
+            snapshot.AgentResumeEntries(winrt::single_threaded_vector<AgentResumeInfo>());
+            const auto state = ApplicationState::SharedInstance();
+            state.RemoveWorkspaceSnapshot(snapshotId);
+            VERIFY_IS_TRUE(state.SaveWorkspaceSnapshot(snapshot));
+
+            auto actions = sourceTab->BuildStartupActions(winrt::TerminalApp::BuildStartupKind::Content);
+            page->AttachContent(winrt::single_threaded_vector<ActionAndArgs>(std::move(actions)),
+                                0,
+                                workspaceId,
+                                snapshotId,
+                                snapshot.Revision());
+
+            const auto index = page->_FindWorkspaceIndex(workspaceId);
+            VERIFY_IS_TRUE(index.has_value());
+            const auto item = page->_workspaceItems.GetAt(index.value());
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            VERIFY_IS_TRUE(itemImpl->SourceSnapshotId().has_value());
+            VERIFY_ARE_EQUAL(snapshotId, itemImpl->SourceSnapshotId().value());
+            VERIFY_ARE_EQUAL(snapshot.Revision(), itemImpl->SourceSnapshotRevision());
             VERIFY_IS_TRUE(state.RemoveWorkspaceSnapshot(snapshotId));
         });
     }
@@ -797,8 +839,10 @@ namespace TerminalAppLocalTests
             VERIFY_IS_NOT_NULL(secondTab);
             secondTab->SetTabText(L"Persisted workspace");
             page->_workspaceItems.GetAt(1).ConfigureAgentResume(L"codex",
-                                                                L"12345678-1234-1234-1234-123456789abc",
-                                                                L"C:\\src\\repo");
+                                                                 L"12345678-1234-1234-1234-123456789abc",
+                                                                 L"C:\\src\\repo");
+            const winrt::guid sourceSnapshotId{ 0x39393939, 0x3939, 0x4939, { 0x89, 0x39, 0x39, 0x39, 0x39, 0x39, 0x39, 0x39 } };
+            page->_BindWorkspaceItemToSnapshot(page->_workspaceItems.GetAt(1), sourceSnapshotId, 9);
 
             const auto layout = page->GetWindowLayout();
             VERIFY_IS_NOT_NULL(layout);
@@ -813,6 +857,11 @@ namespace TerminalAppLocalTests
             VERIFY_IS_NOT_NULL(layout.AgentResumeEntries());
             VERIFY_ARE_EQUAL(1u, layout.AgentResumeEntries().Size());
             VERIFY_ARE_EQUAL(page->_workspaceItems.GetAt(1).WorkspaceId(), layout.AgentResumeEntries().GetAt(0).WorkspaceId);
+            VERIFY_IS_NOT_NULL(layout.WorkspaceSnapshotSources());
+            VERIFY_ARE_EQUAL(1u, layout.WorkspaceSnapshotSources().Size());
+            VERIFY_ARE_EQUAL(page->_workspaceItems.GetAt(1).WorkspaceId(), layout.WorkspaceSnapshotSources().GetAt(0).WorkspaceId);
+            VERIFY_ARE_EQUAL(sourceSnapshotId, layout.WorkspaceSnapshotSources().GetAt(0).SnapshotId);
+            VERIFY_ARE_EQUAL(9ull, layout.WorkspaceSnapshotSources().GetAt(0).Revision);
 
             const winrt::guid restoredId{ 0x4cbcf6dc, 0xa03d, 0x4df7, { 0xa1, 0xd4, 0x8f, 0x13, 0xad, 0x8e, 0x20, 0xa6 } };
             AgentResumeInfo restoredResumeInfo{};

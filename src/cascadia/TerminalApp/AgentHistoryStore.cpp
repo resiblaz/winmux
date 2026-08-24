@@ -7,6 +7,7 @@
 #include "../../types/inc/utils.hpp"
 
 #include <bcrypt.h>
+#include <set>
 #include <type_traits>
 #include <winsqlite/winsqlite3.h>
 
@@ -17,8 +18,11 @@ namespace winrt::TerminalApp::implementation
 {
     namespace
     {
-        constexpr int SchemaVersion{ 3 };
+        constexpr int SchemaVersion{ 5 };
         constexpr int BusyTimeoutMilliseconds{ 5000 };
+        constexpr int64_t MillisecondsPerDay{ 24LL * 60 * 60 * 1000 };
+        constexpr size_t MaximumTurnsDeletedPerCleanup{ 10000 };
+        constexpr size_t CleanupBatchSize{ 128 };
 
         constexpr size_t MaximumProviderCharacters{ 64 };
         constexpr size_t MaximumIdentifierCharacters{ 128 };
@@ -34,6 +38,21 @@ namespace winrt::TerminalApp::implementation
         constexpr uint32_t MaximumListLimit{ 10000 };
         constexpr size_t EventPayloadDigestBytes{ 32 };
         constexpr int64_t MaximumUnixMilliseconds{ 253402300799999 };
+
+        int64_t _nowUnixMilliseconds() noexcept
+        {
+            try
+            {
+                const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     std::chrono::system_clock::now().time_since_epoch())
+                                     .count();
+                return std::clamp<int64_t>(now, 0, MaximumUnixMilliseconds);
+            }
+            catch (...)
+            {
+                return 0;
+            }
+        }
 
         struct BCryptHashDeleter
         {
@@ -208,8 +227,8 @@ namespace winrt::TerminalApp::implementation
                    record.Prompt.size() <= MaximumBodyCharacters &&
                    record.FinalMarkdown.size() <= MaximumBodyCharacters &&
                    record.Model.size() <= MaximumModelCharacters &&
-                   record.EventAt >= 0 &&
-                   record.ReceivedAt >= 0;
+                   record.EventAt >= 0 && record.EventAt <= MaximumUnixMilliseconds &&
+                   record.ReceivedAt >= 0 && record.ReceivedAt <= MaximumUnixMilliseconds;
         }
 
         bool _containsInvalidPreviewCharacter(const std::wstring_view value) noexcept
@@ -451,6 +470,36 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
+        // The optional FTS table uses the trigram tokenizer to retain the
+        // existing substring behavior. Short and non-ASCII searches use the
+        // exact UTF-16 fallback because trigram MATCH cannot represent strings
+        // shorter than three code points and its Unicode folding varies with
+        // the system SQLite version.
+        bool _canUseFullTextSearch(const std::wstring_view search) noexcept
+        {
+            return search.size() >= 3 &&
+                   std::ranges::all_of(search, [](const wchar_t character) {
+                       return character >= L' ' && character <= L'~';
+                   });
+        }
+
+        std::wstring _compileLiteralFtsQuery(const std::wstring_view search)
+        {
+            std::wstring query;
+            query.reserve(search.size() + 2);
+            query.push_back(L'"');
+            for (const auto character : search)
+            {
+                if (character == L'"')
+                {
+                    query.push_back(L'"');
+                }
+                query.push_back(character);
+            }
+            query.push_back(L'"');
+            return query;
+        }
+
         bool _querySingleInteger(sqlite3* database, const char* sql, int& value) noexcept
         {
             const auto statement = _prepare(database, sql);
@@ -490,6 +539,19 @@ namespace winrt::TerminalApp::implementation
                     return true;
                 }
             }
+        }
+
+        bool _schemaObjectExists(sqlite3* database, const std::string_view type, const std::string_view name) noexcept
+        {
+            const auto statement = _prepare(database,
+                                            "SELECT 1 FROM sqlite_master WHERE type=?1 AND name=?2 LIMIT 1;");
+            if (!statement ||
+                sqlite3_bind_text(statement.get(), 1, type.data(), gsl::narrow<int>(type.size()), SQLITE_TRANSIENT) != SQLITE_OK ||
+                sqlite3_bind_text(statement.get(), 2, name.data(), gsl::narrow<int>(name.size()), SQLITE_TRANSIENT) != SQLITE_OK)
+            {
+                return false;
+            }
+            return sqlite3_step(statement.get()) == SQLITE_ROW;
         }
 
         bool _enableWal(sqlite3* database) noexcept
@@ -565,6 +627,10 @@ namespace winrt::TerminalApp::implementation
                     ON ai_turn (workspace_id, pinned DESC, event_at DESC);
                 CREATE INDEX IF NOT EXISTS ai_turn_global_order
                     ON ai_turn (pinned DESC, event_at DESC);
+                CREATE INDEX IF NOT EXISTS ai_turn_cleanup_order
+                    ON ai_turn (pinned, received_at, event_at, id);
+                CREATE INDEX IF NOT EXISTS ai_turn_received_filter
+                    ON ai_turn (received_at, provider, session_id);
 
                 -- Intentionally independent of ai_turn. Receipts survive user
                 -- deletion so a late retry cannot recreate deleted history.
@@ -577,7 +643,9 @@ namespace winrt::TerminalApp::implementation
                     event_kind INTEGER NOT NULL CHECK (event_kind IN (0, 1)),
                     payload_digest BLOB NOT NULL CHECK (
                         typeof(payload_digest) = 'blob' AND length(payload_digest) = 32
-                    )
+                    ),
+                    received_at INTEGER NOT NULL DEFAULT 0 CHECK (received_at >= 0),
+                    deleted_at INTEGER NOT NULL DEFAULT 0 CHECK (deleted_at >= 0)
                 ) WITHOUT ROWID;
             )sql";
 
@@ -613,21 +681,207 @@ namespace winrt::TerminalApp::implementation
                 return false;
             }
 
+            const auto hadReceiptReceivedAt = _tableHasColumn(database, "PRAGMA table_info(ai_history_event);", "received_at");
+            const auto hadReceiptDeletedAt = _tableHasColumn(database, "PRAGMA table_info(ai_history_event);", "deleted_at");
+            if ((!hadReceiptReceivedAt &&
+                 !_execute(database, "ALTER TABLE ai_history_event ADD COLUMN received_at INTEGER NOT NULL DEFAULT 0 CHECK (received_at >= 0);")) ||
+                (!hadReceiptDeletedAt &&
+                 !_execute(database, "ALTER TABLE ai_history_event ADD COLUMN deleted_at INTEGER NOT NULL DEFAULT 0 CHECK (deleted_at >= 0);")))
+            {
+                return false;
+            }
+
+            // Version 2/3 receipts had no clock. Preserve live receipts by
+            // deriving their local arrival time from the turn. Existing orphan
+            // receipts are tombstones, so age them from migration rather than
+            // dropping their replay protection immediately.
+            if (!hadReceiptReceivedAt || !hadReceiptDeletedAt)
+            {
+                const auto migrationNow = _nowUnixMilliseconds();
+                constexpr auto migrateReceiptTimes = R"sql(
+                    UPDATE ai_history_event
+                    SET received_at = COALESCE(NULLIF((
+                            SELECT received_at FROM ai_turn
+                            WHERE ai_turn.provider = ai_history_event.provider
+                              AND ai_turn.session_id = ai_history_event.session_id
+                              AND ai_turn.turn_id = ai_history_event.turn_id
+                        ), 0), ?1)
+                    WHERE received_at = 0;
+                )sql";
+                constexpr auto migrateReceiptTombstones = R"sql(
+                    UPDATE ai_history_event
+                    SET deleted_at = ?1
+                    WHERE deleted_at = 0
+                      AND NOT EXISTS (
+                          SELECT 1 FROM ai_turn
+                          WHERE ai_turn.provider = ai_history_event.provider
+                            AND ai_turn.session_id = ai_history_event.session_id
+                            AND ai_turn.turn_id = ai_history_event.turn_id
+                      );
+                )sql";
+                const auto timeMigration = _prepare(database, migrateReceiptTimes);
+                const auto tombstoneMigration = _prepare(database, migrateReceiptTombstones);
+                if (!timeMigration || !tombstoneMigration ||
+                    sqlite3_bind_int64(timeMigration.get(), 1, migrationNow) != SQLITE_OK ||
+                    sqlite3_step(timeMigration.get()) != SQLITE_DONE ||
+                    sqlite3_bind_int64(tombstoneMigration.get(), 1, migrationNow) != SQLITE_OK ||
+                    sqlite3_step(tombstoneMigration.get()) != SQLITE_DONE)
+                {
+                    return false;
+                }
+            }
+
             constexpr auto sessionIndexes = R"sql(
                 CREATE INDEX IF NOT EXISTS ai_session_workspace_order
                     ON ai_session (workspace_id, pinned DESC, last_activity_at DESC, summary_updated_at DESC);
                 CREATE INDEX IF NOT EXISTS ai_session_global_order
                     ON ai_session (pinned DESC, last_activity_at DESC, summary_updated_at DESC);
+                CREATE INDEX IF NOT EXISTS ai_history_event_identity
+                    ON ai_history_event (provider, session_id, turn_id);
+                CREATE INDEX IF NOT EXISTS ai_history_event_deleted
+                    ON ai_history_event (deleted_at);
             )sql";
 
             if (!_execute(database, sessionIndexes) ||
-                !_execute(database, "PRAGMA user_version=3;") ||
+                !_execute(database, "PRAGMA user_version=5;") ||
                 !transaction.Commit())
             {
                 return false;
             }
 
             return _querySingleInteger(database, "PRAGMA user_version;", version) && version == SchemaVersion;
+        }
+
+        bool _initializeFullTextSearch(sqlite3* database) noexcept
+        {
+            // FTS5 and its trigram tokenizer are system-SQLite capabilities.
+            // Any failure is an optional-accelerator failure and must not make
+            // the history database unavailable.
+            try
+            {
+                const auto alreadyExists = _schemaObjectExists(database, "table", "ai_turn_fts");
+                Transaction transaction{ database };
+                if (!transaction)
+                {
+                    return false;
+                }
+
+                constexpr auto ftsSchema = R"sql(
+                    CREATE VIRTUAL TABLE IF NOT EXISTS ai_turn_fts USING fts5(
+                        workspace_title,
+                        provider,
+                        session_id,
+                        turn_id,
+                        cwd,
+                        title,
+                        prompt,
+                        final_markdown,
+                        model,
+                        content='ai_turn',
+                        content_rowid='id',
+                        tokenize='trigram case_sensitive 0'
+                    );
+
+                    CREATE TRIGGER IF NOT EXISTS ai_turn_fts_insert
+                    AFTER INSERT ON ai_turn WHEN new.final_markdown <> ''
+                    BEGIN
+                        INSERT INTO ai_turn_fts (
+                            rowid, workspace_title, provider, session_id, turn_id,
+                            cwd, title, prompt, final_markdown, model
+                        ) VALUES (
+                            new.id, new.workspace_title, new.provider, new.session_id, new.turn_id,
+                            new.cwd, new.title, new.prompt, new.final_markdown, new.model
+                        );
+                    END;
+
+                    CREATE TRIGGER IF NOT EXISTS ai_turn_fts_delete
+                    AFTER DELETE ON ai_turn WHEN old.final_markdown <> ''
+                    BEGIN
+                        INSERT INTO ai_turn_fts (
+                            ai_turn_fts, rowid, workspace_title, provider, session_id, turn_id,
+                            cwd, title, prompt, final_markdown, model
+                        ) VALUES (
+                            'delete', old.id, old.workspace_title, old.provider, old.session_id, old.turn_id,
+                            old.cwd, old.title, old.prompt, old.final_markdown, old.model
+                        );
+                    END;
+
+                    CREATE TRIGGER IF NOT EXISTS ai_turn_fts_update
+                    AFTER UPDATE OF
+                        workspace_title, provider, session_id, turn_id, cwd,
+                        title, prompt, final_markdown, model
+                    ON ai_turn
+                    BEGIN
+                        INSERT INTO ai_turn_fts (
+                            ai_turn_fts, rowid, workspace_title, provider, session_id, turn_id,
+                            cwd, title, prompt, final_markdown, model
+                        )
+                        SELECT
+                            'delete', old.id, old.workspace_title, old.provider, old.session_id, old.turn_id,
+                            old.cwd, old.title, old.prompt, old.final_markdown, old.model
+                        WHERE old.final_markdown <> '';
+
+                        INSERT INTO ai_turn_fts (
+                            rowid, workspace_title, provider, session_id, turn_id,
+                            cwd, title, prompt, final_markdown, model
+                        )
+                        SELECT
+                            new.id, new.workspace_title, new.provider, new.session_id, new.turn_id,
+                            new.cwd, new.title, new.prompt, new.final_markdown, new.model
+                        WHERE new.final_markdown <> '';
+                    END;
+                )sql";
+                if (!_execute(database, ftsSchema))
+                {
+                    return false;
+                }
+
+                if (!alreadyExists &&
+                    !_execute(database, R"sql(
+                        INSERT INTO ai_turn_fts (
+                            rowid, workspace_title, provider, session_id, turn_id,
+                            cwd, title, prompt, final_markdown, model
+                        )
+                        SELECT
+                            id, workspace_title, provider, session_id, turn_id,
+                            cwd, title, prompt, final_markdown, model
+                        FROM ai_turn
+                        WHERE final_markdown <> '';
+                    )sql"))
+                {
+                    return false;
+                }
+
+                const auto probe = _prepare(database,
+                                            "SELECT rowid FROM ai_turn_fts WHERE ai_turn_fts MATCH '\"fts-probe\"' LIMIT 1;");
+                if (!probe)
+                {
+                    return false;
+                }
+                const auto probeResult = sqlite3_step(probe.get());
+                if (probeResult != SQLITE_ROW && probeResult != SQLITE_DONE)
+                {
+                    return false;
+                }
+                return transaction.Commit();
+            }
+            catch (...)
+            {
+                return false;
+            }
+        }
+
+        void _disableFullTextSearchWrites(sqlite3* database) noexcept
+        {
+            // A database created on an FTS-capable OS may later be opened by a
+            // system SQLite without that module. Removing the ordinary triggers
+            // keeps ai_turn writes functional; the virtual table can be rebuilt
+            // when FTS becomes available again.
+            _execute(database, R"sql(
+                DROP TRIGGER IF EXISTS ai_turn_fts_insert;
+                DROP TRIGGER IF EXISTS ai_turn_fts_delete;
+                DROP TRIGGER IF EXISTS ai_turn_fts_update;
+            )sql");
         }
 
         bool _bindSession(sqlite3_stmt* statement, const AgentHistoryRecord& record, const std::string& workspaceId) noexcept
@@ -694,7 +948,7 @@ namespace winrt::TerminalApp::implementation
 
     struct AgentHistoryStore::Impl
     {
-        bool Initialize(const std::filesystem::path& path) noexcept
+        bool Initialize(const std::filesystem::path& path, const bool enableFullTextSearch) noexcept
         {
             try
             {
@@ -755,6 +1009,23 @@ namespace winrt::TerminalApp::implementation
                     return false;
                 }
 
+                if (enableFullTextSearch)
+                {
+                    // FTS5 predates the trigram tokenizer. Only a proven
+                    // capability absence is allowed to remove old maintenance
+                    // triggers. A BUSY/LOCKED/transient initialization failure
+                    // must not race another connection that just built them.
+                    if (sqlite3_compileoption_used("ENABLE_FTS5") == 0 ||
+                        sqlite3_libversion_number() < 3034000)
+                    {
+                        _disableFullTextSearchWrites(candidate.get());
+                    }
+                    else
+                    {
+                        FullTextSearchAvailable = _initializeFullTextSearch(candidate.get());
+                    }
+                }
+
                 Database = std::move(candidate);
                 return true;
             }
@@ -766,14 +1037,16 @@ namespace winrt::TerminalApp::implementation
 
         mutable std::mutex Mutex;
         UniqueDatabase Database;
+        bool FullTextSearchAvailable{ false };
     };
 
-    AgentHistoryStore::AgentHistoryStore(const std::filesystem::path& path) noexcept
+    AgentHistoryStore::AgentHistoryStore(const std::filesystem::path& path,
+                                         const bool enableFullTextSearch) noexcept
     {
         try
         {
             auto impl = std::make_unique<Impl>();
-            impl->Initialize(path);
+            impl->Initialize(path, enableFullTextSearch);
             _impl = std::move(impl);
         }
         catch (...)
@@ -1026,8 +1299,9 @@ namespace winrt::TerminalApp::implementation
 
                 constexpr auto insertEvent = R"sql(
                     INSERT INTO ai_history_event (
-                        event_id, workspace_id, provider, session_id, turn_id, event_kind, payload_digest
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?);
+                        event_id, workspace_id, provider, session_id, turn_id, event_kind,
+                        payload_digest, received_at, deleted_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0);
                 )sql";
                 const auto insertStatement = _prepare(database, insertEvent);
                 if (!insertStatement ||
@@ -1042,6 +1316,7 @@ namespace winrt::TerminalApp::implementation
                                       payloadDigest->data(),
                                       gsl::narrow<int>(payloadDigest->size()),
                                       SQLITE_TRANSIENT) != SQLITE_OK ||
+                    sqlite3_bind_int64(insertStatement.get(), 8, record.ReceivedAt) != SQLITE_OK ||
                     sqlite3_step(insertStatement.get()) != SQLITE_DONE)
                 {
                     return false;
@@ -1343,18 +1618,33 @@ namespace winrt::TerminalApp::implementation
                                                                   const std::wstring_view search,
                                                                   const uint32_t limit) noexcept
     {
+        return ListTurns(AgentHistoryQuery{
+            .WorkspaceId = workspaceId,
+            .Search = winrt::hstring{ search },
+            .Limit = limit,
+        });
+    }
+
+    std::vector<AgentHistoryRecord> AgentHistoryStore::ListTurns(const AgentHistoryQuery& query) noexcept
+    {
         try
         {
+            const std::wstring_view search{ query.Search };
             if (!_impl ||
-                (workspaceId && workspaceId.value() == winrt::guid{}) ||
+                (query.WorkspaceId && query.WorkspaceId.value() == winrt::guid{}) ||
+                (!query.Provider.empty() && !_validKey(query.Provider, MaximumProviderCharacters)) ||
+                (!query.SessionId.empty() && !_validKey(query.SessionId, MaximumIdentifierCharacters)) ||
+                (query.ReceivedFrom && (query.ReceivedFrom.value() < 0 || query.ReceivedFrom.value() > MaximumUnixMilliseconds)) ||
+                (query.ReceivedTo && (query.ReceivedTo.value() < 0 || query.ReceivedTo.value() > MaximumUnixMilliseconds)) ||
+                (query.ReceivedFrom && query.ReceivedTo && query.ReceivedFrom.value() > query.ReceivedTo.value()) ||
                 search.size() > MaximumSearchCharacters ||
-                limit == 0)
+                query.Limit == 0)
             {
                 return {};
             }
 
             std::string workspaceIdUtf8;
-            if (workspaceId && !_guidToUtf8(workspaceId.value(), workspaceIdUtf8))
+            if (query.WorkspaceId && !_guidToUtf8(query.WorkspaceId.value(), workspaceIdUtf8))
             {
                 return {};
             }
@@ -1366,96 +1656,147 @@ namespace winrt::TerminalApp::implementation
                 return {};
             }
 
-            constexpr auto listTurns = R"sql(
+            constexpr auto listTurnsFallback = R"sql(
                 SELECT
                     workspace_id, workspace_title, provider, session_id, turn_id, cwd,
                     title, prompt, final_markdown, model, event_at, received_at, pinned
                 FROM ai_turn
                 WHERE (?1 IS NULL OR workspace_id = ?1)
+                  AND (?2 IS NULL OR provider = ?2)
+                  AND (?3 IS NULL OR session_id = ?3)
+                  AND (?4 IS NULL OR received_at >= ?4)
+                  AND (?5 IS NULL OR received_at <= ?5)
                   AND final_markdown <> ''
-                  AND (?2 = '' OR
-                       wt_contains_ci(workspace_title, ?2) OR
-                       wt_contains_ci(provider, ?2) OR
-                       wt_contains_ci(session_id, ?2) OR
-                       wt_contains_ci(turn_id, ?2) OR
-                       wt_contains_ci(cwd, ?2) OR
-                       wt_contains_ci(title, ?2) OR
-                       wt_contains_ci(prompt, ?2) OR
-                       wt_contains_ci(final_markdown, ?2) OR
-                       wt_contains_ci(model, ?2))
+                  AND (?6 = '' OR
+                       wt_contains_ci(workspace_title, ?6) OR
+                       wt_contains_ci(provider, ?6) OR
+                       wt_contains_ci(session_id, ?6) OR
+                       wt_contains_ci(turn_id, ?6) OR
+                       wt_contains_ci(cwd, ?6) OR
+                       wt_contains_ci(title, ?6) OR
+                       wt_contains_ci(prompt, ?6) OR
+                       wt_contains_ci(final_markdown, ?6) OR
+                       wt_contains_ci(model, ?6))
                 ORDER BY pinned DESC, event_at DESC, received_at DESC, id DESC
-                LIMIT ?3;
+                LIMIT ?7;
+            )sql";
+            constexpr auto listTurnsFts = R"sql(
+                SELECT
+                    workspace_id, workspace_title, provider, session_id, turn_id, cwd,
+                    title, prompt, final_markdown, model, event_at, received_at, pinned
+                FROM ai_turn
+                WHERE (?1 IS NULL OR workspace_id = ?1)
+                  AND (?2 IS NULL OR provider = ?2)
+                  AND (?3 IS NULL OR session_id = ?3)
+                  AND (?4 IS NULL OR received_at >= ?4)
+                  AND (?5 IS NULL OR received_at <= ?5)
+                  AND final_markdown <> ''
+                  AND id IN (
+                      SELECT rowid FROM ai_turn_fts
+                      WHERE ai_turn_fts MATCH ?6
+                  )
+                ORDER BY pinned DESC, event_at DESC, received_at DESC, id DESC
+                LIMIT ?7;
             )sql";
 
-            const auto statement = _prepare(database, listTurns);
-            if (!statement)
+            const auto runQuery = [&](const bool useFts) -> std::optional<std::vector<AgentHistoryRecord>> {
+                const auto statement = _prepare(database, useFts ? listTurnsFts : listTurnsFallback);
+                if (!statement)
+                {
+                    return std::nullopt;
+                }
+
+                const auto ftsQuery = useFts ? _compileLiteralFtsQuery(search) : std::wstring{ search };
+                if ((query.WorkspaceId ? sqlite3_bind_text(statement.get(),
+                                                            1,
+                                                            workspaceIdUtf8.data(),
+                                                            static_cast<int>(workspaceIdUtf8.size()),
+                                                            SQLITE_TRANSIENT) :
+                                         sqlite3_bind_null(statement.get(), 1)) != SQLITE_OK ||
+                    (query.Provider.empty() ? sqlite3_bind_null(statement.get(), 2) :
+                                              (_bindText(statement.get(), 2, query.Provider) ? SQLITE_OK : SQLITE_ERROR)) != SQLITE_OK ||
+                    (query.SessionId.empty() ? sqlite3_bind_null(statement.get(), 3) :
+                                               (_bindText(statement.get(), 3, query.SessionId) ? SQLITE_OK : SQLITE_ERROR)) != SQLITE_OK ||
+                    (query.ReceivedFrom ? sqlite3_bind_int64(statement.get(), 4, query.ReceivedFrom.value()) :
+                                          sqlite3_bind_null(statement.get(), 4)) != SQLITE_OK ||
+                    (query.ReceivedTo ? sqlite3_bind_int64(statement.get(), 5, query.ReceivedTo.value()) :
+                                        sqlite3_bind_null(statement.get(), 5)) != SQLITE_OK ||
+                    !_bindText(statement.get(), 6, ftsQuery) ||
+                    sqlite3_bind_int64(statement.get(), 7, std::min(query.Limit, MaximumListLimit)) != SQLITE_OK)
+                {
+                    return std::nullopt;
+                }
+
+                std::vector<AgentHistoryRecord> records;
+                records.reserve(std::min(query.Limit, MaximumListLimit));
+                for (;;)
+                {
+                    const auto result = sqlite3_step(statement.get());
+                    if (result == SQLITE_DONE)
+                    {
+                        return records;
+                    }
+                    if (result != SQLITE_ROW)
+                    {
+                        return std::nullopt;
+                    }
+
+                    const auto rowWorkspaceId = _columnGuid(statement.get(), 0);
+                    const auto workspaceTitle = _columnText(statement.get(), 1);
+                    const auto provider = _columnText(statement.get(), 2);
+                    const auto sessionId = _columnText(statement.get(), 3);
+                    const auto turnId = _columnText(statement.get(), 4);
+                    const auto cwd = _columnText(statement.get(), 5);
+                    const auto title = _columnText(statement.get(), 6);
+                    const auto prompt = _columnText(statement.get(), 7);
+                    const auto finalMarkdown = _columnText(statement.get(), 8);
+                    const auto model = _columnText(statement.get(), 9);
+                    if (!rowWorkspaceId || !workspaceTitle || !provider || !sessionId || !turnId ||
+                        !cwd || !title || !prompt || !finalMarkdown || !model)
+                    {
+                        continue;
+                    }
+
+                    AgentHistoryRecord record{
+                        .WorkspaceId = rowWorkspaceId.value(),
+                        .WorkspaceTitle = workspaceTitle.value(),
+                        .Provider = provider.value(),
+                        .SessionId = sessionId.value(),
+                        .TurnId = turnId.value(),
+                        .Cwd = cwd.value(),
+                        .Title = title.value(),
+                        .Prompt = prompt.value(),
+                        .FinalMarkdown = finalMarkdown.value(),
+                        .Model = model.value(),
+                        .EventAt = sqlite3_column_int64(statement.get(), 10),
+                        .ReceivedAt = sqlite3_column_int64(statement.get(), 11),
+                        .Pinned = sqlite3_column_int(statement.get(), 12) != 0,
+                    };
+
+                    if (_validRecord(record))
+                    {
+                        records.emplace_back(std::move(record));
+                    }
+                }
+            };
+
+            const auto useFts = _impl->FullTextSearchAvailable && _canUseFullTextSearch(search);
+            if (useFts)
             {
-                return {};
+                if (auto records = runQuery(true))
+                {
+                    return std::move(records.value());
+                }
+                // A damaged or unsupported optional index must never hide the
+                // durable rows. Disable it for this connection and retry the
+                // exact case-insensitive substring path.
+                _impl->FullTextSearchAvailable = false;
             }
-
-            if ((workspaceId ? sqlite3_bind_text(statement.get(),
-                                                  1,
-                                                  workspaceIdUtf8.data(),
-                                                  static_cast<int>(workspaceIdUtf8.size()),
-                                                  SQLITE_TRANSIENT) :
-                               sqlite3_bind_null(statement.get(), 1)) != SQLITE_OK ||
-                !_bindText(statement.get(), 2, search) ||
-                sqlite3_bind_int64(statement.get(), 3, std::min(limit, MaximumListLimit)) != SQLITE_OK)
+            if (auto records = runQuery(false))
             {
-                return {};
+                return std::move(records.value());
             }
-
-            std::vector<AgentHistoryRecord> records;
-            records.reserve(std::min(limit, MaximumListLimit));
-            for (;;)
-            {
-                const auto result = sqlite3_step(statement.get());
-                if (result == SQLITE_DONE)
-                {
-                    return records;
-                }
-                if (result != SQLITE_ROW)
-                {
-                    return {};
-                }
-
-                const auto rowWorkspaceId = _columnGuid(statement.get(), 0);
-                const auto workspaceTitle = _columnText(statement.get(), 1);
-                const auto provider = _columnText(statement.get(), 2);
-                const auto sessionId = _columnText(statement.get(), 3);
-                const auto turnId = _columnText(statement.get(), 4);
-                const auto cwd = _columnText(statement.get(), 5);
-                const auto title = _columnText(statement.get(), 6);
-                const auto prompt = _columnText(statement.get(), 7);
-                const auto finalMarkdown = _columnText(statement.get(), 8);
-                const auto model = _columnText(statement.get(), 9);
-                if (!rowWorkspaceId || !workspaceTitle || !provider || !sessionId || !turnId ||
-                    !cwd || !title || !prompt || !finalMarkdown || !model)
-                {
-                    continue;
-                }
-
-                AgentHistoryRecord record{
-                    .WorkspaceId = rowWorkspaceId.value(),
-                    .WorkspaceTitle = workspaceTitle.value(),
-                    .Provider = provider.value(),
-                    .SessionId = sessionId.value(),
-                    .TurnId = turnId.value(),
-                    .Cwd = cwd.value(),
-                    .Title = title.value(),
-                    .Prompt = prompt.value(),
-                    .FinalMarkdown = finalMarkdown.value(),
-                    .Model = model.value(),
-                    .EventAt = sqlite3_column_int64(statement.get(), 10),
-                    .ReceivedAt = sqlite3_column_int64(statement.get(), 11),
-                    .Pinned = sqlite3_column_int(statement.get(), 12) != 0,
-                };
-
-                if (_validRecord(record))
-                {
-                    records.emplace_back(std::move(record));
-                }
-            }
+            return {};
         }
         catch (...)
         {
@@ -1525,6 +1866,23 @@ namespace winrt::TerminalApp::implementation
                 return false;
             }
 
+            const auto tombstoneReceipt = _prepare(database, R"sql(
+                UPDATE ai_history_event
+                SET deleted_at = CASE WHEN deleted_at = 0 THEN ?4 ELSE deleted_at END
+                WHERE provider=?1 AND session_id=?2 AND turn_id=?3
+                  AND EXISTS (
+                      SELECT 1 FROM ai_turn
+                      WHERE ai_turn.provider=?1 AND ai_turn.session_id=?2 AND ai_turn.turn_id=?3
+                  );
+            )sql");
+            if (!tombstoneReceipt ||
+                !_bindIdentity(tombstoneReceipt.get(), provider, sessionId, turnId) ||
+                sqlite3_bind_int64(tombstoneReceipt.get(), 4, _nowUnixMilliseconds()) != SQLITE_OK ||
+                sqlite3_step(tombstoneReceipt.get()) != SQLITE_DONE)
+            {
+                return false;
+            }
+
             const auto deleteTurn = _prepare(database,
                                              "DELETE FROM ai_turn "
                                              "WHERE provider=?1 AND session_id=?2 AND turn_id=?3;");
@@ -1573,20 +1931,556 @@ namespace winrt::TerminalApp::implementation
 
             const std::scoped_lock lock{ _impl->Mutex };
             auto* const database = _impl->Database.get();
-            const auto statement = _prepare(database,
-                                            "DELETE FROM ai_session "
-                                            "WHERE provider=?1 AND session_id=?2;");
-            if (!statement ||
-                !_bindIdentity(statement.get(), provider, sessionId) ||
-                sqlite3_step(statement.get()) != SQLITE_DONE)
+            if (!database)
             {
                 return false;
             }
-            return sqlite3_changes(database) > 0;
+
+            Transaction transaction{ database };
+            if (!transaction)
+            {
+                return false;
+            }
+
+            const auto tombstoneReceipts = _prepare(database, R"sql(
+                UPDATE ai_history_event
+                SET deleted_at = CASE WHEN deleted_at = 0 THEN ?3 ELSE deleted_at END
+                WHERE provider=?1 AND session_id=?2
+                  AND EXISTS (
+                      SELECT 1 FROM ai_session
+                      WHERE ai_session.provider=?1 AND ai_session.session_id=?2
+                  );
+            )sql");
+            if (!tombstoneReceipts ||
+                !_bindIdentity(tombstoneReceipts.get(), provider, sessionId) ||
+                sqlite3_bind_int64(tombstoneReceipts.get(), 3, _nowUnixMilliseconds()) != SQLITE_OK ||
+                sqlite3_step(tombstoneReceipts.get()) != SQLITE_DONE)
+            {
+                return false;
+            }
+
+            const auto deleteSession = _prepare(database,
+                                                "DELETE FROM ai_session "
+                                                "WHERE provider=?1 AND session_id=?2;");
+            if (!deleteSession ||
+                !_bindIdentity(deleteSession.get(), provider, sessionId) ||
+                sqlite3_step(deleteSession.get()) != SQLITE_DONE)
+            {
+                return false;
+            }
+            const auto deleted = sqlite3_changes(database) > 0;
+            return transaction.Commit() && deleted;
         }
         catch (...)
         {
             return false;
+        }
+    }
+
+    bool AgentHistoryStore::DeleteWorkspace(const winrt::guid& workspaceId) noexcept
+    {
+        if (workspaceId == winrt::guid{})
+        {
+            return false;
+        }
+        return _DeleteUnpinned(workspaceId);
+    }
+
+    bool AgentHistoryStore::DeleteAllUnpinned() noexcept
+    {
+        return _DeleteUnpinned(std::nullopt);
+    }
+
+    bool AgentHistoryStore::_DeleteUnpinned(const std::optional<winrt::guid> workspaceId) noexcept
+    {
+        try
+        {
+            if (!_impl || (workspaceId && workspaceId.value() == winrt::guid{}))
+            {
+                return false;
+            }
+
+            std::string workspaceIdText;
+            if (workspaceId && !_guidToUtf8(workspaceId.value(), workspaceIdText))
+            {
+                return false;
+            }
+
+            const std::scoped_lock lock{ _impl->Mutex };
+            auto* const database = _impl->Database.get();
+            if (!database)
+            {
+                return false;
+            }
+
+            Transaction transaction{ database };
+            if (!transaction)
+            {
+                return false;
+            }
+
+            const auto bindWorkspace = [&](sqlite3_stmt* statement, const int index) noexcept {
+                return (workspaceId ? sqlite3_bind_text(statement,
+                                                        index,
+                                                        workspaceIdText.data(),
+                                                        gsl::narrow<int>(workspaceIdText.size()),
+                                                        SQLITE_TRANSIENT) :
+                                      sqlite3_bind_null(statement, index)) == SQLITE_OK;
+            };
+
+            const auto tombstoneReceipts = _prepare(database, R"sql(
+                UPDATE ai_history_event
+                SET deleted_at = CASE WHEN deleted_at=0 THEN ?1 ELSE deleted_at END
+                WHERE EXISTS (
+                    SELECT 1 FROM ai_turn
+                    WHERE ai_turn.provider=ai_history_event.provider
+                      AND ai_turn.session_id=ai_history_event.session_id
+                      AND ai_turn.turn_id=ai_history_event.turn_id
+                      AND ai_turn.pinned=0
+                      AND (?2 IS NULL OR ai_turn.workspace_id=?2)
+                );
+            )sql");
+            if (!tombstoneReceipts ||
+                sqlite3_bind_int64(tombstoneReceipts.get(), 1, _nowUnixMilliseconds()) != SQLITE_OK ||
+                !bindWorkspace(tombstoneReceipts.get(), 2) ||
+                sqlite3_step(tombstoneReceipts.get()) != SQLITE_DONE)
+            {
+                return false;
+            }
+
+            const auto deleteTurns = _prepare(database, R"sql(
+                DELETE FROM ai_turn
+                WHERE pinned=0 AND (?1 IS NULL OR workspace_id=?1);
+            )sql");
+            if (!deleteTurns ||
+                !bindWorkspace(deleteTurns.get(), 1) ||
+                sqlite3_step(deleteTurns.get()) != SQLITE_DONE)
+            {
+                return false;
+            }
+
+            // A Session may span Workspaces. Recompute routing and activity for
+            // every surviving local Session before removing hook-only orphans.
+            if (!_execute(database, R"sql(
+                UPDATE ai_session
+                SET workspace_id = (
+                        SELECT workspace_id FROM ai_turn
+                        WHERE ai_turn.provider=ai_session.provider
+                          AND ai_turn.session_id=ai_session.session_id
+                        ORDER BY event_at DESC, received_at DESC, id DESC LIMIT 1
+                    ),
+                    workspace_title = COALESCE((
+                        SELECT NULLIF(workspace_title, '') FROM ai_turn
+                        WHERE ai_turn.provider=ai_session.provider
+                          AND ai_turn.session_id=ai_session.session_id
+                          AND workspace_title<>''
+                        ORDER BY event_at DESC, received_at DESC, id DESC LIMIT 1
+                    ), workspace_title),
+                    cwd = COALESCE((
+                        SELECT NULLIF(cwd, '') FROM ai_turn
+                        WHERE ai_turn.provider=ai_session.provider
+                          AND ai_turn.session_id=ai_session.session_id
+                          AND cwd<>''
+                        ORDER BY event_at DESC, received_at DESC, id DESC LIMIT 1
+                    ), cwd),
+                    model = COALESCE((
+                        SELECT NULLIF(model, '') FROM ai_turn
+                        WHERE ai_turn.provider=ai_session.provider
+                          AND ai_turn.session_id=ai_session.session_id
+                          AND model<>''
+                        ORDER BY event_at DESC, received_at DESC, id DESC LIMIT 1
+                    ), model),
+                    started_at = (
+                        SELECT MIN(event_at) FROM ai_turn
+                        WHERE ai_turn.provider=ai_session.provider
+                          AND ai_turn.session_id=ai_session.session_id
+                    ),
+                    last_activity_at = (
+                        SELECT MAX(event_at) FROM ai_turn
+                        WHERE ai_turn.provider=ai_session.provider
+                          AND ai_turn.session_id=ai_session.session_id
+                    )
+                WHERE EXISTS (
+                    SELECT 1 FROM ai_turn
+                    WHERE ai_turn.provider=ai_session.provider
+                      AND ai_turn.session_id=ai_session.session_id
+                );
+
+                DELETE FROM ai_session
+                WHERE summary_seen_at=0
+                  AND NOT EXISTS (
+                      SELECT 1 FROM ai_turn
+                      WHERE ai_turn.provider=ai_session.provider
+                        AND ai_turn.session_id=ai_session.session_id
+                  );
+            )sql"))
+            {
+                return false;
+            }
+
+            return transaction.Commit();
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+
+    AgentHistoryCleanupResult AgentHistoryStore::Cleanup(const AgentHistoryRetentionPolicy& policy,
+                                                          const int64_t nowUnixMilliseconds) noexcept
+    {
+        AgentHistoryCleanupResult result;
+        try
+        {
+            if (!_impl || nowUnixMilliseconds < 0 || nowUnixMilliseconds > MaximumUnixMilliseconds)
+            {
+                return result;
+            }
+
+            const auto cutoffForDays = [&](const uint32_t days) -> std::optional<int64_t> {
+                if (days == 0)
+                {
+                    return std::nullopt;
+                }
+                const auto duration = static_cast<uint64_t>(days) * static_cast<uint64_t>(MillisecondsPerDay);
+                return duration >= static_cast<uint64_t>(nowUnixMilliseconds) ?
+                           0 :
+                           nowUnixMilliseconds - static_cast<int64_t>(duration);
+            };
+            const auto retentionCutoff = cutoffForDays(policy.RetentionDays);
+            const auto receiptCutoff = cutoffForDays(policy.ReceiptTombstoneDays);
+
+            const std::scoped_lock lock{ _impl->Mutex };
+            auto* const database = _impl->Database.get();
+            if (!database)
+            {
+                return result;
+            }
+
+            Transaction transaction{ database };
+            if (!transaction)
+            {
+                return result;
+            }
+
+            // Logical payload includes every text field retained by ai_turn.
+            // It deliberately excludes SQLite/FTS page overhead: deleted pages
+            // remain reusable without forcing a blocking VACUUM.
+            constexpr auto totalsSql = R"sql(
+                SELECT COUNT(*), COALESCE(SUM(
+                    length(CAST(provider AS BLOB)) +
+                    length(CAST(session_id AS BLOB)) +
+                    length(CAST(turn_id AS BLOB)) +
+                    length(CAST(workspace_id AS BLOB)) +
+                    length(CAST(workspace_title AS BLOB)) +
+                    length(CAST(cwd AS BLOB)) +
+                    length(CAST(title AS BLOB)) +
+                    length(CAST(prompt AS BLOB)) +
+                    length(CAST(final_markdown AS BLOB)) +
+                    length(CAST(model AS BLOB))
+                ), 0)
+                FROM ai_turn;
+            )sql";
+            const auto queryTotals = [&]() -> std::optional<std::pair<uint64_t, uint64_t>> {
+                const auto statement = _prepare(database, totalsSql);
+                if (!statement || sqlite3_step(statement.get()) != SQLITE_ROW)
+                {
+                    return std::nullopt;
+                }
+                const auto turns = sqlite3_column_int64(statement.get(), 0);
+                const auto bytes = sqlite3_column_int64(statement.get(), 1);
+                if (turns < 0 || bytes < 0 || sqlite3_step(statement.get()) != SQLITE_DONE)
+                {
+                    return std::nullopt;
+                }
+                return std::pair{ static_cast<uint64_t>(turns), static_cast<uint64_t>(bytes) };
+            };
+
+            const auto initialTotals = queryTotals();
+            if (!initialTotals)
+            {
+                return result;
+            }
+            auto remainingTurns = initialTotals->first;
+            auto remainingPayloadBytes = initialTotals->second;
+
+            struct CleanupCandidate
+            {
+                winrt::hstring Provider;
+                winrt::hstring SessionId;
+                winrt::hstring TurnId;
+                int64_t ReceivedAt{};
+                uint64_t PayloadBytes{};
+            };
+
+            constexpr auto candidatesSql = R"sql(
+                SELECT provider, session_id, turn_id, received_at,
+                       length(CAST(provider AS BLOB)) +
+                       length(CAST(session_id AS BLOB)) +
+                       length(CAST(turn_id AS BLOB)) +
+                       length(CAST(workspace_id AS BLOB)) +
+                       length(CAST(workspace_title AS BLOB)) +
+                       length(CAST(cwd AS BLOB)) +
+                       length(CAST(title AS BLOB)) +
+                       length(CAST(prompt AS BLOB)) +
+                       length(CAST(final_markdown AS BLOB)) +
+                       length(CAST(model AS BLOB))
+                FROM ai_turn
+                WHERE pinned = 0
+                ORDER BY received_at ASC, event_at ASC, id ASC
+                LIMIT ?1;
+            )sql";
+            const auto tombstoneReceipt = _prepare(database, R"sql(
+                UPDATE ai_history_event
+                SET deleted_at = CASE WHEN deleted_at = 0 THEN ?4 ELSE deleted_at END
+                WHERE provider=?1 AND session_id=?2 AND turn_id=?3;
+            )sql");
+            const auto deleteTurn = _prepare(database, R"sql(
+                DELETE FROM ai_turn
+                WHERE provider=?1 AND session_id=?2 AND turn_id=?3 AND pinned=0;
+            )sql");
+            if (!tombstoneReceipt || !deleteTurn)
+            {
+                return result;
+            }
+
+            std::set<std::pair<std::wstring, std::wstring>> affectedSessions;
+            bool stopDeleting{ false };
+            while (!stopDeleting && result.TurnsDeleted < MaximumTurnsDeletedPerCleanup)
+            {
+                const auto overTurnLimit = policy.MaximumTurns != 0 && remainingTurns > policy.MaximumTurns;
+                const auto overByteLimit = policy.MaximumPayloadBytes != 0 && remainingPayloadBytes > policy.MaximumPayloadBytes;
+                if (!retentionCutoff && !overTurnLimit && !overByteLimit)
+                {
+                    break;
+                }
+
+                const auto remainingBudget = MaximumTurnsDeletedPerCleanup - static_cast<size_t>(result.TurnsDeleted);
+                const auto batchLimit = std::min(CleanupBatchSize, remainingBudget);
+                auto candidates = _prepare(database, candidatesSql);
+                if (!candidates || sqlite3_bind_int64(candidates.get(), 1, gsl::narrow<int64_t>(batchLimit)) != SQLITE_OK)
+                {
+                    return AgentHistoryCleanupResult{};
+                }
+
+                std::vector<CleanupCandidate> batch;
+                batch.reserve(batchLimit);
+                for (;;)
+                {
+                    const auto step = sqlite3_step(candidates.get());
+                    if (step == SQLITE_DONE)
+                    {
+                        break;
+                    }
+                    if (step != SQLITE_ROW)
+                    {
+                        return AgentHistoryCleanupResult{};
+                    }
+
+                    const auto provider = _columnText(candidates.get(), 0);
+                    const auto sessionId = _columnText(candidates.get(), 1);
+                    const auto turnId = _columnText(candidates.get(), 2);
+                    const auto payloadBytes = sqlite3_column_int64(candidates.get(), 4);
+                    if (!provider || !sessionId || !turnId || payloadBytes < 0)
+                    {
+                        return AgentHistoryCleanupResult{};
+                    }
+                    batch.emplace_back(CleanupCandidate{
+                        .Provider = provider.value(),
+                        .SessionId = sessionId.value(),
+                        .TurnId = turnId.value(),
+                        .ReceivedAt = sqlite3_column_int64(candidates.get(), 3),
+                        .PayloadBytes = static_cast<uint64_t>(payloadBytes),
+                    });
+                }
+                candidates.reset();
+
+                if (batch.empty())
+                {
+                    break;
+                }
+
+                for (const auto& candidate : batch)
+                {
+                    const auto ageExpired = retentionCutoff && candidate.ReceivedAt < retentionCutoff.value();
+                    const auto mustReduceTurns = policy.MaximumTurns != 0 && remainingTurns > policy.MaximumTurns;
+                    const auto mustReduceBytes = policy.MaximumPayloadBytes != 0 && remainingPayloadBytes > policy.MaximumPayloadBytes;
+                    if (!ageExpired && !mustReduceTurns && !mustReduceBytes)
+                    {
+                        stopDeleting = true;
+                        break;
+                    }
+
+                    sqlite3_reset(tombstoneReceipt.get());
+                    sqlite3_clear_bindings(tombstoneReceipt.get());
+                    if (!_bindIdentity(tombstoneReceipt.get(), candidate.Provider, candidate.SessionId, candidate.TurnId) ||
+                        sqlite3_bind_int64(tombstoneReceipt.get(), 4, nowUnixMilliseconds) != SQLITE_OK ||
+                        sqlite3_step(tombstoneReceipt.get()) != SQLITE_DONE)
+                    {
+                        return AgentHistoryCleanupResult{};
+                    }
+
+                    sqlite3_reset(deleteTurn.get());
+                    sqlite3_clear_bindings(deleteTurn.get());
+                    if (!_bindIdentity(deleteTurn.get(), candidate.Provider, candidate.SessionId, candidate.TurnId) ||
+                        sqlite3_step(deleteTurn.get()) != SQLITE_DONE ||
+                        sqlite3_changes(database) != 1)
+                    {
+                        return AgentHistoryCleanupResult{};
+                    }
+
+                    ++result.TurnsDeleted;
+                    --remainingTurns;
+                    remainingPayloadBytes -= std::min(remainingPayloadBytes, candidate.PayloadBytes);
+                    affectedSessions.emplace(
+                        std::wstring{ candidate.Provider.c_str(), candidate.Provider.size() },
+                        std::wstring{ candidate.SessionId.c_str(), candidate.SessionId.size() });
+                    if (result.TurnsDeleted == MaximumTurnsDeletedPerCleanup)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            constexpr auto refreshSession = R"sql(
+                UPDATE ai_session
+                SET workspace_id = (
+                        SELECT workspace_id FROM ai_turn
+                        WHERE provider=?1 AND session_id=?2
+                        ORDER BY event_at DESC, received_at DESC, id DESC LIMIT 1
+                    ),
+                    workspace_title = COALESCE((
+                        SELECT NULLIF(workspace_title, '') FROM ai_turn
+                        WHERE provider=?1 AND session_id=?2 AND workspace_title<>''
+                        ORDER BY event_at DESC, received_at DESC, id DESC LIMIT 1
+                    ), workspace_title),
+                    cwd = COALESCE((
+                        SELECT NULLIF(cwd, '') FROM ai_turn
+                        WHERE provider=?1 AND session_id=?2 AND cwd<>''
+                        ORDER BY event_at DESC, received_at DESC, id DESC LIMIT 1
+                    ), cwd),
+                    model = COALESCE((
+                        SELECT NULLIF(model, '') FROM ai_turn
+                        WHERE provider=?1 AND session_id=?2 AND model<>''
+                        ORDER BY event_at DESC, received_at DESC, id DESC LIMIT 1
+                    ), model),
+                    started_at = (SELECT MIN(event_at) FROM ai_turn WHERE provider=?1 AND session_id=?2),
+                    last_activity_at = (SELECT MAX(event_at) FROM ai_turn WHERE provider=?1 AND session_id=?2)
+                WHERE provider=?1 AND session_id=?2
+                  AND EXISTS (SELECT 1 FROM ai_turn WHERE provider=?1 AND session_id=?2);
+            )sql";
+            const auto refresh = _prepare(database, refreshSession);
+            if (!refresh)
+            {
+                return AgentHistoryCleanupResult{};
+            }
+            for (const auto& [provider, sessionId] : affectedSessions)
+            {
+                sqlite3_reset(refresh.get());
+                sqlite3_clear_bindings(refresh.get());
+                if (!_bindIdentity(refresh.get(), provider, sessionId) ||
+                    sqlite3_step(refresh.get()) != SQLITE_DONE)
+                {
+                    return AgentHistoryCleanupResult{};
+                }
+            }
+
+            const auto deleteOrphanSessions = _prepare(database, R"sql(
+                DELETE FROM ai_session
+                WHERE summary_seen_at=0
+                  AND NOT EXISTS (
+                      SELECT 1 FROM ai_turn
+                      WHERE ai_turn.provider=ai_session.provider
+                        AND ai_turn.session_id=ai_session.session_id
+                  );
+            )sql");
+            if (!deleteOrphanSessions || sqlite3_step(deleteOrphanSessions.get()) != SQLITE_DONE)
+            {
+                return AgentHistoryCleanupResult{};
+            }
+            result.SessionsDeleted = static_cast<uint64_t>(sqlite3_changes(database));
+
+            bool oldReceiptsRemain{ false };
+            if (receiptCutoff)
+            {
+                const auto deleteReceipts = _prepare(database, R"sql(
+                    DELETE FROM ai_history_event
+                    WHERE event_id IN (
+                        SELECT event_id FROM ai_history_event
+                        WHERE deleted_at > 0 AND deleted_at < ?1
+                        ORDER BY deleted_at ASC, event_id ASC
+                        LIMIT ?2
+                    );
+                )sql");
+                if (!deleteReceipts ||
+                    sqlite3_bind_int64(deleteReceipts.get(), 1, receiptCutoff.value()) != SQLITE_OK ||
+                    sqlite3_bind_int64(deleteReceipts.get(), 2, MaximumTurnsDeletedPerCleanup) != SQLITE_OK ||
+                    sqlite3_step(deleteReceipts.get()) != SQLITE_DONE)
+                {
+                    return AgentHistoryCleanupResult{};
+                }
+                result.ReceiptsDeleted = static_cast<uint64_t>(sqlite3_changes(database));
+
+                const auto oldReceipt = _prepare(database,
+                                                 "SELECT EXISTS(SELECT 1 FROM ai_history_event "
+                                                 "WHERE deleted_at>0 AND deleted_at<?1);");
+                if (!oldReceipt ||
+                    sqlite3_bind_int64(oldReceipt.get(), 1, receiptCutoff.value()) != SQLITE_OK ||
+                    sqlite3_step(oldReceipt.get()) != SQLITE_ROW)
+                {
+                    return AgentHistoryCleanupResult{};
+                }
+                oldReceiptsRemain = sqlite3_column_int(oldReceipt.get(), 0) != 0;
+            }
+
+            bool expiredTurnsRemain{ false };
+            if (retentionCutoff)
+            {
+                const auto expiredTurn = _prepare(database,
+                                                 "SELECT EXISTS(SELECT 1 FROM ai_turn "
+                                                 "WHERE pinned=0 AND received_at<?1);");
+                if (!expiredTurn ||
+                    sqlite3_bind_int64(expiredTurn.get(), 1, retentionCutoff.value()) != SQLITE_OK ||
+                    sqlite3_step(expiredTurn.get()) != SQLITE_ROW)
+                {
+                    return AgentHistoryCleanupResult{};
+                }
+                expiredTurnsRemain = sqlite3_column_int(expiredTurn.get(), 0) != 0;
+            }
+
+            const auto finalTotals = queryTotals();
+            if (!finalTotals)
+            {
+                return AgentHistoryCleanupResult{};
+            }
+            result.RemainingTurns = finalTotals->first;
+            result.RemainingPayloadBytes = finalTotals->second;
+            result.SoftLimitUnsatisfied =
+                expiredTurnsRemain || oldReceiptsRemain ||
+                (policy.MaximumTurns != 0 && result.RemainingTurns > policy.MaximumTurns) ||
+                (policy.MaximumPayloadBytes != 0 && result.RemainingPayloadBytes > policy.MaximumPayloadBytes);
+
+            if (!transaction.Commit())
+            {
+                return AgentHistoryCleanupResult{};
+            }
+            result.Succeeded = true;
+
+            // Passive checkpointing never requires readers to leave and does
+            // not truncate/vacuum the database. Failure/busy is non-fatal; the
+            // WAL will be reused or checkpointed by a later connection.
+            int logFrames{};
+            int checkpointedFrames{};
+            sqlite3_wal_checkpoint_v2(database,
+                                      nullptr,
+                                      SQLITE_CHECKPOINT_PASSIVE,
+                                      &logFrames,
+                                      &checkpointedFrames);
+            return result;
+        }
+        catch (...)
+        {
+            return AgentHistoryCleanupResult{};
         }
     }
 

@@ -350,6 +350,22 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void ConclusionSidebar::_SessionFilter_TextChanged(const Windows::Foundation::IInspectable&, const RoutedEventArgs&)
+    {
+        if (_isInitialized)
+        {
+            _RefreshHistory();
+        }
+    }
+
+    void ConclusionSidebar::_DateFilter_SelectionChanged(const Windows::Foundation::IInspectable&, const SelectionChangedEventArgs&)
+    {
+        if (_isInitialized)
+        {
+            _RefreshHistory();
+        }
+    }
+
     void ConclusionSidebar::_SessionSearch_TextChanged(const Windows::Foundation::IInspectable&, const RoutedEventArgs&)
     {
         if (_isInitialized)
@@ -457,6 +473,65 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    safe_void_coroutine ConclusionSidebar::_ClearHistory_Click(const Windows::Foundation::IInspectable&, const RoutedEventArgs&)
+    {
+        if (_historyClearInFlight || !_historyStore.IsAvailable() || (!_showAllWorkspaces && _activeWorkspaceId == winrt::guid{}))
+        {
+            co_return;
+        }
+
+        const auto weakThis = get_weak();
+        const auto clearAll = _showAllWorkspaces;
+        const auto workspaceId = _activeWorkspaceId;
+        _historyClearInFlight = true;
+        ClearHistoryButton().IsEnabled(false);
+
+        ContentDialog dialog{};
+        dialog.Title(box_value(RS_(L"ConclusionSidebar_ClearHistoryTitle")));
+        dialog.Content(box_value(clearAll ?
+                                     RS_(L"ConclusionSidebar_ClearAllHistoryBody") :
+                                     RS_(L"ConclusionSidebar_ClearWorkspaceHistoryBody")));
+        dialog.PrimaryButtonText(RS_(L"ConclusionSidebar_ClearHistoryConfirm"));
+        dialog.CloseButtonText(RS_(L"ConclusionSidebar_ClearHistoryCancel"));
+        dialog.DefaultButton(ContentDialogButton::Close);
+        if (co_await dialog.ShowAsync() != ContentDialogResult::Primary)
+        {
+            if (const auto self = weakThis.get())
+            {
+                self->_historyClearInFlight = false;
+                self->_UpdateContentState();
+            }
+            co_return;
+        }
+
+        const auto self = weakThis.get();
+        if (!self)
+        {
+            co_return;
+        }
+        const auto dispatcher = self->Dispatcher();
+
+        co_await winrt::resume_background();
+        AgentHistoryStore store{ AgentHistoryStore::DefaultPath() };
+        const auto cleared = store.IsAvailable() &&
+                             (clearAll ? store.DeleteAllUnpinned() : store.DeleteWorkspace(workspaceId));
+        co_await wil::resume_foreground(dispatcher);
+
+        if (const auto current = weakThis.get())
+        {
+            current->_historyClearInFlight = false;
+            if (cleared)
+            {
+                current->_RefreshHistory();
+                current->_RefreshSessions();
+            }
+            else
+            {
+                current->_UpdateContentState();
+            }
+        }
+    }
+
     void ConclusionSidebar::_ApplyLayout()
     {
         const auto expanded = _isExpanded && !_isWindowNarrow;
@@ -496,10 +571,25 @@ namespace winrt::TerminalApp::implementation
             workspaceId = _activeWorkspaceId;
         }
 
-        const auto search = HistorySearchBox().Text();
-        const auto records = _historyStore.ListTurns(workspaceId,
-                                                     std::wstring_view{ search.c_str(), search.size() },
-                                                     MaximumHistory);
+        AgentHistoryQuery query;
+        query.WorkspaceId = workspaceId;
+        query.SessionId = SessionFilterBox().Text();
+        query.Search = HistorySearchBox().Text();
+        query.Limit = MaximumHistory;
+        const auto dateFilter = DateFilterBox().SelectedIndex();
+        if (dateFilter > 0)
+        {
+            constexpr std::array<int64_t, 4> filterDays{ 0, 1, 7, 30 };
+            if (static_cast<size_t>(dateFilter) < filterDays.size())
+            {
+                const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     std::chrono::system_clock::now().time_since_epoch())
+                                     .count();
+                query.ReceivedFrom = now - filterDays.at(dateFilter) * 24 * 60 * 60 * 1000;
+                query.ReceivedTo = now;
+            }
+        }
+        const auto records = _historyStore.ListTurns(query);
         for (const auto& record : records)
         {
             _historyItems.Append(_makeHistoryItem(record));
@@ -551,6 +641,8 @@ namespace winrt::TerminalApp::implementation
         EmptyState().Visibility(hasHistory ? Visibility::Collapsed : Visibility::Visible);
         CountBadge().Visibility(hasHistory ? Visibility::Visible : Visibility::Collapsed);
         CountText().Text(hasHistory ? winrt::to_hstring(count) : winrt::hstring{});
+        ClearHistoryButton().IsEnabled(!_historyClearInFlight && _historyStore.IsAvailable() &&
+                                       (_showAllWorkspaces || _activeWorkspaceId != winrt::guid{}));
         WorkspaceNameText().Text(_showAllWorkspaces ?
                                      RS_(L"ConclusionSidebar_AllWorkspaces") :
                                      (_activeWorkspaceTitle.empty() ? RS_(L"ConclusionSidebar_WorkspaceFallback") : _activeWorkspaceTitle));

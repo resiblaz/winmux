@@ -151,6 +151,10 @@ namespace winrt::TerminalApp::implementation
     {
         // Now that we know we can do XAML, build our page.
         _root = winrt::make_self<TerminalPage>(*_WindowProperties, _manager);
+        if (_pendingWorkspaceSnapshotId)
+        {
+            _root->PrepareForWorkspaceSnapshotOpen(_pendingWorkspaceSnapshotReplaceCurrent);
+        }
 
         // Pass in information about the initial state of the window.
         // * If we were supposed to start from serialized "content", do that,
@@ -164,6 +168,10 @@ namespace winrt::TerminalApp::implementation
         }
         else if (!_initialContentArgs.empty())
         {
+            if (_startupWorkspaceId != winrt::guid{})
+            {
+                _root->SetStartupWorkspaceSource(_startupWorkspaceId, _startupSourceSnapshotId, _startupSourceSnapshotRevision);
+            }
             _root->SetStartupActions(std::move(_initialContentArgs));
         }
         else if (const auto& layout = LoadPersistedLayout())
@@ -189,6 +197,13 @@ namespace winrt::TerminalApp::implementation
                                             std::move(workspaceIds),
                                             std::move(pinnedWorkspaceIndices),
                                             std::move(agentResumeEntries));
+            if (const auto sources = layout.WorkspaceSnapshotSources())
+            {
+                for (const auto& source : sources)
+                {
+                    _root->AddStartupWorkspaceSource(source.WorkspaceId, source.SnapshotId, source.Revision);
+                }
+            }
             _root->SetStartupActions(wil::to_vector(layout.TabLayout()));
         }
         else if (_appArgs)
@@ -274,7 +289,36 @@ namespace winrt::TerminalApp::implementation
             _root->SetFullscreen(true);
         }
 
+        _pageIsInitialized = true;
+        if (_pendingWorkspaceSnapshotId)
+        {
+            const auto snapshotId = _pendingWorkspaceSnapshotId.value();
+            _pendingWorkspaceSnapshotId.reset();
+            _root->OpenWorkspaceSnapshot(snapshotId, std::exchange(_pendingWorkspaceSnapshotReplaceCurrent, false));
+        }
+
         AppLogic::Current()->NotifyRootInitialized();
+    }
+
+    void TerminalWindow::OpenWorkspaceSnapshot(const winrt::guid& snapshotId, const bool replaceCurrentWorkspace)
+    {
+        if (snapshotId == winrt::guid{})
+        {
+            return;
+        }
+        if (_root && _pageIsInitialized)
+        {
+            _root->OpenWorkspaceSnapshot(snapshotId, replaceCurrentWorkspace);
+        }
+        else
+        {
+            _pendingWorkspaceSnapshotId = snapshotId;
+            _pendingWorkspaceSnapshotReplaceCurrent = replaceCurrentWorkspace;
+            if (_root)
+            {
+                _root->PrepareForWorkspaceSnapshotOpen(replaceCurrentWorkspace);
+            }
+        }
     }
 
     WindowLayout TerminalWindow::GetWindowLayout() const
@@ -1144,6 +1188,15 @@ namespace winrt::TerminalApp::implementation
         _initialContentArgs = wil::to_vector(args);
     }
 
+    void TerminalWindow::SetStartupWorkspaceSource(const winrt::guid& workspaceId,
+                                                   const winrt::guid& sourceSnapshotId,
+                                                   const uint64_t sourceSnapshotRevision)
+    {
+        _startupWorkspaceId = workspaceId;
+        _startupSourceSnapshotId = sourceSnapshotId;
+        _startupSourceSnapshotRevision = sourceSnapshotRevision;
+    }
+
     // Method Description:
     // - Provide a pre-built list of startup actions for this window. Used by
     //   the in-proc OpenNewWindow event (see TerminalPage::_OpenNewWindow ->
@@ -1345,7 +1398,11 @@ namespace winrt::TerminalApp::implementation
         return nullptr;
     }
 
-    void TerminalWindow::AttachContent(winrt::hstring content, uint32_t tabIndex)
+    void TerminalWindow::AttachContent(winrt::hstring content,
+                                       uint32_t tabIndex,
+                                       const winrt::guid& workspaceId,
+                                       const winrt::guid& sourceSnapshotId,
+                                       const uint64_t sourceSnapshotRevision)
     {
         if (_root)
         {
@@ -1361,7 +1418,7 @@ namespace winrt::TerminalApp::implementation
 
             auto args = _contentStringToActions(content, replaceFirstWithNewTab);
 
-            _root->AttachContent(std::move(args), tabIndex);
+            _root->AttachContent(std::move(args), tabIndex, workspaceId, sourceSnapshotId, sourceSnapshotRevision);
         }
     }
     void TerminalWindow::SendContentToOther(winrt::TerminalApp::RequestReceiveContentArgs args)

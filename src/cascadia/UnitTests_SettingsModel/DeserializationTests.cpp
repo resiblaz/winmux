@@ -30,6 +30,7 @@ namespace SettingsModelUnitTests
         TEST_METHOD(LayerGlobalProperties);
         TEST_METHOD(TabLayoutSetting);
         TEST_METHOD(WorkspaceAutomationPermissionsSetting);
+        TEST_METHOD(AgentHistoryRetentionSettings);
         TEST_METHOD(ValidateProfileOrdering);
         TEST_METHOD(ValidateHideProfiles);
         TEST_METHOD(TestReorderWithNullGuids);
@@ -430,6 +431,26 @@ namespace SettingsModelUnitTests
         const auto enabledSettings = createSettings(userSettings);
         VERIFY_IS_TRUE(enabledSettings->WindowSettingsDefaults().WorkspaceAutomationAllowInput());
         VERIFY_IS_FALSE(enabledSettings->WindowSettingsDefaults().WorkspaceAutomationAllowContentRead());
+    }
+
+    void DeserializationTests::AgentHistoryRetentionSettings()
+    {
+        const auto defaults = createSettings(R"({
+            "profiles": [ { "name": "profile0" } ]
+        })");
+        VERIFY_ARE_EQUAL(90u, defaults->GlobalSettings().AgentHistoryRetentionDays());
+        VERIFY_ARE_EQUAL(10000u, defaults->GlobalSettings().AgentHistoryMaximumTurns());
+        VERIFY_ARE_EQUAL(64u, defaults->GlobalSettings().AgentHistoryMaximumPayloadMiB());
+
+        const auto configured = createSettings(R"({
+            "experimental.agentHistory.retentionDays": 30,
+            "experimental.agentHistory.maximumTurns": 2500,
+            "experimental.agentHistory.maximumPayloadMiB": 16,
+            "profiles": [ { "name": "profile0" } ]
+        })");
+        VERIFY_ARE_EQUAL(30u, configured->GlobalSettings().AgentHistoryRetentionDays());
+        VERIFY_ARE_EQUAL(2500u, configured->GlobalSettings().AgentHistoryMaximumTurns());
+        VERIFY_ARE_EQUAL(16u, configured->GlobalSettings().AgentHistoryMaximumPayloadMiB());
     }
 
     void DeserializationTests::ValidateProfileOrdering()

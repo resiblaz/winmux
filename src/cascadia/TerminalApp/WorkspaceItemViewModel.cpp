@@ -427,6 +427,35 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void WorkspaceItemViewModel::BindSourceSnapshot(const winrt::guid& snapshotId, const uint64_t revision) noexcept
+    {
+        if (snapshotId != winrt::guid{} && revision != 0)
+        {
+            _sourceSnapshotId = snapshotId;
+            _sourceSnapshotRevision = revision;
+        }
+        else
+        {
+            ClearSourceSnapshot();
+        }
+    }
+
+    void WorkspaceItemViewModel::ClearSourceSnapshot() noexcept
+    {
+        _sourceSnapshotId.reset();
+        _sourceSnapshotRevision = 0;
+    }
+
+    std::optional<winrt::guid> WorkspaceItemViewModel::SourceSnapshotId() const noexcept
+    {
+        return _sourceSnapshotId;
+    }
+
+    uint64_t WorkspaceItemViewModel::SourceSnapshotRevision() const noexcept
+    {
+        return _sourceSnapshotRevision;
+    }
+
     void WorkspaceItemViewModel::RefreshGitBranch()
     {
         const auto directory = WorkingDirectory();

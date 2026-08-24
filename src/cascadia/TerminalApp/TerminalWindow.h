@@ -95,6 +95,7 @@ namespace winrt::TerminalApp::implementation
         bool ShowTabsFullscreen() const;
         bool AutoHideWindow();
         void IdentifyWindow();
+        void OpenWorkspaceSnapshot(const winrt::guid& snapshotId, bool replaceCurrentWorkspace);
         bool FocusTab(const winrt::TerminalApp::Tab& tab);
 
         std::optional<uint32_t> LoadPersistedLayoutIdx() const;
@@ -146,7 +147,8 @@ namespace winrt::TerminalApp::implementation
         bool IsQuakeWindow() const noexcept { return _WindowProperties->IsQuakeWindow(); }
         TerminalApp::WindowProperties WindowProperties() { return *_WindowProperties; }
 
-        void AttachContent(winrt::hstring content, uint32_t tabIndex);
+        void AttachContent(winrt::hstring content, uint32_t tabIndex, const winrt::guid& workspaceId, const winrt::guid& sourceSnapshotId, uint64_t sourceSnapshotRevision);
+        void SetStartupWorkspaceSource(const winrt::guid& workspaceId, const winrt::guid& sourceSnapshotId, uint64_t sourceSnapshotRevision);
         void SendContentToOther(winrt::TerminalApp::RequestReceiveContentArgs args);
 
         // -------------------------------- WinRT Events ---------------------------------
@@ -178,6 +180,9 @@ namespace winrt::TerminalApp::implementation
         bool _hasCommandLineArguments{ false };
         bool _gotSettingsStartupActions{ false };
         std::vector<winrt::Microsoft::Terminal::Settings::Model::ActionAndArgs> _settingsStartupArgs{};
+        winrt::guid _startupWorkspaceId{};
+        winrt::guid _startupSourceSnapshotId{};
+        uint64_t _startupSourceSnapshotRevision{};
         Windows::Foundation::IReference<Windows::Foundation::Rect> _contentBounds{ nullptr };
 
         winrt::com_ptr<TerminalApp::implementation::WindowProperties> _WindowProperties{ nullptr };
@@ -190,6 +195,9 @@ namespace winrt::TerminalApp::implementation
 
         TerminalApp::ContentManager _manager{ nullptr };
         std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> _initialContentArgs;
+        std::optional<winrt::guid> _pendingWorkspaceSnapshotId;
+        bool _pendingWorkspaceSnapshotReplaceCurrent{ false };
+        bool _pageIsInitialized{};
 
         void _ShowLoadErrorsDialog(const winrt::hstring& titleKey,
                                    const winrt::hstring& contentKey,

@@ -33,6 +33,7 @@ static constexpr ULONG_PTR TERMINAL_HANDOFF_MAGIC = 0x4c414e494d524554; // 'TERM
 #else
 static constexpr ULONG_PTR TERMINAL_HANDOFF_MAGIC = 0x4d524554; // 'TERM'
 #endif
+static constexpr std::wstring_view INTERNAL_WORKSPACE_OPEN_SENTINEL{ L"--internal-workspace-open" };
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
@@ -246,7 +247,7 @@ AppHost* WindowEmperor::GetWindowByName(std::wstring_view name) const noexcept
     return nullptr;
 }
 
-void WindowEmperor::CreateNewWindow(winrt::TerminalApp::WindowRequestedArgs args)
+AppHost* WindowEmperor::CreateNewWindow(winrt::TerminalApp::WindowRequestedArgs args)
 {
     _assertIsMainThread();
 
@@ -271,6 +272,7 @@ void WindowEmperor::CreateNewWindow(winrt::TerminalApp::WindowRequestedArgs args
     _handoffTimeoutTimer.Stop();
     _windowCount += 1;
     _windows.emplace_back(std::move(host));
+    auto result = _windows.back().get();
 
     if (_windowCount == 1)
     {
@@ -294,6 +296,7 @@ void WindowEmperor::CreateNewWindow(winrt::TerminalApp::WindowRequestedArgs args
             }
         }
     }
+    return result;
 }
 
 // Public entry point used by in-process callers (e.g. AppHost reacting to a
@@ -330,11 +333,84 @@ void WindowEmperor::OpenWindow(const winrt::hstring& name)
     _createWindowMaybeRestoringWorkspace(0, name, winrt::TerminalApp::CommandlineArgs{});
 }
 
+void WindowEmperor::HandleWorkspaceOpen(const winrt::guid& snapshotId, const winrt::hstring& windowTarget, const int nCmdShow)
+{
+    _initialWorkspaceSnapshotId = snapshotId;
+    _initialWorkspaceWindowTarget = windowTarget;
+    HandleCommandlineArgs(nCmdShow);
+}
+
+void WindowEmperor::OpenWorkspaceSnapshot(const winrt::guid& snapshotId, const winrt::hstring& windowTarget)
+{
+    _assertIsMainThread();
+    if (snapshotId == winrt::guid{} || !_app)
+    {
+        return;
+    }
+
+    WindowingMode behavior = WindowingMode::UseNew;
+    uint64_t windowId{};
+    winrt::hstring windowName;
+    if (windowTarget.empty())
+    {
+        behavior = _app.Logic().Settings().GlobalSettings().WindowingBehavior();
+    }
+    else if (const auto parsed = til::parse_signed<int64_t>(windowTarget, 10))
+    {
+        if (*parsed > 0)
+        {
+            windowId = gsl::narrow_cast<uint64_t>(*parsed);
+        }
+        else if (*parsed == 0)
+        {
+            behavior = WindowingMode::UseExisting;
+        }
+    }
+    else if (windowTarget == L"last")
+    {
+        behavior = WindowingMode::UseExisting;
+    }
+    else if (windowTarget != L"new")
+    {
+        windowName = windowTarget;
+    }
+
+    AppHost* window{};
+    if (windowId)
+    {
+        window = GetWindowById(windowId);
+    }
+    else if (!windowName.empty())
+    {
+        window = GetWindowByName(windowName);
+    }
+    else if (behavior == WindowingMode::UseExisting)
+    {
+        _openWorkspaceSnapshotCurrentDesktop(snapshotId);
+        return;
+    }
+    else if (behavior == WindowingMode::UseAnyExisting)
+    {
+        window = _mostRecentWindow();
+    }
+
+    bool replaceCurrentWorkspace{};
+    if (!window)
+    {
+        window = _createWindowMaybeRestoringWorkspace(windowId, windowName, winrt::TerminalApp::CommandlineArgs{});
+        replaceCurrentWorkspace = window != nullptr && windowName.empty();
+    }
+    if (window)
+    {
+        window->OpenWorkspaceSnapshot(snapshotId, replaceCurrentWorkspace);
+    }
+}
+
 // Shared tail used by both the commandline dispatch path and OpenWindow():
 // build a WindowRequestedArgs for a new window and, if the request carries a
 // name, atomically claim any persisted workspace stored under that name so
 // it's restored here and no subsequent caller can pick up the same entry.
-void WindowEmperor::_createWindowMaybeRestoringWorkspace(uint64_t windowId, const winrt::hstring& windowName, winrt::TerminalApp::CommandlineArgs args)
+AppHost* WindowEmperor::_createWindowMaybeRestoringWorkspace(uint64_t windowId, const winrt::hstring& windowName, winrt::TerminalApp::CommandlineArgs args)
 {
     winrt::TerminalApp::WindowRequestedArgs request{ windowId, std::move(args) };
     request.WindowName(windowName);
@@ -347,7 +423,7 @@ void WindowEmperor::_createWindowMaybeRestoringWorkspace(uint64_t windowId, cons
         }
     }
 
-    CreateNewWindow(std::move(request));
+    return CreateNewWindow(std::move(request));
 }
 
 AppHost* WindowEmperor::_mostRecentWindow() const noexcept
@@ -597,7 +673,13 @@ void WindowEmperor::HandleCommandlineArgs(int nCmdShow)
 
         const auto args = commandlineToArgArray(GetCommandLineW());
 
-        if (args.size() == 2 && args[1] == L"-Embedding")
+        if (_initialWorkspaceSnapshotId)
+        {
+            const auto snapshotId = _initialWorkspaceSnapshotId.value();
+            _initialWorkspaceSnapshotId.reset();
+            OpenWorkspaceSnapshot(snapshotId, std::exchange(_initialWorkspaceWindowTarget, winrt::hstring{}));
+        }
+        else if (args.size() == 2 && args[1] == L"-Embedding")
         {
             // We were launched for ConPTY handoff. We have no windows and also don't want to exit.
             // But if we don't receive any handoff within a reasonable timeout, we should exit.
@@ -873,6 +955,22 @@ void WindowEmperor::_dispatchCommandline(winrt::TerminalApp::CommandlineArgs arg
 
 void WindowEmperor::_dispatchCommandlineCommon(winrt::array_view<const winrt::hstring> args, wil::zwstring_view currentDirectory, wil::zwstring_view envString, uint32_t showWindowCommand)
 {
+    if (args.size() >= 3 && args[1] == INTERNAL_WORKSPACE_OPEN_SENTINEL)
+    {
+        if (args.size() < 4 || args[2] != L"workspace" || args[3] != L"open")
+        {
+            return;
+        }
+        std::vector<winrt::hstring> workspaceArguments{ args.begin() + 2, args.end() };
+        const auto argumentView = winrt::single_threaded_vector<winrt::hstring>(std::move(workspaceArguments)).GetView();
+        const auto result = winrt::Microsoft::Terminal::Settings::Model::WorkspaceCommandline{}.Execute(argumentView);
+        if (result.ExitCode() == 0 && result.OpenRequested())
+        {
+            OpenWorkspaceSnapshot(result.SnapshotId(), result.WindowTarget());
+        }
+        return;
+    }
+
     winrt::TerminalApp::CommandlineArgs c;
     c.Commandline(args);
     c.CurrentDirectory(currentDirectory);
@@ -919,6 +1017,44 @@ safe_void_coroutine WindowEmperor::_dispatchCommandlineCurrentDesktop(winrt::Ter
     else
     {
         CreateNewWindow(winrt::TerminalApp::WindowRequestedArgs{ 0, std::move(args) });
+    }
+}
+
+safe_void_coroutine WindowEmperor::_openWorkspaceSnapshotCurrentDesktop(const winrt::guid snapshotId)
+{
+    std::shared_ptr<AppHost> mostRecent;
+    AppHost* window{};
+
+    if (winrt::guid currentDesktop; VirtualDesktopUtils::GetCurrentVirtualDesktopId(reinterpret_cast<GUID*>(&currentDesktop)))
+    {
+        int64_t max = INT64_MIN;
+        for (const auto& candidate : _windows)
+        {
+            const auto lastActivatedTime = candidate->GetLastActivatedTime();
+            const auto desktopId = co_await candidate->GetVirtualDesktopId();
+            if (desktopId == currentDesktop && lastActivatedTime > max)
+            {
+                max = lastActivatedTime;
+                mostRecent = candidate;
+            }
+        }
+        _assertIsMainThread();
+        window = mostRecent.get();
+    }
+    else
+    {
+        window = _mostRecentWindow();
+    }
+
+    bool replaceCurrentWorkspace{};
+    if (!window)
+    {
+        window = _createWindowMaybeRestoringWorkspace(0, {}, winrt::TerminalApp::CommandlineArgs{});
+        replaceCurrentWorkspace = window != nullptr;
+    }
+    if (window)
+    {
+        window->OpenWorkspaceSnapshot(snapshotId, replaceCurrentWorkspace);
     }
 }
 
@@ -1207,6 +1343,16 @@ LRESULT WindowEmperor::_messageHandler(HWND window, UINT const message, WPARAM c
             }
             return 0;
         }
+        case WM_DEFERRED_WORKSPACE_OPEN:
+        {
+            if (!_pendingWorkspaceOpenCommands.empty())
+            {
+                auto args = std::move(_pendingWorkspaceOpenCommands.front());
+                _pendingWorkspaceOpenCommands.pop_front();
+                _dispatchCommandlineCommon(args, {}, {}, SW_SHOWDEFAULT);
+            }
+            return 0;
+        }
         case WM_NOTIFY_FROM_NOTIFICATION_AREA:
             switch (LOWORD(lParam))
             {
@@ -1276,7 +1422,21 @@ LRESULT WindowEmperor::_messageHandler(HWND window, UINT const message, WPARAM c
                 // toast's Activated event, so just ignore this handoff.
                 if (argv.size() != 2 || argv[1] != L"--from-toast")
                 {
-                    _dispatchCommandlineCommon(argv, handoff.cwd, handoff.env, handoff.show);
+                    if (argv.size() >= 4 &&
+                        argv[1] == INTERNAL_WORKSPACE_OPEN_SENTINEL &&
+                        argv[2] == L"workspace" &&
+                        argv[3] == L"open")
+                    {
+                        _pendingWorkspaceOpenCommands.emplace_back(argv);
+                        if (!PostMessageW(window, WM_DEFERRED_WORKSPACE_OPEN, 0, 0))
+                        {
+                            _pendingWorkspaceOpenCommands.pop_back();
+                        }
+                    }
+                    else
+                    {
+                        _dispatchCommandlineCommon(argv, handoff.cwd, handoff.env, handoff.show);
+                    }
                 }
             }
             return 0;

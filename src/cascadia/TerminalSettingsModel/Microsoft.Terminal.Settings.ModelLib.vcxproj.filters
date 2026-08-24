@@ -34,6 +34,10 @@
     <ClCompile Include="init.cpp" />
     <ClCompile Include="DefaultTerminal.cpp" />
     <ClCompile Include="FileUtils.cpp" />
+    <ClCompile Include="WorkspaceSnapshotExchange.cpp" />
+    <ClCompile Include="WorkspaceSnapshotStore.cpp" />
+    <ClCompile Include="WorkspaceSnapshotValidation.cpp" />
+    <ClCompile Include="WorkspaceCommandline.cpp" />
     <ClCompile Include="VisualStudioGenerator.cpp">
       <Filter>profileGeneration</Filter>
     </ClCompile>
@@ -84,6 +88,10 @@
     <ClInclude Include="MTSMSettings.h" />
     <ClInclude Include="DefaultTerminal.h" />
     <ClInclude Include="FileUtils.h" />
+    <ClInclude Include="WorkspaceSnapshotExchange.h" />
+    <ClInclude Include="WorkspaceSnapshotStore.h" />
+    <ClInclude Include="WorkspaceSnapshotValidation.h" />
+    <ClInclude Include="WorkspaceCommandline.h" />
     <ClInclude Include="HashUtils.h" />
     <ClInclude Include="VisualStudioGenerator.h">
       <Filter>profileGeneration</Filter>
@@ -116,6 +124,7 @@
     <Midl Include="FontConfig.idl" />
     <Midl Include="DefaultTerminal.idl" />
     <Midl Include="ApplicationState.idl" />
+    <Midl Include="WorkspaceCommandline.idl" />
     <Midl Include="NewTabMenuEntry.idl" />
   </ItemGroup>
   <ItemGroup>

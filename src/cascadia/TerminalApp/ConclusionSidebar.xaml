@@ -358,6 +358,33 @@
                                          Height="32"
                                          Padding="8,3"
                                          TextChanged="_Search_TextChanged" />
+                                <Grid ColumnSpacing="7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="SessionFilterBox"
+                                             x:Uid="ConclusionSidebarSessionFilterBox"
+                                             Height="32"
+                                             Padding="8,3"
+                                             TextChanged="_SessionFilter_TextChanged" />
+                                    <ComboBox x:Name="DateFilterBox"
+                                              x:Uid="ConclusionSidebarDateFilterBox"
+                                              Grid.Column="1"
+                                              MinWidth="104"
+                                              SelectedIndex="0"
+                                              SelectionChanged="_DateFilter_SelectionChanged">
+                                        <ComboBoxItem x:Uid="ConclusionSidebarDateFilterAll" />
+                                        <ComboBoxItem x:Uid="ConclusionSidebarDateFilterDay" />
+                                        <ComboBoxItem x:Uid="ConclusionSidebarDateFilterWeek" />
+                                        <ComboBoxItem x:Uid="ConclusionSidebarDateFilterMonth" />
+                                    </ComboBox>
+                                </Grid>
+                                <Button x:Name="ClearHistoryButton"
+                                        x:Uid="ConclusionSidebarClearHistoryButton"
+                                        HorizontalAlignment="Right"
+                                        Click="_ClearHistory_Click"
+                                        Style="{ThemeResource AccentButtonStyle}" />
                             </StackPanel>
 
                             <ListView x:Name="HistoryList"

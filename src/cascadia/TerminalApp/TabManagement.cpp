@@ -129,10 +129,6 @@ namespace winrt::TerminalApp::implementation
         {
             restoredWorkspaceIndex = _startupWorkspaceRestoreIndex++;
             newTabImpl->IsPinned(_startupPinnedWorkspaceIndices.contains(restoredWorkspaceIndex.value()));
-            if (_startupWorkspaceRestoreIndex >= _startupWorkspaceIds.size())
-            {
-                _restoringWorkspaceState = false;
-            }
         }
 
         if (insertPosition == -1)
@@ -158,6 +154,14 @@ namespace winrt::TerminalApp::implementation
         _tabs.InsertAt(insertPosition, *newTabImpl);
         auto workspaceItem = winrt::make_self<WorkspaceItemViewModel>(*newTabImpl);
         workspaceItem->RestoreWorkspaceId(workspaceId);
+        if (restoredWorkspaceIndex)
+        {
+            if (const auto source = _startupSnapshotSources.find(workspaceId);
+                source != _startupSnapshotSources.end())
+            {
+                _BindWorkspaceItemToSnapshot(*workspaceItem, source->second.first, source->second.second);
+            }
+        }
         if (restoredWorkspaceIndex)
         {
             const auto resumeEntry = std::find_if(_startupAgentResumeEntries.begin(), _startupAgentResumeEntries.end(), [&](const auto& entry) {

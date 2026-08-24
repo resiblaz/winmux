@@ -1234,6 +1234,75 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="ConfirmDeleteWorkspaceSnapshotBody" xml:space="preserve">
     <value>Removing the saved snapshot does not close an open workspace or delete AI history.</value>
   </data>
+  <data name="WorkspaceSnapshotSaveConflict" xml:space="preserve">
+    <value>The saved workspace changed in another process. Reopen it before saving again, or import it as a copy.</value>
+  </data>
+  <data name="WorkspaceSnapshotSaveGitUnverified" xml:space="preserve">
+    <value>The Git worktree could not be verified, so the bound workspace was not overwritten.</value>
+  </data>
+  <data name="WorkspaceSnapshotSaveFailed" xml:space="preserve">
+    <value>The workspace snapshot could not be saved. The store may be busy, full, or unavailable.</value>
+  </data>
+  <data name="WorkspaceSnapshotSaveInvalid" xml:space="preserve">
+    <value>The workspace contains state that is not safe to serialize.</value>
+  </data>
+  <data name="WorkspaceSnapshotRebindPathFailed" xml:space="preserve">
+    <value>One or more saved directories are outside the old worktree, so they cannot be safely mapped to the new worktree.</value>
+  </data>
+  <data name="WorkspaceSnapshotGitChangedTitle" xml:space="preserve">
+    <value>Git worktree changed</value>
+  </data>
+  <data name="WorkspaceSnapshotGitMissingWorktree" xml:space="preserve">
+    <value>The saved Git worktree no longer exists.</value>
+  </data>
+  <data name="WorkspaceSnapshotGitBranchMismatch" xml:space="preserve">
+    <value>The saved worktree is now on a different branch.</value>
+  </data>
+  <data name="WorkspaceSnapshotGitHeadDiverged" xml:space="preserve">
+    <value>The saved commit is not an ancestor of the worktree's current HEAD.</value>
+  </data>
+  <data name="WorkspaceSnapshotGitWorktreeMismatch" xml:space="preserve">
+    <value>The path now resolves to a different worktree.</value>
+  </data>
+  <data name="WorkspaceSnapshotGitDifferentRepository" xml:space="preserve">
+    <value>The path now belongs to a different repository.</value>
+  </data>
+  <data name="WorkspaceSnapshotGitUnverified" xml:space="preserve">
+    <value>The saved Git worktree could not be verified.</value>
+  </data>
+  <data name="WorkspaceSnapshotGitChangedBody" xml:space="preserve">
+    <value>{0}&#x0a;&#x0a;Saved worktree: {1}&#x0a;&#x0a;No mutating Git operation or worktree change will run unless you explicitly choose it.</value>
+  </data>
+  <data name="WorkspaceSnapshotGitCancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="WorkspaceSnapshotGitCreateWorktree" xml:space="preserve">
+    <value>Create worktree</value>
+  </data>
+  <data name="WorkspaceSnapshotGitOtherOptions" xml:space="preserve">
+    <value>Other options</value>
+  </data>
+  <data name="WorkspaceSnapshotGitOpenTerminalOnly" xml:space="preserve">
+    <value>Open terminal only</value>
+  </data>
+  <data name="WorkspaceSnapshotGitRebind" xml:space="preserve">
+    <value>Rebind to current workspace</value>
+  </data>
+  <data name="WorkspaceSnapshotGitRebindTitle" xml:space="preserve">
+    <value>Confirm Git worktree binding</value>
+  </data>
+  <data name="WorkspaceSnapshotGitRebindBody" xml:space="preserve">
+    <value>Repository: {0}&#x0a;Worktree: {1}&#x0a;Branch or commit: {2}</value>
+  </data>
+  <data name="WorkspaceSnapshotGitRebindConfirm" xml:space="preserve">
+    <value>Rebind</value>
+  </data>
+  <data name="WorkspaceSnapshotGitOpenTitle" xml:space="preserve">
+    <value>Open saved workspace</value>
+  </data>
+  <data name="WorkspaceSnapshotGitOpenAlternatives" xml:space="preserve">
+    <value>Choose whether to ignore the missing Git worktree for this open, or bind the snapshot to the currently selected workspace.</value>
+  </data>
   <data name="ConclusionSidebarHistoryTab.Text" xml:space="preserve">
     <value>History</value>
   </data>
@@ -1254,6 +1323,48 @@ For all available options, run 'wt new-tab --help'.</value>
   </data>
   <data name="ConclusionSidebarSearchBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Search AI history</value>
+  </data>
+  <data name="ConclusionSidebarSessionFilterBox.PlaceholderText" xml:space="preserve">
+    <value>Session ID</value>
+  </data>
+  <data name="ConclusionSidebarSessionFilterBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Filter AI history by exact session ID</value>
+  </data>
+  <data name="ConclusionSidebarDateFilterBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Filter AI history by received date</value>
+  </data>
+  <data name="ConclusionSidebarDateFilterAll.Content" xml:space="preserve">
+    <value>Any time</value>
+  </data>
+  <data name="ConclusionSidebarDateFilterDay.Content" xml:space="preserve">
+    <value>24 hours</value>
+  </data>
+  <data name="ConclusionSidebarDateFilterWeek.Content" xml:space="preserve">
+    <value>7 days</value>
+  </data>
+  <data name="ConclusionSidebarDateFilterMonth.Content" xml:space="preserve">
+    <value>30 days</value>
+  </data>
+  <data name="ConclusionSidebarClearHistoryButton.Content" xml:space="preserve">
+    <value>Clear unpinned</value>
+  </data>
+  <data name="ConclusionSidebarClearHistoryButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Clear unpinned AI history</value>
+  </data>
+  <data name="ConclusionSidebar_ClearHistoryTitle" xml:space="preserve">
+    <value>Clear AI history?</value>
+  </data>
+  <data name="ConclusionSidebar_ClearWorkspaceHistoryBody" xml:space="preserve">
+    <value>This removes every unpinned turn in the current workspace. Pinned turns are kept.</value>
+  </data>
+  <data name="ConclusionSidebar_ClearAllHistoryBody" xml:space="preserve">
+    <value>This removes every unpinned turn in all workspaces. Pinned turns are kept.</value>
+  </data>
+  <data name="ConclusionSidebar_ClearHistoryConfirm" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="ConclusionSidebar_ClearHistoryCancel" xml:space="preserve">
+    <value>Cancel</value>
   </data>
   <data name="ConclusionSidebarPinButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Pin or unpin history item</value>

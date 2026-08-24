@@ -143,6 +143,7 @@ void AppHost::_HandleCommandlineArgs(const winrt::TerminalApp::WindowRequestedAr
     else if (const auto content = windowArgs.Content(); !content.empty())
     {
         _windowLogic.SetStartupContent(content, windowArgs.InitialBounds());
+        _windowLogic.SetStartupWorkspaceSource(windowArgs.WorkspaceId(), windowArgs.SourceSnapshotId(), windowArgs.SourceSnapshotRevision());
         _launchShowWindowCommand = SW_NORMAL;
     }
     else if (const auto actions = windowArgs.StartupActions(); actions && actions.Size() > 0)
@@ -872,6 +873,22 @@ void AppHost::DispatchCommandline(winrt::TerminalApp::CommandlineArgs args)
     _windowLogic.ExecuteCommandline(std::move(args));
 }
 
+void AppHost::OpenWorkspaceSnapshot(const winrt::guid& snapshotId, const bool replaceCurrentWorkspace)
+{
+    if (snapshotId == winrt::guid{})
+    {
+        return;
+    }
+
+    winrt::TerminalApp::SummonWindowBehavior summonArgs{};
+    summonArgs.MoveToCurrentDesktop(false);
+    summonArgs.DropdownDuration(0);
+    summonArgs.ToMonitor(winrt::TerminalApp::MonitorBehavior::InPlace);
+    summonArgs.ToggleVisibility(false);
+    HandleSummon(std::move(summonArgs));
+    _windowLogic.OpenWorkspaceSnapshot(snapshotId, replaceCurrentWorkspace);
+}
+
 void AppHost::_WindowActivated(bool activated)
 {
     _windowLogic.WindowActivated(activated);
@@ -1401,11 +1418,15 @@ void AppHost::_handleMoveContent(const winrt::Windows::Foundation::IInspectable&
 
     if (target)
     {
-        target->_windowLogic.AttachContent(args.Content(), args.TabIndex());
+        target->_windowLogic.AttachContent(args.Content(), args.TabIndex(), args.WorkspaceId(), args.SourceSnapshotId(), args.SourceSnapshotRevision());
     }
     else
     {
-        _windowManager->CreateNewWindow(winrt::TerminalApp::WindowRequestedArgs{ sanitizedWindowName, args.Content(), windowBoundsReference });
+        winrt::TerminalApp::WindowRequestedArgs request{ sanitizedWindowName, args.Content(), windowBoundsReference };
+        request.WorkspaceId(args.WorkspaceId());
+        request.SourceSnapshotId(args.SourceSnapshotId());
+        request.SourceSnapshotRevision(args.SourceSnapshotRevision());
+        _windowManager->CreateNewWindow(std::move(request));
     }
 }
 

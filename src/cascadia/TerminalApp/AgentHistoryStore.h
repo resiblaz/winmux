@@ -70,10 +70,48 @@ namespace winrt::TerminalApp::implementation
         bool HasLocalTurns{};
     };
 
+    // Zero disables the corresponding limit; zero ReceiptTombstoneDays keeps
+    // tombstones indefinitely. Receipt tombstones default to 30 days so a
+    // bounded history cannot be recreated immediately by a late producer retry
+    // after automatic or explicit deletion.
+    struct AgentHistoryRetentionPolicy
+    {
+        uint32_t RetentionDays{};
+        uint64_t MaximumTurns{};
+        uint64_t MaximumPayloadBytes{};
+        uint32_t ReceiptTombstoneDays{ 30 };
+    };
+
+    struct AgentHistoryCleanupResult
+    {
+        bool Succeeded{};
+        uint64_t TurnsDeleted{};
+        uint64_t SessionsDeleted{};
+        uint64_t ReceiptsDeleted{};
+        uint64_t RemainingTurns{};
+        uint64_t RemainingPayloadBytes{};
+        // Pinned rows, an intentionally bounded cleanup batch, or both may
+        // leave a soft age/count/size target unsatisfied.
+        bool SoftLimitUnsatisfied{};
+    };
+
+    struct AgentHistoryQuery
+    {
+        std::optional<winrt::guid> WorkspaceId;
+        winrt::hstring Provider;
+        winrt::hstring SessionId;
+        // Inclusive local-receipt time bounds in UTC Unix milliseconds.
+        std::optional<int64_t> ReceivedFrom;
+        std::optional<int64_t> ReceivedTo;
+        winrt::hstring Search;
+        uint32_t Limit{ 1000 };
+    };
+
     class AgentHistoryStore final
     {
     public:
-        explicit AgentHistoryStore(const std::filesystem::path& path) noexcept;
+        explicit AgentHistoryStore(const std::filesystem::path& path,
+                                   bool enableFullTextSearch = true) noexcept;
         ~AgentHistoryStore();
 
         AgentHistoryStore(const AgentHistoryStore&) = delete;
@@ -106,6 +144,7 @@ namespace winrt::TerminalApp::implementation
         [[nodiscard]] std::vector<AgentHistoryRecord> ListTurns(std::optional<winrt::guid> workspaceId,
                                                                  std::wstring_view search,
                                                                  uint32_t limit = 1000) noexcept;
+        [[nodiscard]] std::vector<AgentHistoryRecord> ListTurns(const AgentHistoryQuery& query) noexcept;
         [[nodiscard]] bool SetTurnPinned(std::wstring_view provider,
                                          std::wstring_view sessionId,
                                          std::wstring_view turnId,
@@ -115,6 +154,10 @@ namespace winrt::TerminalApp::implementation
                                       std::wstring_view turnId) noexcept;
         [[nodiscard]] bool DeleteSession(std::wstring_view provider,
                                          std::wstring_view sessionId) noexcept;
+        [[nodiscard]] bool DeleteWorkspace(const winrt::guid& workspaceId) noexcept;
+        [[nodiscard]] bool DeleteAllUnpinned() noexcept;
+        [[nodiscard]] AgentHistoryCleanupResult Cleanup(const AgentHistoryRetentionPolicy& policy,
+                                                        int64_t nowUnixMilliseconds) noexcept;
 
         [[nodiscard]] static std::filesystem::path DefaultPath();
 
@@ -122,6 +165,7 @@ namespace winrt::TerminalApp::implementation
         [[nodiscard]] bool _UpsertEvent(const AgentHistoryRecord& record,
                                         bool isFinal,
                                         const std::optional<AgentHistoryEventReceipt>& event) noexcept;
+        [[nodiscard]] bool _DeleteUnpinned(std::optional<winrt::guid> workspaceId) noexcept;
 
         struct Impl;
         std::unique_ptr<Impl> _impl;

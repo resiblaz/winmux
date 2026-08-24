@@ -23,6 +23,13 @@ namespace Microsoft.Terminal.Settings.Model
         Boolean RequiresConfirmation;
     };
 
+    struct WorkspaceSnapshotSourceInfo
+    {
+        Guid WorkspaceId;
+        Guid SnapshotId;
+        UInt64 Revision;
+    };
+
     runtimeclass WindowLayout
     {
         WindowLayout();
@@ -38,6 +45,20 @@ namespace Microsoft.Terminal.Settings.Model
         Windows.Foundation.Collections.IVector<Guid> WorkspaceIds;
         Windows.Foundation.Collections.IVector<UInt32> PinnedWorkspaceIndices;
         Windows.Foundation.Collections.IVector<AgentResumeInfo> AgentResumeEntries;
+        Windows.Foundation.Collections.IVector<WorkspaceSnapshotSourceInfo> WorkspaceSnapshotSources;
+    };
+
+    runtimeclass WorkspaceGitBinding
+    {
+        WorkspaceGitBinding();
+
+        String RepositoryRoot;
+        String WorktreePath;
+        String CommonGitDirectory;
+        String GitDirectory;
+        String BranchRef;
+        String Head;
+        Int64 CapturedAt;
     };
 
     runtimeclass WorkspaceSnapshot
@@ -46,8 +67,11 @@ namespace Microsoft.Terminal.Settings.Model
 
         static String ToJson(WorkspaceSnapshot snapshot);
         static WorkspaceSnapshot FromJson(String json);
+        static UInt32 CurrentSchemaVersion();
+        static Boolean IsValid(WorkspaceSnapshot snapshot, Boolean allowZeroRevision);
 
         UInt32 Version;
+        UInt64 Revision;
         Guid Id;
         Guid WorkspaceId;
         String Name;
@@ -58,6 +82,7 @@ namespace Microsoft.Terminal.Settings.Model
         Windows.Foundation.Collections.IVector<ActionAndArgs> Actions;
         Boolean Pinned;
         Windows.Foundation.Collections.IVector<AgentResumeInfo> AgentResumeEntries;
+        WorkspaceGitBinding GitBinding;
     };
 
     [default_interface] runtimeclass ApplicationState {
@@ -88,5 +113,6 @@ namespace Microsoft.Terminal.Settings.Model
         Windows.Foundation.Collections.IVector<String> AllowedCommandlines;
         Double WorkspaceSidebarWidth;
         Boolean WorkspaceSidebarExpanded;
+        Int64 AgentHistoryLastCleanupAt;
     }
 }

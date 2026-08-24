@@ -28,7 +28,10 @@ Author(s):
     X(bool, AlwaysShowNotificationIcon, "alwaysShowNotificationIcon", false)                                                       \
     X(winrt::Windows::Foundation::Collections::IVector<winrt::hstring>, DisabledProfileSources, "disabledProfileSources", nullptr) \
     X(bool, AllowHeadless, "compatibility.allowHeadless", false)                                                                   \
-    X(bool, EnableColorSelection, "experimental.enableColorSelection", false)
+    X(bool, EnableColorSelection, "experimental.enableColorSelection", false)                                                     \
+    X(uint32_t, AgentHistoryRetentionDays, "experimental.agentHistory.retentionDays", 90)                                         \
+    X(uint32_t, AgentHistoryMaximumTurns, "experimental.agentHistory.maximumTurns", 10000)                                        \
+    X(uint32_t, AgentHistoryMaximumPayloadMiB, "experimental.agentHistory.maximumPayloadMiB", 64)
 
 // Settings that are per-window (may vary by window name in the future)
 #define MTSM_WINDOW_SETTINGS(X)                                                                                                                                                                       \

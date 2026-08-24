@@ -29,9 +29,13 @@
   <Import Project="$(OpenConsoleDir)src\common.nugetversions.targets" />
 
   <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
     <Link>
       <!-- Remove all non-onecore dependencies -->
       <AdditionalDependencies>onecore.lib</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
 </Project>

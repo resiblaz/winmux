@@ -51,6 +51,9 @@ namespace TerminalApp
         CommandlineArgs Command { get; };
         String Content { get; };
         Windows.Foundation.IReference<Windows.Foundation.Rect> InitialBounds { get; };
+        Guid WorkspaceId;
+        Guid SourceSnapshotId;
+        UInt64 SourceSnapshotRevision;
         Microsoft.Terminal.Settings.Model.WindowLayout PersistedLayout;
         Windows.Foundation.Collections.IVector<Microsoft.Terminal.Settings.Model.ActionAndArgs> StartupActions;
     };

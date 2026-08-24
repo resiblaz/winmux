@@ -1,0 +1,23 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+namespace Microsoft.Terminal.Settings.Model
+{
+    [default_interface] runtimeclass WorkspaceCommandlineResult
+    {
+        Int32 ExitCode { get; };
+        String StandardOutput { get; };
+        String StandardError { get; };
+        Boolean OpenRequested { get; };
+        Guid SnapshotId { get; };
+        String WindowTarget { get; };
+    }
+
+    [default_interface] runtimeclass WorkspaceCommandline
+    {
+        WorkspaceCommandline();
+
+        WorkspaceCommandlineResult Execute(
+            Windows.Foundation.Collections.IVectorView<String> arguments);
+    }
+}

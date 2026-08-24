@@ -14,10 +14,12 @@ Abstract:
 
 #include "ApplicationState.g.h"
 #include "WindowLayout.g.h"
+#include "WorkspaceGitBinding.g.h"
 #include "WorkspaceSnapshot.g.h"
 
 #include <inc/cppwinrt_utils.h>
 #include "JsonUtils.h"
+#include "WorkspaceSnapshotStore.h"
 
 namespace winrt::Microsoft::Terminal::Settings::Model::implementation
 {
@@ -48,6 +50,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
     X(FileSource::Local, Windows::Foundation::Collections::IMap<hstring COMMA Model::WorkspaceSnapshot>, WorkspaceSnapshots, "workspaceSnapshots")                       \
     X(FileSource::Local, double, WorkspaceSidebarWidth, "workspaceSidebarWidth", 176.0)                                                                                   \
     X(FileSource::Local, bool, WorkspaceSidebarExpanded, "workspaceSidebarExpanded", true)                                                                                \
+    X(FileSource::Local, int64_t, AgentHistoryLastCleanupAt, "agentHistoryLastCleanupAt", 0)                                                                              \
     X(FileSource::Shared, bool, SSHFolderGenerated, "sshFolderGenerated", false)
 
     struct WindowLayout : WindowLayoutT<WindowLayout>
@@ -63,6 +66,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<winrt::guid>, WorkspaceIds, nullptr);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<uint32_t>, PinnedWorkspaceIndices, nullptr);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::AgentResumeInfo>, AgentResumeEntries, nullptr);
+        WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::WorkspaceSnapshotSourceInfo>, WorkspaceSnapshotSources, nullptr);
 
         friend ::Microsoft::Terminal::Settings::Model::JsonUtils::ConversionTrait<Model::WindowLayout>;
     };
@@ -71,8 +75,13 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
     {
         static winrt::hstring ToJson(const Model::WorkspaceSnapshot& snapshot);
         static Model::WorkspaceSnapshot FromJson(const winrt::hstring& json);
+        static uint32_t CurrentSchemaVersion() noexcept;
+        static bool IsValid(const Model::WorkspaceSnapshot& snapshot, bool allowZeroRevision) noexcept;
+        static Json::Value ToJsonValue(const Model::WorkspaceSnapshot& snapshot);
+        static Model::WorkspaceSnapshot FromJsonValue(const Json::Value& json);
 
-        WINRT_PROPERTY(uint32_t, Version, 1);
+        WINRT_PROPERTY(uint32_t, Version, 2);
+        WINRT_PROPERTY(uint64_t, Revision, 0);
         WINRT_PROPERTY(winrt::guid, Id);
         WINRT_PROPERTY(winrt::guid, WorkspaceId);
         WINRT_PROPERTY(winrt::hstring, Name);
@@ -83,8 +92,22 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::ActionAndArgs>, Actions, nullptr);
         WINRT_PROPERTY(bool, Pinned, false);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::AgentResumeInfo>, AgentResumeEntries, nullptr);
+        WINRT_PROPERTY(Model::WorkspaceGitBinding, GitBinding, nullptr);
 
         friend ::Microsoft::Terminal::Settings::Model::JsonUtils::ConversionTrait<Model::WorkspaceSnapshot>;
+    };
+
+    struct WorkspaceGitBinding : WorkspaceGitBindingT<WorkspaceGitBinding>
+    {
+        WINRT_PROPERTY(winrt::hstring, RepositoryRoot);
+        WINRT_PROPERTY(winrt::hstring, WorktreePath);
+        WINRT_PROPERTY(winrt::hstring, CommonGitDirectory);
+        WINRT_PROPERTY(winrt::hstring, GitDirectory);
+        WINRT_PROPERTY(winrt::hstring, BranchRef);
+        WINRT_PROPERTY(winrt::hstring, Head);
+        WINRT_PROPERTY(int64_t, CapturedAt, 0);
+
+        friend ::Microsoft::Terminal::Settings::Model::JsonUtils::ConversionTrait<Model::WorkspaceGitBinding>;
     };
 
 #define COMMA ,
@@ -94,6 +117,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         static Microsoft::Terminal::Settings::Model::ApplicationState SharedInstance();
 
         ApplicationState(const std::filesystem::path& stateRoot) noexcept;
+        ApplicationState(const std::filesystem::path& stateRoot, WorkspaceSnapshotStoreScope snapshotScope) noexcept;
         ~ApplicationState();
 
         // Methods
@@ -135,10 +159,13 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         til::shared_mutex<state_t> _state;
         std::filesystem::path _sharedPath;
         std::filesystem::path _elevatedPath;
+        WorkspaceSnapshotStore _workspaceSnapshotStore;
         til::throttled_func<> _throttler;
 
         void _write() const noexcept;
         void _read() const noexcept;
+        bool _migrateWorkspaceSnapshots() noexcept;
+        bool _removeLegacyWorkspaceSnapshot(const winrt::guid& id) noexcept;
 
         Json::Value _toJsonWithBlob(Json::Value& root, FileSource parseSource) const noexcept;
 
@@ -153,6 +180,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
 namespace winrt::Microsoft::Terminal::Settings::Model::factory_implementation
 {
     BASIC_FACTORY(WindowLayout)
+    BASIC_FACTORY(WorkspaceGitBinding)
     BASIC_FACTORY(WorkspaceSnapshot)
     BASIC_FACTORY(ApplicationState);
 }

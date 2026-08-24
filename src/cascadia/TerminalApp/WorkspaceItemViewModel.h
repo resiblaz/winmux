@@ -38,6 +38,10 @@ namespace winrt::TerminalApp::implementation
         TerminalApp::WorkspaceNotification LatestUnreadNotification() const;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> Notifications() const noexcept;
         void RestoreWorkspaceId(const winrt::guid& workspaceId) noexcept;
+        void BindSourceSnapshot(const winrt::guid& snapshotId, uint64_t revision) noexcept;
+        void ClearSourceSnapshot() noexcept;
+        std::optional<winrt::guid> SourceSnapshotId() const noexcept;
+        uint64_t SourceSnapshotRevision() const noexcept;
         void ShowSwitchShortcutHint(bool value);
         void RefreshGitBranch();
         void UpdateListeningPorts(std::vector<uint16_t> ports);
@@ -79,6 +83,8 @@ namespace winrt::TerminalApp::implementation
         bool _isSelected{ false };
         bool _showSwitchShortcutHint{ false };
         uint64_t _gitBranchRequestGeneration{ 0 };
+        std::optional<winrt::guid> _sourceSnapshotId;
+        uint64_t _sourceSnapshotRevision{};
         winrt::hstring _agentResumeProvider;
         winrt::hstring _agentResumeSessionId;
         winrt::hstring _agentResumeWorkingDirectory;

@@ -107,6 +107,9 @@ namespace winrt::TerminalApp::implementation
         WINRT_PROPERTY(winrt::hstring, Content);
         WINRT_PROPERTY(uint32_t, TabIndex);
         WINRT_PROPERTY(Windows::Foundation::IReference<Windows::Foundation::Point>, WindowPosition);
+        WINRT_PROPERTY(winrt::guid, WorkspaceId);
+        WINRT_PROPERTY(winrt::guid, SourceSnapshotId);
+        WINRT_PROPERTY(uint64_t, SourceSnapshotRevision, 0);
 
     public:
         RequestMoveContentArgs(const winrt::hstring window, const winrt::hstring content, uint32_t tabIndex) :
@@ -202,6 +205,9 @@ namespace winrt::TerminalApp::implementation
                                       std::vector<winrt::guid> workspaceIds,
                                       std::vector<uint32_t> pinnedWorkspaceIndices,
                                       std::vector<Microsoft::Terminal::Settings::Model::AgentResumeInfo> agentResumeEntries);
+        void SetStartupWorkspaceSource(const winrt::guid& workspaceId, const winrt::guid& snapshotId, uint64_t revision);
+        void AddStartupWorkspaceSource(const winrt::guid& workspaceId, const winrt::guid& snapshotId, uint64_t revision);
+        void PrepareForWorkspaceSnapshotOpen(bool suppressStartupActions);
         void SetStartupConnection(winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection connection);
 
         static std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> ConvertExecuteCommandlineToActions(const Microsoft::Terminal::Settings::Model::ExecuteCommandlineArgs& args);
@@ -215,6 +221,7 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring KeyboardServiceDisabledText();
 
         void IdentifyWindow();
+        void OpenWorkspaceSnapshot(const winrt::guid& snapshotId, bool replaceCurrentWorkspace);
         void ActionSaved(winrt::hstring input, winrt::hstring name, winrt::hstring keyChord);
         void ActionSaveFailed(winrt::hstring message);
         void ShowTerminalWorkingDirectory();
@@ -222,7 +229,8 @@ namespace winrt::TerminalApp::implementation
         safe_void_coroutine ProcessStartupActions(std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> actions,
                                                    const winrt::hstring cwd = winrt::hstring{},
                                                    const winrt::hstring env = winrt::hstring{},
-                                                   std::function<void()> completed = {});
+                                                   std::function<void()> completed = {},
+                                                   std::function<void()> failed = {});
         safe_void_coroutine CreateTabFromConnection(winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection connection);
 
         TerminalApp::WindowProperties WindowProperties() const noexcept { return _WindowProperties; };
@@ -236,7 +244,11 @@ namespace winrt::TerminalApp::implementation
 
         bool OnDirectKeyEvent(const uint32_t vkey, const uint8_t scanCode, const bool down);
 
-        void AttachContent(Windows::Foundation::Collections::IVector<Microsoft::Terminal::Settings::Model::ActionAndArgs> args, uint32_t tabIndex);
+        void AttachContent(Windows::Foundation::Collections::IVector<Microsoft::Terminal::Settings::Model::ActionAndArgs> args,
+                           uint32_t tabIndex,
+                           const winrt::guid& workspaceId,
+                           const winrt::guid& sourceSnapshotId,
+                           uint64_t sourceSnapshotRevision);
         void SendContentToOther(winrt::TerminalApp::RequestReceiveContentArgs args);
 
         uint32_t NumberOfTabs() const;
@@ -337,9 +349,15 @@ namespace winrt::TerminalApp::implementation
         bool _workspaceListeningPortsRefreshInFlight{ false };
         bool _workspaceListeningPortsRefreshPending{ false };
         uint64_t _workspaceListeningPortsGeneration{ 0 };
+        SafeDispatcherTimer _agentHistoryCleanupTimer;
         bool _agentHistoryInboxImportInFlight{ false };
         bool _agentHistoryInboxImportPending{ false };
+        bool _agentHistoryCleanupInFlight{ false };
         bool _codexHistoryOperationInFlight{ false };
+        bool _workspaceSnapshotOpenOperationInFlight{ false };
+        TerminalApp::Tab _workspaceSnapshotReplacementTab{ nullptr };
+        bool _workspaceSnapshotPreparedEmptyWindow{ false };
+        std::unordered_map<winrt::guid, uint64_t> _workspaceSnapshotSaveGenerations;
         std::unordered_set<winrt::guid> _codexHistoryAutoSyncAttempted;
         bool _syncingWorkspaceSelection{ false };
         static constexpr size_t MaximumWorkspaceNavigationHistory{ 100 };
@@ -372,6 +390,21 @@ namespace winrt::TerminalApp::implementation
         std::vector<Microsoft::Terminal::Settings::Model::AgentResumeInfo> _startupAgentResumeEntries;
         uint32_t _startupWorkspaceRestoreIndex{ 0 };
         bool _restoringWorkspaceState{ false };
+        std::unordered_map<winrt::guid, std::pair<winrt::guid, uint64_t>> _startupSnapshotSources;
+        bool _workspaceSnapshotReplayInFlight{ false };
+        struct PendingWorkspaceContent
+        {
+            std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> Actions;
+            uint32_t TabIndex{};
+            winrt::guid WorkspaceId{};
+            winrt::guid SourceSnapshotId{};
+            uint64_t SourceSnapshotRevision{};
+        };
+        std::deque<PendingWorkspaceContent> _pendingWorkspaceContent;
+        bool _drainingPendingWorkspaceContent{ false };
+        std::vector<Microsoft::Terminal::Settings::Model::WorkspaceSnapshot> _workspaceSnapshotMenuCache;
+        bool _workspaceSnapshotCacheRefreshInFlight{ false };
+        bool _workspaceSnapshotCacheRefreshPending{ false };
         winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _startupConnection{ nullptr };
 
         static constexpr uint32_t CurrentWorkspaceStateVersion{ 1 };
@@ -462,6 +495,8 @@ namespace winrt::TerminalApp::implementation
         void _UpdateConclusionSidebar();
         void _ImportAgentHistoryInbox();
         safe_void_coroutine _ImportAgentHistoryInboxAsync(std::vector<AgentHistoryInboxWorkspace> workspaces);
+        void _CleanupAgentHistoryIfDue();
+        safe_void_coroutine _CleanupAgentHistoryAsync(AgentHistoryRetentionPolicy policy);
         void _SyncCodexHistoryRequested(const winrt::guid& workspaceId,
                                         const winrt::hstring& workspaceTitle,
                                         const winrt::hstring& cwd);
@@ -515,6 +550,18 @@ namespace winrt::TerminalApp::implementation
         void _WorkspaceCloseOthersRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceRenameRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceSaveSnapshotRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        safe_void_coroutine _SaveWorkspaceSnapshotAsync(TerminalApp::WorkspaceItemViewModel item,
+                                                         std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> actions,
+                                                         winrt::hstring workingDirectory,
+                                                         winrt::hstring title,
+                                                         uint64_t generation,
+                                                         std::optional<winrt::guid> sourceSnapshotId,
+                                                         uint64_t sourceRevision);
+        void _CommitWorkspaceSnapshot(const TerminalApp::WorkspaceItemViewModel& item,
+                                      std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> actions,
+                                      const Microsoft::Terminal::Settings::Model::WorkspaceGitBinding& gitBinding,
+                                      std::optional<winrt::guid> sourceSnapshotId,
+                                      uint64_t sourceRevision);
         safe_void_coroutine _WorkspaceConfigureAgentResumeRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         safe_void_coroutine _WorkspaceResumeAgentRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceClearAgentResumeRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
@@ -776,13 +823,24 @@ namespace winrt::TerminalApp::implementation
         void _MoveContent(std::vector<winrt::Microsoft::Terminal::Settings::Model::ActionAndArgs>&& actions,
                           const winrt::hstring& windowName,
                           const uint32_t tabIndex,
-                          const std::optional<winrt::Windows::Foundation::Point>& dragPoint = std::nullopt);
+                          const std::optional<winrt::Windows::Foundation::Point>& dragPoint = std::nullopt,
+                          const winrt::guid& workspaceId = {},
+                          const winrt::guid& sourceSnapshotId = {},
+                          uint64_t sourceSnapshotRevision = 0);
         void _sendDraggedTabToWindow(const winrt::hstring& windowId, const uint32_t tabIndex, std::optional<winrt::Windows::Foundation::Point> dragPoint);
 
         void _PopulateContextMenu(const Microsoft::Terminal::Control::TermControl& control, const Microsoft::UI::Xaml::Controls::CommandBarFlyout& sender, const bool withSelection);
         void _PopulateQuickFixMenu(const Microsoft::Terminal::Control::TermControl& control, const Windows::UI::Xaml::Controls::MenuFlyout& sender);
-        void _PopulateWorkspaceFlyout();
+        void _PopulateWorkspaceFlyout(bool refreshCache = true);
+        void _RefreshWorkspaceSnapshotCache();
+        safe_void_coroutine _RefreshWorkspaceSnapshotCacheAsync();
         void _OpenWorkspaceSnapshot(const winrt::guid& snapshotId);
+        void _ReplayWorkspaceSnapshot(const Microsoft::Terminal::Settings::Model::WorkspaceSnapshot& snapshot);
+        safe_void_coroutine _ValidateAndOpenWorkspaceSnapshotAsync(winrt::guid snapshotId, uint64_t revision);
+        void _BindWorkspaceItemToSnapshot(const TerminalApp::WorkspaceItemViewModel& item, const winrt::guid& snapshotId, uint64_t revision);
+        void _ClearWorkspaceItemSnapshotBinding(const TerminalApp::WorkspaceItemViewModel& item);
+        void _FinishWorkspaceSnapshotReplacement(bool removePlaceholder);
+        void _DrainPendingWorkspaceContent();
         void _MarkWorkspaceSnapshotOpened(const winrt::guid& snapshotId, const winrt::guid& workspaceId);
         winrt::Windows::UI::Xaml::Controls::MenuFlyout _CreateRunAsAdminFlyout(int profileIndex);
 

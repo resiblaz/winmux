@@ -83,6 +83,8 @@ namespace winrt::TerminalApp::implementation
         void _Toggle_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _Scope_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _Search_TextChanged(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _SessionFilter_TextChanged(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _DateFilter_SelectionChanged(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs& args);
         void _SessionSearch_TextChanged(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _SessionSelection_Changed(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs& args);
         void _SyncSessions_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
@@ -91,6 +93,7 @@ namespace winrt::TerminalApp::implementation
         void _Pin_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _Copy_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _Delete_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        safe_void_coroutine _ClearHistory_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
 
     private:
         static constexpr double ExpandedWidth{ 320.0 };
@@ -103,6 +106,7 @@ namespace winrt::TerminalApp::implementation
         bool _isInitialized{ false };
         bool _showAllWorkspaces{ false };
         bool _codexOperationBusy{ false };
+        bool _historyClearInFlight{ false };
         CodexHistoryUiState _codexUiState{ CodexHistoryUiState::Unavailable };
         winrt::guid _activeWorkspaceId{};
         winrt::hstring _activeWorkspaceTitle;

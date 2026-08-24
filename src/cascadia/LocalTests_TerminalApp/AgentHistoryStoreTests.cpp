@@ -23,7 +23,9 @@ using winrt::TerminalApp::implementation::AgentHistoryEventKind;
 using winrt::TerminalApp::implementation::AgentHistoryEventReceipt;
 using winrt::TerminalApp::implementation::AgentHistoryInbox;
 using winrt::TerminalApp::implementation::AgentHistoryInboxWorkspace;
+using winrt::TerminalApp::implementation::AgentHistoryQuery;
 using winrt::TerminalApp::implementation::AgentHistoryRecord;
+using winrt::TerminalApp::implementation::AgentHistoryRetentionPolicy;
 using winrt::TerminalApp::implementation::AgentHistorySessionRecord;
 using winrt::TerminalApp::implementation::AgentHistoryStore;
 using winrt::TerminalApp::implementation::WorkspaceAutomationMethod;
@@ -86,6 +88,15 @@ namespace TerminalAppLocalTests
             const auto statement = Prepare(database, sql);
             VERIFY_ARE_EQUAL(SQLITE_ROW, sqlite3_step(statement.get()));
             const auto value = sqlite3_column_int(statement.get(), 0);
+            VERIFY_ARE_EQUAL(SQLITE_DONE, sqlite3_step(statement.get()));
+            return value;
+        }
+
+        int64_t QueryInt64(sqlite3* database, const char* sql)
+        {
+            const auto statement = Prepare(database, sql);
+            VERIFY_ARE_EQUAL(SQLITE_ROW, sqlite3_step(statement.get()));
+            const auto value = sqlite3_column_int64(statement.get(), 0);
             VERIFY_ARE_EQUAL(SQLITE_DONE, sqlite3_step(statement.get()));
             return value;
         }
@@ -268,6 +279,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(InitializesSchemaAndWal);
         TEST_METHOD(MigratesVersionOneSchema);
         TEST_METHOD(MigratesVersionTwoSchema);
+        TEST_METHOD(MigratesVersionThreeReceiptsAndBuildsFts);
         TEST_METHOD(SessionSummariesUpsertListSortAndFilter);
         TEST_METHOD(SessionSummaryMergePreservesHookAuthority);
         TEST_METHOD(SessionSummaryDeletionAndValidationBoundaries);
@@ -277,8 +289,17 @@ namespace TerminalAppLocalTests
         TEST_METHOD(FinalThenPromptPreservesFinalMetadata);
         TEST_METHOD(EventReceiptsAckReplayAndRejectConflicts);
         TEST_METHOD(FiltersByWorkspaceAndUnicodeSearch);
+        TEST_METHOD(StructuredQueryFiltersSessionAndClosedReceivedRange);
+        TEST_METHOD(FullTextSearchTracksUpdatesDeletesAndLiteralQueries);
+        TEST_METHOD(FullTextSearchFallbackPreservesSearchBoundaries);
         TEST_METHOD(PinnedTurnsSortFirst);
         TEST_METHOD(DeleteTurnAndSession);
+        TEST_METHOD(DeleteWorkspaceAndAllUnpinnedPreserveReceiptsAndPins);
+        TEST_METHOD(CleanupUsesReceivedTimeAndPreservesPinned);
+        TEST_METHOD(CleanupEnforcesCountAndPayloadLimits);
+        TEST_METHOD(CleanupTombstonesAcksAndEventuallyPurgesReceipts);
+        TEST_METHOD(CleanupFailureRollsBackTombstonesAndTurns);
+        TEST_METHOD(ConcurrentStoresSerializeCleanup);
         TEST_METHOD(PersistsAcrossReopen);
         TEST_METHOD(ConclusionProtocolAcceptsOptionalPrompt);
         TEST_METHOD(HistoryIngestProtocolIsStrict);
@@ -385,18 +406,21 @@ namespace TerminalAppLocalTests
         VERIFY_IS_TRUE(std::filesystem::is_regular_file(_databasePath));
 
         const auto database = OpenDatabase(_databasePath);
-        VERIFY_ARE_EQUAL(3, QueryInteger(database.get(), "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(5, QueryInteger(database.get(), "PRAGMA user_version;"));
         VERIFY_IS_TRUE(QueryText(database.get(), "PRAGMA journal_mode;") == "wal");
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ai_session';"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ai_turn';"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ai_history_event';"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_history_event') WHERE name='payload_digest' AND type='BLOB';"));
+        VERIFY_ARE_EQUAL(2, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_history_event') WHERE name IN ('received_at', 'deleted_at');"));
         VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_history_event') WHERE name IN ('cwd', 'title', 'prompt', 'final_markdown', 'model', 'event_at');"));
         VERIFY_ARE_EQUAL(3, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_turn') WHERE name IN ('prompt', 'final_markdown', 'pinned');"));
         VERIFY_ARE_EQUAL(8, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_session') WHERE name IN ('started_at', 'pinned', 'summary_display_name', 'summary_preview', 'summary_source_kind', 'summary_created_at', 'summary_updated_at', 'summary_seen_at');"));
         VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_session') WHERE name IN ('raw_json', 'tool_output', 'transcript_path', 'rollout_path', 'turns_json');"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='ai_turn_workspace_order';"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='ai_turn_global_order';"));
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='ai_turn_cleanup_order';"));
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='ai_turn_received_filter';"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='ai_session_workspace_order';"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='ai_session_global_order';"));
     }
@@ -467,7 +491,7 @@ namespace TerminalAppLocalTests
         VERIFY_ARE_EQUAL(L"M1 final", records[0].FinalMarkdown);
 
         const auto database = OpenDatabase(_databasePath);
-        VERIFY_ARE_EQUAL(3, QueryInteger(database.get(), "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(5, QueryInteger(database.get(), "PRAGMA user_version;"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ai_history_event';"));
         VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM ai_history_event;"));
         VERIFY_ARE_EQUAL(6, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_session') WHERE name LIKE 'summary_%';"));
@@ -565,11 +589,123 @@ namespace TerminalAppLocalTests
         VERIFY_ARE_EQUAL(int64_t{ 0 }, sessions[0].SeenAt);
 
         const auto database = OpenDatabase(_databasePath);
-        VERIFY_ARE_EQUAL(3, QueryInteger(database.get(), "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(5, QueryInteger(database.get(), "PRAGMA user_version;"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM ai_history_event WHERE length(payload_digest)=32;"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM ai_turn;"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM ai_session;"));
         VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT summary_seen_at FROM ai_session WHERE session_id='m2-session';"));
+    }
+
+    void AgentHistoryStoreTests::MigratesVersionThreeReceiptsAndBuildsFts()
+    {
+        {
+            const auto database = OpenDatabase(_databasePath);
+            Execute(database.get(), R"sql(
+                PRAGMA foreign_keys=ON;
+                CREATE TABLE ai_session (
+                    provider TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    workspace_id TEXT NOT NULL,
+                    workspace_title TEXT NOT NULL DEFAULT '',
+                    cwd TEXT NOT NULL DEFAULT '',
+                    model TEXT NOT NULL DEFAULT '',
+                    started_at INTEGER NOT NULL DEFAULT 0,
+                    last_activity_at INTEGER NOT NULL,
+                    pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+                    summary_display_name TEXT NOT NULL DEFAULT '',
+                    summary_preview TEXT NOT NULL DEFAULT '',
+                    summary_source_kind TEXT NOT NULL DEFAULT '',
+                    summary_created_at INTEGER NOT NULL DEFAULT 0,
+                    summary_updated_at INTEGER NOT NULL DEFAULT 0,
+                    summary_seen_at INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (provider, session_id)
+                ) WITHOUT ROWID;
+                CREATE TABLE ai_turn (
+                    id INTEGER PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    turn_id TEXT NOT NULL,
+                    workspace_id TEXT NOT NULL,
+                    workspace_title TEXT NOT NULL DEFAULT '',
+                    cwd TEXT NOT NULL DEFAULT '',
+                    title TEXT NOT NULL DEFAULT '',
+                    prompt TEXT NOT NULL DEFAULT '',
+                    final_markdown TEXT NOT NULL DEFAULT '',
+                    model TEXT NOT NULL DEFAULT '',
+                    event_at INTEGER NOT NULL,
+                    received_at INTEGER NOT NULL,
+                    pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+                    UNIQUE (provider, session_id, turn_id),
+                    FOREIGN KEY (provider, session_id)
+                        REFERENCES ai_session (provider, session_id) ON DELETE CASCADE
+                );
+                CREATE TABLE ai_history_event (
+                    event_id TEXT PRIMARY KEY,
+                    workspace_id TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    turn_id TEXT NOT NULL,
+                    event_kind INTEGER NOT NULL CHECK (event_kind IN (0, 1)),
+                    payload_digest BLOB NOT NULL CHECK (
+                        typeof(payload_digest)='blob' AND length(payload_digest)=32
+                    )
+                ) WITHOUT ROWID;
+                INSERT INTO ai_session (
+                    provider, session_id, workspace_id, workspace_title, cwd, model,
+                    started_at, last_activity_at
+                ) VALUES (
+                    'codex', 'm3-session', '14141414-1414-4414-8414-141414141414',
+                    'M3 workspace', 'C:\m3', 'm3-model', 75, 80
+                );
+                INSERT INTO ai_turn (
+                    provider, session_id, turn_id, workspace_id, workspace_title, cwd,
+                    title, prompt, final_markdown, model, event_at, received_at, pinned
+                ) VALUES
+                    ('codex', 'm3-session', 'm3-complete', '14141414-1414-4414-8414-141414141414',
+                     'M3 workspace', 'C:\m3', 'M3 title', 'M3 prompt', 'M3 final needle',
+                     'm3-model', 75, 76, 0),
+                    ('codex', 'm3-session', 'm3-incomplete', '14141414-1414-4414-8414-141414141414',
+                     'M3 workspace', 'C:\m3', '', 'hidden m3 needle', '',
+                     'm3-model', 80, 81, 0);
+                INSERT INTO ai_history_event (
+                    event_id, workspace_id, provider, session_id, turn_id, event_kind, payload_digest
+                ) VALUES
+                    ('94000000-0000-4000-8000-000000000001',
+                     '14141414-1414-4414-8414-141414141414',
+                     'codex', 'm3-session', 'm3-complete', 1, zeroblob(32)),
+                    ('94000000-0000-4000-8000-000000000002',
+                     '14141414-1414-4414-8414-141414141414',
+                     'codex', 'removed-session', 'removed-turn', 1, zeroblob(32));
+                PRAGMA user_version=3;
+            )sql");
+        }
+
+        AgentHistoryStore store{ _databasePath };
+        VERIFY_IS_TRUE(store.IsAvailable());
+        const auto matches = store.ListTurns(std::nullopt, L"final needle");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, matches.size());
+        VERIFY_ARE_EQUAL(L"m3-complete", matches[0].TurnId);
+
+        const auto database = OpenDatabase(_databasePath);
+        VERIFY_ARE_EQUAL(5, QueryInteger(database.get(), "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(2, QueryInteger(database.get(), "SELECT count(*) FROM ai_history_event;"));
+        VERIFY_ARE_EQUAL(76LL, QueryInt64(database.get(),
+                                         "SELECT received_at FROM ai_history_event "
+                                         "WHERE event_id='94000000-0000-4000-8000-000000000001';"));
+        VERIFY_IS_GREATER_THAN(QueryInt64(database.get(),
+                                         "SELECT deleted_at FROM ai_history_event "
+                                         "WHERE event_id='94000000-0000-4000-8000-000000000002';"),
+                               0LL);
+
+        if (QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ai_turn_fts';") == 1)
+        {
+            VERIFY_ARE_EQUAL(1, QueryInteger(database.get(),
+                                             "SELECT count(*) FROM ai_turn_fts "
+                                             "WHERE ai_turn_fts MATCH '\"final needle\"';"));
+            VERIFY_ARE_EQUAL(0, QueryInteger(database.get(),
+                                             "SELECT count(*) FROM ai_turn_fts "
+                                             "WHERE ai_turn_fts MATCH '\"hidden m3 needle\"';"));
+        }
     }
 
     void AgentHistoryStoreTests::SessionSummariesUpsertListSortAndFilter()
@@ -972,8 +1108,16 @@ namespace TerminalAppLocalTests
         VERIFY_IS_FALSE(reopened.UpsertFinal(conflictingIdentity, MakeEvent(eventId, conflictingIdentity)));
         VERIFY_IS_TRUE(reopened.ListTurns(std::nullopt, L"").empty());
 
+        const auto sessionEventId = Guid(L"92000000-0000-4000-8000-000000000002");
+        auto sessionDeleted = MakeRecord(workspaceId, L"receipt-session-delete", L"receipt-session-turn", 200);
+        VERIFY_IS_TRUE(reopened.UpsertFinal(sessionDeleted, MakeEvent(sessionEventId, sessionDeleted)));
+        VERIFY_IS_TRUE(reopened.DeleteSession(L"codex", L"receipt-session-delete"));
+        VERIFY_IS_TRUE(reopened.UpsertFinal(sessionDeleted, MakeEvent(sessionEventId, sessionDeleted)));
+        VERIFY_IS_TRUE(reopened.ListTurns(std::nullopt, L"").empty());
+
         const auto database = OpenDatabase(_databasePath);
-        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM ai_history_event WHERE length(payload_digest)=32;"));
+        VERIFY_ARE_EQUAL(2, QueryInteger(database.get(), "SELECT count(*) FROM ai_history_event WHERE length(payload_digest)=32;"));
+        VERIFY_ARE_EQUAL(2, QueryInteger(database.get(), "SELECT count(*) FROM ai_history_event WHERE deleted_at>0;"));
         VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM ai_turn;"));
     }
 
@@ -987,7 +1131,7 @@ namespace TerminalAppLocalTests
         unicodeRecord.WorkspaceTitle = L"研发工作区";
         unicodeRecord.Title = L"修复渲染错误";
         unicodeRecord.Prompt = L"请检查终端输出";
-        unicodeRecord.FinalMarkdown = L"已完成 Unicode Search 验证";
+        unicodeRecord.FinalMarkdown = L"已完成 Unicode Search 验证 \U0001F642";
         VERIFY_IS_TRUE(store.UpsertTurn(unicodeRecord));
 
         auto otherRecord = MakeRecord(workspaceTwo, L"session-other", L"turn-other", 200);
@@ -1007,9 +1151,147 @@ namespace TerminalAppLocalTests
         const auto caseInsensitiveMatches = store.ListTurns(std::nullopt, L"unicode search");
         VERIFY_ARE_EQUAL(size_t{ 1 }, caseInsensitiveMatches.size());
         VERIFY_ARE_EQUAL(L"turn-unicode", caseInsensitiveMatches[0].TurnId);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, store.ListTurns(std::nullopt, L"Un").size());
+        VERIFY_ARE_EQUAL(size_t{ 1 }, store.ListTurns(std::nullopt, L"\U0001F642").size());
 
         const auto excludedByWorkspace = store.ListTurns(std::optional{ workspaceTwo }, L"渲染");
         VERIFY_IS_TRUE(excludedByWorkspace.empty());
+    }
+
+    void AgentHistoryStoreTests::StructuredQueryFiltersSessionAndClosedReceivedRange()
+    {
+        const auto workspaceOne = Guid(L"25252525-2525-4525-8525-252525252525");
+        const auto workspaceTwo = Guid(L"26262626-2626-4626-8626-262626262626");
+        AgentHistoryStore store{ _databasePath };
+
+        const auto add = [&](const winrt::guid& workspaceId,
+                             const std::wstring_view sessionId,
+                             const std::wstring_view turnId,
+                             const int64_t receivedAt,
+                             const std::wstring_view finalMarkdown) {
+            auto record = MakeRecord(workspaceId, sessionId, turnId, receivedAt);
+            record.ReceivedAt = receivedAt;
+            record.FinalMarkdown = winrt::hstring{ finalMarkdown };
+            return store.UpsertTurn(record);
+        };
+        VERIFY_IS_TRUE(add(workspaceOne, L"target-session", L"lower-bound", 100, L"needle lower"));
+        VERIFY_IS_TRUE(add(workspaceOne, L"target-session", L"upper-bound", 150, L"needle upper"));
+        VERIFY_IS_TRUE(add(workspaceOne, L"target-session", L"outside-range", 151, L"needle outside"));
+        VERIFY_IS_TRUE(add(workspaceOne, L"other-session", L"other-session-turn", 125, L"needle other"));
+        VERIFY_IS_TRUE(add(workspaceTwo, L"target-session", L"other-workspace", 125, L"needle workspace"));
+
+        AgentHistoryQuery query{
+            .WorkspaceId = workspaceOne,
+            .Provider = L"codex",
+            .SessionId = L"target-session",
+            .ReceivedFrom = 100,
+            .ReceivedTo = 150,
+            .Search = L"needle",
+            .Limit = 100,
+        };
+        auto records = store.ListTurns(query);
+        VERIFY_ARE_EQUAL(size_t{ 2 }, records.size());
+        VERIFY_ARE_EQUAL(int64_t{ 150 }, records[0].ReceivedAt);
+        VERIFY_ARE_EQUAL(int64_t{ 100 }, records[1].ReceivedAt);
+
+        query.ReceivedFrom = 150;
+        query.ReceivedTo = 150;
+        records = store.ListTurns(query);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, records.size());
+        VERIFY_ARE_EQUAL(L"upper-bound", records[0].TurnId);
+
+        query.ReceivedFrom = 151;
+        query.ReceivedTo = 150;
+        VERIFY_IS_TRUE(store.ListTurns(query).empty());
+
+        query.ReceivedFrom = 0;
+        query.ReceivedTo = 253402300799999LL;
+        query.Provider = L"different-provider";
+        VERIFY_IS_TRUE(store.ListTurns(query).empty());
+
+        query.Provider = L"codex";
+        query.Limit = 1;
+        VERIFY_ARE_EQUAL(size_t{ 1 }, store.ListTurns(query).size());
+    }
+
+    void AgentHistoryStoreTests::FullTextSearchTracksUpdatesDeletesAndLiteralQueries()
+    {
+        const auto workspaceId = Guid(L"23232323-2323-4323-8323-232323232323");
+        AgentHistoryStore store{ _databasePath };
+
+        auto older = MakeRecord(workspaceId, L"fts-session", L"fts-older", 100);
+        older.FinalMarkdown = L"needle NEAR literal \"quoted\" * - 12345678-1234-4234-8234-123456789abc";
+        older.Pinned = true;
+        auto newer = MakeRecord(workspaceId, L"fts-session", L"fts-newer", 200);
+        newer.FinalMarkdown = L"newer needle result";
+        VERIFY_IS_TRUE(store.UpsertTurn(older));
+        VERIFY_IS_TRUE(store.UpsertTurn(newer));
+
+        auto matches = store.ListTurns(std::nullopt, L"needle");
+        VERIFY_ARE_EQUAL(size_t{ 2 }, matches.size());
+        VERIFY_ARE_EQUAL(L"fts-older", matches[0].TurnId);
+        VERIFY_IS_TRUE(matches[0].Pinned);
+
+        const auto operatorLiteral = store.ListTurns(std::nullopt, L"NEAR");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, operatorLiteral.size());
+        VERIFY_ARE_EQUAL(L"fts-older", operatorLiteral[0].TurnId);
+        const auto guidLiteral = store.ListTurns(std::nullopt, L"12345678-1234-4234-8234-123456789abc");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, guidLiteral.size());
+        VERIFY_ARE_EQUAL(size_t{ 1 }, store.ListTurns(std::nullopt, L"\"quoted\"").size());
+        VERIFY_ARE_EQUAL(size_t{ 1 }, store.ListTurns(std::nullopt, L"* -").size());
+
+        older.EventAt = 300;
+        older.ReceivedAt = 301;
+        older.FinalMarkdown = L"replacement without the prior token";
+        VERIFY_IS_TRUE(store.UpsertTurn(older));
+        matches = store.ListTurns(std::nullopt, L"needle");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, matches.size());
+        VERIFY_ARE_EQUAL(L"fts-newer", matches[0].TurnId);
+
+        auto incomplete = MakeRecord(workspaceId, L"fts-session", L"fts-incomplete", 400);
+        incomplete.Title = L"";
+        incomplete.FinalMarkdown = L"";
+        incomplete.Prompt = L"ghostneedle only exists in an incomplete turn";
+        VERIFY_IS_TRUE(store.UpsertPrompt(incomplete));
+        VERIFY_IS_TRUE(store.ListTurns(std::nullopt, L"ghostneedle").empty());
+
+        VERIFY_IS_TRUE(store.DeleteTurn(L"codex", L"fts-session", L"fts-newer"));
+        VERIFY_IS_TRUE(store.ListTurns(std::nullopt, L"needle").empty());
+    }
+
+    void AgentHistoryStoreTests::FullTextSearchFallbackPreservesSearchBoundaries()
+    {
+        const auto workspaceId = Guid(L"24242424-2424-4424-8424-242424242424");
+        {
+            AgentHistoryStore bootstrap{ _databasePath, false };
+            VERIFY_IS_TRUE(bootstrap.IsAvailable());
+        }
+        {
+            const auto database = OpenDatabase(_databasePath);
+            // Simulate an unusable optional accelerator. Initialization must
+            // fall back without making the durable Store unavailable.
+            Execute(database.get(), "CREATE TABLE ai_turn_fts(x TEXT);");
+        }
+        AgentHistoryStore store{ _databasePath };
+        VERIFY_IS_TRUE(store.IsAvailable());
+
+        auto record = MakeRecord(workspaceId, L"fallback-session", L"fallback-turn", 100);
+        record.Title = L"修复渲染";
+        record.FinalMarkdown = L"a 中 emoji \U0001F642 literal \"NEAR\" * - and ABC";
+        VERIFY_IS_TRUE(store.UpsertTurn(record));
+
+        for (const auto query : { std::wstring_view{ L"a" },
+                                  std::wstring_view{ L"中" },
+                                  std::wstring_view{ L"\U0001F642" },
+                                  std::wstring_view{ L"\"NEAR\"" },
+                                  std::wstring_view{ L"* -" },
+                                  std::wstring_view{ L"abc" } })
+        {
+            const auto matches = store.ListTurns(std::nullopt, query);
+            VERIFY_ARE_EQUAL(size_t{ 1 }, matches.size());
+            VERIFY_ARE_EQUAL(L"fallback-turn", matches[0].TurnId);
+        }
+        VERIFY_ARE_EQUAL(size_t{ 1 }, store.ListTurns(std::nullopt, L"渲染").size());
     }
 
     void AgentHistoryStoreTests::PinnedTurnsSortFirst()
@@ -1061,6 +1343,260 @@ namespace TerminalAppLocalTests
         const auto database = OpenDatabase(_databasePath);
         VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM ai_session;"));
         VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM ai_turn;"));
+    }
+
+    void AgentHistoryStoreTests::DeleteWorkspaceAndAllUnpinnedPreserveReceiptsAndPins()
+    {
+        const auto workspaceOne = Guid(L"5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a");
+        const auto workspaceTwo = Guid(L"5b5b5b5b-5b5b-4b5b-8b5b-5b5b5b5b5b5b");
+        const auto firstEventId = Guid(L"96000000-0000-4000-8000-000000000001");
+        const auto secondEventId = Guid(L"96000000-0000-4000-8000-000000000002");
+        AgentHistoryStore store{ _databasePath };
+
+        auto first = MakeRecord(workspaceOne, L"workspace-delete", L"workspace-one", 100);
+        auto pinned = MakeRecord(workspaceOne, L"workspace-delete", L"workspace-pinned", 200);
+        pinned.Pinned = true;
+        auto second = MakeRecord(workspaceTwo, L"workspace-delete", L"workspace-two", 300);
+        VERIFY_IS_TRUE(store.UpsertFinal(first, MakeEvent(firstEventId, first)));
+        VERIFY_IS_TRUE(store.UpsertFinal(pinned));
+        VERIFY_IS_TRUE(store.UpsertFinal(second, MakeEvent(secondEventId, second)));
+
+        VERIFY_IS_FALSE(store.DeleteWorkspace(winrt::guid{}));
+        VERIFY_IS_TRUE(store.DeleteWorkspace(workspaceOne));
+        auto remaining = store.ListTurns(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 2 }, remaining.size());
+        VERIFY_IS_TRUE(std::ranges::any_of(remaining, [](const auto& record) { return record.TurnId == L"workspace-pinned" && record.Pinned; }));
+        VERIFY_IS_TRUE(std::ranges::any_of(remaining, [](const auto& record) { return record.TurnId == L"workspace-two"; }));
+
+        // The deleted Workspace event remains an ACK-only tombstone.
+        VERIFY_IS_TRUE(store.UpsertFinal(first, MakeEvent(firstEventId, first)));
+        VERIFY_ARE_EQUAL(size_t{ 2 }, store.ListTurns(std::nullopt, L"").size());
+
+        VERIFY_IS_TRUE(store.DeleteAllUnpinned());
+        remaining = store.ListTurns(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, remaining.size());
+        VERIFY_ARE_EQUAL(L"workspace-pinned", remaining[0].TurnId);
+        VERIFY_IS_TRUE(remaining[0].Pinned);
+        VERIFY_IS_TRUE(store.UpsertFinal(second, MakeEvent(secondEventId, second)));
+        VERIFY_ARE_EQUAL(size_t{ 1 }, store.ListTurns(std::nullopt, L"").size());
+
+        const auto database = OpenDatabase(_databasePath);
+        VERIFY_ARE_EQUAL(2, QueryInteger(database.get(), "SELECT count(*) FROM ai_history_event WHERE deleted_at>0;"));
+    }
+
+    void AgentHistoryStoreTests::CleanupUsesReceivedTimeAndPreservesPinned()
+    {
+        constexpr int64_t day{ 24LL * 60 * 60 * 1000 };
+        constexpr int64_t now{ 10 * day };
+        const auto workspaceId = Guid(L"56565656-5656-4656-8656-565656565656");
+        AgentHistoryStore store{ _databasePath };
+
+        auto expired = MakeRecord(workspaceId, L"cleanup-age", L"expired", now + day);
+        expired.ReceivedAt = now - 2 * day;
+        auto boundary = MakeRecord(workspaceId, L"cleanup-age", L"boundary", now - day);
+        boundary.ReceivedAt = now - day;
+        auto pinned = MakeRecord(workspaceId, L"cleanup-age", L"pinned", 1);
+        pinned.ReceivedAt = 1;
+        pinned.Pinned = true;
+        VERIFY_IS_TRUE(store.UpsertTurn(expired));
+        VERIFY_IS_TRUE(store.UpsertTurn(boundary));
+        VERIFY_IS_TRUE(store.UpsertTurn(pinned));
+
+        const auto cleanup = store.Cleanup(AgentHistoryRetentionPolicy{
+                                               .RetentionDays = 1,
+                                               .ReceiptTombstoneDays = 30,
+                                           },
+                                           now);
+        VERIFY_IS_TRUE(cleanup.Succeeded);
+        VERIFY_ARE_EQUAL(uint64_t{ 1 }, cleanup.TurnsDeleted);
+        VERIFY_ARE_EQUAL(uint64_t{ 2 }, cleanup.RemainingTurns);
+        VERIFY_IS_FALSE(cleanup.SoftLimitUnsatisfied);
+
+        const auto remaining = store.ListTurns(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 2 }, remaining.size());
+        VERIFY_IS_TRUE(std::ranges::any_of(remaining, [](const auto& record) { return record.TurnId == L"boundary"; }));
+        VERIFY_IS_TRUE(std::ranges::any_of(remaining, [](const auto& record) { return record.TurnId == L"pinned" && record.Pinned; }));
+    }
+
+    void AgentHistoryStoreTests::CleanupEnforcesCountAndPayloadLimits()
+    {
+        const auto workspaceId = Guid(L"57575757-5757-4757-8757-575757575757");
+        AgentHistoryStore store{ _databasePath };
+
+        for (int64_t index = 1; index <= 4; ++index)
+        {
+            const auto turnId = fmt::format(FMT_COMPILE(L"limit-{}"), index);
+            auto record = MakeRecord(workspaceId, L"cleanup-limit", turnId, index * 100);
+            record.ReceivedAt = index * 100;
+            record.Pinned = index == 1;
+            VERIFY_IS_TRUE(store.UpsertTurn(record));
+        }
+
+        auto cleanup = store.Cleanup(AgentHistoryRetentionPolicy{
+                                         .MaximumTurns = 2,
+                                         .ReceiptTombstoneDays = 0,
+                                     },
+                                     1000);
+        VERIFY_IS_TRUE(cleanup.Succeeded);
+        VERIFY_ARE_EQUAL(uint64_t{ 2 }, cleanup.TurnsDeleted);
+        VERIFY_ARE_EQUAL(uint64_t{ 2 }, cleanup.RemainingTurns);
+        auto remaining = store.ListTurns(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 2 }, remaining.size());
+        VERIFY_IS_TRUE(std::ranges::any_of(remaining, [](const auto& record) { return record.TurnId == L"limit-1" && record.Pinned; }));
+        VERIFY_IS_TRUE(std::ranges::any_of(remaining, [](const auto& record) { return record.TurnId == L"limit-4"; }));
+
+        auto large = MakeRecord(workspaceId, L"cleanup-limit", L"large-payload", 500);
+        large.ReceivedAt = 500;
+        large.FinalMarkdown = winrt::hstring{ std::wstring(4096, L'x') };
+        VERIFY_IS_TRUE(store.UpsertTurn(large));
+        const auto measured = store.Cleanup(AgentHistoryRetentionPolicy{ .ReceiptTombstoneDays = 0 }, 1000);
+        VERIFY_IS_TRUE(measured.Succeeded);
+        VERIFY_IS_GREATER_THAN(measured.RemainingPayloadBytes, uint64_t{ 1 });
+
+        cleanup = store.Cleanup(AgentHistoryRetentionPolicy{
+                                    .MaximumPayloadBytes = measured.RemainingPayloadBytes - 1,
+                                    .ReceiptTombstoneDays = 0,
+                                },
+                                1000);
+        VERIFY_IS_TRUE(cleanup.Succeeded);
+        VERIFY_IS_GREATER_THAN(cleanup.TurnsDeleted, uint64_t{ 0 });
+        VERIFY_IS_TRUE(cleanup.RemainingPayloadBytes <= measured.RemainingPayloadBytes - 1);
+
+        cleanup = store.Cleanup(AgentHistoryRetentionPolicy{
+                                    .MaximumTurns = 0,
+                                    .MaximumPayloadBytes = 1,
+                                    .ReceiptTombstoneDays = 0,
+                                },
+                                1000);
+        VERIFY_IS_TRUE(cleanup.Succeeded);
+        VERIFY_IS_TRUE(cleanup.SoftLimitUnsatisfied);
+        remaining = store.ListTurns(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, remaining.size());
+        VERIFY_IS_TRUE(remaining[0].Pinned);
+    }
+
+    void AgentHistoryStoreTests::CleanupTombstonesAcksAndEventuallyPurgesReceipts()
+    {
+        constexpr int64_t day{ 24LL * 60 * 60 * 1000 };
+        const auto workspaceId = Guid(L"58585858-5858-4858-8858-585858585858");
+        const auto eventId = Guid(L"95000000-0000-4000-8000-000000000001");
+        AgentHistoryStore store{ _databasePath };
+
+        auto record = MakeRecord(workspaceId, L"cleanup-receipt", L"cleanup-turn", 100);
+        record.ReceivedAt = 100;
+        const auto event = MakeEvent(eventId, record);
+        VERIFY_IS_TRUE(store.UpsertFinal(record, event));
+
+        auto cleanup = store.Cleanup(AgentHistoryRetentionPolicy{
+                                         .RetentionDays = 1,
+                                         .ReceiptTombstoneDays = 30,
+                                     },
+                                     3 * day);
+        VERIFY_IS_TRUE(cleanup.Succeeded);
+        VERIFY_ARE_EQUAL(uint64_t{ 1 }, cleanup.TurnsDeleted);
+        VERIFY_IS_TRUE(store.ListTurns(std::nullopt, L"").empty());
+        VERIFY_IS_TRUE(store.UpsertFinal(record, event));
+        VERIFY_IS_TRUE(store.ListTurns(std::nullopt, L"").empty());
+
+        auto conflicting = record;
+        conflicting.FinalMarkdown = L"conflicting replay";
+        VERIFY_IS_FALSE(store.UpsertFinal(conflicting, MakeEvent(eventId, conflicting)));
+
+        {
+            const auto database = OpenDatabase(_databasePath);
+            VERIFY_IS_GREATER_THAN(QueryInt64(database.get(),
+                                              "SELECT deleted_at FROM ai_history_event "
+                                              "WHERE event_id='95000000-0000-4000-8000-000000000001';"),
+                                   0LL);
+            Execute(database.get(),
+                    "UPDATE ai_history_event SET deleted_at=100 "
+                    "WHERE event_id='95000000-0000-4000-8000-000000000001';");
+        }
+
+        cleanup = store.Cleanup(AgentHistoryRetentionPolicy{
+                                    .ReceiptTombstoneDays = 1,
+                                },
+                                2 * day);
+        VERIFY_IS_TRUE(cleanup.Succeeded);
+        VERIFY_ARE_EQUAL(uint64_t{ 1 }, cleanup.ReceiptsDeleted);
+        VERIFY_IS_TRUE(store.UpsertFinal(record, event));
+        VERIFY_ARE_EQUAL(size_t{ 1 }, store.ListTurns(std::nullopt, L"").size());
+    }
+
+    void AgentHistoryStoreTests::CleanupFailureRollsBackTombstonesAndTurns()
+    {
+        constexpr int64_t day{ 24LL * 60 * 60 * 1000 };
+        const auto workspaceId = Guid(L"5c5c5c5c-5c5c-4c5c-8c5c-5c5c5c5c5c5c");
+        const auto eventId = Guid(L"97000000-0000-4000-8000-000000000001");
+        AgentHistoryStore store{ _databasePath, false };
+        auto record = MakeRecord(workspaceId, L"rollback-session", L"rollback-turn", 100);
+        record.ReceivedAt = 100;
+        VERIFY_IS_TRUE(store.UpsertFinal(record, MakeEvent(eventId, record)));
+
+        {
+            const auto database = OpenDatabase(_databasePath);
+            Execute(database.get(), R"sql(
+                CREATE TRIGGER fail_history_cleanup
+                BEFORE DELETE ON ai_turn
+                BEGIN
+                    SELECT RAISE(ABORT, 'injected cleanup failure');
+                END;
+            )sql");
+        }
+
+        const auto cleanup = store.Cleanup(AgentHistoryRetentionPolicy{
+                                               .RetentionDays = 1,
+                                               .ReceiptTombstoneDays = 30,
+                                           },
+                                           3 * day);
+        VERIFY_IS_FALSE(cleanup.Succeeded);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, store.ListTurns(std::nullopt, L"").size());
+        const auto database = OpenDatabase(_databasePath);
+        VERIFY_ARE_EQUAL(0LL, QueryInt64(database.get(), "SELECT deleted_at FROM ai_history_event;"));
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM ai_turn;"));
+    }
+
+    void AgentHistoryStoreTests::ConcurrentStoresSerializeCleanup()
+    {
+        const auto workspaceId = Guid(L"59595959-5959-4959-8959-595959595959");
+        AgentHistoryStore first{ _databasePath };
+        AgentHistoryStore second{ _databasePath };
+        for (int64_t index = 0; index < 40; ++index)
+        {
+            const auto turnId = fmt::format(FMT_COMPILE(L"concurrent-{}"), index);
+            VERIFY_IS_TRUE(first.UpsertTurn(MakeRecord(workspaceId, L"cleanup-concurrent", turnId, index + 1)));
+        }
+
+        std::barrier start{ 3 };
+        bool firstSucceeded{};
+        bool secondSucceeded{};
+        std::thread firstWorker{ [&]() {
+            start.arrive_and_wait();
+            firstSucceeded = first.Cleanup(AgentHistoryRetentionPolicy{
+                                               .MaximumTurns = 10,
+                                               .ReceiptTombstoneDays = 0,
+                                           },
+                                           1000)
+                                 .Succeeded;
+        } };
+        std::thread secondWorker{ [&]() {
+            start.arrive_and_wait();
+            secondSucceeded = second.Cleanup(AgentHistoryRetentionPolicy{
+                                                 .MaximumTurns = 10,
+                                                 .ReceiptTombstoneDays = 0,
+                                             },
+                                             1000)
+                                  .Succeeded;
+        } };
+        start.arrive_and_wait();
+        firstWorker.join();
+        secondWorker.join();
+
+        VERIFY_IS_TRUE(firstSucceeded);
+        VERIFY_IS_TRUE(secondSucceeded);
+        VERIFY_ARE_EQUAL(size_t{ 10 }, first.ListTurns(std::nullopt, L"").size());
+        const auto database = OpenDatabase(_databasePath);
+        VERIFY_ARE_EQUAL(std::string{ "ok" }, QueryText(database.get(), "PRAGMA integrity_check;"));
     }
 
     void AgentHistoryStoreTests::PersistsAcrossReopen()

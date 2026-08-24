@@ -26,6 +26,7 @@ public:
     void SetTaskbarProgress(const winrt::Windows::Foundation::IInspectable& sender, const winrt::Windows::Foundation::IInspectable& args);
     safe_void_coroutine HandleSummon(winrt::TerminalApp::SummonWindowBehavior args) const;
     void DispatchCommandline(winrt::TerminalApp::CommandlineArgs args);
+    void OpenWorkspaceSnapshot(const winrt::guid& snapshotId, bool replaceCurrentWorkspace);
 
 private:
     enum class WindowInitializedState : uint32_t

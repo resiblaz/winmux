@@ -33,6 +33,9 @@ namespace TerminalApp
         String Content { get; };
         UInt32 TabIndex { get; };
         Windows.Foundation.IReference<Windows.Foundation.Point> WindowPosition { get; };
+        Guid WorkspaceId;
+        Guid SourceSnapshotId;
+        UInt64 SourceSnapshotRevision;
     };
 
     interface IDialogPresenter
@@ -86,6 +89,7 @@ namespace TerminalApp
 
         WindowProperties WindowProperties { get; };
         void IdentifyWindow();
+        void OpenWorkspaceSnapshot(Guid snapshotId, Boolean replaceCurrentWorkspace);
 
         String SavedActionName { get; };
         String SavedActionKeyChord { get; };

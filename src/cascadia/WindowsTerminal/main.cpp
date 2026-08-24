@@ -51,15 +51,15 @@ static std::wstring ImageArchitectureToString(USHORT imageArchitecture)
 }
 
 // Routine Description:
-// - Blocks the user from launching the application with a message box dialog and early exit
-//   if the process architecture doesn't match the system platform native architecture.
+// - Builds an error message if the process architecture doesn't match the
+//   system platform native architecture.
 // - This is because the conhost.exe must match the condrv.sys on the system and the PTY
 //   infrastructure that powers everything won't work if we have a mismatch.
 // Arguments:
 // - <none>
 // Return Value:
-// - <none>
-static void EnsureNativeArchitecture()
+// - The localized mismatch message, or nullopt when the architecture matches.
+static std::optional<std::wstring> NativeArchitectureError()
 {
     USHORT processMachine{};
     USHORT nativeMachine{};
@@ -71,18 +71,87 @@ static void EnsureNativeArchitecture()
         const auto nativeArchitecture = ImageArchitectureToString(nativeMachine);
         const auto processArchitecture = ImageArchitectureToString(processMachine);
 
-        auto buffer{ wil::str_printf<std::wstring>(formatPattern.data(), nativeArchitecture.data(), processArchitecture.data()) };
-
-        MessageBoxW(nullptr,
-                    buffer.data(),
-                    GetStringResource(IDS_ERROR_DIALOG_TITLE).data(),
-                    MB_OK | MB_ICONERROR);
-
-        ExitProcess(0);
+        return wil::str_printf<std::wstring>(formatPattern.data(), nativeArchitecture.data(), processArchitecture.data());
     }
+    return std::nullopt;
+}
+
+namespace
+{
+    constexpr std::wstring_view HeadlessWorkspaceSentinel{ L"--headless-workspace" };
+    constexpr std::wstring_view InternalWorkspaceOpenSentinel{ L"--internal-workspace-open" };
+    constexpr int32_t WorkspaceIoErrorExitCode{ 8 };
+
+    std::vector<winrt::hstring> CommandlineArguments()
+    {
+        int argumentCount{};
+        const wil::unique_hlocal_ptr<LPWSTR> arguments{ CommandLineToArgvW(GetCommandLineW(), &argumentCount) };
+        std::vector<winrt::hstring> result;
+        if (!arguments || argumentCount <= 0)
+        {
+            return result;
+        }
+        result.reserve(static_cast<size_t>(argumentCount));
+        for (int index = 0; index < argumentCount; ++index)
+        {
+            result.emplace_back(arguments.get()[index]);
+        }
+        return result;
+    }
+
+    bool WriteStandardText(const DWORD standardHandle, const winrt::hstring& text) noexcept
+    try
+    {
+        if (text.empty())
+        {
+            return true;
+        }
+        const auto handle = GetStdHandle(standardHandle);
+        if (!handle || handle == INVALID_HANDLE_VALUE)
+        {
+            return false;
+        }
+
+        DWORD consoleMode{};
+        if (GetConsoleMode(handle, &consoleMode))
+        {
+            size_t offset{};
+            while (offset < text.size())
+            {
+                DWORD written{};
+                const auto remaining = std::min<size_t>(text.size() - offset, std::numeric_limits<DWORD>::max());
+                if (!WriteConsoleW(handle, text.c_str() + offset, gsl::narrow<DWORD>(remaining), &written, nullptr) || written == 0)
+                {
+                    return false;
+                }
+                offset += written;
+            }
+            return true;
+        }
+
+        const auto utf8 = til::u16u8(text);
+        size_t offset{};
+        while (offset < utf8.size())
+        {
+            DWORD written{};
+            const auto remaining = std::min<size_t>(utf8.size() - offset, std::numeric_limits<DWORD>::max());
+            if (!WriteFile(handle, utf8.data() + offset, gsl::narrow<DWORD>(remaining), &written, nullptr) || written == 0)
+            {
+                return false;
+            }
+            offset += written;
+        }
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+
 }
 
 int __stdcall wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int nCmdShow)
+try
 {
     TraceLoggingRegister(g_hWindowsTerminalProvider);
     ::Microsoft::Console::ErrorReporting::EnableFallbackFailureReporting(g_hWindowsTerminalProvider);
@@ -101,13 +170,32 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int nCmdShow)
     // a weird way, ^C stops working _inside_ the terminal. Mad.
     SetConsoleCtrlHandler(NULL, FALSE);
 
+    const auto processArguments = CommandlineArguments();
+    const auto workspaceMode = processArguments.size() >= 2 &&
+                               (processArguments[1] == HeadlessWorkspaceSentinel ||
+                                processArguments[1] == InternalWorkspaceOpenSentinel);
+
     // Block the user from starting if they launched the incorrect architecture version of the project.
     // This should only be applicable to developer versions. The package installation process
-    // should choose and install the correct one from the bundle.
-    EnsureNativeArchitecture();
-
-    // Make sure to call this so we get WM_POINTER messages.
-    EnableMouseInPointer(true);
+    // should choose and install the correct one from the bundle. Workspace CLI
+    // invocations report through stderr and never show a modal dialog.
+    if (const auto architectureError = NativeArchitectureError())
+    {
+        if (workspaceMode)
+        {
+            std::wstring message{ architectureError.value() };
+            message.push_back(L'\n');
+            WriteStandardText(STD_ERROR_HANDLE, winrt::hstring{ message });
+            TraceLoggingUnregister(g_hWindowsTerminalProvider);
+            return WorkspaceIoErrorExitCode;
+        }
+        MessageBoxW(nullptr,
+                    architectureError->c_str(),
+                    GetStringResource(IDS_ERROR_DIALOG_TITLE).data(),
+                    MB_OK | MB_ICONERROR);
+        TraceLoggingUnregister(g_hWindowsTerminalProvider);
+        return 0;
+    }
 
     // !!! LOAD BEARING !!!
     // We must initialize the main thread as a single-threaded apartment before
@@ -120,6 +208,80 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int nCmdShow)
     // doing that, we can safely init as STA before any WinRT dispatches.
     winrt::init_apartment(winrt::apartment_type::single_threaded);
 
+    if (workspaceMode)
+    {
+        try
+        {
+            if (processArguments[1] == InternalWorkspaceOpenSentinel &&
+                (processArguments.size() < 4 || processArguments[2] != L"workspace" || processArguments[3] != L"open"))
+            {
+                WriteStandardText(STD_ERROR_HANDLE, L"The internal workspace route accepts only workspace open.\n");
+                TraceLoggingUnregister(g_hWindowsTerminalProvider);
+                return WorkspaceIoErrorExitCode;
+            }
+
+            std::vector<winrt::hstring> workspaceArguments{ processArguments.begin() + 2, processArguments.end() };
+            const auto argumentView = winrt::single_threaded_vector<winrt::hstring>(std::move(workspaceArguments)).GetView();
+            const auto result = winrt::Microsoft::Terminal::Settings::Model::WorkspaceCommandline{}.Execute(argumentView);
+            const auto standardOutput = result.StandardOutput();
+            const auto standardError = result.StandardError();
+            if (!standardOutput.empty() && !WriteStandardText(STD_OUTPUT_HANDLE, standardOutput))
+            {
+                WriteStandardText(STD_ERROR_HANDLE, L"Workspace command output could not be written.\n");
+                TraceLoggingUnregister(g_hWindowsTerminalProvider);
+                return WorkspaceIoErrorExitCode;
+            }
+            if (!standardError.empty() && !WriteStandardText(STD_ERROR_HANDLE, standardError))
+            {
+                OutputDebugStringW(L"Workspace command diagnostics could not be written.\n");
+            }
+            if (result.ExitCode() != 0)
+            {
+                TraceLoggingUnregister(g_hWindowsTerminalProvider);
+                return result.ExitCode();
+            }
+
+            if (processArguments[1] == HeadlessWorkspaceSentinel)
+            {
+                // wt.exe owns the transition to the internal GUI route after
+                // this validating process exits successfully. This process is
+                // job-contained and must not create a long-lived descendant.
+                TraceLoggingUnregister(g_hWindowsTerminalProvider);
+                return 0;
+            }
+
+            if (!result.OpenRequested())
+            {
+                WriteStandardText(STD_ERROR_HANDLE, L"The internal workspace route accepts only workspace open.\n");
+                TraceLoggingUnregister(g_hWindowsTerminalProvider);
+                return WorkspaceIoErrorExitCode;
+            }
+
+            // The UI process starts only after the headless process validated
+            // the snapshot and returned a real exit code to wt.exe.
+            EnableMouseInPointer(true);
+            const auto emperor = std::make_shared<::WindowEmperor>();
+            emperor->HandleWorkspaceOpen(result.SnapshotId(), result.WindowTarget(), nCmdShow);
+            return 0;
+        }
+        catch (...)
+        {
+            WriteStandardText(STD_ERROR_HANDLE, L"Workspace command initialization failed.\n");
+            TraceLoggingUnregister(g_hWindowsTerminalProvider);
+            return WorkspaceIoErrorExitCode;
+        }
+    }
+
+    // Make sure to call this so we get WM_POINTER messages.
+    EnableMouseInPointer(true);
+
     const auto emperor = std::make_shared<::WindowEmperor>();
     emperor->HandleCommandlineArgs(nCmdShow);
+    return 0;
+}
+catch (...)
+{
+    WriteStandardText(STD_ERROR_HANDLE, L"Windows Terminal initialization failed.\n");
+    TraceLoggingUnregister(g_hWindowsTerminalProvider);
+    return WorkspaceIoErrorExitCode;
 }

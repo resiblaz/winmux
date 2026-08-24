@@ -78,6 +78,7 @@ namespace TerminalApp
         Boolean ShowTabsFullscreen { get; };
 
         void IdentifyWindow();
+        void OpenWorkspaceSnapshot(Guid snapshotId, Boolean replaceCurrentWorkspace);
         Boolean FocusTab(TerminalApp.Tab tab);
         void SetPersistedLayoutIdx(UInt32 idx);
         void RequestExitFullscreen();
@@ -149,7 +150,8 @@ namespace TerminalApp
         event Windows.Foundation.TypedEventHandler<Object, OpenWindowRequestedArgs> RequestOpenWindow;
         event Windows.Foundation.TypedEventHandler<Object, WindowRequestedArgs> RequestNewWindow;
 
-        void AttachContent(String content, UInt32 tabIndex);
+        void AttachContent(String content, UInt32 tabIndex, Guid workspaceId, Guid sourceSnapshotId, UInt64 sourceSnapshotRevision);
+        void SetStartupWorkspaceSource(Guid workspaceId, Guid sourceSnapshotId, UInt64 sourceSnapshotRevision);
         void SendContentToOther(RequestReceiveContentArgs args);
     }
 }

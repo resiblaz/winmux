@@ -2474,6 +2474,27 @@
           "description": "When set to true, adds preset \"Color Selection\" actions (keybindings) to allow colorizing selected text via keystroke, similar to the legacy conhost EnableColorSelection feature (such as alt+6 to color the selection red).",
           "type": "boolean"
         },
+        "experimental.agentHistory.retentionDays": {
+          "default": 90,
+          "description": "Deletes unpinned AI history turns after this many days. Set to 0 to disable age-based cleanup.",
+          "maximum": 36500,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "experimental.agentHistory.maximumTurns": {
+          "default": 10000,
+          "description": "Maximum number of unpinned AI history turns retained locally. Set to 0 to disable the count limit.",
+          "maximum": 1000000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "experimental.agentHistory.maximumPayloadMiB": {
+          "default": 64,
+          "description": "Maximum logical prompt and final-answer payload retained locally, in MiB. Set to 0 to disable the size limit.",
+          "maximum": 4096,
+          "minimum": 0,
+          "type": "integer"
+        },
         "tabLayout": {
           "default": "horizontal",
           "description": "Controls whether open tabs are shown in the standard horizontal tab row or as workspaces in the sidebar.",

@@ -145,6 +145,7 @@
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClInclude>
     <ClInclude Include="WorkspaceGitBranch.h" />
+    <ClInclude Include="WorkspaceGitMetadata.h" />
     <ClInclude Include="WorkspaceListeningPorts.h" />
     <ClInclude Include="WorkspaceAgentResume.h" />
     <ClInclude Include="WorkspaceAutomation.h" />
@@ -281,6 +282,7 @@
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClCompile>
     <ClCompile Include="WorkspaceGitBranch.cpp" />
+    <ClCompile Include="WorkspaceGitMetadata.cpp" />
     <ClCompile Include="WorkspaceListeningPorts.cpp" />
     <ClCompile Include="WorkspaceAutomation.cpp" />
     <ClCompile Include="WorkspaceNotification.cpp">

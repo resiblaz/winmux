@@ -31,6 +31,7 @@
     <ClInclude Include="../ActionArgs.h" />
     <ClInclude Include="../ActionMap.h" />
     <ClInclude Include="../CascadiaSettings.h" />
+    <ClInclude Include="../WorkspaceCommandline.h" />
     <ClInclude Include="../ColorScheme.h" />
     <ClInclude Include="../Command.h" />
     <ClInclude Include="../GlobalAppSettings.h" />

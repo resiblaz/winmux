@@ -86,9 +86,14 @@ namespace winrt::TerminalApp::implementation
             // unpackaged, but not packaged.
         }
 
+        // Reserve the Workspace ID before initializing the ConPTY connection.
+        // The child process and the WorkspaceItemViewModel must observe the
+        // same identifier.
+        const auto workspaceId = _ReserveWorkspaceIdForNewTab();
+
         // This call to _MakePane won't return nullptr, we already checked that
         // case above with the _maybeElevate call.
-        _CreateNewTabFromPane(_MakePane(newContentArgs, nullptr));
+        _CreateNewTabFromPane(_MakePane(newContentArgs, nullptr, nullptr, true, workspaceId), -1, workspaceId);
         return S_OK;
     }
     CATCH_RETURN();
@@ -98,8 +103,18 @@ namespace winrt::TerminalApp::implementation
     // Arguments:
     // - newTabImpl: the uninitialized tab.
     // - insertPosition: Optional parameter to indicate the position of tab.
-    void TerminalPage::_InitializeTab(winrt::com_ptr<Tab> newTabImpl, uint32_t insertPosition)
+    void TerminalPage::_InitializeTab(winrt::com_ptr<Tab> newTabImpl,
+                                      uint32_t insertPosition,
+                                      winrt::guid workspaceId)
     {
+        if (workspaceId == winrt::guid{})
+        {
+            workspaceId = _ReserveWorkspaceIdForNewTab();
+        }
+        THROW_HR_IF(E_UNEXPECTED, std::ranges::any_of(_workspaceItems, [&](const auto& item) {
+                        return item.WorkspaceId() == workspaceId;
+                    }));
+
         newTabImpl->Initialize();
 
         // Push the current settings into the tab on when it's initialized.
@@ -142,17 +157,9 @@ namespace winrt::TerminalApp::implementation
         // Add the new tab to the list of our tabs.
         _tabs.InsertAt(insertPosition, *newTabImpl);
         auto workspaceItem = winrt::make_self<WorkspaceItemViewModel>(*newTabImpl);
+        workspaceItem->RestoreWorkspaceId(workspaceId);
         if (restoredWorkspaceIndex)
         {
-            const auto restoredId = _startupWorkspaceIds.at(restoredWorkspaceIndex.value());
-            const auto duplicate = std::find_if(_workspaceItems.begin(), _workspaceItems.end(), [&](const auto& item) {
-                return item.WorkspaceId() == restoredId;
-            });
-            if (duplicate == _workspaceItems.end())
-            {
-                workspaceItem->RestoreWorkspaceId(restoredId);
-            }
-
             const auto resumeEntry = std::find_if(_startupAgentResumeEntries.begin(), _startupAgentResumeEntries.end(), [&](const auto& entry) {
                 return entry.WorkspaceId == workspaceItem->WorkspaceId();
             });
@@ -272,12 +279,14 @@ namespace winrt::TerminalApp::implementation
     // Arguments:
     // - pane: The pane to use as the root.
     // - insertPosition: Optional parameter to indicate the position of tab.
-    TerminalApp::Tab TerminalPage::_CreateNewTabFromPane(std::shared_ptr<Pane> pane, uint32_t insertPosition)
+    TerminalApp::Tab TerminalPage::_CreateNewTabFromPane(std::shared_ptr<Pane> pane,
+                                                         const uint32_t insertPosition,
+                                                         winrt::guid workspaceId)
     {
         if (pane)
         {
             auto newTabImpl = winrt::make_self<Tab>(pane);
-            _InitializeTab(newTabImpl, insertPosition);
+            _InitializeTab(newTabImpl, insertPosition, workspaceId);
             return *newTabImpl;
         }
         return nullptr;
@@ -377,7 +386,8 @@ namespace winrt::TerminalApp::implementation
             {
                 insertPosition = tab.TabViewIndex() + 1;
             }
-            _CreateNewTabFromPane(_MakePane(nullptr, tab, nullptr), insertPosition);
+            const auto workspaceId = _ReserveWorkspaceIdForNewTab();
+            _CreateNewTabFromPane(_MakePane(nullptr, tab, nullptr, true, workspaceId), insertPosition, workspaceId);
 
             const auto runtimeTabText{ tab.GetTabText() };
             if (!runtimeTabText.empty())

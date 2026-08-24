@@ -6,15 +6,18 @@
 
 #include "../../types/inc/utils.hpp"
 
+#include <bcrypt.h>
+#include <type_traits>
 #include <winsqlite/winsqlite3.h>
 
+#pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "winsqlite3.lib")
 
 namespace winrt::TerminalApp::implementation
 {
     namespace
     {
-        constexpr int SchemaVersion{ 1 };
+        constexpr int SchemaVersion{ 2 };
         constexpr int BusyTimeoutMilliseconds{ 5000 };
 
         constexpr size_t MaximumProviderCharacters{ 64 };
@@ -26,6 +29,20 @@ namespace winrt::TerminalApp::implementation
         constexpr size_t MaximumModelCharacters{ 256 };
         constexpr size_t MaximumSearchCharacters{ 1024 };
         constexpr uint32_t MaximumListLimit{ 10000 };
+        constexpr size_t EventPayloadDigestBytes{ 32 };
+
+        struct BCryptHashDeleter
+        {
+            void operator()(const BCRYPT_HASH_HANDLE hash) const noexcept
+            {
+                if (hash)
+                {
+                    BCryptDestroyHash(hash);
+                }
+            }
+        };
+
+        using UniqueBCryptHash = std::unique_ptr<std::remove_pointer_t<BCRYPT_HASH_HANDLE>, BCryptHashDeleter>;
 
         struct DatabaseDeleter
         {
@@ -184,6 +201,75 @@ namespace winrt::TerminalApp::implementation
                    record.Model.size() <= MaximumModelCharacters &&
                    record.EventAt >= 0 &&
                    record.ReceivedAt >= 0;
+        }
+
+        bool _validEventReceipt(const AgentHistoryRecord& record,
+                                const AgentHistoryEventReceipt& event) noexcept
+        {
+            return event.EventId != winrt::guid{} &&
+                   event.Title == record.Title &&
+                   event.Prompt == record.Prompt &&
+                   event.FinalMarkdown == record.FinalMarkdown &&
+                   event.Model == record.Model &&
+                   (event.Cwd.empty() || event.Cwd == record.Cwd) &&
+                   (!event.EventAt || event.EventAt.value() == record.EventAt);
+        }
+
+        std::optional<std::array<uint8_t, EventPayloadDigestBytes>> _eventPayloadDigest(
+            const AgentHistoryEventReceipt& event) noexcept
+        {
+            try
+            {
+                BCRYPT_HASH_HANDLE rawHash{ nullptr };
+                if (BCryptCreateHash(BCRYPT_SHA256_ALG_HANDLE, &rawHash, nullptr, 0, nullptr, 0, 0) != 0)
+                {
+                    return std::nullopt;
+                }
+                UniqueBCryptHash hash{ rawHash };
+
+                const auto hashBytes = [&](const void* data, const size_t byteCount) noexcept {
+                    if (byteCount > std::numeric_limits<ULONG>::max())
+                    {
+                        return false;
+                    }
+                    return BCryptHashData(hash.get(),
+                                          reinterpret_cast<PUCHAR>(const_cast<void*>(data)),
+                                          static_cast<ULONG>(byteCount),
+                                          0) == 0;
+                };
+                const auto hashText = [&](const winrt::hstring& value) noexcept {
+                    const uint64_t characterCount{ value.size() };
+                    return hashBytes(&characterCount, sizeof(characterCount)) &&
+                           hashBytes(value.c_str(), value.size() * sizeof(wchar_t));
+                };
+
+                // Version the byte stream so its field order/encoding can be
+                // evolved deliberately without ambiguous digests.
+                constexpr std::array<uint8_t, 4> format{ 'W', 'T', 1, 0 };
+                const uint8_t hasEventAt = event.EventAt.has_value() ? 1 : 0;
+                if (!hashBytes(format.data(), format.size()) ||
+                    !hashText(event.Cwd) ||
+                    !hashText(event.Title) ||
+                    !hashText(event.Prompt) ||
+                    !hashText(event.FinalMarkdown) ||
+                    !hashText(event.Model) ||
+                    !hashBytes(&hasEventAt, sizeof(hasEventAt)) ||
+                    (event.EventAt && !hashBytes(&event.EventAt.value(), sizeof(event.EventAt.value()))))
+                {
+                    return std::nullopt;
+                }
+
+                std::array<uint8_t, EventPayloadDigestBytes> digest{};
+                if (BCryptFinishHash(hash.get(), digest.data(), gsl::narrow<ULONG>(digest.size()), 0) != 0)
+                {
+                    return std::nullopt;
+                }
+                return digest;
+            }
+            catch (...)
+            {
+                return std::nullopt;
+            }
         }
 
         bool _guidToUtf8(const winrt::guid& value, std::string& result) noexcept
@@ -415,6 +501,20 @@ namespace winrt::TerminalApp::implementation
                     ON ai_turn (workspace_id, pinned DESC, event_at DESC);
                 CREATE INDEX IF NOT EXISTS ai_turn_global_order
                     ON ai_turn (pinned DESC, event_at DESC);
+
+                -- Intentionally independent of ai_turn. Receipts survive user
+                -- deletion so a late retry cannot recreate deleted history.
+                CREATE TABLE IF NOT EXISTS ai_history_event (
+                    event_id TEXT PRIMARY KEY,
+                    workspace_id TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    turn_id TEXT NOT NULL,
+                    event_kind INTEGER NOT NULL CHECK (event_kind IN (0, 1)),
+                    payload_digest BLOB NOT NULL CHECK (
+                        typeof(payload_digest) = 'blob' AND length(payload_digest) = 32
+                    )
+                ) WITHOUT ROWID;
             )sql";
 
             if (!_execute(database, schema))
@@ -436,7 +536,7 @@ namespace winrt::TerminalApp::implementation
                 return false;
             }
 
-            if (!_execute(database, "PRAGMA user_version=1;") ||
+            if (!_execute(database, "PRAGMA user_version=2;") ||
                 !transaction.Commit())
             {
                 return false;
@@ -594,17 +694,52 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    bool AgentHistoryStore::UpsertPrompt(const AgentHistoryRecord& record,
+                                         const std::optional<AgentHistoryEventReceipt> event) noexcept
+    {
+        if (record.Prompt.empty() || !record.FinalMarkdown.empty())
+        {
+            return false;
+        }
+        return _UpsertEvent(record, false, event);
+    }
+
+    bool AgentHistoryStore::UpsertFinal(const AgentHistoryRecord& record,
+                                        const std::optional<AgentHistoryEventReceipt> event) noexcept
+    {
+        if (record.FinalMarkdown.empty())
+        {
+            return false;
+        }
+        return _UpsertEvent(record, true, event);
+    }
+
     bool AgentHistoryStore::UpsertTurn(const AgentHistoryRecord& record) noexcept
+    {
+        return UpsertFinal(record);
+    }
+
+    bool AgentHistoryStore::_UpsertEvent(const AgentHistoryRecord& record,
+                                         const bool isFinal,
+                                         const std::optional<AgentHistoryEventReceipt>& event) noexcept
     {
         try
         {
-            if (!_impl || !_validRecord(record))
+            if (!_impl || !_validRecord(record) || (event && !_validEventReceipt(record, event.value())))
             {
                 return false;
             }
 
             std::string workspaceId;
-            if (!_guidToUtf8(record.WorkspaceId, workspaceId))
+            std::string eventIdText;
+            if (!_guidToUtf8(record.WorkspaceId, workspaceId) ||
+                (event && !_guidToUtf8(event->EventId, eventIdText)))
+            {
+                return false;
+            }
+
+            const auto payloadDigest = event ? _eventPayloadDigest(event.value()) : std::nullopt;
+            if (event && !payloadDigest)
             {
                 return false;
             }
@@ -622,39 +757,84 @@ namespace winrt::TerminalApp::implementation
                 return false;
             }
 
-            constexpr auto upsertSession = R"sql(
+            if (event)
+            {
+                constexpr auto findEvent = R"sql(
+                    SELECT workspace_id = ?2 AND provider = ?3 AND session_id = ?4 AND
+                           turn_id = ?5 AND event_kind = ?6 AND payload_digest = ?7
+                    FROM ai_history_event
+                    WHERE event_id = ?1;
+                )sql";
+                const auto findStatement = _prepare(database, findEvent);
+                if (!findStatement ||
+                    sqlite3_bind_text(findStatement.get(), 1, eventIdText.data(), static_cast<int>(eventIdText.size()), SQLITE_TRANSIENT) != SQLITE_OK ||
+                    sqlite3_bind_text(findStatement.get(), 2, workspaceId.data(), static_cast<int>(workspaceId.size()), SQLITE_TRANSIENT) != SQLITE_OK ||
+                    !_bindText(findStatement.get(), 3, record.Provider) ||
+                    !_bindText(findStatement.get(), 4, record.SessionId) ||
+                    !_bindText(findStatement.get(), 5, record.TurnId) ||
+                    sqlite3_bind_int(findStatement.get(), 6, isFinal ? 1 : 0) != SQLITE_OK ||
+                    sqlite3_bind_blob(findStatement.get(),
+                                      7,
+                                      payloadDigest->data(),
+                                      gsl::narrow<int>(payloadDigest->size()),
+                                      SQLITE_TRANSIENT) != SQLITE_OK)
+                {
+                    return false;
+                }
+
+                const auto findResult = sqlite3_step(findStatement.get());
+                if (findResult == SQLITE_ROW)
+                {
+                    const auto sameIdentity = sqlite3_column_int(findStatement.get(), 0) != 0;
+                    if (sqlite3_step(findStatement.get()) != SQLITE_DONE)
+                    {
+                        return false;
+                    }
+
+                    // An exact event replay is an ACK-only path. In particular,
+                    // do not let a changed replay payload mutate persisted state.
+                    return sameIdentity && transaction.Commit();
+                }
+                if (findResult != SQLITE_DONE)
+                {
+                    return false;
+                }
+
+                constexpr auto insertEvent = R"sql(
+                    INSERT INTO ai_history_event (
+                        event_id, workspace_id, provider, session_id, turn_id, event_kind, payload_digest
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?);
+                )sql";
+                const auto insertStatement = _prepare(database, insertEvent);
+                if (!insertStatement ||
+                    sqlite3_bind_text(insertStatement.get(), 1, eventIdText.data(), static_cast<int>(eventIdText.size()), SQLITE_TRANSIENT) != SQLITE_OK ||
+                    sqlite3_bind_text(insertStatement.get(), 2, workspaceId.data(), static_cast<int>(workspaceId.size()), SQLITE_TRANSIENT) != SQLITE_OK ||
+                    !_bindText(insertStatement.get(), 3, record.Provider) ||
+                    !_bindText(insertStatement.get(), 4, record.SessionId) ||
+                    !_bindText(insertStatement.get(), 5, record.TurnId) ||
+                    sqlite3_bind_int(insertStatement.get(), 6, isFinal ? 1 : 0) != SQLITE_OK ||
+                    sqlite3_bind_blob(insertStatement.get(),
+                                      7,
+                                      payloadDigest->data(),
+                                      gsl::narrow<int>(payloadDigest->size()),
+                                      SQLITE_TRANSIENT) != SQLITE_OK ||
+                    sqlite3_step(insertStatement.get()) != SQLITE_DONE)
+                {
+                    return false;
+                }
+            }
+
+            // The session row must exist before ai_turn because of its foreign
+            // key. Its effective metadata is recomputed after the turn merge.
+            constexpr auto insertSession = R"sql(
                 INSERT INTO ai_session (
                     provider, session_id, workspace_id, workspace_title, cwd, model,
                     started_at, last_activity_at, pinned
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (provider, session_id) DO UPDATE SET
-                    workspace_id = CASE
-                        WHEN excluded.last_activity_at >= ai_session.last_activity_at THEN excluded.workspace_id
-                        ELSE ai_session.workspace_id
-                    END,
-                    workspace_title = CASE
-                        WHEN excluded.workspace_title <> '' AND
-                             (excluded.last_activity_at >= ai_session.last_activity_at OR ai_session.workspace_title = '')
-                            THEN excluded.workspace_title
-                        ELSE ai_session.workspace_title
-                    END,
-                    cwd = CASE
-                        WHEN excluded.cwd <> '' AND
-                             (excluded.last_activity_at >= ai_session.last_activity_at OR ai_session.cwd = '')
-                            THEN excluded.cwd
-                        ELSE ai_session.cwd
-                    END,
-                    model = CASE
-                        WHEN excluded.model <> '' AND
-                             (excluded.last_activity_at >= ai_session.last_activity_at OR ai_session.model = '')
-                            THEN excluded.model
-                        ELSE ai_session.model
-                    END,
-                    started_at = MIN(ai_session.started_at, excluded.started_at),
-                    last_activity_at = MAX(ai_session.last_activity_at, excluded.last_activity_at);
+                ON CONFLICT (provider, session_id) DO NOTHING;
             )sql";
 
-            const auto sessionStatement = _prepare(database, upsertSession);
+            const auto sessionStatement = _prepare(database, insertSession);
             if (!sessionStatement ||
                 !_bindSession(sessionStatement.get(), record, workspaceId) ||
                 sqlite3_step(sessionStatement.get()) != SQLITE_DONE)
@@ -662,28 +842,130 @@ namespace winrt::TerminalApp::implementation
                 return false;
             }
 
-            constexpr auto upsertTurn = R"sql(
+            constexpr auto upsertPrompt = R"sql(
                 INSERT INTO ai_turn (
                     provider, session_id, turn_id, workspace_id, workspace_title, cwd,
                     title, prompt, final_markdown, model, event_at, received_at, pinned
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (provider, session_id, turn_id) DO UPDATE SET
-                    workspace_id = excluded.workspace_id,
-                    workspace_title = CASE WHEN excluded.workspace_title <> '' THEN excluded.workspace_title ELSE ai_turn.workspace_title END,
-                    cwd = CASE WHEN excluded.cwd <> '' THEN excluded.cwd ELSE ai_turn.cwd END,
-                    title = CASE WHEN excluded.title <> '' THEN excluded.title ELSE ai_turn.title END,
+                    workspace_id = CASE WHEN ai_turn.final_markdown = '' THEN excluded.workspace_id ELSE ai_turn.workspace_id END,
+                    workspace_title = CASE
+                        WHEN excluded.workspace_title = '' THEN ai_turn.workspace_title
+                        WHEN ai_turn.final_markdown = '' OR ai_turn.workspace_title = '' THEN excluded.workspace_title
+                        ELSE ai_turn.workspace_title
+                    END,
+                    cwd = CASE
+                        WHEN excluded.cwd = '' THEN ai_turn.cwd
+                        WHEN ai_turn.final_markdown = '' OR ai_turn.cwd = '' THEN excluded.cwd
+                        ELSE ai_turn.cwd
+                    END,
                     prompt = CASE WHEN excluded.prompt <> '' THEN excluded.prompt ELSE ai_turn.prompt END,
-                    final_markdown = CASE WHEN excluded.final_markdown <> '' THEN excluded.final_markdown ELSE ai_turn.final_markdown END,
-                    model = CASE WHEN excluded.model <> '' THEN excluded.model ELSE ai_turn.model END,
-                    event_at = MAX(ai_turn.event_at, excluded.event_at),
-                    received_at = MAX(ai_turn.received_at, excluded.received_at),
+                    model = CASE
+                        WHEN excluded.model = '' THEN ai_turn.model
+                        WHEN ai_turn.final_markdown = '' OR ai_turn.model = '' THEN excluded.model
+                        ELSE ai_turn.model
+                    END,
+                    event_at = CASE WHEN ai_turn.final_markdown = '' THEN excluded.event_at ELSE ai_turn.event_at END,
+                    received_at = CASE
+                        WHEN ai_turn.final_markdown = '' THEN MAX(ai_turn.received_at, excluded.received_at)
+                        ELSE ai_turn.received_at
+                    END;
+            )sql";
+
+            constexpr auto upsertFinal = R"sql(
+                INSERT INTO ai_turn (
+                    provider, session_id, turn_id, workspace_id, workspace_title, cwd,
+                    title, prompt, final_markdown, model, event_at, received_at, pinned
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (provider, session_id, turn_id) DO UPDATE SET
+                    workspace_id = CASE
+                        WHEN ai_turn.final_markdown = '' OR excluded.event_at >= ai_turn.event_at THEN excluded.workspace_id
+                        ELSE ai_turn.workspace_id
+                    END,
+                    workspace_title = CASE
+                        WHEN (ai_turn.final_markdown = '' OR excluded.event_at >= ai_turn.event_at) AND excluded.workspace_title <> ''
+                            THEN excluded.workspace_title
+                        ELSE ai_turn.workspace_title
+                    END,
+                    cwd = CASE
+                        WHEN (ai_turn.final_markdown = '' OR excluded.event_at >= ai_turn.event_at) AND excluded.cwd <> ''
+                            THEN excluded.cwd
+                        ELSE ai_turn.cwd
+                    END,
+                    title = CASE
+                        WHEN ai_turn.final_markdown = '' OR excluded.event_at >= ai_turn.event_at THEN excluded.title
+                        ELSE ai_turn.title
+                    END,
+                    prompt = CASE
+                        WHEN ai_turn.prompt = '' AND excluded.prompt <> '' THEN excluded.prompt
+                        ELSE ai_turn.prompt
+                    END,
+                    final_markdown = CASE
+                        WHEN ai_turn.final_markdown = '' OR excluded.event_at >= ai_turn.event_at THEN excluded.final_markdown
+                        ELSE ai_turn.final_markdown
+                    END,
+                    model = CASE
+                        WHEN (ai_turn.final_markdown = '' OR excluded.event_at >= ai_turn.event_at) AND excluded.model <> ''
+                            THEN excluded.model
+                        ELSE ai_turn.model
+                    END,
+                    event_at = CASE
+                        WHEN ai_turn.final_markdown = '' OR excluded.event_at >= ai_turn.event_at THEN excluded.event_at
+                        ELSE ai_turn.event_at
+                    END,
+                    received_at = CASE
+                        WHEN ai_turn.final_markdown = '' OR excluded.event_at >= ai_turn.event_at
+                            THEN MAX(ai_turn.received_at, excluded.received_at)
+                        ELSE ai_turn.received_at
+                    END,
                     pinned = MAX(ai_turn.pinned, excluded.pinned);
             )sql";
 
-            const auto turnStatement = _prepare(database, upsertTurn);
+            const auto turnStatement = _prepare(database, isFinal ? upsertFinal : upsertPrompt);
             if (!turnStatement ||
                 !_bindTurn(turnStatement.get(), record, workspaceId) ||
                 sqlite3_step(turnStatement.get()) != SQLITE_DONE)
+            {
+                return false;
+            }
+
+            constexpr auto refreshSession = R"sql(
+                UPDATE ai_session
+                SET workspace_id = (
+                        SELECT workspace_id FROM ai_turn
+                        WHERE provider = ?1 AND session_id = ?2
+                        ORDER BY event_at DESC, received_at DESC, id DESC LIMIT 1
+                    ),
+                    workspace_title = COALESCE((
+                        SELECT NULLIF(workspace_title, '') FROM ai_turn
+                        WHERE provider = ?1 AND session_id = ?2 AND workspace_title <> ''
+                        ORDER BY event_at DESC, received_at DESC, id DESC LIMIT 1
+                    ), workspace_title),
+                    cwd = COALESCE((
+                        SELECT NULLIF(cwd, '') FROM ai_turn
+                        WHERE provider = ?1 AND session_id = ?2 AND cwd <> ''
+                        ORDER BY event_at DESC, received_at DESC, id DESC LIMIT 1
+                    ), cwd),
+                    model = COALESCE((
+                        SELECT NULLIF(model, '') FROM ai_turn
+                        WHERE provider = ?1 AND session_id = ?2 AND model <> ''
+                        ORDER BY event_at DESC, received_at DESC, id DESC LIMIT 1
+                    ), model),
+                    started_at = (
+                        SELECT MIN(event_at) FROM ai_turn
+                        WHERE provider = ?1 AND session_id = ?2
+                    ),
+                    last_activity_at = (
+                        SELECT MAX(event_at) FROM ai_turn
+                        WHERE provider = ?1 AND session_id = ?2
+                    )
+                WHERE provider = ?1 AND session_id = ?2;
+            )sql";
+            const auto refreshStatement = _prepare(database, refreshSession);
+            if (!refreshStatement ||
+                !_bindIdentity(refreshStatement.get(), record.Provider, record.SessionId) ||
+                sqlite3_step(refreshStatement.get()) != SQLITE_DONE ||
+                sqlite3_changes(database) != 1)
             {
                 return false;
             }
@@ -729,6 +1011,7 @@ namespace winrt::TerminalApp::implementation
                     title, prompt, final_markdown, model, event_at, received_at, pinned
                 FROM ai_turn
                 WHERE (?1 IS NULL OR workspace_id = ?1)
+                  AND final_markdown <> ''
                   AND (?2 = '' OR
                        wt_contains_ci(workspace_title, ?2) OR
                        wt_contains_ci(provider, ?2) OR

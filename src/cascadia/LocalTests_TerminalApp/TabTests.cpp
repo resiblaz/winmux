@@ -168,6 +168,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(ConclusionMarkdownRestrictsExternalContent);
         TEST_METHOD(WorkspaceSidebarAdaptsToWindowModes);
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
+        TEST_METHOD(WorkspaceEnvironmentUsesAuthoritativeRoutingMetadata);
         TEST_METHOD(WorkspaceWorkingDirectoryDisplayIsCompact);
         TEST_METHOD(WorkspaceGitBranchParsesStructuredOutput);
         TEST_METHOD(WorkspaceListeningPortsProjectMetadata);
@@ -521,6 +522,47 @@ namespace TerminalAppLocalTests
         });
     }
 
+    void TabTests::WorkspaceEnvironmentUsesAuthoritativeRoutingMetadata()
+    {
+        const winrt::guid workspaceId{ 0x12345678, 0x1234, 0x4abc, { 0x8d, 0xef, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc } };
+        const std::wstring pipeName{ LR"(\\.\pipe\LOCAL\cmux-terminal-123-42)" };
+
+        std::unordered_map<winrt::hstring, winrt::hstring> profileValues{
+            { L"Path", L"C:\\tools" },
+            { L"WT_SESSION", L"spoofed-session" },
+            { L"wt_profile_id", L"spoofed-profile" },
+            { L"wt_workspace_id", L"spoofed-id" },
+            { L"WT_WORKSPACE_PIPE", L"spoofed-pipe" },
+            { L"Wt_Workspace_Window_Id", L"999" },
+            { L"wslenv", L"FOO/p:WT_WORKSPACE_ID/w:wt_session/l:BAR" },
+        };
+        const auto profileEnvironment = winrt::single_threaded_map(std::move(profileValues)).GetView();
+
+        const auto environment = winrt::TerminalApp::implementation::TerminalPage::_BuildWorkspaceEnvironment(
+            profileEnvironment,
+            workspaceId,
+            pipeName,
+            42);
+
+        VERIFY_ARE_EQUAL(L"C:\\tools", environment.Lookup(L"Path"));
+        VERIFY_IS_FALSE(environment.HasKey(L"WT_SESSION"));
+        VERIFY_IS_FALSE(environment.HasKey(L"wt_profile_id"));
+        VERIFY_ARE_EQUAL(::Microsoft::Console::Utils::GuidToPlainString(workspaceId), environment.Lookup(L"WT_WORKSPACE_ID"));
+        VERIFY_ARE_EQUAL(pipeName, std::wstring{ environment.Lookup(L"WT_WORKSPACE_PIPE") });
+        VERIFY_ARE_EQUAL(L"42", environment.Lookup(L"WT_WORKSPACE_WINDOW_ID"));
+        VERIFY_ARE_EQUAL(L"FOO/p:BAR", environment.Lookup(L"WSLENV"));
+        VERIFY_IS_FALSE(environment.HasKey(L"wt_workspace_id"));
+        VERIFY_IS_FALSE(environment.HasKey(L"Wt_Workspace_Window_Id"));
+
+        const auto environmentWithoutPipe = winrt::TerminalApp::implementation::TerminalPage::_BuildWorkspaceEnvironment(
+            profileEnvironment,
+            workspaceId,
+            {},
+            42);
+        VERIFY_IS_TRUE(environmentWithoutPipe.HasKey(L"WT_WORKSPACE_PIPE"));
+        VERIFY_IS_TRUE(environmentWithoutPipe.Lookup(L"WT_WORKSPACE_PIPE").empty());
+    }
+
     void TabTests::WorkspaceStatusPillTracksStructuredState()
     {
         const auto page = _commonSetup();
@@ -781,6 +823,9 @@ namespace TerminalAppLocalTests
             restoredResumeInfo.WorkingDirectory = L"C:\\restored";
             restoredResumeInfo.RequiresConfirmation = true;
             page->SetStartupWorkspaceState(1, { restoredId }, { 0 }, { restoredResumeInfo });
+            // The restored ID must be available before _MakePane initializes
+            // the child connection, not assigned afterward from the CWD or UI.
+            VERIFY_ARE_EQUAL(restoredId, page->_ReserveWorkspaceIdForNewTab());
             page->_OpenNewTab(NewTerminalArgs{ 2 });
 
             const auto restored = std::find_if(page->_workspaceItems.begin(), page->_workspaceItems.end(), [&](const auto& item) {
@@ -1235,7 +1280,12 @@ namespace TerminalAppLocalTests
 
         Log::Comment(NoThrowString().Format(L"Duplicate the first pane"));
         result = RunOnUIThread([&page]() {
-            page->_SplitPane(nullptr, SplitDirection::Automatic, 0.5f, page->_MakePane(nullptr, page->_GetFocusedTab(), nullptr));
+            const auto workspaceId = page->_WorkspaceIdForTab(page->_GetFocusedTab());
+            page->_SplitPane(nullptr,
+                             SplitDirection::Automatic,
+                             0.5f,
+                             page->_MakePane(nullptr, page->_GetFocusedTab(), nullptr, true, workspaceId),
+                             workspaceId);
 
             VERIFY_ARE_EQUAL(1u, page->_tabs.Size());
             auto tab = page->_GetTabImpl(page->_tabs.GetAt(0));
@@ -1253,7 +1303,12 @@ namespace TerminalAppLocalTests
 
         Log::Comment(NoThrowString().Format(L"Duplicate the pane, and don't crash"));
         result = RunOnUIThread([&page]() {
-            page->_SplitPane(nullptr, SplitDirection::Automatic, 0.5f, page->_MakePane(nullptr, page->_GetFocusedTab(), nullptr));
+            const auto workspaceId = page->_WorkspaceIdForTab(page->_GetFocusedTab());
+            page->_SplitPane(nullptr,
+                             SplitDirection::Automatic,
+                             0.5f,
+                             page->_MakePane(nullptr, page->_GetFocusedTab(), nullptr, true, workspaceId),
+                             workspaceId);
 
             VERIFY_ARE_EQUAL(1u, page->_tabs.Size());
             auto tab = page->_GetTabImpl(page->_tabs.GetAt(0));
@@ -1579,7 +1634,12 @@ namespace TerminalAppLocalTests
             // |   1    |   2    |
             // |        |        |
             // -------------------
-            page->_SplitPane(nullptr, SplitDirection::Right, 0.5f, page->_MakePane(nullptr, page->_GetFocusedTab(), nullptr));
+            const auto workspaceId = page->_WorkspaceIdForTab(page->_GetFocusedTab());
+            page->_SplitPane(nullptr,
+                             SplitDirection::Right,
+                             0.5f,
+                             page->_MakePane(nullptr, page->_GetFocusedTab(), nullptr, true, workspaceId),
+                             workspaceId);
             secondId = tab->_activePane->Id().value();
         });
         Sleep(250);
@@ -1597,7 +1657,12 @@ namespace TerminalAppLocalTests
             // |   3    |        |
             // |        |        |
             // -------------------
-            page->_SplitPane(nullptr, SplitDirection::Down, 0.5f, page->_MakePane(nullptr, page->_GetFocusedTab(), nullptr));
+            const auto workspaceId = page->_WorkspaceIdForTab(page->_GetFocusedTab());
+            page->_SplitPane(nullptr,
+                             SplitDirection::Down,
+                             0.5f,
+                             page->_MakePane(nullptr, page->_GetFocusedTab(), nullptr, true, workspaceId),
+                             workspaceId);
             auto tab = page->_GetTabImpl(page->_tabs.GetAt(0));
             // Split again to make the 3rd tab
             thirdId = tab->_activePane->Id().value();
@@ -1617,7 +1682,12 @@ namespace TerminalAppLocalTests
             // |   3    |   4    |
             // |        |        |
             // -------------------
-            page->_SplitPane(nullptr, SplitDirection::Down, 0.5f, page->_MakePane(nullptr, page->_GetFocusedTab(), nullptr));
+            const auto workspaceId = page->_WorkspaceIdForTab(page->_GetFocusedTab());
+            page->_SplitPane(nullptr,
+                             SplitDirection::Down,
+                             0.5f,
+                             page->_MakePane(nullptr, page->_GetFocusedTab(), nullptr, true, workspaceId),
+                             workspaceId);
             auto tab = page->_GetTabImpl(page->_tabs.GetAt(0));
             fourthId = tab->_activePane->Id().value();
         });

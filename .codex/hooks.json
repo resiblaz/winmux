@@ -1,14 +1,48 @@
 {
-  "description": "Send completed Codex turns to the in-app conclusions sidebar.",
+  "description": "Send privacy-bounded Codex prompt/final history to Windows Terminal with durable retry.",
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -NonInteractive -Command \"$repo = (& git rev-parse --show-toplevel 2>$null | Select-Object -First 1); $script = if ($repo) { Join-Path $repo '.codex/hooks/workspace-history.ps1' }; if ($script -and (Test-Path -LiteralPath $script)) { & $script -EventName 'UserPromptSubmit' }\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -Command \"$repo = git rev-parse --show-toplevel; & (Join-Path $repo '.codex/hooks/capture-conclusion.ps1')\"",
-            "timeout": 3,
-            "statusMessage": "Updating conclusions sidebar"
+            "command": "pwsh -NoProfile -NonInteractive -Command \"[Console]::Out.WriteLine('{}'); [Console]::Out.Flush(); $repo = (& git rev-parse --show-toplevel 2>$null | Select-Object -First 1); $script = if ($repo) { Join-Path $repo '.codex/hooks/workspace-history.ps1' }; if ($script -and (Test-Path -LiteralPath $script)) { & $script -EventName 'Stop' -SuppressStopResponse }\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -NonInteractive -Command \"$repo = (& git rev-parse --show-toplevel 2>$null | Select-Object -First 1); $script = if ($repo) { Join-Path $repo '.codex/hooks/workspace-history.ps1' }; if ($script -and (Test-Path -LiteralPath $script)) { & $script -EventName 'SessionStart' }\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "other",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -NonInteractive -Command \"exit 0\"",
+            "timeout": 3
           }
         ]
       }

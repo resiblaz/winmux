@@ -165,6 +165,44 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    bool ConclusionSidebar::AddPrompt(const winrt::guid& workspaceId,
+                                      const winrt::hstring& workspaceTitle,
+                                      const winrt::hstring& provider,
+                                      const winrt::hstring& sessionId,
+                                      const winrt::hstring& turnId,
+                                      const winrt::hstring& cwd,
+                                      const winrt::hstring& prompt,
+                                      const winrt::hstring& model,
+                                      const Windows::Foundation::DateTime& timestamp,
+                                      const std::optional<AgentHistoryEventReceipt> event)
+    {
+        const auto eventAt = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 winrt::clock::to_sys(timestamp).time_since_epoch())
+                                 .count();
+        const auto receivedAt = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                    std::chrono::system_clock::now().time_since_epoch())
+                                    .count();
+
+        AgentHistoryRecord record;
+        record.WorkspaceId = workspaceId;
+        record.WorkspaceTitle = workspaceTitle;
+        record.Provider = provider;
+        record.SessionId = sessionId;
+        record.TurnId = turnId;
+        record.Cwd = cwd;
+        record.Prompt = prompt;
+        record.Model = model;
+        record.EventAt = eventAt;
+        record.ReceivedAt = receivedAt;
+        if (!_historyStore.UpsertPrompt(record, event))
+        {
+            return false;
+        }
+
+        _RefreshHistory();
+        return true;
+    }
+
     bool ConclusionSidebar::AddConclusion(const winrt::guid& workspaceId,
                                           const winrt::hstring& workspaceTitle,
                                           const winrt::hstring& provider,
@@ -175,7 +213,8 @@ namespace winrt::TerminalApp::implementation
                                           const winrt::hstring& prompt,
                                           const winrt::hstring& finalMarkdown,
                                           const winrt::hstring& model,
-                                          const Windows::Foundation::DateTime& timestamp)
+                                          const Windows::Foundation::DateTime& timestamp,
+                                          const std::optional<AgentHistoryEventReceipt> event)
     {
         const auto eventAt = std::chrono::duration_cast<std::chrono::milliseconds>(
                                  winrt::clock::to_sys(timestamp).time_since_epoch())
@@ -198,13 +237,18 @@ namespace winrt::TerminalApp::implementation
         record.EventAt = eventAt;
         record.ReceivedAt = receivedAt;
 
-        if (!_historyStore.UpsertTurn(record))
+        if (!_historyStore.UpsertFinal(record, event))
         {
             return false;
         }
 
         _RefreshHistory();
         return true;
+    }
+
+    void ConclusionSidebar::RefreshHistory()
+    {
+        _RefreshHistory();
     }
 
     void ConclusionSidebar::_Toggle_Click(const Windows::Foundation::IInspectable&, const RoutedEventArgs&)

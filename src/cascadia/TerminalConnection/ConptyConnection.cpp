@@ -56,6 +56,13 @@ namespace winrt::Microsoft::Terminal::TerminalConnection::implementation
         auto environment = _initialEnv;
 
         {
+            // A nested Terminal may inherit another window's routing metadata.
+            // Clear it before applying this connection's final overrides; an
+            // empty WT_WORKSPACE_PIPE override intentionally leaves no value.
+            environment.as_map().erase(L"WT_WORKSPACE_ID");
+            environment.as_map().erase(L"WT_WORKSPACE_PIPE");
+            environment.as_map().erase(L"WT_WORKSPACE_WINDOW_ID");
+
             // Ensure every connection has the unique identifier in the environment.
             // Convert connection Guid to string and ignore the enclosing '{}'.
             environment.as_map().insert_or_assign(L"WT_SESSION", Utils::GuidToPlainString(_sessionId));
@@ -66,8 +73,38 @@ namespace winrt::Microsoft::Terminal::TerminalConnection::implementation
             // WSLENV is a colon-delimited list of environment variables (+flags) that should appear inside WSL
             // https://devblogs.microsoft.com/commandline/share-environment-vars-between-wsl-and-windows/
 
+            static constexpr std::wstring_view terminalReservedWslEnvVars[] = {
+                L"WT_SESSION",
+                L"WT_PROFILE_ID",
+                L"WT_WORKSPACE_ID",
+                L"WT_WORKSPACE_PIPE",
+                L"WT_WORKSPACE_WINDOW_ID",
+            };
+            const auto isTerminalReservedWslEnv = [](const std::wstring_view name) noexcept {
+                return std::ranges::any_of(terminalReservedWslEnvVars, [&](const std::wstring_view reserved) {
+                    return CompareStringOrdinal(name.data(), gsl::narrow<int>(name.size()), reserved.data(), gsl::narrow<int>(reserved.size()), TRUE) == CSTR_EQUAL;
+                });
+            };
+            const auto sanitizeWslEnv = [&](const std::wstring_view source) {
+                std::wstring sanitized;
+                for (const auto& part : til::split_iterator{ source, L':' })
+                {
+                    const auto name = til::safe_slice_len(part, 0, part.rfind(L'/'));
+                    if (!isTerminalReservedWslEnv(name))
+                    {
+                        if (!sanitized.empty())
+                        {
+                            sanitized.push_back(L':');
+                        }
+                        sanitized.append(part);
+                    }
+                }
+                return sanitized;
+            };
+
             // WSLENV.1: Get a handle to the WSLENV environment variable.
             auto& wslEnv = environment.as_map()[L"WSLENV"];
+            wslEnv = sanitizeWslEnv(wslEnv);
             std::wstring additionalWslEnv;
 
             // WSLENV.2: Figure out what variables are already in WSLENV.
@@ -108,9 +145,20 @@ namespace winrt::Microsoft::Terminal::TerminalConnection::implementation
                     try
                     {
                         const auto key = item.Key();
+                        if (CompareStringOrdinal(key.data(), gsl::narrow<int>(key.size()), L"WT_SESSION", 10, TRUE) == CSTR_EQUAL ||
+                            CompareStringOrdinal(key.data(), gsl::narrow<int>(key.size()), L"WT_PROFILE_ID", 13, TRUE) == CSTR_EQUAL)
+                        {
+                            // These identifiers are authored by the connection and
+                            // must remain authoritative over profile overrides.
+                            continue;
+                        }
                         // This will throw if the value isn't a string. If that
                         // happens, then just skip this entry.
-                        const auto value = winrt::unbox_value<hstring>(_environment.Lookup(key));
+                        auto value = winrt::unbox_value<hstring>(_environment.Lookup(key));
+                        if (CompareStringOrdinal(key.data(), gsl::narrow<int>(key.size()), L"WSLENV", 6, TRUE) == CSTR_EQUAL)
+                        {
+                            value = hstring{ sanitizeWslEnv(std::wstring_view{ value }) };
+                        }
 
                         environment.set_user_environment_var(key, value);
 

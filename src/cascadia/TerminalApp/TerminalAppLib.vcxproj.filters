@@ -48,6 +48,9 @@
     <ClCompile Include="AgentHistoryStore.cpp">
       <Filter>workspace</Filter>
     </ClCompile>
+    <ClCompile Include="AgentHistoryInbox.cpp">
+      <Filter>workspace</Filter>
+    </ClCompile>
     <ClCompile Include="WorkspaceItemViewModel.cpp">
       <Filter>workspace</Filter>
     </ClCompile>
@@ -102,6 +105,9 @@
       <Filter>workspace</Filter>
     </ClInclude>
     <ClInclude Include="AgentHistoryStore.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
+    <ClInclude Include="AgentHistoryInbox.h">
       <Filter>workspace</Filter>
     </ClInclude>
     <ClInclude Include="WorkspaceItemViewModel.h">

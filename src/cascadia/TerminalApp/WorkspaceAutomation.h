@@ -18,6 +18,7 @@ namespace winrt::TerminalApp::implementation
         PaneFocus,
         PaneSplit,
         ConclusionCreate,
+        HistoryIngest,
         NotificationList,
         NotificationCreate,
         NotificationMarkRead,
@@ -49,11 +50,18 @@ namespace winrt::TerminalApp::implementation
         Paused = 4,
     };
 
+    enum class AgentHistoryEventKind
+    {
+        Prompt,
+        Final,
+    };
+
     struct WorkspaceAutomationRequest
     {
         std::string Id;
         WorkspaceAutomationMethod Method{ WorkspaceAutomationMethod::List };
         std::optional<winrt::guid> WorkspaceId;
+        std::optional<winrt::guid> EventId;
         std::optional<uint32_t> PaneId;
         WorkspaceAutomationSplitDirection SplitDirection{ WorkspaceAutomationSplitDirection::Automatic };
         float SplitSize{ 0.5f };
@@ -64,6 +72,9 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring TurnId;
         winrt::hstring Prompt;
         winrt::hstring Model;
+        winrt::hstring Cwd;
+        AgentHistoryEventKind HistoryEvent{ AgentHistoryEventKind::Prompt };
+        std::optional<int64_t> EventAt;
         WorkspaceAutomationProgressState ProgressState{ WorkspaceAutomationProgressState::None };
         uint32_t ProgressValue{ 0 };
         uint32_t MaximumLines{ 50 };

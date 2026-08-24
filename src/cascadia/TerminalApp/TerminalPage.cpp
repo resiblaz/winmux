@@ -15,6 +15,8 @@
 #include "../../types/inc/utils.hpp"
 #include "../TerminalSettingsAppAdapterLib/TerminalSettings.h"
 #include "App.h"
+#include "AgentHistoryInbox.h"
+#include "AgentHistoryStore.h"
 #include "DebugTapConnection.h"
 #include "MarkdownPaneContent.h"
 #include "Remoting.h"
@@ -466,6 +468,7 @@ namespace winrt::TerminalApp::implementation
             {
                 page->_RefreshWorkspaceNotifications();
                 page->_RefreshWorkspaceListeningPorts();
+                page->_ImportAgentHistoryInbox();
                 page->_UpdateConclusionSidebar();
             }
         });
@@ -719,6 +722,69 @@ namespace winrt::TerminalApp::implementation
         else
         {
             sidebar->SetActiveWorkspace(winrt::guid{}, winrt::hstring{});
+        }
+    }
+
+    void TerminalPage::_ImportAgentHistoryInbox()
+    {
+        if (_agentHistoryInboxImportInFlight)
+        {
+            _agentHistoryInboxImportPending = true;
+            return;
+        }
+        if (_workspaceItems.Size() == 0)
+        {
+            return;
+        }
+
+        std::vector<AgentHistoryInboxWorkspace> workspaces;
+        workspaces.reserve(_workspaceItems.Size());
+        for (const auto& item : _workspaceItems)
+        {
+            if (item.WorkspaceId() != winrt::guid{})
+            {
+                workspaces.emplace_back(AgentHistoryInboxWorkspace{
+                    .Id = item.WorkspaceId(),
+                    .Title = item.Title(),
+                    .Cwd = item.WorkingDirectory(),
+                });
+            }
+        }
+        if (workspaces.empty())
+        {
+            return;
+        }
+
+        _agentHistoryInboxImportInFlight = true;
+        _ImportAgentHistoryInboxAsync(std::move(workspaces));
+    }
+
+    safe_void_coroutine TerminalPage::_ImportAgentHistoryInboxAsync(std::vector<AgentHistoryInboxWorkspace> workspaces)
+    {
+        const auto weakThis = get_weak();
+        const auto dispatcher = Dispatcher();
+        co_await winrt::resume_background();
+
+        AgentHistoryStore store{ AgentHistoryStore::DefaultPath() };
+        size_t committed{};
+        if (store.IsAvailable())
+        {
+            AgentHistoryInbox inbox{ store, AgentHistoryInbox::DefaultPaths() };
+            committed = inbox.Import(workspaces).Committed;
+        }
+
+        co_await wil::resume_foreground(dispatcher);
+        if (const auto page = weakThis.get())
+        {
+            page->_agentHistoryInboxImportInFlight = false;
+            if (committed > 0 && page->_conclusionSidebar)
+            {
+                winrt::get_self<implementation::ConclusionSidebar>(page->_conclusionSidebar)->RefreshHistory();
+            }
+            if (std::exchange(page->_agentHistoryInboxImportPending, false))
+            {
+                page->_ImportAgentHistoryInbox();
+            }
         }
     }
 
@@ -1117,12 +1183,13 @@ namespace winrt::TerminalApp::implementation
                 existingIds.emplace(item.WorkspaceId());
             }
 
-            const auto newPane = _MakePane(NewTerminalArgs(), nullptr, nullptr, false);
+            const auto workspaceId = _ReserveWorkspaceIdForNewTab();
+            const auto newPane = _MakePane(NewTerminalArgs(), nullptr, nullptr, false, workspaceId);
             if (!newPane)
             {
                 return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "Unable to create a workspace");
             }
-            _CreateNewTabFromPane(newPane);
+            _CreateNewTabFromPane(newPane, -1, workspaceId);
 
             for (uint32_t index = 0; index < _workspaceItems.Size(); ++index)
             {
@@ -1293,12 +1360,13 @@ namespace winrt::TerminalApp::implementation
                 }
             });
 
-            const auto newPane = _MakePane(nullptr, *tabImpl, nullptr, false);
+            const auto workspaceId = request.WorkspaceId.value();
+            const auto newPane = _MakePane(nullptr, *tabImpl, nullptr, false, workspaceId);
             if (!newPane)
             {
                 return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "Unable to duplicate the target Pane");
             }
-            _SplitPane(tabImpl, realDirection.value(), request.SplitSize, newPane);
+            _SplitPane(tabImpl, realDirection.value(), request.SplitSize, newPane, workspaceId);
 
             std::shared_ptr<Pane> createdPane;
             rootPane->WalkTree([&](const auto& pane) -> bool {
@@ -1352,6 +1420,69 @@ namespace winrt::TerminalApp::implementation
             JsonObject result;
             result.Insert(L"accepted", JsonValue::CreateBooleanValue(true));
             result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(item.WorkspaceId())));
+            result.Insert(L"sessionId", JsonValue::CreateStringValue(request.SessionId));
+            result.Insert(L"turnId", JsonValue::CreateStringValue(request.TurnId));
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
+        case WorkspaceAutomationMethod::HistoryIngest:
+        {
+            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
+            if (!workspaceIndex)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
+            }
+            if (!_conclusionSidebar)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "History sidebar is not available");
+            }
+
+            const auto item = _workspaceItems.GetAt(workspaceIndex.value());
+            const auto eventTimestamp = winrt::clock::from_sys(
+                std::chrono::system_clock::time_point{ std::chrono::milliseconds{ request.EventAt.value() } });
+            const auto cwd = request.Cwd.empty() ? item.WorkingDirectory() : request.Cwd;
+            const AgentHistoryEventReceipt event{
+                .EventId = request.EventId.value(),
+                .Cwd = request.Cwd,
+                .Title = request.Title,
+                .Prompt = request.Prompt,
+                .FinalMarkdown = request.Body,
+                .Model = request.Model,
+                .EventAt = request.EventAt,
+            };
+            const auto sidebar = winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar);
+            const auto stored = request.HistoryEvent == AgentHistoryEventKind::Prompt ?
+                                    sidebar->AddPrompt(item.WorkspaceId(),
+                                                       item.Title(),
+                                                       L"codex",
+                                                       request.SessionId,
+                                                       request.TurnId,
+                                                       cwd,
+                                                       request.Prompt,
+                                                       request.Model,
+                                                       eventTimestamp,
+                                                       event) :
+                                    sidebar->AddConclusion(item.WorkspaceId(),
+                                                           item.Title(),
+                                                           L"codex",
+                                                           request.SessionId,
+                                                           request.TurnId,
+                                                           cwd,
+                                                           request.Title,
+                                                           request.Prompt,
+                                                           request.Body,
+                                                           request.Model,
+                                                           eventTimestamp,
+                                                           event);
+            if (!stored)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "persistence_failed", "Unable to commit the AI history event");
+            }
+
+            JsonObject result;
+            result.Insert(L"accepted", JsonValue::CreateBooleanValue(true));
+            result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(item.WorkspaceId())));
+            result.Insert(L"eventId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(request.EventId.value())));
+            result.Insert(L"event", JsonValue::CreateStringValue(request.HistoryEvent == AgentHistoryEventKind::Prompt ? L"prompt" : L"final"));
             result.Insert(L"sessionId", JsonValue::CreateStringValue(request.SessionId));
             result.Insert(L"turnId", JsonValue::CreateStringValue(request.TurnId));
             return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
@@ -1978,9 +2109,9 @@ namespace winrt::TerminalApp::implementation
                 }
 
                 page->_SelectTab(tabIndex);
-                if (const auto newPane = page->_MakePane(args))
+                if (const auto newPane = page->_MakePane(args, nullptr, nullptr, true, item.WorkspaceId()))
                 {
-                    page->_SplitPane(_GetTabImpl(tab), SplitDirection::Automatic, 0.5f, newPane);
+                    page->_SplitPane(_GetTabImpl(tab), SplitDirection::Automatic, 0.5f, newPane, item.WorkspaceId());
                 }
             }
         }
@@ -2038,6 +2169,71 @@ namespace winrt::TerminalApp::implementation
             }
         }
         return nullptr;
+    }
+
+    winrt::guid TerminalPage::_ReserveWorkspaceIdForNewTab() const
+    {
+        const auto isAvailable = [&](const winrt::guid& candidate) {
+            return candidate != winrt::guid{} &&
+                   std::ranges::none_of(_workspaceItems, [&](const auto& item) {
+                       return item.WorkspaceId() == candidate;
+                   });
+        };
+
+        // Workspace restoration is positional. Peek at the ID here, before the
+        // Pane creates its ConPTY connection; _InitializeTab consumes the same
+        // position only after the Pane was successfully created.
+        if (_restoringWorkspaceState && _startupWorkspaceRestoreIndex < _startupWorkspaceIds.size())
+        {
+            const auto restoredId = _startupWorkspaceIds.at(_startupWorkspaceRestoreIndex);
+            if (isAvailable(restoredId))
+            {
+                return restoredId;
+            }
+        }
+
+        for (;;)
+        {
+            GUID generated{};
+            THROW_IF_FAILED(CoCreateGuid(&generated));
+            if (isAvailable(generated))
+            {
+                return generated;
+            }
+        }
+    }
+
+    winrt::guid TerminalPage::_WorkspaceIdForTab(const TerminalApp::Tab& tab) const
+    {
+        if (const auto item = _WorkspaceItemForTab(tab))
+        {
+            return item.WorkspaceId();
+        }
+        return {};
+    }
+
+    winrt::guid TerminalPage::_WorkspaceIdForPaneContent(const TerminalApp::TerminalPaneContent& paneContent) const
+    {
+        if (!paneContent)
+        {
+            return {};
+        }
+
+        for (const auto& item : _workspaceItems)
+        {
+            if (const auto tab = _GetTabImpl(item.SourceTab()); tab && tab->GetRootPane())
+            {
+                const auto matchingPane = tab->GetRootPane()->WalkTree([&](const auto& pane) -> std::shared_ptr<Pane> {
+                    const auto terminalContent = pane->GetContent().try_as<TerminalApp::TerminalPaneContent>();
+                    return terminalContent == paneContent ? pane : nullptr;
+                });
+                if (matchingPane)
+                {
+                    return item.WorkspaceId();
+                }
+            }
+        }
+        return {};
     }
 
     TerminalApp::WorkspaceItemViewModel TerminalPage::_WorkspaceItemForNotification(const TerminalApp::WorkspaceNotification& notification) const
@@ -2718,11 +2914,12 @@ namespace winrt::TerminalApp::implementation
         // recipe for disaster. We won't ever open up a tab in this window.
         newTerminalArgs.Elevate(false);
 
-        const auto newPane = _MakePane(newTerminalArgs, nullptr, std::move(connection));
+        const auto workspaceId = _ReserveWorkspaceIdForNewTab();
+        const auto newPane = _MakePane(newTerminalArgs, nullptr, std::move(connection), true, workspaceId);
         newPane->WalkTree([](const auto& pane) {
             pane->FinalizeConfigurationGivenDefault();
         });
-        _CreateNewTabFromPane(newPane);
+        _CreateNewTabFromPane(newPane, -1, workspaceId);
     }
 
     // Method Description:
@@ -3430,7 +3627,14 @@ namespace winrt::TerminalApp::implementation
         }
         else
         {
-            const auto newPane = _MakePane(newTerminalArgs);
+            const auto splitTarget = altPressed && !debugTap ? _GetFocusedTabImpl() : nullptr;
+            const auto workspaceId = splitTarget ? _WorkspaceIdForTab(*splitTarget) : _ReserveWorkspaceIdForNewTab();
+            if (workspaceId == winrt::guid{})
+            {
+                return;
+            }
+
+            const auto newPane = _MakePane(newTerminalArgs, nullptr, nullptr, true, workspaceId);
             // If the newTerminalArgs caused us to open an elevated window
             // instead of creating a pane, it may have returned nullptr. Just do
             // nothing then.
@@ -3440,15 +3644,16 @@ namespace winrt::TerminalApp::implementation
             }
             if (altPressed && !debugTap)
             {
-                this->_SplitPane(_GetFocusedTabImpl(),
+                this->_SplitPane(splitTarget,
                                  SplitDirection::Automatic,
                                  0.5f,
-                                 newPane);
+                                 newPane,
+                                 workspaceId);
                 sessionType = "Pane";
             }
             else
             {
-                _CreateNewTabFromPane(newPane);
+                _CreateNewTabFromPane(newPane, -1, workspaceId);
                 sessionType = "Tab";
             }
         }
@@ -3475,9 +3680,72 @@ namespace winrt::TerminalApp::implementation
     // - the terminal settings
     // Return value:
     // - the desired connection
+    Windows::Foundation::Collections::IMapView<hstring, hstring> TerminalPage::_BuildWorkspaceEnvironment(
+        const Windows::Foundation::Collections::IMapView<hstring, hstring>& profileEnvironment,
+        const winrt::guid& workspaceId,
+        const std::wstring_view pipeName,
+        const uint64_t windowId)
+    {
+        THROW_HR_IF(E_INVALIDARG, workspaceId == winrt::guid{});
+
+        static constexpr std::wstring_view reservedNames[]{
+            L"WT_SESSION",
+            L"WT_PROFILE_ID",
+            L"WT_WORKSPACE_ID",
+            L"WT_WORKSPACE_PIPE",
+            L"WT_WORKSPACE_WINDOW_ID",
+        };
+        const auto isReserved = [](const std::wstring_view name) noexcept {
+            return std::ranges::any_of(reservedNames, [&](const std::wstring_view reserved) {
+                return CompareStringOrdinal(name.data(), gsl::narrow<int>(name.size()), reserved.data(), gsl::narrow<int>(reserved.size()), TRUE) == CSTR_EQUAL;
+            });
+        };
+
+        std::unordered_map<hstring, hstring> environment;
+        if (profileEnvironment)
+        {
+            for (const auto& [key, value] : profileEnvironment)
+            {
+                if (!isReserved(key))
+                {
+                    if (CompareStringOrdinal(key.data(), gsl::narrow<int>(key.size()), L"WSLENV", 6, TRUE) == CSTR_EQUAL)
+                    {
+                        std::wstring sanitized;
+                        for (const auto& part : til::split_iterator{ std::wstring_view{ value }, L':' })
+                        {
+                            const auto name = til::safe_slice_len(part, 0, part.rfind(L'/'));
+                            if (!isReserved(name))
+                            {
+                                if (!sanitized.empty())
+                                {
+                                    sanitized.push_back(L':');
+                                }
+                                sanitized.append(part);
+                            }
+                        }
+                        environment.insert_or_assign(L"WSLENV", hstring{ sanitized });
+                    }
+                    else
+                    {
+                        environment.insert_or_assign(key, value);
+                    }
+                }
+            }
+        }
+
+        environment.insert_or_assign(L"WT_WORKSPACE_ID", ::Microsoft::Console::Utils::GuidToPlainString(workspaceId));
+        environment.insert_or_assign(L"WT_WORKSPACE_WINDOW_ID", winrt::to_hstring(windowId));
+        // Always override this key. An empty value clears a stale pipe inherited
+        // from a parent Terminal when automation is unavailable in this window.
+        environment.insert_or_assign(L"WT_WORKSPACE_PIPE", hstring{ pipeName });
+
+        return winrt::single_threaded_map(std::move(environment)).GetView();
+    }
+
     TerminalConnection::ITerminalConnection TerminalPage::_CreateConnectionFromSettings(Profile profile,
                                                                                         IControlSettings settings,
-                                                                                        const bool inheritCursor)
+                                                                                        const bool inheritCursor,
+                                                                                        const winrt::guid& workspaceId)
     {
         static const auto textMeasurement = [&]() -> std::wstring_view {
             switch (_currentWindowSettings().TextMeasurement())
@@ -3520,7 +3788,11 @@ namespace winrt::TerminalApp::implementation
         else
         {
             auto settingsInternal{ winrt::get_self<Settings::TerminalSettings>(settings) };
-            const auto environment = settingsInternal->EnvironmentVariables();
+            const std::wstring_view pipeName = _workspaceAutomationServer ? _workspaceAutomationServer->PipeName() : std::wstring_view{};
+            const auto environment = _BuildWorkspaceEnvironment(settingsInternal->EnvironmentVariables(),
+                                                                workspaceId,
+                                                                pipeName,
+                                                                _WindowProperties.WindowId());
 
             // Update the path to be relative to whatever our CWD is.
             //
@@ -3585,7 +3857,8 @@ namespace winrt::TerminalApp::implementation
         return connection;
     }
 
-    TerminalConnection::ITerminalConnection TerminalPage::_duplicateConnectionForRestart(const TerminalApp::TerminalPaneContent& paneContent)
+    TerminalConnection::ITerminalConnection TerminalPage::_duplicateConnectionForRestart(const TerminalApp::TerminalPaneContent& paneContent,
+                                                                                          const winrt::guid& workspaceId)
     {
         if (paneContent == nullptr)
         {
@@ -3624,7 +3897,7 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
-        return _CreateConnectionFromSettings(profile, *controlSettings.DefaultSettings(), true);
+        return _CreateConnectionFromSettings(profile, *controlSettings.DefaultSettings(), true, workspaceId);
     }
 
     // Method Description:
@@ -4856,7 +5129,8 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_SplitPane(const winrt::com_ptr<Tab>& tab,
                                   const SplitDirection splitDirection,
                                   const float splitSize,
-                                  std::shared_ptr<Pane> newPane)
+                                  std::shared_ptr<Pane> newPane,
+                                  const winrt::guid workspaceId)
     {
         auto activeTab = tab;
         // Clever hack for a crash in startup, with multiple sub-commands. Say
@@ -4878,7 +5152,7 @@ namespace winrt::TerminalApp::implementation
         {
             if (_tabs.Size() == 0)
             {
-                _CreateNewTabFromPane(newPane);
+                _CreateNewTabFromPane(newPane, -1, workspaceId);
                 return;
             }
             else
@@ -5753,7 +6027,8 @@ namespace winrt::TerminalApp::implementation
     std::shared_ptr<Pane> TerminalPage::_MakeTerminalPane(const NewTerminalArgs& newTerminalArgs,
                                                           const winrt::TerminalApp::Tab& sourceTab,
                                                           TerminalConnection::ITerminalConnection existingConnection,
-                                                          const bool allowDebugTap)
+                                                          const bool allowDebugTap,
+                                                          const winrt::guid& workspaceId)
     {
         // First things first - Check for making a pane from content ID.
         if (newTerminalArgs &&
@@ -5800,7 +6075,7 @@ namespace winrt::TerminalApp::implementation
         const auto sessionId = controlSettings.DefaultSettings()->SessionId();
         const auto hasSessionId = sessionId != winrt::guid{};
 
-        auto connection = existingConnection ? existingConnection : _CreateConnectionFromSettings(profile, *controlSettings.DefaultSettings(), hasSessionId);
+        auto connection = existingConnection ? existingConnection : _CreateConnectionFromSettings(profile, *controlSettings.DefaultSettings(), hasSessionId, workspaceId);
         if (existingConnection)
         {
             connection.Resize(controlSettings.DefaultSettings()->InitialRows(), controlSettings.DefaultSettings()->InitialCols());
@@ -5864,14 +6139,15 @@ namespace winrt::TerminalApp::implementation
     std::shared_ptr<Pane> TerminalPage::_MakePane(const INewContentArgs& contentArgs,
                                                   const winrt::TerminalApp::Tab& sourceTab,
                                                   TerminalConnection::ITerminalConnection existingConnection,
-                                                  const bool allowDebugTap)
+                                                  const bool allowDebugTap,
+                                                  const winrt::guid& workspaceId)
 
     {
         const auto& newTerminalArgs{ contentArgs.try_as<NewTerminalArgs>() };
         if (contentArgs == nullptr || newTerminalArgs != nullptr || contentArgs.Type().empty())
         {
             // Terminals are of course special, and have to deal with debug taps, duplicating the tab, etc.
-            return _MakeTerminalPane(newTerminalArgs, sourceTab, existingConnection, allowDebugTap);
+            return _MakeTerminalPane(newTerminalArgs, sourceTab, existingConnection, allowDebugTap, workspaceId);
         }
 
         IPaneContent content{ nullptr };
@@ -5964,7 +6240,14 @@ namespace winrt::TerminalApp::implementation
         // the TermControl.RestartTerminalRequested event doesn't actually pass
         // any args upwards itself. If we ever change this, make sure you check
         // for nulls
-        if (const auto& connection{ _duplicateConnectionForRestart(paneContent) })
+        const auto workspaceId = _WorkspaceIdForPaneContent(paneContent);
+        if (workspaceId == winrt::guid{})
+        {
+            LOG_HR_MSG(E_UNEXPECTED, "Cannot restart a Pane without its owning Workspace ID");
+            return;
+        }
+
+        if (const auto& connection{ _duplicateConnectionForRestart(paneContent, workspaceId) })
         {
             // Reset the terminal's VT state before attaching the new connection.
             // The previous client may have left dirty modes (e.g., bracketed

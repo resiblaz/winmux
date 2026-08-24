@@ -3,9 +3,13 @@
 
 #include "pch.h"
 
+#include "../TerminalApp/AgentHistoryInbox.h"
 #include "../TerminalApp/AgentHistoryStore.h"
 #include "../TerminalApp/WorkspaceAutomation.h"
 
+#include <barrier>
+#include <fstream>
+#include <thread>
 #include <winrt/Windows.Storage.h>
 #include <winsqlite/winsqlite3.h>
 
@@ -15,8 +19,13 @@ using namespace WEX::Logging;
 using namespace WEX::TestExecution;
 using namespace WEX::Common;
 
+using winrt::TerminalApp::implementation::AgentHistoryEventKind;
+using winrt::TerminalApp::implementation::AgentHistoryEventReceipt;
+using winrt::TerminalApp::implementation::AgentHistoryInbox;
+using winrt::TerminalApp::implementation::AgentHistoryInboxWorkspace;
 using winrt::TerminalApp::implementation::AgentHistoryRecord;
 using winrt::TerminalApp::implementation::AgentHistoryStore;
+using winrt::TerminalApp::implementation::WorkspaceAutomationMethod;
 using winrt::TerminalApp::implementation::WorkspaceAutomationProtocol;
 
 namespace TerminalAppLocalTests
@@ -24,6 +33,7 @@ namespace TerminalAppLocalTests
     namespace
     {
         constexpr std::wstring_view TestDatabasePrefix{ L"agent-history-store-" };
+        constexpr std::wstring_view TestInboxPrefix{ L"agent-history-inbox-" };
 
         struct DatabaseDeleter
         {
@@ -94,6 +104,11 @@ namespace TerminalAppLocalTests
             return value;
         }
 
+        void Execute(sqlite3* database, const char* sql)
+        {
+            VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_exec(database, sql, nullptr, nullptr, nullptr));
+        }
+
         winrt::guid Guid(const wchar_t* value)
         {
             return ::Microsoft::Console::Utils::GuidFromPlainString(value);
@@ -119,6 +134,106 @@ namespace TerminalAppLocalTests
             record.ReceivedAt = eventAt + 1;
             return record;
         }
+
+        AgentHistoryEventReceipt MakeEvent(const winrt::guid& eventId,
+                                           const AgentHistoryRecord& record)
+        {
+            return {
+                .EventId = eventId,
+                .Cwd = record.Cwd,
+                .Title = record.Title,
+                .Prompt = record.Prompt,
+                .FinalMarkdown = record.FinalMarkdown,
+                .Model = record.Model,
+                .EventAt = record.EventAt,
+            };
+        }
+
+        std::string HistoryEnvelope(const std::string_view eventId,
+                                    const std::string_view workspaceId,
+                                    const std::string_view event,
+                                    const std::string_view fields)
+        {
+            return "{\"version\":1,\"id\":\"test-request\",\"method\":\"history.ingest\",\"params\":{"
+                   "\"eventId\":\"" + std::string{ eventId } +
+                   "\",\"workspaceId\":\"" + std::string{ workspaceId } +
+                   "\",\"sessionId\":\"session-1\",\"turnId\":\"turn-1\",\"event\":\"" +
+                   std::string{ event } + "\"" + std::string{ fields } + "}}";
+        }
+
+        void WriteEventFile(const std::filesystem::path& path, const std::string_view contents)
+        {
+            std::error_code error;
+            std::filesystem::create_directories(path.parent_path(), error);
+            if (error)
+            {
+                VERIFY_IS_FALSE(static_cast<bool>(error));
+                return;
+            }
+
+            std::ofstream stream{ path, std::ios::binary | std::ios::trunc };
+            if (!stream)
+            {
+                VERIFY_IS_TRUE(static_cast<bool>(stream));
+                return;
+            }
+            stream.write(contents.data(), static_cast<std::streamsize>(contents.size()));
+            stream.close();
+            if (!stream)
+            {
+                VERIFY_IS_TRUE(static_cast<bool>(stream));
+            }
+        }
+
+        bool CreateEmptyFile(const std::filesystem::path& path) noexcept
+        {
+            const wil::unique_hfile file{ CreateFileW(path.c_str(),
+                                                      GENERIC_WRITE,
+                                                      0,
+                                                      nullptr,
+                                                      CREATE_NEW,
+                                                      FILE_ATTRIBUTE_NORMAL,
+                                                      nullptr) };
+            return static_cast<bool>(file);
+        }
+
+        size_t CountJsonFiles(const std::filesystem::path& path)
+        {
+            size_t count{};
+            std::error_code error;
+            for (std::filesystem::directory_iterator iterator{ path, error }, end; !error && iterator != end; iterator.increment(error))
+            {
+                if (iterator->path().extension() == L".json")
+                {
+                    ++count;
+                }
+            }
+            VERIFY_IS_FALSE(static_cast<bool>(error));
+            return count;
+        }
+
+        struct DirectoryUsage
+        {
+            size_t Entries{};
+            uintmax_t Bytes{};
+        };
+
+        DirectoryUsage GetDirectoryUsage(const std::filesystem::path& path)
+        {
+            DirectoryUsage usage;
+            std::error_code error;
+            for (std::filesystem::directory_iterator iterator{ path, error }, end; !error && iterator != end; iterator.increment(error))
+            {
+                ++usage.Entries;
+                const auto status = iterator->symlink_status(error);
+                if (!error && std::filesystem::is_regular_file(status))
+                {
+                    usage.Bytes += iterator->file_size(error);
+                }
+            }
+            VERIFY_IS_FALSE(static_cast<bool>(error));
+            return usage;
+        }
     }
 
     class AgentHistoryStoreTests
@@ -129,12 +244,29 @@ namespace TerminalAppLocalTests
         END_TEST_CLASS()
 
         TEST_METHOD(InitializesSchemaAndWal);
+        TEST_METHOD(MigratesVersionOneSchema);
         TEST_METHOD(UpsertIsIdempotentAndPreservesPrompt);
+        TEST_METHOD(StagedUpsertHidesIncompleteTurns);
+        TEST_METHOD(PromptThenFinalUsesFinalMetadata);
+        TEST_METHOD(FinalThenPromptPreservesFinalMetadata);
+        TEST_METHOD(EventReceiptsAckReplayAndRejectConflicts);
         TEST_METHOD(FiltersByWorkspaceAndUnicodeSearch);
         TEST_METHOD(PinnedTurnsSortFirst);
         TEST_METHOD(DeleteTurnAndSession);
         TEST_METHOD(PersistsAcrossReopen);
         TEST_METHOD(ConclusionProtocolAcceptsOptionalPrompt);
+        TEST_METHOD(HistoryIngestProtocolIsStrict);
+        TEST_METHOD(InboxImportsStagesAndDeletesCommittedFiles);
+        TEST_METHOD(InboxImportsAndReplaysEmergencySlots);
+        TEST_METHOD(InboxRetainsEmergencySlotWhileProducerWrites);
+        TEST_METHOD(InboxPrioritizesEmergencySlotsWithinFileLimit);
+        TEST_METHOD(InboxDefersOtherWorkspacesAndRetainsCommitFailures);
+        TEST_METHOD(InboxQuarantinesInvalidAndProhibitedPayloads);
+        TEST_METHOD(InboxBoundsFileSizeAndCount);
+        TEST_METHOD(InboxBoundsAllDirectoryEntries);
+        TEST_METHOD(InboxRejectsReparsePointRoot);
+        TEST_METHOD(ConcurrentInboxesShareQuarantineBudget);
+        TEST_METHOD(InboxPathBuildersAreDeterministic);
 
         TEST_METHOD_SETUP(MethodSetup)
         {
@@ -153,7 +285,11 @@ namespace TerminalAppLocalTests
                                                   TestDatabasePrefix,
                                                   ::Microsoft::Console::Utils::GuidToPlainString(id));
                 _databasePath = (_temporaryFolderPath / filename).lexically_normal();
-                return _CleanupDatabaseFiles();
+                const auto inboxName = fmt::format(FMT_COMPILE(L"{}{}"),
+                                                   TestInboxPrefix,
+                                                   ::Microsoft::Console::Utils::GuidToPlainString(id));
+                _inboxPath = (_temporaryFolderPath / inboxName).lexically_normal();
+                return _CleanupTestFiles();
             }
             catch (...)
             {
@@ -163,11 +299,11 @@ namespace TerminalAppLocalTests
 
         TEST_METHOD_CLEANUP(MethodCleanup)
         {
-            return _CleanupDatabaseFiles();
+            return _CleanupTestFiles();
         }
 
     private:
-        bool _CleanupDatabaseFiles() const noexcept
+        bool _CleanupTestFiles() const noexcept
         {
             try
             {
@@ -192,6 +328,17 @@ namespace TerminalAppLocalTests
                     std::filesystem::remove(candidate, error);
                     succeeded = succeeded && !error;
                 }
+
+                if (_inboxPath.empty() ||
+                    _inboxPath.parent_path() != _temporaryFolderPath ||
+                    _inboxPath.filename().native().rfind(TestInboxPrefix, 0) != 0)
+                {
+                    return false;
+                }
+
+                std::error_code error;
+                std::filesystem::remove_all(_inboxPath, error);
+                succeeded = succeeded && !error;
                 return succeeded;
             }
             catch (...)
@@ -202,6 +349,7 @@ namespace TerminalAppLocalTests
 
         std::filesystem::path _temporaryFolderPath;
         std::filesystem::path _databasePath;
+        std::filesystem::path _inboxPath;
     };
 
     void AgentHistoryStoreTests::InitializesSchemaAndWal()
@@ -211,14 +359,88 @@ namespace TerminalAppLocalTests
         VERIFY_IS_TRUE(std::filesystem::is_regular_file(_databasePath));
 
         const auto database = OpenDatabase(_databasePath);
-        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(2, QueryInteger(database.get(), "PRAGMA user_version;"));
         VERIFY_IS_TRUE(QueryText(database.get(), "PRAGMA journal_mode;") == "wal");
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ai_session';"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ai_turn';"));
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ai_history_event';"));
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_history_event') WHERE name='payload_digest' AND type='BLOB';"));
+        VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_history_event') WHERE name IN ('cwd', 'title', 'prompt', 'final_markdown', 'model', 'event_at');"));
         VERIFY_ARE_EQUAL(3, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_turn') WHERE name IN ('prompt', 'final_markdown', 'pinned');"));
         VERIFY_ARE_EQUAL(2, QueryInteger(database.get(), "SELECT count(*) FROM pragma_table_info('ai_session') WHERE name IN ('started_at', 'pinned');"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='ai_turn_workspace_order';"));
         VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='ai_turn_global_order';"));
+    }
+
+    void AgentHistoryStoreTests::MigratesVersionOneSchema()
+    {
+        {
+            const auto database = OpenDatabase(_databasePath);
+            Execute(database.get(), R"sql(
+                PRAGMA foreign_keys=ON;
+                CREATE TABLE ai_session (
+                    provider TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    workspace_id TEXT NOT NULL,
+                    workspace_title TEXT NOT NULL DEFAULT '',
+                    cwd TEXT NOT NULL DEFAULT '',
+                    model TEXT NOT NULL DEFAULT '',
+                    started_at INTEGER NOT NULL DEFAULT 0,
+                    last_activity_at INTEGER NOT NULL,
+                    pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+                    PRIMARY KEY (provider, session_id)
+                ) WITHOUT ROWID;
+                CREATE TABLE ai_turn (
+                    id INTEGER PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    turn_id TEXT NOT NULL,
+                    workspace_id TEXT NOT NULL,
+                    workspace_title TEXT NOT NULL DEFAULT '',
+                    cwd TEXT NOT NULL DEFAULT '',
+                    title TEXT NOT NULL DEFAULT '',
+                    prompt TEXT NOT NULL DEFAULT '',
+                    final_markdown TEXT NOT NULL DEFAULT '',
+                    model TEXT NOT NULL DEFAULT '',
+                    event_at INTEGER NOT NULL,
+                    received_at INTEGER NOT NULL,
+                    pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+                    UNIQUE (provider, session_id, turn_id),
+                    FOREIGN KEY (provider, session_id)
+                        REFERENCES ai_session (provider, session_id)
+                        ON DELETE CASCADE
+                );
+                INSERT INTO ai_session (
+                    provider, session_id, workspace_id, workspace_title, cwd, model,
+                    started_at, last_activity_at, pinned
+                ) VALUES (
+                    'codex', 'm1-session', '12121212-1212-4212-8212-121212121212',
+                    'M1 workspace', 'C:\m1', 'm1-model', 50, 50, 0
+                );
+                INSERT INTO ai_turn (
+                    provider, session_id, turn_id, workspace_id, workspace_title, cwd,
+                    title, prompt, final_markdown, model, event_at, received_at, pinned
+                ) VALUES (
+                    'codex', 'm1-session', 'm1-turn', '12121212-1212-4212-8212-121212121212',
+                    'M1 workspace', 'C:\m1', 'M1 title', 'M1 prompt', 'M1 final',
+                    'm1-model', 50, 51, 0
+                );
+                PRAGMA user_version=1;
+            )sql");
+        }
+
+        AgentHistoryStore store{ _databasePath };
+        VERIFY_IS_TRUE(store.IsAvailable());
+
+        const auto records = store.ListTurns(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, records.size());
+        VERIFY_ARE_EQUAL(L"M1 prompt", records[0].Prompt);
+        VERIFY_ARE_EQUAL(L"M1 final", records[0].FinalMarkdown);
+
+        const auto database = OpenDatabase(_databasePath);
+        VERIFY_ARE_EQUAL(2, QueryInteger(database.get(), "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ai_history_event';"));
+        VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM ai_history_event;"));
     }
 
     void AgentHistoryStoreTests::UpsertIsIdempotentAndPreservesPrompt()
@@ -244,6 +466,199 @@ namespace TerminalAppLocalTests
         VERIFY_ARE_EQUAL(L"Updated final answer", records[0].FinalMarkdown);
         VERIFY_ARE_EQUAL(int64_t{ 200 }, records[0].EventAt);
         VERIFY_ARE_EQUAL(int64_t{ 201 }, records[0].ReceivedAt);
+    }
+
+    void AgentHistoryStoreTests::StagedUpsertHidesIncompleteTurns()
+    {
+        const auto workspaceId = Guid(L"18181818-1818-4818-8818-181818181818");
+        AgentHistoryStore store{ _databasePath };
+
+        auto prompt = MakeRecord(workspaceId, L"session-staged", L"turn-staged", 100);
+        prompt.Title = L"";
+        prompt.FinalMarkdown = L"";
+        VERIFY_IS_TRUE(store.UpsertPrompt(prompt));
+        VERIFY_IS_TRUE(store.UpsertPrompt(prompt));
+        VERIFY_IS_TRUE(store.ListTurns(std::nullopt, L"").empty());
+
+        const auto database = OpenDatabase(_databasePath);
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM ai_turn;"));
+        VERIFY_IS_TRUE(QueryText(database.get(), "SELECT prompt FROM ai_turn;") == "Original prompt");
+
+        auto invalidPrompt = prompt;
+        invalidPrompt.FinalMarkdown = L"Must not be present";
+        VERIFY_IS_FALSE(store.UpsertPrompt(invalidPrompt));
+
+        auto final = prompt;
+        final.Prompt = L"";
+        final.Title = L"Completed staged turn";
+        final.FinalMarkdown = L"Staged final answer";
+        final.EventAt = 200;
+        final.ReceivedAt = 201;
+        VERIFY_IS_TRUE(store.UpsertFinal(final));
+        VERIFY_IS_TRUE(store.UpsertFinal(final));
+
+        const auto records = store.ListTurns(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, records.size());
+        VERIFY_ARE_EQUAL(L"Original prompt", records[0].Prompt);
+        VERIFY_ARE_EQUAL(L"Staged final answer", records[0].FinalMarkdown);
+        VERIFY_ARE_EQUAL(L"Completed staged turn", records[0].Title);
+
+        final.FinalMarkdown = L"";
+        VERIFY_IS_FALSE(store.UpsertFinal(final));
+        VERIFY_IS_FALSE(store.UpsertTurn(final));
+    }
+
+    void AgentHistoryStoreTests::PromptThenFinalUsesFinalMetadata()
+    {
+        const auto promptWorkspace = Guid(L"19191919-1919-4919-8919-191919191919");
+        const auto finalWorkspace = Guid(L"20202020-2020-4020-8020-202020202020");
+        const auto promptEventId = Guid(L"90000000-0000-4000-8000-000000000001");
+        const auto finalEventId = Guid(L"90000000-0000-4000-8000-000000000002");
+        AgentHistoryStore store{ _databasePath };
+
+        auto prompt = MakeRecord(promptWorkspace, L"ordered-session", L"ordered-turn", 500);
+        prompt.WorkspaceTitle = L"Prompt workspace";
+        prompt.Cwd = L"C:\\prompt";
+        prompt.Title = L"";
+        prompt.FinalMarkdown = L"";
+        prompt.Model = L"prompt-model";
+        VERIFY_IS_TRUE(store.UpsertPrompt(prompt, MakeEvent(promptEventId, prompt)));
+
+        auto final = MakeRecord(finalWorkspace, L"ordered-session", L"ordered-turn", 100);
+        final.WorkspaceTitle = L"Final workspace";
+        final.Cwd = L"C:\\final";
+        final.Title = L"Final title";
+        final.Prompt = L"";
+        final.FinalMarkdown = L"Final answer";
+        final.Model = L"final-model";
+        final.ReceivedAt = 101;
+        VERIFY_IS_TRUE(store.UpsertFinal(final, MakeEvent(finalEventId, final)));
+
+        const auto records = store.ListTurns(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, records.size());
+        VERIFY_IS_TRUE(records[0].WorkspaceId == finalWorkspace);
+        VERIFY_ARE_EQUAL(L"Final workspace", records[0].WorkspaceTitle);
+        VERIFY_ARE_EQUAL(L"C:\\final", records[0].Cwd);
+        VERIFY_ARE_EQUAL(L"Final title", records[0].Title);
+        VERIFY_ARE_EQUAL(L"Original prompt", records[0].Prompt);
+        VERIFY_ARE_EQUAL(L"Final answer", records[0].FinalMarkdown);
+        VERIFY_ARE_EQUAL(L"final-model", records[0].Model);
+        VERIFY_ARE_EQUAL(int64_t{ 100 }, records[0].EventAt);
+    }
+
+    void AgentHistoryStoreTests::FinalThenPromptPreservesFinalMetadata()
+    {
+        const auto promptWorkspace = Guid(L"21212121-2121-4121-8121-212121212121");
+        const auto finalWorkspace = Guid(L"22222222-2222-4222-8222-222222222220");
+        const auto promptEventId = Guid(L"91000000-0000-4000-8000-000000000001");
+        const auto finalEventId = Guid(L"91000000-0000-4000-8000-000000000002");
+        const auto staleFinalEventId = Guid(L"91000000-0000-4000-8000-000000000003");
+        AgentHistoryStore store{ _databasePath };
+
+        auto final = MakeRecord(finalWorkspace, L"reverse-session", L"reverse-turn", 200);
+        final.WorkspaceTitle = L"Authoritative workspace";
+        final.Cwd = L"C:\\authoritative";
+        final.Title = L"Authoritative title";
+        final.Prompt = L"";
+        final.FinalMarkdown = L"Authoritative final";
+        final.Model = L"authoritative-model";
+        final.ReceivedAt = 201;
+        VERIFY_IS_TRUE(store.UpsertFinal(final, MakeEvent(finalEventId, final)));
+
+        auto staleFinal = MakeRecord(promptWorkspace, L"reverse-session", L"reverse-turn", 100);
+        staleFinal.WorkspaceTitle = L"Stale final workspace";
+        staleFinal.Cwd = L"C:\\stale-final";
+        staleFinal.Title = L"Stale final title";
+        staleFinal.Prompt = L"";
+        staleFinal.FinalMarkdown = L"Stale final answer";
+        staleFinal.Model = L"stale-final-model";
+        staleFinal.ReceivedAt = 1000;
+        VERIFY_IS_TRUE(store.UpsertFinal(staleFinal, MakeEvent(staleFinalEventId, staleFinal)));
+
+        auto delayedPrompt = MakeRecord(promptWorkspace, L"reverse-session", L"reverse-turn", 900);
+        delayedPrompt.WorkspaceTitle = L"Stale workspace";
+        delayedPrompt.Cwd = L"C:\\stale";
+        delayedPrompt.Title = L"";
+        delayedPrompt.Prompt = L"Delayed prompt";
+        delayedPrompt.FinalMarkdown = L"";
+        delayedPrompt.Model = L"stale-model";
+        delayedPrompt.ReceivedAt = 901;
+        VERIFY_IS_TRUE(store.UpsertPrompt(delayedPrompt, MakeEvent(promptEventId, delayedPrompt)));
+
+        const auto records = store.ListTurns(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, records.size());
+        VERIFY_IS_TRUE(records[0].WorkspaceId == finalWorkspace);
+        VERIFY_ARE_EQUAL(L"Authoritative workspace", records[0].WorkspaceTitle);
+        VERIFY_ARE_EQUAL(L"C:\\authoritative", records[0].Cwd);
+        VERIFY_ARE_EQUAL(L"Authoritative title", records[0].Title);
+        VERIFY_ARE_EQUAL(L"Delayed prompt", records[0].Prompt);
+        VERIFY_ARE_EQUAL(L"Authoritative final", records[0].FinalMarkdown);
+        VERIFY_ARE_EQUAL(L"authoritative-model", records[0].Model);
+        VERIFY_ARE_EQUAL(int64_t{ 200 }, records[0].EventAt);
+        VERIFY_ARE_EQUAL(int64_t{ 201 }, records[0].ReceivedAt);
+    }
+
+    void AgentHistoryStoreTests::EventReceiptsAckReplayAndRejectConflicts()
+    {
+        const auto workspaceId = Guid(L"23232323-2323-4323-8323-232323232323");
+        const auto otherWorkspaceId = Guid(L"24242424-2424-4424-8424-242424242424");
+        const auto eventId = Guid(L"92000000-0000-4000-8000-000000000001");
+        auto original = MakeRecord(workspaceId, L"receipt-session", L"receipt-turn", 100);
+
+        {
+            AgentHistoryStore store{ _databasePath };
+            VERIFY_IS_TRUE(store.UpsertFinal(original, MakeEvent(eventId, original)));
+        }
+
+        AgentHistoryStore reopened{ _databasePath };
+        auto arrivalReplay = original;
+        arrivalReplay.ReceivedAt = 1000;
+        VERIFY_IS_TRUE(reopened.UpsertFinal(arrivalReplay, MakeEvent(eventId, arrivalReplay)));
+
+        auto changedReplay = original;
+        changedReplay.WorkspaceTitle = L"Must not replace workspace";
+        changedReplay.Cwd = L"C:\\must-not-replace";
+        changedReplay.Title = L"Must not replace title";
+        changedReplay.Prompt = L"Must not replace prompt";
+        changedReplay.FinalMarkdown = L"Must not replace final";
+        changedReplay.Model = L"must-not-replace-model";
+        changedReplay.EventAt = 999;
+        changedReplay.ReceivedAt = 1000;
+        VERIFY_IS_FALSE(reopened.UpsertFinal(changedReplay, MakeEvent(eventId, changedReplay)));
+
+        auto conflictingEvent = original;
+        conflictingEvent.Title = L"";
+        conflictingEvent.FinalMarkdown = L"";
+        VERIFY_IS_FALSE(reopened.UpsertPrompt(conflictingEvent, MakeEvent(eventId, conflictingEvent)));
+
+        auto conflictingIdentity = original;
+        conflictingIdentity.TurnId = L"different-turn";
+        VERIFY_IS_FALSE(reopened.UpsertFinal(conflictingIdentity, MakeEvent(eventId, conflictingIdentity)));
+
+        auto conflictingWorkspace = original;
+        conflictingWorkspace.WorkspaceId = otherWorkspaceId;
+        VERIFY_IS_FALSE(reopened.UpsertFinal(conflictingWorkspace, MakeEvent(eventId, conflictingWorkspace)));
+
+        const auto records = reopened.ListTurns(std::nullopt, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, records.size());
+        VERIFY_IS_TRUE(records[0].WorkspaceId == workspaceId);
+        VERIFY_ARE_EQUAL(L"Workspace", records[0].WorkspaceTitle);
+        VERIFY_ARE_EQUAL(L"C:\\work", records[0].Cwd);
+        VERIFY_ARE_EQUAL(L"Completed turn", records[0].Title);
+        VERIFY_ARE_EQUAL(L"Original prompt", records[0].Prompt);
+        VERIFY_ARE_EQUAL(L"Original final answer", records[0].FinalMarkdown);
+        VERIFY_ARE_EQUAL(L"gpt-test", records[0].Model);
+        VERIFY_ARE_EQUAL(int64_t{ 100 }, records[0].EventAt);
+        VERIFY_ARE_EQUAL(int64_t{ 101 }, records[0].ReceivedAt);
+
+        VERIFY_IS_TRUE(reopened.DeleteTurn(L"codex", L"receipt-session", L"receipt-turn"));
+        VERIFY_IS_TRUE(reopened.UpsertFinal(original, MakeEvent(eventId, original)));
+        VERIFY_IS_FALSE(reopened.UpsertFinal(conflictingIdentity, MakeEvent(eventId, conflictingIdentity)));
+        VERIFY_IS_TRUE(reopened.ListTurns(std::nullopt, L"").empty());
+
+        const auto database = OpenDatabase(_databasePath);
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM ai_history_event WHERE length(payload_digest)=32;"));
+        VERIFY_ARE_EQUAL(0, QueryInteger(database.get(), "SELECT count(*) FROM ai_turn;"));
     }
 
     void AgentHistoryStoreTests::FiltersByWorkspaceAndUnicodeSearch()
@@ -412,5 +827,541 @@ namespace TerminalAppLocalTests
         const auto invalidParsed = WorkspaceAutomationProtocol::ParseRequest(invalid);
         VERIFY_IS_FALSE(static_cast<bool>(invalidParsed));
         VERIFY_IS_TRUE(invalidParsed.ErrorCode == "invalid_params");
+    }
+
+    void AgentHistoryStoreTests::HistoryIngestProtocolIsStrict()
+    {
+        constexpr std::string_view eventId{ "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
+        constexpr std::string_view workspaceId{ "77777777-7777-4777-8777-777777777777" };
+
+        const auto prompt = WorkspaceAutomationProtocol::ParseRequest(HistoryEnvelope(
+            eventId,
+            workspaceId,
+            "prompt",
+            R"json(,"cwd":"C:\\work","prompt":"Explain the change","model":"gpt-test","eventAt":0)json"));
+        VERIFY_IS_TRUE(static_cast<bool>(prompt));
+        VERIFY_IS_TRUE(prompt.Request->Method == WorkspaceAutomationMethod::HistoryIngest);
+        VERIFY_IS_TRUE(prompt.Request->HistoryEvent == AgentHistoryEventKind::Prompt);
+        VERIFY_ARE_EQUAL(L"Explain the change", prompt.Request->Prompt);
+        VERIFY_IS_TRUE(prompt.Request->EventAt.has_value());
+        VERIFY_ARE_EQUAL(int64_t{ 0 }, prompt.Request->EventAt.value());
+
+        const auto final = WorkspaceAutomationProtocol::ParseRequest(HistoryEnvelope(
+            eventId,
+            workspaceId,
+            "final",
+            R"json(,"prompt":"Explain the change","finalMarkdown":"Done","title":"Completed","eventAt":253402300799999)json"));
+        VERIFY_IS_TRUE(static_cast<bool>(final));
+        VERIFY_IS_TRUE(final.Request->HistoryEvent == AgentHistoryEventKind::Final);
+        VERIFY_ARE_EQUAL(L"Done", final.Request->Body);
+        VERIFY_ARE_EQUAL(int64_t{ 253402300799999LL }, final.Request->EventAt.value());
+
+        const auto verifyInvalid = [&](const std::string& value) {
+            const auto parsed = WorkspaceAutomationProtocol::ParseRequest(value);
+            VERIFY_IS_FALSE(static_cast<bool>(parsed));
+            VERIFY_IS_TRUE(parsed.ErrorCode == "invalid_params");
+        };
+
+        verifyInvalid(HistoryEnvelope(eventId, workspaceId, "final", R"json(,"finalMarkdown":"Done","title":"Completed","eventAt":1,"transcript":"forbidden")json"));
+        verifyInvalid(HistoryEnvelope(eventId, workspaceId, "final", R"json(,"finalMarkdown":"Done","title":"Completed","eventAt":1,"tokens":42)json"));
+        verifyInvalid(HistoryEnvelope(eventId, workspaceId, "final", R"json(,"finalMarkdown":"Done","title":"Completed","eventAt":1,"env":{})json"));
+        verifyInvalid(HistoryEnvelope(eventId, workspaceId, "final", R"json(,"finalMarkdown":"Done","title":"Completed","eventAt":1,"toolOutput":"forbidden")json"));
+        verifyInvalid(HistoryEnvelope(eventId, workspaceId, "prompt", R"json(,"prompt":42,"eventAt":1)json"));
+        verifyInvalid(HistoryEnvelope(eventId, workspaceId, "prompt", R"json(,"prompt":"","eventAt":1)json"));
+        verifyInvalid(HistoryEnvelope(eventId, workspaceId, "prompt", R"json(,"prompt":"Valid","title":"Not allowed yet","eventAt":1)json"));
+        verifyInvalid(HistoryEnvelope(eventId, workspaceId, "final", R"json(,"finalMarkdown":"","title":"Completed","eventAt":1)json"));
+        verifyInvalid(HistoryEnvelope(eventId, workspaceId, "final", R"json(,"finalMarkdown":"Done","eventAt":1)json"));
+        verifyInvalid(HistoryEnvelope(eventId, workspaceId, "final", R"json(,"finalMarkdown":"Done","title":"Completed","eventAt":"1")json"));
+        verifyInvalid(HistoryEnvelope(eventId, workspaceId, "final", R"json(,"finalMarkdown":"Done","title":"Completed","eventAt":1.5)json"));
+        verifyInvalid(HistoryEnvelope(eventId, workspaceId, "final", R"json(,"finalMarkdown":"Done","title":"Completed","eventAt":253402300800000)json"));
+        verifyInvalid(HistoryEnvelope(eventId, workspaceId, "final", R"json(,"finalMarkdown":"Done","title":"Completed")json"));
+        verifyInvalid(HistoryEnvelope("AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA", workspaceId, "prompt", R"json(,"prompt":"Valid","eventAt":1)json"));
+        verifyInvalid(HistoryEnvelope(eventId, "77777777-7777-4777-8777-77777777777A", "prompt", R"json(,"prompt":"Valid","eventAt":1)json"));
+    }
+
+    void AgentHistoryStoreTests::InboxImportsStagesAndDeletesCommittedFiles()
+    {
+        constexpr std::string_view promptEventId{ "81000000-0000-4000-8000-000000000001" };
+        constexpr std::string_view finalEventId{ "81000000-0000-4000-8000-000000000002" };
+        constexpr std::string_view workspaceIdText{ "81818181-8181-4818-8818-818181818181" };
+        const auto workspaceId = Guid(L"81818181-8181-4818-8818-818181818181");
+
+        AgentHistoryStore store{ _databasePath };
+        AgentHistoryInbox inbox{ store, { _inboxPath } };
+        const std::array workspaces{ AgentHistoryInboxWorkspace{ workspaceId, L"Inbox workspace" } };
+
+        const auto promptPath = _inboxPath / L"81000000-0000-4000-8000-000000000001.json";
+        WriteEventFile(promptPath,
+                       HistoryEnvelope(promptEventId,
+                                       workspaceIdText,
+                                       "prompt",
+                                       R"json(,"cwd":"C:\\repo","prompt":"Original inbox prompt","model":"gpt-test","eventAt":100)json"));
+
+        const auto promptResult = inbox.Import(workspaces);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, promptResult.FilesVisited);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, promptResult.Committed);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, promptResult.Deleted);
+        VERIFY_IS_FALSE(std::filesystem::exists(promptPath));
+        VERIFY_IS_TRUE(store.ListTurns(std::nullopt, L"").empty());
+
+        {
+            const auto database = OpenDatabase(_databasePath);
+            VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM ai_turn;"));
+            VERIFY_IS_TRUE(QueryText(database.get(), "SELECT prompt FROM ai_turn;") == "Original inbox prompt");
+        }
+
+        const auto finalPath = _inboxPath / L"81000000-0000-4000-8000-000000000002.json";
+        WriteEventFile(finalPath,
+                       HistoryEnvelope(finalEventId,
+                                       workspaceIdText,
+                                       "final",
+                                       R"json(,"finalMarkdown":"Inbox final answer","title":"Inbox completed","eventAt":200)json"));
+
+        const auto finalResult = inbox.Import(workspaces);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, finalResult.Committed);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, finalResult.Deleted);
+        VERIFY_IS_FALSE(std::filesystem::exists(finalPath));
+
+        const auto records = store.ListTurns(std::optional{ workspaceId }, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, records.size());
+        VERIFY_ARE_EQUAL(L"Inbox workspace", records[0].WorkspaceTitle);
+        VERIFY_ARE_EQUAL(L"Original inbox prompt", records[0].Prompt);
+        VERIFY_ARE_EQUAL(L"Inbox final answer", records[0].FinalMarkdown);
+        VERIFY_ARE_EQUAL(L"Inbox completed", records[0].Title);
+        VERIFY_ARE_EQUAL(L"codex", records[0].Provider);
+        VERIFY_ARE_EQUAL(int64_t{ 200 }, records[0].EventAt);
+    }
+
+    void AgentHistoryStoreTests::InboxImportsAndReplaysEmergencySlots()
+    {
+        constexpr std::string_view eventId{ "81111111-1111-4111-8111-111111111111" };
+        constexpr std::string_view workspaceIdText{ "81818181-8181-4818-8818-818181818182" };
+        const auto workspaceId = Guid(L"81818181-8181-4818-8818-818181818182");
+        const auto payload = HistoryEnvelope(eventId,
+                                             workspaceIdText,
+                                             "final",
+                                             R"json(,"finalMarkdown":"Emergency answer","title":"Emergency completed","eventAt":210)json");
+
+        AgentHistoryStore store{ _databasePath };
+        AgentHistoryInbox inbox{ store, { _inboxPath } };
+        const std::array workspaces{ AgentHistoryInboxWorkspace{ workspaceId, L"Emergency workspace" } };
+
+        const auto firstSlot = _inboxPath / L"emergency-00.json";
+        WriteEventFile(firstSlot, payload);
+        const auto first = inbox.Import(workspaces);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, first.FilesVisited);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, first.Committed);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, first.Deleted);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, first.Quarantined);
+        VERIFY_IS_FALSE(std::filesystem::exists(firstSlot));
+
+        // The receipt key remains the canonical payload eventId, not the
+        // reusable slot name, so an exact replay is acknowledged and removed.
+        const auto replaySlot = _inboxPath / L"emergency-31.json";
+        WriteEventFile(replaySlot, payload);
+        const auto replay = inbox.Import(workspaces);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, replay.Committed);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, replay.Deleted);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, replay.Quarantined);
+        VERIFY_IS_FALSE(std::filesystem::exists(replaySlot));
+
+        const auto records = store.ListTurns(std::optional{ workspaceId }, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, records.size());
+        VERIFY_ARE_EQUAL(L"Emergency answer", records[0].FinalMarkdown);
+        const auto database = OpenDatabase(_databasePath);
+        VERIFY_ARE_EQUAL(1, QueryInteger(database.get(), "SELECT count(*) FROM ai_history_event;"));
+
+        // Similar-looking names outside the fixed 00-31 reservation retain the
+        // normal filename validation rules.
+        const auto invalidSlot = _inboxPath / L"emergency-32.json";
+        WriteEventFile(invalidSlot,
+                       HistoryEnvelope("81111111-1111-4111-8111-111111111112",
+                                       workspaceIdText,
+                                       "final",
+                                       R"json(,"finalMarkdown":"Must not import","title":"Invalid slot","eventAt":211)json"));
+        const auto invalid = inbox.Import(workspaces);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, invalid.FilesVisited);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, invalid.Committed);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, invalid.Quarantined);
+        VERIFY_IS_FALSE(std::filesystem::exists(invalidSlot));
+
+        // A reserved filename relaxes only the filename/payload equality rule;
+        // the payload eventId itself must still be canonical.
+        const auto noncanonicalPayloadSlot = _inboxPath / L"emergency-01.json";
+        WriteEventFile(noncanonicalPayloadSlot,
+                       HistoryEnvelope("AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+                                       workspaceIdText,
+                                       "final",
+                                       R"json(,"finalMarkdown":"Must not import","title":"Invalid payload id","eventAt":212)json"));
+        const auto noncanonical = inbox.Import(workspaces);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, noncanonical.FilesVisited);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, noncanonical.Committed);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, noncanonical.Quarantined);
+        VERIFY_IS_FALSE(std::filesystem::exists(noncanonicalPayloadSlot));
+    }
+
+    void AgentHistoryStoreTests::InboxRetainsEmergencySlotWhileProducerWrites()
+    {
+        constexpr std::string_view eventId{ "81222222-2222-4222-8222-222222222222" };
+        constexpr std::string_view workspaceIdText{ "81818181-8181-4818-8818-818181818183" };
+        const auto workspaceId = Guid(L"81818181-8181-4818-8818-818181818183");
+        const auto payload = HistoryEnvelope(eventId,
+                                             workspaceIdText,
+                                             "prompt",
+                                             R"json(,"prompt":"Emergency prompt","eventAt":220)json");
+
+        AgentHistoryStore store{ _databasePath };
+        AgentHistoryInbox inbox{ store, { _inboxPath } };
+        const std::array workspaces{ AgentHistoryInboxWorkspace{ workspaceId, L"Exclusive producer" } };
+        std::error_code error;
+        std::filesystem::create_directories(_inboxPath, error);
+        VERIFY_IS_FALSE(static_cast<bool>(error));
+
+        const auto slot = _inboxPath / L"emergency-00.json";
+        {
+            const wil::unique_hfile producer{ CreateFileW(slot.c_str(),
+                                                          GENERIC_WRITE,
+                                                          0,
+                                                          nullptr,
+                                                          CREATE_NEW,
+                                                          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH,
+                                                          nullptr) };
+            VERIFY_IS_TRUE(static_cast<bool>(producer));
+
+            const auto active = inbox.Import(workspaces);
+            VERIFY_ARE_EQUAL(size_t{ 1 }, active.FilesVisited);
+            VERIFY_ARE_EQUAL(size_t{ 0 }, active.Committed);
+            VERIFY_ARE_EQUAL(size_t{ 0 }, active.Quarantined);
+            VERIFY_ARE_EQUAL(size_t{ 1 }, active.Retained);
+            VERIFY_IS_TRUE(std::filesystem::is_regular_file(slot));
+            VERIFY_IS_FALSE(std::filesystem::exists(AgentHistoryInbox::QuarantinePath(_inboxPath)));
+
+            DWORD bytesWritten{};
+            VERIFY_IS_TRUE(WriteFile(producer.get(),
+                                     payload.data(),
+                                     static_cast<DWORD>(payload.size()),
+                                     &bytesWritten,
+                                     nullptr));
+            VERIFY_ARE_EQUAL(static_cast<DWORD>(payload.size()), bytesWritten);
+            VERIFY_IS_TRUE(FlushFileBuffers(producer.get()));
+        }
+
+        const auto completed = inbox.Import(workspaces);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, completed.Committed);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, completed.Deleted);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, completed.Quarantined);
+        VERIFY_IS_FALSE(std::filesystem::exists(slot));
+
+        WriteEventFile(slot, {});
+        const auto abandonedEmpty = inbox.Import(workspaces);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, abandonedEmpty.FilesVisited);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, abandonedEmpty.Quarantined);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, abandonedEmpty.Retained);
+        VERIFY_IS_FALSE(std::filesystem::exists(slot));
+    }
+
+    void AgentHistoryStoreTests::InboxPrioritizesEmergencySlotsWithinFileLimit()
+    {
+        constexpr std::string_view localWorkspaceIdText{ "81818181-8181-4818-8818-818181818184" };
+        constexpr std::string_view otherWorkspaceIdText{ "81818181-8181-4818-8818-818181818185" };
+        const auto localWorkspaceId = Guid(L"81818181-8181-4818-8818-818181818184");
+
+        for (size_t index = 0; index < AgentHistoryInbox::MaximumFilesPerDirectory; ++index)
+        {
+            const auto eventId = fmt::format(FMT_COMPILE("81333333-3333-4333-8333-{:012x}"), index);
+            const auto filename = winrt::to_hstring(eventId + ".json");
+            WriteEventFile(_inboxPath / std::filesystem::path{ std::wstring_view{ filename } },
+                           HistoryEnvelope(eventId,
+                                           otherWorkspaceIdText,
+                                           "prompt",
+                                           R"json(,"prompt":"Deferred capacity event","eventAt":230)json"));
+        }
+
+        const auto emergencySlot = _inboxPath / L"emergency-00.json";
+        WriteEventFile(emergencySlot,
+                       HistoryEnvelope("81333333-3333-4333-8333-ffffffffffff",
+                                       localWorkspaceIdText,
+                                       "prompt",
+                                       R"json(,"prompt":"Prioritized emergency event","eventAt":231)json"));
+
+        AgentHistoryStore store{ _databasePath };
+        AgentHistoryInbox inbox{ store, { _inboxPath } };
+        const std::array workspaces{ AgentHistoryInboxWorkspace{ localWorkspaceId, L"Priority workspace" } };
+        const auto result = inbox.Import(workspaces);
+
+        VERIFY_IS_TRUE(result.LimitReached);
+        VERIFY_ARE_EQUAL(AgentHistoryInbox::MaximumFilesPerDirectory, result.FilesVisited);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, result.Committed);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, result.Deleted);
+        VERIFY_ARE_EQUAL(AgentHistoryInbox::MaximumFilesPerDirectory - 1, result.Deferred);
+        VERIFY_IS_FALSE(std::filesystem::exists(emergencySlot));
+        VERIFY_ARE_EQUAL(AgentHistoryInbox::MaximumFilesPerDirectory, CountJsonFiles(_inboxPath));
+    }
+
+    void AgentHistoryStoreTests::InboxDefersOtherWorkspacesAndRetainsCommitFailures()
+    {
+        constexpr std::string_view eventId{ "82000000-0000-4000-8000-000000000001" };
+        constexpr std::string_view otherWorkspaceText{ "82828282-8282-4828-8828-828282828282" };
+        const auto localWorkspace = Guid(L"83838383-8383-4838-8838-838383838383");
+        const auto otherWorkspace = Guid(L"82828282-8282-4828-8828-828282828282");
+
+        AgentHistoryStore store{ _databasePath };
+        AgentHistoryInbox inbox{ store, { _inboxPath } };
+        const auto eventPath = _inboxPath / L"82000000-0000-4000-8000-000000000001.json";
+        WriteEventFile(eventPath,
+                       HistoryEnvelope(eventId,
+                                       otherWorkspaceText,
+                                       "final",
+                                       R"json(,"finalMarkdown":"Other answer","title":"Other completed","eventAt":300)json"));
+
+        const std::array localOnly{ AgentHistoryInboxWorkspace{ localWorkspace, L"Local" } };
+        const auto deferred = inbox.Import(localOnly);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, deferred.Deferred);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, deferred.Committed);
+        VERIFY_IS_TRUE(std::filesystem::is_regular_file(eventPath));
+        VERIFY_IS_TRUE(store.ListTurns(std::nullopt, L"").empty());
+
+        const std::array targetAvailable{ AgentHistoryInboxWorkspace{ otherWorkspace, L"Other", L"C:\\other" } };
+        const auto accepted = inbox.Import(targetAvailable);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, accepted.Committed);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, accepted.Deleted);
+        VERIFY_IS_FALSE(std::filesystem::exists(eventPath));
+        const auto acceptedRecords = store.ListTurns(std::optional{ otherWorkspace }, L"");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, acceptedRecords.size());
+        VERIFY_ARE_EQUAL(L"C:\\other", acceptedRecords[0].Cwd);
+
+        constexpr std::string_view failedEventId{ "82000000-0000-4000-8000-000000000002" };
+        const auto failedPath = _inboxPath / L"82000000-0000-4000-8000-000000000002.json";
+        WriteEventFile(failedPath,
+                       HistoryEnvelope(failedEventId,
+                                       otherWorkspaceText,
+                                       "final",
+                                       R"json(,"finalMarkdown":"Retain me","title":"Persistence failed","eventAt":400)json"));
+
+        AgentHistoryStore unavailableStore{ _inboxPath };
+        VERIFY_IS_FALSE(unavailableStore.IsAvailable());
+        AgentHistoryInbox unavailableInbox{ unavailableStore, { _inboxPath } };
+        const auto failed = unavailableInbox.Import(targetAvailable);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, failed.Committed);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, failed.Retained);
+        VERIFY_IS_TRUE(std::filesystem::is_regular_file(failedPath));
+    }
+
+    void AgentHistoryStoreTests::InboxQuarantinesInvalidAndProhibitedPayloads()
+    {
+        constexpr std::string_view workspaceId{ "84848484-8484-4848-8848-848484848484" };
+        const auto workspaceGuid = Guid(L"84848484-8484-4848-8848-848484848484");
+        AgentHistoryStore store{ _databasePath };
+        AgentHistoryInbox inbox{ store, { _inboxPath } };
+        const std::array workspaces{ AgentHistoryInboxWorkspace{ workspaceGuid, L"Restricted" } };
+
+        const std::array prohibitedFields{
+            std::string_view{ R"json(,"finalMarkdown":"Done","title":"Completed","eventAt":500,"transcript":"raw")json" },
+            std::string_view{ R"json(,"finalMarkdown":"Done","title":"Completed","eventAt":500,"tokens":123)json" },
+            std::string_view{ R"json(,"finalMarkdown":"Done","title":"Completed","eventAt":500,"env":{"SECRET":"value"})json" },
+            std::string_view{ R"json(,"finalMarkdown":"Done","title":"Completed","eventAt":500,"toolOutput":"raw")json" },
+        };
+
+        for (size_t index = 0; index < prohibitedFields.size(); ++index)
+        {
+            const auto id = fmt::format(FMT_COMPILE("85000000-0000-4000-8000-{:012x}"), index + 1);
+            const auto filename = winrt::to_hstring(id + ".json");
+            WriteEventFile(_inboxPath / std::filesystem::path{ std::wstring_view{ filename } },
+                           HistoryEnvelope(id, workspaceId, "final", prohibitedFields[index]));
+        }
+
+        constexpr std::string_view payloadEventId{ "85000000-0000-4000-8000-000000000010" };
+        WriteEventFile(_inboxPath / L"not-a-guid.json",
+                       HistoryEnvelope(payloadEventId,
+                                       workspaceId,
+                                       "final",
+                                       R"json(,"finalMarkdown":"Done","title":"Completed","eventAt":500)json"));
+
+        WriteEventFile(_inboxPath / L"85000000-0000-4000-8000-000000000011.json",
+                       HistoryEnvelope("85000000-0000-4000-8000-000000000012",
+                                       workspaceId,
+                                       "final",
+                                       R"json(,"finalMarkdown":"Done","title":"Completed","eventAt":500)json"));
+
+        const auto result = inbox.Import(workspaces);
+        VERIFY_ARE_EQUAL(size_t{ 6 }, result.FilesVisited);
+        VERIFY_ARE_EQUAL(size_t{ 6 }, result.Quarantined);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, result.Committed);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, CountJsonFiles(_inboxPath));
+        VERIFY_IS_TRUE(std::filesystem::is_directory(AgentHistoryInbox::QuarantinePath(_inboxPath)));
+        VERIFY_IS_TRUE(store.ListTurns(std::nullopt, L"").empty());
+    }
+
+    void AgentHistoryStoreTests::InboxBoundsFileSizeAndCount()
+    {
+        const auto workspaceGuid = Guid(L"86868686-8686-4868-8868-868686868686");
+        AgentHistoryStore store{ _databasePath };
+        AgentHistoryInbox inbox{ store, { _inboxPath } };
+        const std::array workspaces{ AgentHistoryInboxWorkspace{ workspaceGuid, L"Bounds" } };
+
+        const auto oversizedPath = _inboxPath / L"86000000-0000-4000-8000-000000000001.json";
+        WriteEventFile(oversizedPath, std::string(AgentHistoryInbox::MaximumEventBytes + 1, 'x'));
+        const auto oversized = inbox.Import(workspaces);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, oversized.FilesVisited);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, oversized.Quarantined);
+        VERIFY_IS_FALSE(std::filesystem::exists(oversizedPath));
+
+        const auto quarantinePath = AgentHistoryInbox::QuarantinePath(_inboxPath);
+        std::error_code error;
+        std::filesystem::remove_all(quarantinePath, error);
+        VERIFY_IS_FALSE(static_cast<bool>(error));
+
+        const auto exceedsQuarantineBudgetPath = _inboxPath / L"86000000-0000-4000-8000-000000000002.json";
+        WriteEventFile(exceedsQuarantineBudgetPath, {});
+        std::filesystem::resize_file(exceedsQuarantineBudgetPath, AgentHistoryInbox::MaximumQuarantineBytes + 1, error);
+        VERIFY_IS_FALSE(static_cast<bool>(error));
+        const auto exceedsQuarantineBudget = inbox.Import(workspaces);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, exceedsQuarantineBudget.Quarantined);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, exceedsQuarantineBudget.Retained);
+        VERIFY_IS_TRUE(std::filesystem::is_regular_file(exceedsQuarantineBudgetPath));
+        std::filesystem::remove(exceedsQuarantineBudgetPath, error);
+        VERIFY_IS_FALSE(static_cast<bool>(error));
+
+        const auto saturatedQuarantinePath = quarantinePath / L"saturated.bin";
+        WriteEventFile(saturatedQuarantinePath, {});
+        std::filesystem::resize_file(saturatedQuarantinePath, AgentHistoryInbox::MaximumQuarantineBytes, error);
+        VERIFY_IS_FALSE(static_cast<bool>(error));
+
+        bool createdAllFiles = true;
+        for (size_t index = 0; index < AgentHistoryInbox::MaximumFilesPerDirectory + 1; ++index)
+        {
+            const auto filename = fmt::format(FMT_COMPILE(L"87000000-0000-4000-8000-{:012x}.json"), index + 1);
+            createdAllFiles = CreateEmptyFile(_inboxPath / filename) && createdAllFiles;
+        }
+        VERIFY_IS_TRUE(createdAllFiles);
+
+        const auto bounded = inbox.Import(workspaces);
+        VERIFY_IS_TRUE(bounded.LimitReached);
+        VERIFY_ARE_EQUAL(AgentHistoryInbox::MaximumFilesPerDirectory, bounded.FilesVisited);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, bounded.Quarantined);
+        VERIFY_ARE_EQUAL(AgentHistoryInbox::MaximumFilesPerDirectory, bounded.Retained);
+        VERIFY_ARE_EQUAL(AgentHistoryInbox::MaximumFilesPerDirectory + 1, CountJsonFiles(_inboxPath));
+    }
+
+    void AgentHistoryStoreTests::InboxBoundsAllDirectoryEntries()
+    {
+        AgentHistoryStore store{ _databasePath };
+        AgentHistoryInbox inbox{ store, { _inboxPath } };
+
+        constexpr auto noiseEntries = AgentHistoryInbox::MaximumEntriesPerDirectory + 32;
+        for (size_t index = 0; index < noiseEntries; ++index)
+        {
+            if (index % 3 == 2)
+            {
+                std::error_code error;
+                std::filesystem::create_directories(_inboxPath / fmt::format(FMT_COMPILE(L"noise-{:04x}.dir"), index), error);
+                if (error)
+                {
+                    VERIFY_IS_FALSE(static_cast<bool>(error));
+                    return;
+                }
+            }
+            else
+            {
+                const auto extension = index % 3 == 0 ? L".tmp" : L".txt";
+                WriteEventFile(_inboxPath / fmt::format(FMT_COMPILE(L"noise-{:04x}{}"), index, extension), "noise");
+            }
+        }
+
+        const auto bounded = inbox.Import({});
+        VERIFY_IS_TRUE(bounded.LimitReached);
+        VERIFY_ARE_EQUAL(AgentHistoryInbox::MaximumEntriesPerDirectory, bounded.EntriesInspected);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, bounded.FilesVisited);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, bounded.Quarantined);
+        VERIFY_IS_FALSE(std::filesystem::exists(AgentHistoryInbox::QuarantinePath(_inboxPath)));
+    }
+
+    void AgentHistoryStoreTests::InboxRejectsReparsePointRoot()
+    {
+        const auto targetPath = _inboxPath / L"target";
+        const auto linkPath = _inboxPath / L"link";
+        const auto eventPath = targetPath / L"not-a-guid.json";
+        WriteEventFile(eventPath, "invalid");
+
+        std::error_code error;
+        std::filesystem::create_directory_symlink(targetPath, linkPath, error);
+        if (error)
+        {
+            Log::Comment(L"Directory symlink creation is unavailable; reparse-point integration check skipped.");
+            return;
+        }
+
+        AgentHistoryStore store{ _databasePath };
+        AgentHistoryInbox inbox{ store, { linkPath } };
+        const auto result = inbox.Import({});
+        VERIFY_ARE_EQUAL(size_t{ 0 }, result.EntriesInspected);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, result.FilesVisited);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, result.Retained);
+        VERIFY_IS_TRUE(std::filesystem::is_regular_file(eventPath));
+        VERIFY_IS_FALSE(std::filesystem::exists(AgentHistoryInbox::QuarantinePath(targetPath)));
+    }
+
+    void AgentHistoryStoreTests::ConcurrentInboxesShareQuarantineBudget()
+    {
+        const auto workspaceGuid = Guid(L"88888888-8888-4888-8888-888888888888");
+        AgentHistoryStore store{ _databasePath };
+        AgentHistoryInbox firstInbox{ store, { _inboxPath } };
+        AgentHistoryInbox secondInbox{ store, { _inboxPath } };
+        const std::array workspaces{ AgentHistoryInboxWorkspace{ workspaceGuid, L"Concurrent" } };
+
+        const auto quarantinePath = AgentHistoryInbox::QuarantinePath(_inboxPath);
+        constexpr size_t smallQuarantineFiles = AgentHistoryInbox::MaximumQuarantineFiles - 2;
+        constexpr size_t eventBytes = AgentHistoryInbox::MaximumEventBytes;
+        constexpr size_t largeQuarantineBytes = static_cast<size_t>(AgentHistoryInbox::MaximumQuarantineBytes) - eventBytes - smallQuarantineFiles;
+        const auto largeQuarantinePath = quarantinePath / L"existing-large.json";
+        WriteEventFile(largeQuarantinePath, {});
+        std::error_code error;
+        std::filesystem::resize_file(largeQuarantinePath, largeQuarantineBytes, error);
+        VERIFY_IS_FALSE(static_cast<bool>(error));
+        for (size_t index = 0; index < smallQuarantineFiles; ++index)
+        {
+            WriteEventFile(quarantinePath / fmt::format(FMT_COMPILE(L"existing-{:04x}.json"), index), "q");
+        }
+
+        const std::string invalidEvent(eventBytes, 'x');
+        for (size_t index = 0; index < 8; ++index)
+        {
+            WriteEventFile(_inboxPath / fmt::format(FMT_COMPILE(L"89000000-0000-4000-8000-{:012x}.json"), index + 1), invalidEvent);
+        }
+
+        std::array<winrt::TerminalApp::implementation::AgentHistoryInboxImportResult, 2> results;
+        std::barrier startLine{ 3 };
+        std::thread firstThread{ [&] {
+            startLine.arrive_and_wait();
+            results[0] = firstInbox.Import(workspaces);
+        } };
+        std::thread secondThread{ [&] {
+            startLine.arrive_and_wait();
+            results[1] = secondInbox.Import(workspaces);
+        } };
+        startLine.arrive_and_wait();
+        firstThread.join();
+        secondThread.join();
+
+        const auto usage = GetDirectoryUsage(quarantinePath);
+        VERIFY_ARE_EQUAL(AgentHistoryInbox::MaximumQuarantineFiles, usage.Entries);
+        VERIFY_ARE_EQUAL(AgentHistoryInbox::MaximumQuarantineBytes, usage.Bytes);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, results[0].Quarantined + results[1].Quarantined);
+    }
+
+    void AgentHistoryStoreTests::InboxPathBuildersAreDeterministic()
+    {
+        const auto localAppData = _temporaryFolderPath / L"local-app-data";
+        const auto shared = AgentHistoryInbox::SharedPathForLocalAppData(localAppData);
+        VERIFY_IS_TRUE(shared == localAppData / L"Microsoft" / L"Windows Terminal" / L"workspace-history-inbox");
+
+        const auto settingsFile = _temporaryFolderPath / L"profile" / L"settings.json";
+        const auto privatePath = AgentHistoryInbox::PrivatePathForSettingsFile(settingsFile);
+        VERIFY_IS_TRUE(privatePath == settingsFile.parent_path() / L"workspace-history-inbox");
+        VERIFY_IS_TRUE(AgentHistoryInbox::QuarantinePath(privatePath) == privatePath / L".invalid");
+
+        VERIFY_IS_TRUE(AgentHistoryInbox::SharedPathForLocalAppData({}).empty());
+        VERIFY_IS_TRUE(AgentHistoryInbox::PrivatePathForSettingsFile({}).empty());
+        VERIFY_IS_TRUE(AgentHistoryInbox::QuarantinePath({}).empty());
     }
 }

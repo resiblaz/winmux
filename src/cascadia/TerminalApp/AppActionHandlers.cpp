@@ -283,12 +283,19 @@ namespace winrt::TerminalApp::implementation
             const auto& duplicateFromTab{ realArgs.SplitMode() == SplitType::Duplicate ? _GetFocusedTab() : nullptr };
 
             const auto& activeTab{ _senderOrFocusedTab(sender) };
+            const auto workspaceId = activeTab ? _WorkspaceIdForTab(*activeTab) : _ReserveWorkspaceIdForNewTab();
+            if (workspaceId == winrt::guid{})
+            {
+                args.Handled(false);
+                return;
+            }
 
             _SplitPane(activeTab,
                        realArgs.SplitDirection(),
                        // This is safe, we're already filtering so the value is (0, 1)
                        realArgs.SplitSize(),
-                       _MakePane(realArgs.ContentArgs(), duplicateFromTab));
+                       _MakePane(realArgs.ContentArgs(), duplicateFromTab, nullptr, true, workspaceId),
+                       workspaceId);
             args.Handled(true);
         }
     }

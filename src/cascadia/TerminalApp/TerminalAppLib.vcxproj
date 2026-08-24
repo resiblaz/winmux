@@ -139,6 +139,7 @@
       <DependentUpon>AgentHistoryItem.idl</DependentUpon>
     </ClInclude>
     <ClInclude Include="AgentHistoryStore.h" />
+    <ClInclude Include="AgentHistoryInbox.h" />
     <ClInclude Include="WorkspaceItemViewModel.h">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClInclude>
@@ -273,6 +274,7 @@
       <DependentUpon>AgentHistoryItem.idl</DependentUpon>
     </ClCompile>
     <ClCompile Include="AgentHistoryStore.cpp" />
+    <ClCompile Include="AgentHistoryInbox.cpp" />
     <ClCompile Include="WorkspaceItemViewModel.cpp">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClCompile>

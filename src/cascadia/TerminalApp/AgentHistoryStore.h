@@ -32,6 +32,20 @@ namespace winrt::TerminalApp::implementation
         bool Pinned{};
     };
 
+    // Canonical history.ingest payload fields. Values that Terminal derives
+    // locally (workspace title, fallback cwd, received time) are deliberately
+    // excluded so an otherwise identical retry remains identical.
+    struct AgentHistoryEventReceipt
+    {
+        winrt::guid EventId{};
+        winrt::hstring Cwd;
+        winrt::hstring Title;
+        winrt::hstring Prompt;
+        winrt::hstring FinalMarkdown;
+        winrt::hstring Model;
+        std::optional<int64_t> EventAt;
+    };
+
     class AgentHistoryStore final
     {
     public:
@@ -44,6 +58,18 @@ namespace winrt::TerminalApp::implementation
         AgentHistoryStore& operator=(AgentHistoryStore&&) = delete;
 
         [[nodiscard]] bool IsAvailable() const noexcept;
+        // Prompt and final events may arrive independently. Both operations are
+        // idempotent and merge into the same logical turn. When eventId is
+        // supplied, its receipt and the turn merge are committed atomically.
+        // Replaying the same identity and canonical payload is acknowledged
+        // without modifying the turn; changing either for an existing event ID
+        // is rejected.
+        [[nodiscard]] bool UpsertPrompt(const AgentHistoryRecord& record,
+                                        std::optional<AgentHistoryEventReceipt> event = std::nullopt) noexcept;
+        [[nodiscard]] bool UpsertFinal(const AgentHistoryRecord& record,
+                                       std::optional<AgentHistoryEventReceipt> event = std::nullopt) noexcept;
+        // Compatibility entry point for callers that already have a completed
+        // turn. This has the same validation and behavior as UpsertFinal.
         [[nodiscard]] bool UpsertTurn(const AgentHistoryRecord& record) noexcept;
         [[nodiscard]] std::vector<AgentHistoryRecord> ListTurns(std::optional<winrt::guid> workspaceId,
                                                                  std::wstring_view search,
@@ -61,6 +87,10 @@ namespace winrt::TerminalApp::implementation
         [[nodiscard]] static std::filesystem::path DefaultPath();
 
     private:
+        [[nodiscard]] bool _UpsertEvent(const AgentHistoryRecord& record,
+                                        bool isFinal,
+                                        const std::optional<AgentHistoryEventReceipt>& event) noexcept;
+
         struct Impl;
         std::unique_ptr<Impl> _impl;
     };

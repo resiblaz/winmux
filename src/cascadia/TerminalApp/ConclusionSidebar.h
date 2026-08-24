@@ -28,6 +28,16 @@ namespace winrt::TerminalApp::implementation
 
         void SetWindowNarrow(bool value);
         void SetActiveWorkspace(const winrt::guid& workspaceId, const winrt::hstring& workspaceTitle);
+        bool AddPrompt(const winrt::guid& workspaceId,
+                       const winrt::hstring& workspaceTitle,
+                       const winrt::hstring& provider,
+                       const winrt::hstring& sessionId,
+                       const winrt::hstring& turnId,
+                       const winrt::hstring& cwd,
+                       const winrt::hstring& prompt,
+                       const winrt::hstring& model,
+                       const Windows::Foundation::DateTime& timestamp,
+                       std::optional<AgentHistoryEventReceipt> event = std::nullopt);
         bool AddConclusion(const winrt::guid& workspaceId,
                            const winrt::hstring& workspaceTitle,
                            const winrt::hstring& provider,
@@ -38,7 +48,9 @@ namespace winrt::TerminalApp::implementation
                            const winrt::hstring& prompt,
                            const winrt::hstring& finalMarkdown,
                            const winrt::hstring& model,
-                           const Windows::Foundation::DateTime& timestamp);
+                           const Windows::Foundation::DateTime& timestamp,
+                           std::optional<AgentHistoryEventReceipt> event = std::nullopt);
+        void RefreshHistory();
 
         void _Toggle_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _Scope_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);

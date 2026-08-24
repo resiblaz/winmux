@@ -20,6 +20,7 @@
 #include "WorkspaceItemViewModel.h"
 #include "WorkspaceSidebar.h"
 #include "ConclusionSidebar.h"
+#include "AgentHistoryInbox.h"
 #include "WorkspaceAgentResume.h"
 
 #include "WindowsPackageManagerFactory.h"
@@ -336,6 +337,8 @@ namespace winrt::TerminalApp::implementation
         bool _workspaceListeningPortsRefreshInFlight{ false };
         bool _workspaceListeningPortsRefreshPending{ false };
         uint64_t _workspaceListeningPortsGeneration{ 0 };
+        bool _agentHistoryInboxImportInFlight{ false };
+        bool _agentHistoryInboxImportPending{ false };
         bool _syncingWorkspaceSelection{ false };
         static constexpr size_t MaximumWorkspaceNavigationHistory{ 100 };
         std::vector<winrt::guid> _workspaceBackHistory;
@@ -419,12 +422,18 @@ namespace winrt::TerminalApp::implementation
 
         void _OpenNewTabDropdown();
         HRESULT _OpenNewTab(const Microsoft::Terminal::Settings::Model::INewContentArgs& newContentArgs);
-        TerminalApp::Tab _CreateNewTabFromPane(std::shared_ptr<Pane> pane, uint32_t insertPosition = -1);
+        TerminalApp::Tab _CreateNewTabFromPane(std::shared_ptr<Pane> pane,
+                                               uint32_t insertPosition = -1,
+                                               winrt::guid workspaceId = {});
 
         std::wstring _evaluatePathForCwd(std::wstring_view path);
 
-        winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _CreateConnectionFromSettings(Microsoft::Terminal::Settings::Model::Profile profile, Microsoft::Terminal::Control::IControlSettings settings, const bool inheritCursor);
-        winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _duplicateConnectionForRestart(const TerminalApp::TerminalPaneContent& paneContent);
+        winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _CreateConnectionFromSettings(Microsoft::Terminal::Settings::Model::Profile profile,
+                                                                                                            Microsoft::Terminal::Control::IControlSettings settings,
+                                                                                                            bool inheritCursor,
+                                                                                                            const winrt::guid& workspaceId);
+        winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _duplicateConnectionForRestart(const TerminalApp::TerminalPaneContent& paneContent,
+                                                                                                             const winrt::guid& workspaceId);
         void _restartPaneConnection(const TerminalApp::TerminalPaneContent&, const winrt::Windows::Foundation::IInspectable&);
 
         void _OpenNewWindow(const Microsoft::Terminal::Settings::Model::INewContentArgs& contentArgs);
@@ -449,6 +458,8 @@ namespace winrt::TerminalApp::implementation
         void _UpdateTabWidthMode();
         void _UpdateWorkspaceSidebar();
         void _UpdateConclusionSidebar();
+        void _ImportAgentHistoryInbox();
+        safe_void_coroutine _ImportAgentHistoryInboxAsync(std::vector<AgentHistoryInboxWorkspace> workspaces);
         void _UpdateWorkspaceTitleBar();
         void _UpdateWorkspaceListeningPortsTimer();
         void _RefreshWorkspaceListeningPorts();
@@ -514,7 +525,9 @@ namespace winrt::TerminalApp::implementation
         safe_void_coroutine _RemoveTabs(const std::vector<winrt::TerminalApp::Tab> tabs);
         void _SaveWorkspaceIfNeeded();
 
-        void _InitializeTab(winrt::com_ptr<Tab> newTabImpl, uint32_t insertPosition = -1);
+        void _InitializeTab(winrt::com_ptr<Tab> newTabImpl,
+                            uint32_t insertPosition = -1,
+                            winrt::guid workspaceId = {});
         void _RegisterTerminalEvents(Microsoft::Terminal::Control::TermControl term);
         void _RegisterTabEvents(Tab& hostingTab);
 
@@ -574,7 +587,8 @@ namespace winrt::TerminalApp::implementation
         void _SplitPane(const winrt::com_ptr<Tab>& tab,
                         const Microsoft::Terminal::Settings::Model::SplitDirection splitType,
                         const float splitSize,
-                        std::shared_ptr<Pane> newPane);
+                        std::shared_ptr<Pane> newPane,
+                        winrt::guid workspaceId = {});
         bool _ResizePane(const Microsoft::Terminal::Settings::Model::ResizeDirection& direction);
         void _ToggleSplitOrientation();
 
@@ -640,11 +654,22 @@ namespace winrt::TerminalApp::implementation
         std::shared_ptr<Pane> _MakeTerminalPane(const Microsoft::Terminal::Settings::Model::NewTerminalArgs& newTerminalArgs = nullptr,
                                                 const winrt::TerminalApp::Tab& sourceTab = nullptr,
                                                 winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection existingConnection = nullptr,
-                                                bool allowDebugTap = true);
+                                                bool allowDebugTap = true,
+                                                const winrt::guid& workspaceId = {});
         std::shared_ptr<Pane> _MakePane(const Microsoft::Terminal::Settings::Model::INewContentArgs& newContentArgs = nullptr,
                                         const winrt::TerminalApp::Tab& sourceTab = nullptr,
                                         winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection existingConnection = nullptr,
-                                        bool allowDebugTap = true);
+                                        bool allowDebugTap = true,
+                                        const winrt::guid& workspaceId = {});
+
+        winrt::guid _ReserveWorkspaceIdForNewTab() const;
+        winrt::guid _WorkspaceIdForTab(const TerminalApp::Tab& tab) const;
+        winrt::guid _WorkspaceIdForPaneContent(const TerminalApp::TerminalPaneContent& paneContent) const;
+        static winrt::Windows::Foundation::Collections::IMapView<winrt::hstring, winrt::hstring> _BuildWorkspaceEnvironment(
+            const winrt::Windows::Foundation::Collections::IMapView<winrt::hstring, winrt::hstring>& profileEnvironment,
+            const winrt::guid& workspaceId,
+            std::wstring_view pipeName,
+            uint64_t windowId);
 
         void _RefreshUIForSettingsReload();
 

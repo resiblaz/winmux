@@ -66,6 +66,24 @@ namespace winrt::TerminalApp::implementation
             return std::nullopt;
         }
 
+        std::optional<winrt::guid> _parseCanonicalGuid(const winrt::hstring& value)
+        {
+            if (const auto parsed = _parseWorkspaceId(value))
+            {
+                try
+                {
+                    if (::Microsoft::Console::Utils::GuidToPlainString(parsed.value()) == value)
+                    {
+                        return parsed;
+                    }
+                }
+                catch (...)
+                {
+                }
+            }
+            return std::nullopt;
+        }
+
         std::optional<uint32_t> _parsePaneId(const JsonObject& params)
         {
             if (!_isValueType(params, L"paneId", JsonValueType::Number))
@@ -426,6 +444,118 @@ namespace winrt::TerminalApp::implementation
                     .TurnId = turnId,
                     .Prompt = prompt,
                     .Model = model,
+                },
+                .Id = std::move(id),
+            };
+        }
+
+        if (method == L"history.ingest")
+        {
+            const std::initializer_list<std::wstring_view> allowedKeys{
+                L"eventId",
+                L"workspaceId",
+                L"sessionId",
+                L"turnId",
+                L"event",
+                L"cwd",
+                L"prompt",
+                L"finalMarkdown",
+                L"title",
+                L"model",
+                L"eventAt",
+            };
+            if (!_hasOnlyKeys(params, allowedKeys) ||
+                !_isValueType(params, L"eventId", JsonValueType::String) ||
+                !_isValueType(params, L"workspaceId", JsonValueType::String) ||
+                !_isValueType(params, L"sessionId", JsonValueType::String) ||
+                !_isValueType(params, L"turnId", JsonValueType::String) ||
+                !_isValueType(params, L"event", JsonValueType::String) ||
+                (params.HasKey(L"cwd") && !_isValueType(params, L"cwd", JsonValueType::String)) ||
+                (params.HasKey(L"prompt") && !_isValueType(params, L"prompt", JsonValueType::String)) ||
+                (params.HasKey(L"finalMarkdown") && !_isValueType(params, L"finalMarkdown", JsonValueType::String)) ||
+                (params.HasKey(L"title") && !_isValueType(params, L"title", JsonValueType::String)) ||
+                (params.HasKey(L"model") && !_isValueType(params, L"model", JsonValueType::String)) ||
+                !_isValueType(params, L"eventAt", JsonValueType::Number))
+            {
+                return _parseError(std::move(id), "invalid_params", "history.ingest contains missing, unknown, or incorrectly typed fields");
+            }
+
+            const auto eventId = _parseCanonicalGuid(params.GetNamedString(L"eventId"));
+            const auto workspaceId = _parseCanonicalGuid(params.GetNamedString(L"workspaceId"));
+            const auto sessionId = params.GetNamedString(L"sessionId");
+            const auto turnId = params.GetNamedString(L"turnId");
+            const auto eventName = params.GetNamedString(L"event");
+            const auto cwd = params.GetNamedString(L"cwd", L"");
+            const auto prompt = params.GetNamedString(L"prompt", L"");
+            const auto finalMarkdown = params.GetNamedString(L"finalMarkdown", L"");
+            const auto title = params.GetNamedString(L"title", L"");
+            const auto model = params.GetNamedString(L"model", L"");
+
+            AgentHistoryEventKind historyEvent;
+            if (eventName == L"prompt")
+            {
+                historyEvent = AgentHistoryEventKind::Prompt;
+            }
+            else if (eventName == L"final")
+            {
+                historyEvent = AgentHistoryEventKind::Final;
+            }
+            else
+            {
+                return _parseError(std::move(id), "invalid_params", "params.event must be prompt or final");
+            }
+
+            std::optional<int64_t> eventAt;
+            {
+                const auto value = params.GetNamedNumber(L"eventAt");
+                // Bound Unix milliseconds to the Windows DateTime range (through
+                // 9999-12-31T23:59:59.999Z) before converting it for the UI.
+                constexpr double maximumEventTimestamp{ 253402300799999.0 };
+                if (!std::isfinite(value) || std::floor(value) != value || value < 0 || value > maximumEventTimestamp)
+                {
+                    return _parseError(std::move(id), "invalid_params", "params.eventAt must be a non-negative integer timestamp");
+                }
+                eventAt = static_cast<int64_t>(value);
+            }
+
+            const auto promptEventIsValid = historyEvent == AgentHistoryEventKind::Prompt &&
+                                            params.HasKey(L"prompt") &&
+                                            _isValidText(prompt, 1, 8192, true) &&
+                                            !params.HasKey(L"finalMarkdown") &&
+                                            !params.HasKey(L"title");
+            const auto finalEventIsValid = historyEvent == AgentHistoryEventKind::Final &&
+                                           params.HasKey(L"finalMarkdown") &&
+                                           _isValidText(finalMarkdown, 1, 8192, true) &&
+                                           params.HasKey(L"title") &&
+                                           _isValidText(title, 1, 160, false);
+            if (!eventId || !workspaceId ||
+                !_isValidText(sessionId, 1, 128, false) ||
+                !_isValidText(turnId, 1, 128, false) ||
+                (!cwd.empty() && !_isValidText(cwd, 1, 4096, false)) ||
+                (!prompt.empty() && !_isValidText(prompt, 1, 8192, true)) ||
+                (!finalMarkdown.empty() && !_isValidText(finalMarkdown, 1, 8192, true)) ||
+                (!title.empty() && !_isValidText(title, 1, 160, false)) ||
+                (!model.empty() && !_isValidText(model, 1, 128, false)) ||
+                (!promptEventIsValid && !finalEventIsValid))
+            {
+                return _parseError(std::move(id), "invalid_params", "History event target or content is invalid");
+            }
+
+            return {
+                .Request = WorkspaceAutomationRequest{
+                    .Id = id,
+                    .Method = WorkspaceAutomationMethod::HistoryIngest,
+                    .WorkspaceId = workspaceId,
+                    .EventId = eventId,
+                    .Title = title,
+                    .Body = finalMarkdown,
+                    .SessionId = sessionId,
+                    .TurnId = turnId,
+                    .Prompt = prompt,
+                    .Model = model,
+                    .Cwd = cwd,
+                    .HistoryEvent = historyEvent,
+                    .EventAt = eventAt,
                 },
                 .Id = std::move(id),
             };

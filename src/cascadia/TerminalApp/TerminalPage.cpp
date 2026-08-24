@@ -1332,12 +1332,22 @@ namespace winrt::TerminalApp::implementation
             }
 
             const auto item = _workspaceItems.GetAt(workspaceIndex.value());
-            winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->AddConclusion(
+            const auto stored = winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->AddConclusion(
                 item.WorkspaceId(),
                 item.Title(),
+                L"codex",
+                request.SessionId,
+                request.TurnId,
+                item.WorkingDirectory(),
                 request.Title,
+                request.Prompt,
                 request.Body,
+                request.Model,
                 winrt::clock::now());
+            if (!stored)
+            {
+                return WorkspaceAutomationProtocol::MakeError(request.Id, "persistence_failed", "Unable to commit the AI history turn");
+            }
 
             JsonObject result;
             result.Insert(L"accepted", JsonValue::CreateBooleanValue(true));

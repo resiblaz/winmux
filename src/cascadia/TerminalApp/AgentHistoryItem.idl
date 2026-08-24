@@ -1,0 +1,28 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+namespace TerminalApp
+{
+    runtimeclass AgentHistoryItem
+    {
+        AgentHistoryItem();
+
+        Guid WorkspaceId { get; set; };
+        String WorkspaceTitle { get; set; };
+        String Provider { get; set; };
+        String SessionId { get; set; };
+        String TurnId { get; set; };
+        String Cwd { get; set; };
+        String Title { get; set; };
+        String Prompt { get; set; };
+        String Message { get; set; };
+        String Model { get; set; };
+        Windows.Foundation.DateTime Timestamp { get; set; };
+        Boolean IsPinned { get; set; };
+
+        String TimestampText { get; };
+        String SessionLabel { get; };
+        Boolean HasPrompt { get; };
+        String AutomationName { get; };
+    }
+}

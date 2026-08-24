@@ -42,6 +42,12 @@
     <ClCompile Include="ConclusionMarkdownView.cpp">
       <Filter>controls</Filter>
     </ClCompile>
+    <ClCompile Include="AgentHistoryItem.cpp">
+      <Filter>workspace</Filter>
+    </ClCompile>
+    <ClCompile Include="AgentHistoryStore.cpp">
+      <Filter>workspace</Filter>
+    </ClCompile>
     <ClCompile Include="WorkspaceItemViewModel.cpp">
       <Filter>workspace</Filter>
     </ClCompile>
@@ -92,6 +98,12 @@
     <ClInclude Include="ConclusionMarkdownView.h">
       <Filter>controls</Filter>
     </ClInclude>
+    <ClInclude Include="AgentHistoryItem.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
+    <ClInclude Include="AgentHistoryStore.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
     <ClInclude Include="WorkspaceItemViewModel.h">
       <Filter>workspace</Filter>
     </ClInclude>
@@ -139,6 +151,9 @@
     </Midl>
     <Midl Include="ConclusionMarkdownView.idl">
       <Filter>controls</Filter>
+    </Midl>
+    <Midl Include="AgentHistoryItem.idl">
+      <Filter>workspace</Filter>
     </Midl>
     <Midl Include="WorkspaceItemViewModel.idl">
       <Filter>workspace</Filter>

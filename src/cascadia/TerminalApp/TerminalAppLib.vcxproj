@@ -135,6 +135,10 @@
     <ClInclude Include="ConclusionMarkdownView.h">
       <DependentUpon>ConclusionMarkdownView.idl</DependentUpon>
     </ClInclude>
+    <ClInclude Include="AgentHistoryItem.h">
+      <DependentUpon>AgentHistoryItem.idl</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="AgentHistoryStore.h" />
     <ClInclude Include="WorkspaceItemViewModel.h">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClInclude>
@@ -265,6 +269,10 @@
     <ClCompile Include="ConclusionMarkdownView.cpp">
       <DependentUpon>ConclusionMarkdownView.idl</DependentUpon>
     </ClCompile>
+    <ClCompile Include="AgentHistoryItem.cpp">
+      <DependentUpon>AgentHistoryItem.idl</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="AgentHistoryStore.cpp" />
     <ClCompile Include="WorkspaceItemViewModel.cpp">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClCompile>
@@ -391,6 +399,9 @@
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="ConclusionMarkdownView.idl">
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="AgentHistoryItem.idl">
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="WorkspaceItemViewModel.idl">

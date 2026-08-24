@@ -385,15 +385,16 @@ namespace winrt::TerminalApp::implementation
 
         if (method == L"conclusion.create")
         {
-            if (!_hasOnlyKeys(params, { L"workspaceId", L"sessionId", L"turnId", L"title", L"body", L"model" }) ||
+            if (!_hasOnlyKeys(params, { L"workspaceId", L"sessionId", L"turnId", L"title", L"body", L"prompt", L"model" }) ||
                 !_isValueType(params, L"workspaceId", JsonValueType::String) ||
                 !_isValueType(params, L"sessionId", JsonValueType::String) ||
                 !_isValueType(params, L"turnId", JsonValueType::String) ||
                 !_isValueType(params, L"title", JsonValueType::String) ||
                 !_isValueType(params, L"body", JsonValueType::String) ||
+                (params.HasKey(L"prompt") && !_isValueType(params, L"prompt", JsonValueType::String)) ||
                 (params.HasKey(L"model") && !_isValueType(params, L"model", JsonValueType::String)))
             {
-                return _parseError(std::move(id), "invalid_params", "conclusion.create requires workspaceId, sessionId, turnId, title, body, and optional model");
+                return _parseError(std::move(id), "invalid_params", "conclusion.create requires workspaceId, sessionId, turnId, title, body, and optional prompt/model");
             }
 
             const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
@@ -401,12 +402,14 @@ namespace winrt::TerminalApp::implementation
             const auto turnId = params.GetNamedString(L"turnId");
             const auto title = params.GetNamedString(L"title");
             const auto body = params.GetNamedString(L"body");
+            const auto prompt = params.GetNamedString(L"prompt", L"");
             const auto model = params.GetNamedString(L"model", L"");
             if (!workspaceId ||
                 !_isValidText(sessionId, 1, 128, false) ||
                 !_isValidText(turnId, 1, 128, false) ||
                 !_isValidText(title, 1, 160, false) ||
                 !_isValidText(body, 1, 8192, true) ||
+                (!prompt.empty() && !_isValidText(prompt, 1, 8192, true)) ||
                 (!model.empty() && !_isValidText(model, 1, 128, false)))
             {
                 return _parseError(std::move(id), "invalid_params", "Conclusion target or text is invalid");
@@ -421,6 +424,7 @@ namespace winrt::TerminalApp::implementation
                     .Body = body,
                     .SessionId = sessionId,
                     .TurnId = turnId,
+                    .Prompt = prompt,
                     .Model = model,
                 },
                 .Id = std::move(id),

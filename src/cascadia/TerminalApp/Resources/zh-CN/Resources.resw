@@ -1234,4 +1234,58 @@
   <data name="ConfirmDeleteWorkspaceSnapshotBody" xml:space="preserve">
     <value>删除已保存的快照不会关闭已打开的工作区，也不会删除 AI 历史记录。</value>
   </data>
+  <data name="ConclusionSidebarHistoryTab.Text" xml:space="preserve">
+    <value>历史</value>
+  </data>
+  <data name="ConclusionSidebarPinnedBadge.Text" xml:space="preserve">
+    <value>已固定</value>
+  </data>
+  <data name="ConclusionSidebarPromptLabel.Text" xml:space="preserve">
+    <value>提示</value>
+  </data>
+  <data name="ConclusionSidebarCurrentScope.Content" xml:space="preserve">
+    <value>当前</value>
+  </data>
+  <data name="ConclusionSidebarAllScope.Content" xml:space="preserve">
+    <value>全部</value>
+  </data>
+  <data name="ConclusionSidebarSearchBox.PlaceholderText" xml:space="preserve">
+    <value>搜索历史</value>
+  </data>
+  <data name="ConclusionSidebarSearchBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>搜索 AI 历史</value>
+  </data>
+  <data name="ConclusionSidebarPinButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>固定或取消固定历史记录</value>
+  </data>
+  <data name="ConclusionSidebarPinButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>固定或取消固定</value>
+  </data>
+  <data name="ConclusionSidebarCopyButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>复制历史记录</value>
+  </data>
+  <data name="ConclusionSidebarCopyButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>复制</value>
+  </data>
+  <data name="ConclusionSidebarDeleteButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>删除历史记录</value>
+  </data>
+  <data name="ConclusionSidebarDeleteButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="ConclusionSidebarEmptyHistoryTitle.Text" xml:space="preserve">
+    <value>暂无 AI 历史</value>
+  </data>
+  <data name="ConclusionSidebarEmptyHistoryBody.Text" xml:space="preserve">
+    <value>已完成的 AI 对话将显示在这里。</value>
+  </data>
+  <data name="ConclusionSidebarPersistentHistoryStatus.Text" xml:space="preserve">
+    <value>持久化历史</value>
+  </data>
+  <data name="ConclusionSidebar_AllWorkspaces" xml:space="preserve">
+    <value>全部工作区</value>
+  </data>
+  <data name="ConclusionSidebar_CopyPromptFormat" xml:space="preserve">
+    <value>提示：&#xA;{}&#xA;&#xA;{}</value>
+  </data>
 </root>

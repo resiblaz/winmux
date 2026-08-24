@@ -3,10 +3,12 @@
 
 #include "pch.h"
 #include "ConclusionSidebar.h"
+#include "AgentHistoryItem.h"
 
 #include "ConclusionSidebar.g.cpp"
 
 using namespace winrt;
+using namespace winrt::Windows::ApplicationModel::DataTransfer;
 using namespace winrt::Windows::UI::Xaml;
 using namespace winrt::Windows::UI::Xaml::Automation;
 using namespace winrt::Windows::UI::Xaml::Controls;
@@ -21,19 +23,40 @@ namespace winrt::TerminalApp::implementation
         {
             return { id.c_str(), id.size() };
         }
+
+        TerminalApp::AgentHistoryItem _makeHistoryItem(const AgentHistoryRecord& record)
+        {
+            const auto item = winrt::make<implementation::AgentHistoryItem>();
+            item.WorkspaceId(record.WorkspaceId);
+            item.WorkspaceTitle(record.WorkspaceTitle);
+            item.Provider(record.Provider);
+            item.SessionId(record.SessionId);
+            item.TurnId(record.TurnId);
+            item.Cwd(record.Cwd);
+            item.Title(record.Title);
+            item.Prompt(record.Prompt);
+            item.Message(record.FinalMarkdown);
+            item.Model(record.Model);
+            item.Timestamp(winrt::clock::from_sys(std::chrono::system_clock::time_point{ std::chrono::milliseconds{ record.EventAt } }));
+            item.IsPinned(record.Pinned);
+            return item;
+        }
     }
 
     ConclusionSidebar::ConclusionSidebar() :
-        _conclusions{ winrt::single_threaded_observable_vector<TerminalApp::WorkspaceNotification>() }
+        _historyStore{ AgentHistoryStore::DefaultPath() },
+        _historyItems{ winrt::single_threaded_observable_vector<TerminalApp::AgentHistoryItem>() }
     {
         InitializeComponent();
+        _isInitialized = true;
         _ApplyLayout();
+        _RefreshHistory();
         _UpdateContentState();
     }
 
-    Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> ConclusionSidebar::Conclusions() const noexcept
+    Windows::Foundation::Collections::IObservableVector<TerminalApp::AgentHistoryItem> ConclusionSidebar::HistoryItems() const noexcept
     {
-        return _conclusions;
+        return _historyItems;
     }
 
     bool ConclusionSidebar::IsExpanded() const noexcept
@@ -138,40 +161,50 @@ namespace winrt::TerminalApp::implementation
         {
             _activeWorkspaceId = workspaceId;
             _activeWorkspaceTitle = workspaceTitle;
-            _RebuildVisibleConclusions();
+            _RefreshHistory();
         }
     }
 
-    void ConclusionSidebar::AddConclusion(const winrt::guid& workspaceId,
+    bool ConclusionSidebar::AddConclusion(const winrt::guid& workspaceId,
                                           const winrt::hstring& workspaceTitle,
+                                          const winrt::hstring& provider,
+                                          const winrt::hstring& sessionId,
+                                          const winrt::hstring& turnId,
+                                          const winrt::hstring& cwd,
                                           const winrt::hstring& title,
-                                          const winrt::hstring& message,
+                                          const winrt::hstring& prompt,
+                                          const winrt::hstring& finalMarkdown,
+                                          const winrt::hstring& model,
                                           const Windows::Foundation::DateTime& timestamp)
     {
-        const auto conclusion = TerminalApp::WorkspaceNotification{
-            workspaceId,
-            0,
-            workspaceTitle,
-            title,
-            message,
-            timestamp,
-        };
+        const auto eventAt = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 winrt::clock::to_sys(timestamp).time_since_epoch())
+                                 .count();
+        const auto receivedAt = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                    std::chrono::system_clock::now().time_since_epoch())
+                                    .count();
 
-        _history.insert(_history.begin(), conclusion);
-        if (_history.size() > MaximumHistory)
+        AgentHistoryRecord record;
+        record.WorkspaceId = workspaceId;
+        record.WorkspaceTitle = workspaceTitle;
+        record.Provider = provider;
+        record.SessionId = sessionId;
+        record.TurnId = turnId;
+        record.Cwd = cwd;
+        record.Title = title;
+        record.Prompt = prompt;
+        record.FinalMarkdown = finalMarkdown;
+        record.Model = model;
+        record.EventAt = eventAt;
+        record.ReceivedAt = receivedAt;
+
+        if (!_historyStore.UpsertTurn(record))
         {
-            _history.erase(_history.begin() + MaximumHistory, _history.end());
+            return false;
         }
 
-        if (workspaceId == _activeWorkspaceId)
-        {
-            _conclusions.InsertAt(0, conclusion);
-            if (_conclusions.Size() > MaximumHistory)
-            {
-                _conclusions.RemoveAtEnd();
-            }
-            _UpdateContentState();
-        }
+        _RefreshHistory();
+        return true;
     }
 
     void ConclusionSidebar::_Toggle_Click(const Windows::Foundation::IInspectable&, const RoutedEventArgs&)
@@ -179,6 +212,62 @@ namespace winrt::TerminalApp::implementation
         if (!_isWindowNarrow)
         {
             IsExpanded(!_isExpanded);
+        }
+    }
+
+    void ConclusionSidebar::_Scope_Click(const Windows::Foundation::IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto element = sender.try_as<FrameworkElement>())
+        {
+            _showAllWorkspaces = element.Name() == L"AllWorkspacesRadio";
+            _RefreshHistory();
+        }
+    }
+
+    void ConclusionSidebar::_Search_TextChanged(const Windows::Foundation::IInspectable&, const RoutedEventArgs&)
+    {
+        if (_isInitialized)
+        {
+            _RefreshHistory();
+        }
+    }
+
+    void ConclusionSidebar::_Pin_Click(const Windows::Foundation::IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            if (_historyStore.SetTurnPinned(item.Provider(), item.SessionId(), item.TurnId(), !item.IsPinned()))
+            {
+                _RefreshHistory();
+            }
+        }
+    }
+
+    void ConclusionSidebar::_Copy_Click(const Windows::Foundation::IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            try
+            {
+                const auto text = item.HasPrompt() ?
+                                      winrt::hstring{ RS_fmt(L"ConclusionSidebar_CopyPromptFormat", item.Prompt(), item.Message()) } :
+                                      item.Message();
+                DataPackage package;
+                package.SetText(text);
+                Clipboard::SetContent(package);
+            }
+            CATCH_LOG();
+        }
+    }
+
+    void ConclusionSidebar::_Delete_Click(const Windows::Foundation::IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            if (_historyStore.DeleteTurn(item.Provider(), item.SessionId(), item.TurnId()))
+            {
+                _RefreshHistory();
+            }
         }
     }
 
@@ -201,33 +290,61 @@ namespace winrt::TerminalApp::implementation
         RailToggleButton().IsEnabled(!_isWindowNarrow);
     }
 
-    void ConclusionSidebar::_RebuildVisibleConclusions()
+    void ConclusionSidebar::_RefreshHistory()
     {
-        std::vector<TerminalApp::WorkspaceNotification> visible;
-        if (_activeWorkspaceId != winrt::guid{})
+        if (!_isInitialized)
         {
-            visible.reserve(_history.size());
-            for (const auto& conclusion : _history)
-            {
-                if (conclusion.WorkspaceId() == _activeWorkspaceId)
-                {
-                    visible.emplace_back(conclusion);
-                }
-            }
+            return;
         }
 
-        _conclusions.ReplaceAll({ visible.data(), gsl::narrow_cast<uint32_t>(visible.size()) });
+        _historyItems.Clear();
+        if (!_historyStore.IsAvailable() || (!_showAllWorkspaces && _activeWorkspaceId == winrt::guid{}))
+        {
+            _UpdateContentState();
+            return;
+        }
+
+        std::optional<winrt::guid> workspaceId;
+        if (!_showAllWorkspaces)
+        {
+            workspaceId = _activeWorkspaceId;
+        }
+
+        const auto search = HistorySearchBox().Text();
+        const auto records = _historyStore.ListTurns(workspaceId,
+                                                     std::wstring_view{ search.c_str(), search.size() },
+                                                     MaximumHistory);
+        for (const auto& record : records)
+        {
+            _historyItems.Append(_makeHistoryItem(record));
+        }
         _UpdateContentState();
     }
 
     void ConclusionSidebar::_UpdateContentState()
     {
-        const auto count = _conclusions.Size();
-        const auto hasConclusions = count > 0;
-        ConclusionList().Visibility(hasConclusions ? Visibility::Visible : Visibility::Collapsed);
-        EmptyState().Visibility(hasConclusions ? Visibility::Collapsed : Visibility::Visible);
-        CountBadge().Visibility(hasConclusions ? Visibility::Visible : Visibility::Collapsed);
-        CountText().Text(hasConclusions ? winrt::to_hstring(count) : winrt::hstring{});
-        WorkspaceNameText().Text(_activeWorkspaceTitle.empty() ? RS_(L"ConclusionSidebar_WorkspaceFallback") : _activeWorkspaceTitle);
+        if (!_isInitialized)
+        {
+            return;
+        }
+
+        const auto count = _historyItems.Size();
+        const auto hasHistory = count > 0;
+        HistoryList().Visibility(hasHistory ? Visibility::Visible : Visibility::Collapsed);
+        EmptyState().Visibility(hasHistory ? Visibility::Collapsed : Visibility::Visible);
+        CountBadge().Visibility(hasHistory ? Visibility::Visible : Visibility::Collapsed);
+        CountText().Text(hasHistory ? winrt::to_hstring(count) : winrt::hstring{});
+        WorkspaceNameText().Text(_showAllWorkspaces ?
+                                     RS_(L"ConclusionSidebar_AllWorkspaces") :
+                                     (_activeWorkspaceTitle.empty() ? RS_(L"ConclusionSidebar_WorkspaceFallback") : _activeWorkspaceTitle));
+    }
+
+    TerminalApp::AgentHistoryItem ConclusionSidebar::_ItemFromSender(const Windows::Foundation::IInspectable& sender) const
+    {
+        if (const auto element = sender.try_as<FrameworkElement>())
+        {
+            return element.Tag().try_as<TerminalApp::AgentHistoryItem>();
+        }
+        return nullptr;
     }
 }

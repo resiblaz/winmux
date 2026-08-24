@@ -62,6 +62,7 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring Body;
         winrt::hstring SessionId;
         winrt::hstring TurnId;
+        winrt::hstring Prompt;
         winrt::hstring Model;
         WorkspaceAutomationProgressState ProgressState{ WorkspaceAutomationProgressState::None };
         uint32_t ProgressValue{ 0 };

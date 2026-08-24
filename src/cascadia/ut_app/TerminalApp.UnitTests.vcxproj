@@ -51,7 +51,7 @@
       <DisableSpecificWarnings>4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>WindowsApp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WindowsApp.lib;winsqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <!--
       SettingsModelLib contains a DllMain that we need to force the use of.
       If you don't have this, then you'll see an error like

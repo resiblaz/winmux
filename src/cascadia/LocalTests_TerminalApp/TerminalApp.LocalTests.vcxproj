@@ -40,6 +40,7 @@
   <!-- ========================= Cpp Files ======================== -->
   <ItemGroup>
     <ClCompile Include="CommandlineTest.cpp" />
+    <ClCompile Include="AgentHistoryStoreTests.cpp" />
     <ClCompile Include="SettingsTests.cpp" />
     <ClCompile Include="TabTests.cpp" />
 	<ClCompile Include="FilteredCommandTests.cpp" />
@@ -78,7 +79,7 @@
       <DisableSpecificWarnings>4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>onecoreuap.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>onecoreuap.lib;winsqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 

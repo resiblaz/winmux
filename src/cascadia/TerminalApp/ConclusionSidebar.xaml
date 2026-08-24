@@ -8,6 +8,7 @@
                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                   xmlns:local="using:TerminalApp"
                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                  xmlns:mtu="using:Microsoft.Terminal.UI"
                   RequestedTheme="Dark"
                   mc:Ignorable="d">
 
@@ -20,15 +21,15 @@
             <Setter Property="CornerRadius" Value="8" />
         </Style>
 
-        <DataTemplate x:Key="ConclusionItemTemplate"
-                      x:DataType="local:WorkspaceNotification">
+        <DataTemplate x:Key="HistoryItemTemplate"
+                      x:DataType="local:AgentHistoryItem">
             <Border Padding="12,10"
-                    AutomationProperties.Name="{x:Bind Title, Mode=OneWay}"
+                    AutomationProperties.Name="{x:Bind AutomationName, Mode=OneTime}"
                     Background="{ThemeResource WorkspaceChromeStatusFillBrush}"
                     BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
                     BorderThickness="1"
                     CornerRadius="8">
-                <StackPanel Spacing="6">
+                <StackPanel Spacing="8">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -37,19 +38,118 @@
                         <TextBlock Grid.Column="0"
                                    FontSize="14"
                                    FontWeight="SemiBold"
-                                   Text="{x:Bind Title, Mode=OneWay}"
+                                   Text="{x:Bind Title, Mode=OneTime}"
                                    TextTrimming="CharacterEllipsis"
                                    TextWrapping="NoWrap" />
-                        <TextBlock Grid.Column="1"
-                                   Margin="10,1,0,0"
-                                   FontFamily="Consolas"
-                                   FontSize="10"
-                                   Opacity="0.58"
-                                   Text="{x:Bind TimestampText, Mode=OneWay}" />
+                        <Border Grid.Column="1"
+                                Margin="8,0,0,0"
+                                Padding="5,1"
+                                VerticalAlignment="Center"
+                                Background="{ThemeResource WorkspaceChromeAccentBrush}"
+                                CornerRadius="5"
+                                Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsPinned), Mode=OneTime}">
+                            <TextBlock x:Uid="ConclusionSidebarPinnedBadge"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       Foreground="{ThemeResource WorkspaceChromeSelectedForegroundBrush}" />
+                        </Border>
                     </Grid>
+
+                    <StackPanel Spacing="3">
+                        <TextBlock FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Opacity="0.76"
+                                   Text="{x:Bind WorkspaceTitle, Mode=OneTime}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTipService.ToolTip="{x:Bind Cwd, Mode=OneTime}" />
+                        <TextBlock FontFamily="Consolas"
+                                   FontSize="10"
+                                   Opacity="0.62"
+                                   Text="{x:Bind SessionLabel, Mode=OneTime}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock FontFamily="Consolas"
+                                       FontSize="10"
+                                       Opacity="0.58"
+                                       Text="{x:Bind TimestampText, Mode=OneTime}" />
+                            <Border Grid.Column="1"
+                                    MaxWidth="116"
+                                    Margin="8,0,0,0"
+                                    Padding="5,1"
+                                    Background="{ThemeResource WorkspaceChromeSurfaceBrush}"
+                                    CornerRadius="5"
+                                    Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(Model), Mode=OneTime}">
+                                <TextBlock FontFamily="Consolas"
+                                           FontSize="9"
+                                           Opacity="0.72"
+                                           Text="{x:Bind Model, Mode=OneTime}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+
+                    <Border Padding="9,7"
+                            Background="{ThemeResource WorkspaceChromeSurfaceBrush}"
+                            CornerRadius="6"
+                            Visibility="{x:Bind mtu:Converters.BooleanToVisibility(HasPrompt), Mode=OneTime}">
+                        <StackPanel Spacing="3">
+                            <TextBlock x:Uid="ConclusionSidebarPromptLabel"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       Opacity="0.52" />
+                            <TextBlock FontSize="11"
+                                       IsTextSelectionEnabled="True"
+                                       Opacity="0.76"
+                                       Text="{x:Bind Prompt, Mode=OneTime}"
+                                       TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+                    </Border>
+
                     <local:ConclusionMarkdownView HorizontalContentAlignment="Stretch"
-                                                  Markdown="{x:Bind Message, Mode=OneWay}"
+                                                  Markdown="{x:Bind Message, Mode=OneTime}"
                                                   Opacity="0.78" />
+
+                    <StackPanel HorizontalAlignment="Right"
+                                Orientation="Horizontal"
+                                Spacing="4">
+                        <Button x:Uid="ConclusionSidebarPinButton"
+                                Width="30"
+                                Height="28"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="_Pin_Click"
+                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                FontSize="11"
+                                Tag="{Binding}"
+                                Content="&#xE840;" />
+                        <Button x:Uid="ConclusionSidebarCopyButton"
+                                Width="30"
+                                Height="28"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="_Copy_Click"
+                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                FontSize="11"
+                                Tag="{Binding}"
+                                Content="&#xE8C8;" />
+                        <Button x:Uid="ConclusionSidebarDeleteButton"
+                                Width="30"
+                                Height="28"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="_Delete_Click"
+                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                FontSize="11"
+                                Tag="{Binding}"
+                                Content="&#xE74D;" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </DataTemplate>
@@ -104,7 +204,7 @@
                         <PivotItem.Header>
                             <StackPanel Orientation="Horizontal"
                                         Spacing="7">
-                                <TextBlock x:Uid="ConclusionSidebarConclusionsTab"
+                                <TextBlock x:Uid="ConclusionSidebarHistoryTab"
                                            VerticalAlignment="Center"
                                            FontSize="12" />
                                 <Border x:Name="CountBadge"
@@ -126,15 +226,52 @@
                         </PivotItem.Header>
 
                         <Grid>
-                            <ListView x:Name="ConclusionList"
-                                      ItemsSource="{x:Bind Conclusions, Mode=OneWay}"
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Margin="10,0,10,6"
+                                        Spacing="7">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <RadioButton x:Name="CurrentWorkspaceRadio"
+                                                 x:Uid="ConclusionSidebarCurrentScope"
+                                                 Grid.Column="0"
+                                                 HorizontalAlignment="Stretch"
+                                                 HorizontalContentAlignment="Center"
+                                                 Click="_Scope_Click"
+                                                 GroupName="HistoryScope"
+                                                 IsChecked="True" />
+                                    <RadioButton x:Name="AllWorkspacesRadio"
+                                                 x:Uid="ConclusionSidebarAllScope"
+                                                 Grid.Column="1"
+                                                 HorizontalAlignment="Stretch"
+                                                 HorizontalContentAlignment="Center"
+                                                 Click="_Scope_Click"
+                                                 GroupName="HistoryScope" />
+                                </Grid>
+                                <TextBox x:Name="HistorySearchBox"
+                                         x:Uid="ConclusionSidebarSearchBox"
+                                         Height="32"
+                                         Padding="8,3"
+                                         TextChanged="_Search_TextChanged" />
+                            </StackPanel>
+
+                            <ListView x:Name="HistoryList"
+                                      Grid.Row="1"
+                                      ItemsSource="{x:Bind HistoryItems, Mode=OneWay}"
                                       ItemContainerStyle="{StaticResource ConclusionListItemStyle}"
-                                      ItemTemplate="{StaticResource ConclusionItemTemplate}"
+                                      ItemTemplate="{StaticResource HistoryItemTemplate}"
                                       SelectionMode="None"
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto" />
 
                             <StackPanel x:Name="EmptyState"
+                                        Grid.Row="1"
                                         MaxWidth="220"
                                         Margin="24"
                                         HorizontalAlignment="Center"
@@ -152,11 +289,11 @@
                                               Glyph="&#xE8A5;"
                                               Opacity="0.72" />
                                 </Border>
-                                <TextBlock x:Uid="ConclusionSidebarEmptyTitle"
+                                <TextBlock x:Uid="ConclusionSidebarEmptyHistoryTitle"
                                            HorizontalAlignment="Center"
                                            FontSize="14"
                                            FontWeight="SemiBold" />
-                                <TextBlock x:Uid="ConclusionSidebarEmptyBody"
+                                <TextBlock x:Uid="ConclusionSidebarEmptyHistoryBody"
                                            HorizontalAlignment="Center"
                                            FontSize="12"
                                            LineHeight="18"
@@ -179,7 +316,7 @@
                                  Height="6"
                                  VerticalAlignment="Center"
                                  Fill="{ThemeResource WorkspaceChromeAccentBrush}" />
-                        <TextBlock x:Uid="ConclusionSidebarLiveStatus"
+                        <TextBlock x:Uid="ConclusionSidebarPersistentHistoryStatus"
                                    VerticalAlignment="Center"
                                    FontSize="10"
                                    Opacity="0.58" />

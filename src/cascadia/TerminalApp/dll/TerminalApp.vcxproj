@@ -38,6 +38,7 @@
     <ClInclude Include="../TabRowControl.h" />
     <ClInclude Include="../WorkspaceSidebar.h" />
     <ClInclude Include="../ConclusionMarkdownView.h" />
+    <ClInclude Include="../AgentHistoryItem.h" />
     <ClInclude Include="../WorkspaceItemViewModel.h" />
     <ClInclude Include="../WorkspaceAgentResume.h" />
     <ClInclude Include="../WorkspaceNotification.h" />
@@ -103,7 +104,7 @@
 
   <ItemDefinitionGroup>
     <Link>
-      <AdditionalDependencies>User32.lib;WindowsApp.lib;shell32.lib;WinMM.Lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>User32.lib;WindowsApp.lib;shell32.lib;WinMM.Lib;winsqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <!-- TerminalAppLib contains a DllMain that we need to force the use of. -->
       <AdditionalOptions Condition="'$(Platform)'=='Win32'">/INCLUDE:_DllMain@12 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalOptions Condition="'$(Platform)'!='Win32'">/INCLUDE:DllMain %(AdditionalOptions)</AdditionalOptions>

@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-import "WorkspaceNotification.idl";
+import "AgentHistoryItem.idl";
 
 namespace TerminalApp
 {
@@ -9,7 +9,7 @@ namespace TerminalApp
     {
         ConclusionSidebar();
 
-        Windows.Foundation.Collections.IObservableVector<WorkspaceNotification> Conclusions { get; };
+        Windows.Foundation.Collections.IObservableVector<AgentHistoryItem> HistoryItems { get; };
         Boolean IsExpanded;
 
         Boolean RegisterToolTab(String id,

@@ -932,4 +932,58 @@
   <data name="ConfirmDeleteWorkspaceSnapshotBody" xml:space="preserve">
     <value>Removing the saved snapshot does not close an open workspace or delete AI history.</value>
   </data>
+  <data name="ConclusionSidebarHistoryTab.Text" xml:space="preserve">
+    <value>History</value>
+  </data>
+  <data name="ConclusionSidebarPinnedBadge.Text" xml:space="preserve">
+    <value>Pinned</value>
+  </data>
+  <data name="ConclusionSidebarPromptLabel.Text" xml:space="preserve">
+    <value>PROMPT</value>
+  </data>
+  <data name="ConclusionSidebarCurrentScope.Content" xml:space="preserve">
+    <value>Current</value>
+  </data>
+  <data name="ConclusionSidebarAllScope.Content" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="ConclusionSidebarSearchBox.PlaceholderText" xml:space="preserve">
+    <value>Search history</value>
+  </data>
+  <data name="ConclusionSidebarSearchBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Search AI history</value>
+  </data>
+  <data name="ConclusionSidebarPinButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Pin or unpin history item</value>
+  </data>
+  <data name="ConclusionSidebarPinButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Pin or unpin</value>
+  </data>
+  <data name="ConclusionSidebarCopyButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Copy history item</value>
+  </data>
+  <data name="ConclusionSidebarCopyButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="ConclusionSidebarDeleteButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Delete history item</value>
+  </data>
+  <data name="ConclusionSidebarDeleteButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="ConclusionSidebarEmptyHistoryTitle.Text" xml:space="preserve">
+    <value>No AI history</value>
+  </data>
+  <data name="ConclusionSidebarEmptyHistoryBody.Text" xml:space="preserve">
+    <value>Completed AI turns will appear here.</value>
+  </data>
+  <data name="ConclusionSidebarPersistentHistoryStatus.Text" xml:space="preserve">
+    <value>Persistent history</value>
+  </data>
+  <data name="ConclusionSidebar_AllWorkspaces" xml:space="preserve">
+    <value>All workspaces</value>
+  </data>
+  <data name="ConclusionSidebar_CopyPromptFormat" xml:space="preserve">
+    <value>Prompt:&#xA;{}&#xA;&#xA;{}</value>
+  </data>
 </root>

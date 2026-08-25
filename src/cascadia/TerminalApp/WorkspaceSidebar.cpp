@@ -340,9 +340,36 @@ namespace winrt::TerminalApp::implementation
         _SetWorkspaceItemCloseButtonVisibility(sender, Visibility::Visible);
     }
 
-    void WorkspaceSidebar::_WorkspaceItem_PointerExited(const IInspectable& sender, const Input::PointerRoutedEventArgs&)
+    void WorkspaceSidebar::_WorkspaceItem_PointerExited(const IInspectable& sender, const Input::PointerRoutedEventArgs& args)
     {
-        _SetWorkspaceItemCloseButtonVisibility(sender, Visibility::Collapsed);
+        if (const auto itemRoot = sender.try_as<FrameworkElement>())
+        {
+            // PointerExited can also be raised while hit testing moves from the
+            // data-template root to the close button that just became visible.
+            // Only hide the button once the pointer has actually left the row.
+            const auto position = args.GetCurrentPoint(itemRoot).Position();
+            if (position.X < 0.0 || position.Y < 0.0 ||
+                position.X > itemRoot.ActualWidth() || position.Y > itemRoot.ActualHeight())
+            {
+                _SetWorkspaceItemCloseButtonVisibility(sender, Visibility::Collapsed);
+            }
+        }
+    }
+
+    void WorkspaceSidebar::_WorkspaceItemCloseButton_PointerExited(const IInspectable& sender, const Input::PointerRoutedEventArgs& args)
+    {
+        if (const auto closeButton = sender.try_as<Button>())
+        {
+            if (const auto itemRoot = closeButton.Parent().try_as<FrameworkElement>())
+            {
+                const auto position = args.GetCurrentPoint(itemRoot).Position();
+                if (position.X < 0.0 || position.Y < 0.0 ||
+                    position.X > itemRoot.ActualWidth() || position.Y > itemRoot.ActualHeight())
+                {
+                    closeButton.Visibility(Visibility::Collapsed);
+                }
+            }
+        }
     }
 
     void WorkspaceSidebar::_Pin_Click(const IInspectable& sender, const RoutedEventArgs&)

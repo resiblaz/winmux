@@ -3305,6 +3305,13 @@ namespace winrt::TerminalApp::implementation
         textBox.Text(tab.Title());
         textBox.PlaceholderText(RS_(L"WorkspaceSidebar_RenameDialogPlaceholder"));
         Automation::AutomationProperties::SetName(textBox, RS_(L"WorkspaceSidebar_RenameDialogPlaceholder"));
+        textBox.Loaded([weakTextBox{ winrt::make_weak(textBox) }](const auto&, const auto&) {
+            if (const auto box = weakTextBox.get())
+            {
+                box.SelectAll();
+                box.Focus(FocusState::Programmatic);
+            }
+        });
         dialog.Content(textBox);
 
         if (const auto presenter = _dialogPresenter.get())

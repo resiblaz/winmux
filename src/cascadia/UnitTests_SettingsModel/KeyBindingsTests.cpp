@@ -111,7 +111,8 @@ namespace SettingsModelUnitTests
         const auto json = VerifyParseSucceeded(R"([
             { "command": "toggleWorkspacePin", "keys": "ctrl+alt+p" },
             { "command": "toggleWorkspaceSidebar", "keys": "ctrl+alt+s" },
-            { "command": "openWorkspaceNotificationCenter", "keys": "ctrl+alt+n" }
+            { "command": "openWorkspaceNotificationCenter", "keys": "ctrl+alt+n" },
+            { "command": "openTabRenamer", "keys": "ctrl+r" }
         ])");
 
         const auto actionMap = winrt::make_self<implementation::ActionMap>();
@@ -124,6 +125,8 @@ namespace SettingsModelUnitTests
                          ::TestUtils::GetActionAndArgs(*actionMap, { modifiers, 'S', 0 }).Action());
         VERIFY_ARE_EQUAL(ShortcutAction::OpenWorkspaceNotificationCenter,
                          ::TestUtils::GetActionAndArgs(*actionMap, { modifiers, 'N', 0 }).Action());
+        VERIFY_ARE_EQUAL(ShortcutAction::OpenTabRenamer,
+                         ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Control, 'R', 0 }).Action());
     }
 
     void KeyBindingsTests::ManyKeysSameAction()

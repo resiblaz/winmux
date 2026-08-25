@@ -740,6 +740,7 @@
         { "keys": "alt+space", "id": "Terminal.OpenSystemMenu" },
         { "keys": "ctrl+shift+period", "id": "Terminal.Suggestions" },
         { "keys": "ctrl+p", "id": "Terminal.ToggleWorkspacePin" },
+        { "keys": "ctrl+r", "id": "Terminal.OpenTabRenamer" },
         { "keys": "ctrl+shift+u", "id": "Terminal.FocusLatestNotification" },
         { "keys": "alt+pageup", "id": "Terminal.WorkspaceBack" },
         { "keys": "alt+pagedown", "id": "Terminal.WorkspaceForward" },

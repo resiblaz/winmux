@@ -31,7 +31,7 @@ Replace it with `"tabLayout": "workspaceSidebar"`. If both keys exist, `tabLayou
 - Select a workspace with the mouse or Up/Down Arrow.
 - Press `Ctrl+N` to create a workspace.
 - Press `Ctrl+1` through `Ctrl+8` to select the corresponding workspace; `Ctrl+9` selects the last workspace.
-- Press `F2` to rename the selected workspace.
+- Press `Ctrl+R` to quickly rename the active workspace, or `F2` while the sidebar list is focused.
 - Press `Delete` to close the selected workspace.
 - Press `Shift+F10` for Pin, rename, close, notification, and Agent Resume actions.
 - Drag workspaces to reorder them. Pinned workspaces remain grouped before unpinned workspaces.

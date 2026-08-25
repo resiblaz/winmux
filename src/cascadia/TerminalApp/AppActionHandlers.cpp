@@ -754,7 +754,14 @@ namespace winrt::TerminalApp::implementation
     {
         if (const auto activeTab{ _senderOrFocusedTab(sender) })
         {
-            activeTab->ActivateTabRenamer();
+            if (_workspaceSidebarEnabled)
+            {
+                _RenameWorkspace(*activeTab);
+            }
+            else
+            {
+                activeTab->ActivateTabRenamer();
+            }
         }
         args.Handled(true);
     }

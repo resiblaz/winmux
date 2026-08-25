@@ -31,6 +31,7 @@
                   Padding="4,4,4,4"
                   AutomationProperties.HelpText="{x:Bind StatusText, Mode=OneWay}"
                   AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
+                  Background="Transparent"
                   PointerEntered="_WorkspaceItem_PointerEntered"
                   PointerExited="_WorkspaceItem_PointerExited">
                 <Grid.ColumnDefinitions>
@@ -198,6 +199,7 @@
                         FontFamily="{ThemeResource SymbolThemeFontFamily}"
                         FontSize="10"
                         IsTabStop="False"
+                        PointerExited="_WorkspaceItemCloseButton_PointerExited"
                         Tag="{Binding}"
                         Visibility="Collapsed" />
 

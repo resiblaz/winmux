@@ -230,7 +230,12 @@
                 <StaticResource x:Key="SplitButtonForegroundSecondaryPressed"
                                 ResourceKey="WorkspaceChromeTextPrimaryBrush" />
                 <x:Double x:Key="SplitButtonPrimaryButtonSize">28</x:Double>
-                <x:Double x:Key="SplitButtonSecondaryButtonSize">20</x:Double>
+                <!--
+                    WinUI's SplitButton template reserves 12px for the chevron
+                    and another 12px of trailing padding. A 20px secondary
+                    button clips the animated chevron down to a single stroke.
+                -->
+                <x:Double x:Key="SplitButtonSecondaryButtonSize">32</x:Double>
             </Grid.Resources>
 
             <Button x:Name="WorkspaceSidebarToggleButton"
@@ -272,7 +277,7 @@
             <mux:SplitButton x:Name="WorkspaceNewTabButton"
                              x:Uid="NewTabSplitButton"
                              Grid.Column="2"
-                             Width="48"
+                             Width="61"
                              Height="28"
                              Padding="0"
                              VerticalAlignment="Center"

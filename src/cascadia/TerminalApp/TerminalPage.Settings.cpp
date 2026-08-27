@@ -314,12 +314,14 @@ namespace winrt::TerminalApp::implementation
         {
             return;
         }
-        const auto snapshot = ApplicationState::SharedInstance().WorkspaceSnapshotById(snapshotId);
-        if (snapshot && snapshot.WorkspaceId() == workspaceId && snapshot.Revision() == revision &&
-            WorkspaceSnapshot::IsValid(snapshot, false))
-        {
-            _SessionRestore().SnapshotSources.insert_or_assign(workspaceId, std::pair{ snapshotId, revision });
-        }
+
+        // This is an opaque CAS source token, not snapshot content. Durable
+        // validation is intentionally deferred to the coordinator's
+        // background save/open operation so startup never performs file I/O
+        // on the UI thread. A missing, stale, or mismatched token cannot
+        // overwrite another record because the repository commit rechecks
+        // snapshot id, WorkspaceId, and revision before writing.
+        _SessionRestore().SnapshotSources.insert_or_assign(workspaceId, std::pair{ snapshotId, revision });
     }
 
     void TerminalPage::SetStartupConnection(ITerminalConnection connection)

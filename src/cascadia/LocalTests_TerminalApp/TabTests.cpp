@@ -178,6 +178,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceSnapshotOpenIsNonConsuming);
         TEST_METHOD(WorkspaceSnapshotRejectsUnsafeActions);
         TEST_METHOD(WorkspaceSnapshotSourceSurvivesContentAttach);
+        TEST_METHOD(WorkspaceSnapshotStaleSourceIsCleared);
         TEST_METHOD(WorkspaceStatusPillTracksStructuredState);
         TEST_METHOD(WorkspaceLayoutPersistsMetadata);
         TEST_METHOD(WorkspaceNotificationStateTracksUnread);
@@ -725,13 +726,15 @@ namespace TerminalAppLocalTests
     void TabTests::WorkspaceSnapshotOpenIsNonConsuming()
     {
         const auto page = _commonSetup();
+        const winrt::guid snapshotId{ 0xd19875d5, 0x294e, 0x47e8, { 0xa1, 0x4e, 0x4f, 0x20, 0xea, 0xbd, 0x55, 0xb5 } };
+        WorkspaceSnapshot snapshot{};
+        uint32_t tabCount{};
+
         TestOnUIThread([&]() {
             const auto item = page->_WorkspaceItems().GetAt(0);
             const auto tab = page->_GetFocusedTabImpl();
             VERIFY_IS_NOT_NULL(tab);
 
-            const winrt::guid snapshotId{ 0xd19875d5, 0x294e, 0x47e8, { 0xa1, 0x4e, 0x4f, 0x20, 0xea, 0xbd, 0x55, 0xb5 } };
-            WorkspaceSnapshot snapshot{};
             snapshot.Version(2);
             snapshot.Id(snapshotId);
             snapshot.WorkspaceId(item.WorkspaceId());
@@ -740,24 +743,51 @@ namespace TerminalAppLocalTests
             snapshot.UpdatedAt(1);
             snapshot.Actions(winrt::single_threaded_vector<ActionAndArgs>(tab->BuildStartupActions(winrt::TerminalApp::BuildStartupKind::Snapshot)));
             snapshot.AgentResumeEntries(winrt::single_threaded_vector<AgentResumeInfo>());
-
-            const auto state = ApplicationState::SharedInstance();
-            state.RemoveWorkspaceSnapshot(snapshotId);
-            VERIFY_IS_TRUE(state.SaveWorkspaceSnapshot(snapshot));
-            const auto tabCount = page->_tabs.Size();
-
-            page->OpenWorkspaceSnapshot(snapshotId, false);
-
-            VERIFY_ARE_EQUAL(tabCount, page->_tabs.Size());
-            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
-            VERIFY_IS_TRUE(itemImpl->SourceSnapshotId().has_value());
-            VERIFY_ARE_EQUAL(snapshotId, itemImpl->SourceSnapshotId().value());
-            VERIFY_ARE_EQUAL(snapshot.Revision(), itemImpl->SourceSnapshotRevision());
-            const auto retained = state.WorkspaceSnapshotById(snapshotId);
-            VERIFY_IS_NOT_NULL(retained);
-            VERIFY_IS_TRUE(retained.LastOpenedAt() > 0);
-            VERIFY_IS_TRUE(state.RemoveWorkspaceSnapshot(snapshotId));
+            tabCount = page->_tabs.Size();
         });
+
+        // Repository setup and verification intentionally stay off the UI
+        // thread. OpenWorkspaceSnapshot itself must return before its durable
+        // Load/Touch operations finish.
+        const auto state = ApplicationState::SharedInstance();
+        state.RemoveWorkspaceSnapshot(snapshotId);
+        VERIFY_IS_TRUE(state.SaveWorkspaceSnapshot(snapshot));
+        const auto revision = snapshot.Revision();
+
+        TestOnUIThread([&]() {
+            page->OpenWorkspaceSnapshot(snapshotId, false);
+            VERIFY_ARE_EQUAL(tabCount, page->_tabs.Size());
+        });
+
+        bool bound{};
+        bool touched{};
+        for (uint32_t attempt = 0; attempt < 500 && (!bound || !touched); ++attempt)
+        {
+            TestOnUIThread([&]() {
+                VERIFY_ARE_EQUAL(tabCount, page->_tabs.Size());
+                const auto item = page->_WorkspaceItems().GetAt(0);
+                const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+                bound = itemImpl->SourceSnapshotId() == std::optional{ snapshotId } &&
+                        itemImpl->SourceSnapshotRevision() == revision;
+            });
+
+            const auto retained = state.WorkspaceSnapshotById(snapshotId);
+            touched = retained && retained.LastOpenedAt() > 0;
+            if (!bound || !touched)
+            {
+                Sleep(10);
+            }
+        }
+
+        VERIFY_IS_TRUE(bound);
+        VERIFY_IS_TRUE(touched);
+        TestOnUIThread([&]() {
+            const auto item = page->_WorkspaceItems().GetAt(0);
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            VERIFY_ARE_EQUAL(snapshotId, itemImpl->SourceSnapshotId().value());
+            VERIFY_ARE_EQUAL(revision, itemImpl->SourceSnapshotRevision());
+        });
+        VERIFY_IS_TRUE(state.RemoveWorkspaceSnapshot(snapshotId));
     }
 
     void TabTests::WorkspaceSnapshotRejectsUnsafeActions()
@@ -826,6 +856,48 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(snapshot.Revision(), itemImpl->SourceSnapshotRevision());
             VERIFY_IS_TRUE(state.RemoveWorkspaceSnapshot(snapshotId));
         });
+    }
+
+    void TabTests::WorkspaceSnapshotStaleSourceIsCleared()
+    {
+        const auto page = _commonSetup();
+        const winrt::guid workspaceId{ 0x59595959, 0x5959, 0x4959, { 0x89, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59 } };
+        const winrt::guid missingSnapshotId{ 0x69696969, 0x6969, 0x4969, { 0x89, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69 } };
+
+        TestOnUIThread([&]() {
+            const auto sourceTab = page->_GetFocusedTabImpl();
+            VERIFY_IS_NOT_NULL(sourceTab);
+            auto actions = sourceTab->BuildStartupActions(winrt::TerminalApp::BuildStartupKind::Content);
+            page->AttachContent(winrt::single_threaded_vector<ActionAndArgs>(std::move(actions)),
+                                0,
+                                workspaceId,
+                                missingSnapshotId,
+                                7);
+
+            const auto index = page->_FindWorkspaceIndex(workspaceId);
+            VERIFY_IS_TRUE(index.has_value());
+            const auto item = page->_WorkspaceItems().GetAt(index.value());
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            VERIFY_IS_TRUE(itemImpl->SourceSnapshotId() == std::optional{ missingSnapshotId });
+            VERIFY_ARE_EQUAL(7ull, itemImpl->SourceSnapshotRevision());
+        });
+
+        bool cleared{};
+        for (uint32_t attempt = 0; attempt < 500 && !cleared; ++attempt)
+        {
+            TestOnUIThread([&]() {
+                const auto index = page->_FindWorkspaceIndex(workspaceId);
+                VERIFY_IS_TRUE(index.has_value());
+                const auto item = page->_WorkspaceItems().GetAt(index.value());
+                const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+                cleared = !itemImpl->SourceSnapshotId().has_value() && itemImpl->SourceSnapshotRevision() == 0;
+            });
+            if (!cleared)
+            {
+                Sleep(10);
+            }
+        }
+        VERIFY_IS_TRUE(cleared);
     }
 
     void TabTests::WorkspaceLayoutPersistsMetadata()

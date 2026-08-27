@@ -160,7 +160,9 @@ namespace winrt::TerminalApp::implementation
             if (const auto source = _SessionRestore().SnapshotSources.find(workspaceId);
                 source != _SessionRestore().SnapshotSources.end())
             {
-                _workspaceFeatures->Snapshots().BindItem(*workspaceItem, source->second.first, source->second.second);
+                auto& snapshots = _workspaceFeatures->Snapshots();
+                snapshots.BindItem(*workspaceItem, source->second.first, source->second.second);
+                snapshots.ValidateRestoredItemBinding(*workspaceItem, source->second.first, source->second.second);
             }
         }
         if (restoredWorkspaceIndex)

@@ -768,6 +768,9 @@
   <data name="WorkspaceForwardCommandKey" xml:space="preserve">
     <value>Go forward to next workspace</value>
   </data>
+  <data name="SwitchToWorkspaceSurfaceCommandKey" xml:space="preserve">
+    <value>Switch to workspace terminal</value>
+  </data>
   <data name="CloseTab" xml:space="preserve">
     <value>Close tab</value>
   </data>
@@ -862,6 +865,9 @@
   </data>
   <data name="TabIndexActionArgumentLocalized" xml:space="preserve">
     <value>Tab index</value>
+  </data>
+  <data name="SurfaceIndexActionArgumentLocalized" xml:space="preserve">
+    <value>Workspace terminal index</value>
   </data>
   <data name="WindowActionArgumentLocalized" xml:space="preserve">
     <value>Window</value>

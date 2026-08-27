@@ -495,6 +495,40 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void TerminalPage::_HandleSwitchToWorkspaceSurface(const IInspectable& /*sender*/,
+                                                       const ActionEventArgs& args)
+    {
+        if (const auto& realArgs = args.ActionArgs().try_as<SwitchToWorkspaceSurfaceArgs>())
+        {
+            if (!_SidebarController().Enabled)
+            {
+                args.Handled(false);
+                return;
+            }
+
+            if (const auto item = _WorkspaceItemForTab(_GetFocusedTab());
+                item && realArgs.SurfaceIndex() < item.Surfaces().Size())
+            {
+                const auto target = item.Surfaces().GetAt(realArgs.SurfaceIndex());
+                const auto restoreFocus = _workspaceToolTabSelected && target == _GetFocusedTab();
+                _SetWorkspaceToolTabSelected(false);
+                if (const auto tabIndex = _GetTabIndex(target))
+                {
+                    _SelectTab(tabIndex.value());
+                    if (restoreFocus)
+                    {
+                        target.Focus(FocusState::Programmatic);
+                    }
+                }
+            }
+
+            // A configured Surface shortcut is reserved in Sidebar mode even
+            // when the requested ordinal does not exist. Do not leak Alt+number
+            // style escape input into the active shell in that case.
+            args.Handled(true);
+        }
+    }
+
     void TerminalPage::_HandleResizePane(const IInspectable& /*sender*/,
                                          const ActionEventArgs& args)
     {

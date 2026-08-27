@@ -50,6 +50,7 @@ static constexpr std::string_view SetColorSchemeKey{ "setColorScheme" };
 static constexpr std::string_view SetTabColorKey{ "setTabColor" };
 static constexpr std::string_view SplitPaneKey{ "splitPane" };
 static constexpr std::string_view SwitchToTabKey{ "switchToTab" };
+static constexpr std::string_view SwitchToWorkspaceSurfaceKey{ "switchToWorkspaceSurface" };
 static constexpr std::string_view TabSearchKey{ "tabSearch" };
 static constexpr std::string_view ToggleAlwaysOnTopKey{ "toggleAlwaysOnTop" };
 static constexpr std::string_view ToggleCommandPaletteKey{ "commandPalette" };

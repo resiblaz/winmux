@@ -154,6 +154,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 { ShortcutAction::SwapPane, USES_RESOURCE(L"SwapPaneCommandKey") },
                 { ShortcutAction::SwitchSelectionEndpoint, USES_RESOURCE(L"SwitchSelectionEndpointCommandKey") },
                 { ShortcutAction::SwitchToTab, USES_RESOURCE(L"SwitchToTabCommandKey") },
+                { ShortcutAction::SwitchToWorkspaceSurface, USES_RESOURCE(L"SwitchToWorkspaceSurfaceCommandKey") },
                 { ShortcutAction::TabSearch, USES_RESOURCE(L"TabSearchCommandKey") },
                 { ShortcutAction::ToggleAlwaysOnTop, USES_RESOURCE(L"ToggleAlwaysOnTopCommandKey") },
                 { ShortcutAction::ToggleBlockSelection, USES_RESOURCE(L"ToggleBlockSelectionCommandKey") },
@@ -267,6 +268,8 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
             return winrt::make<SplitPaneArgs>(SplitDirection::Automatic, Model::NewTerminalArgs{});
         case Model::ShortcutAction::SwitchToTab:
             return winrt::make<SwitchToTabArgs>();
+        case Model::ShortcutAction::SwitchToWorkspaceSurface:
+            return winrt::make<SwitchToWorkspaceSurfaceArgs>();
         case Model::ShortcutAction::ToggleCommandPalette:
             return winrt::make<ToggleCommandPaletteArgs>();
         case Model::ShortcutAction::FocusPane:

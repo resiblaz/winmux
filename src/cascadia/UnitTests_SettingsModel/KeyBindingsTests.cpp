@@ -6,6 +6,7 @@
 #include "../TerminalSettingsModel/ColorScheme.h"
 #include "../TerminalSettingsModel/CascadiaSettings.h"
 #include "../TerminalSettingsModel/ActionMap.h"
+#include "../TerminalSettingsModel/resource.h"
 #include "JsonTestClass.h"
 #include "TestUtils.h"
 
@@ -25,6 +26,7 @@ namespace SettingsModelUnitTests
 
         TEST_METHOD(KeyChords);
         TEST_METHOD(WorkspaceActionsCanBeCustomized);
+        TEST_METHOD(DefaultWorkspaceSurfaceBindings);
         TEST_METHOD(ManyKeysSameAction);
         TEST_METHOD(LayerKeybindings);
         TEST_METHOD(HashDeduplication);
@@ -112,6 +114,8 @@ namespace SettingsModelUnitTests
             { "command": "toggleWorkspacePin", "keys": "ctrl+alt+p" },
             { "command": "toggleWorkspaceSidebar", "keys": "ctrl+alt+s" },
             { "command": "openWorkspaceNotificationCenter", "keys": "ctrl+alt+n" },
+            { "command": { "action": "switchToWorkspaceSurface", "index": 2 }, "keys": "alt+3" },
+            { "command": "newTab", "keys": "alt+n" },
             { "command": "openTabRenamer", "keys": "ctrl+r" }
         ])");
 
@@ -125,8 +129,33 @@ namespace SettingsModelUnitTests
                          ::TestUtils::GetActionAndArgs(*actionMap, { modifiers, 'S', 0 }).Action());
         VERIFY_ARE_EQUAL(ShortcutAction::OpenWorkspaceNotificationCenter,
                          ::TestUtils::GetActionAndArgs(*actionMap, { modifiers, 'N', 0 }).Action());
+        const auto switchSurface = ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, '3', 0 });
+        VERIFY_ARE_EQUAL(ShortcutAction::SwitchToWorkspaceSurface, switchSurface.Action());
+        VERIFY_ARE_EQUAL(2u, switchSurface.Args().as<SwitchToWorkspaceSurfaceArgs>().SurfaceIndex());
+        VERIFY_ARE_EQUAL(ShortcutAction::NewTab,
+                         ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, 'N', 0 }).Action());
         VERIFY_ARE_EQUAL(ShortcutAction::OpenTabRenamer,
                          ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Control, 'R', 0 }).Action());
+    }
+
+    void KeyBindingsTests::DefaultWorkspaceSurfaceBindings()
+    {
+        const auto defaults = VerifyParseSucceeded(implementation::LoadStringResource(IDR_DEFAULTS));
+        const auto actionMap = winrt::make_self<implementation::ActionMap>();
+        actionMap->LayerJson(defaults["actions"], OriginTag::InBox);
+        actionMap->LayerJson(defaults["keybindings"], OriginTag::InBox);
+
+        for (uint32_t index = 0; index < 9; ++index)
+        {
+            const auto action = ::TestUtils::GetActionAndArgs(
+                *actionMap,
+                { VirtualKeyModifiers::Menu, gsl::narrow_cast<int32_t>('1' + index), 0 });
+            VERIFY_ARE_EQUAL(ShortcutAction::SwitchToWorkspaceSurface, action.Action());
+            VERIFY_ARE_EQUAL(index, action.Args().as<SwitchToWorkspaceSurfaceArgs>().SurfaceIndex());
+        }
+
+        VERIFY_ARE_EQUAL(ShortcutAction::NewTab,
+                         ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, 'N', 0 }).Action());
     }
 
     void KeyBindingsTests::ManyKeysSameAction()

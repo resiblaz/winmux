@@ -11,6 +11,7 @@
 #include "CopyTextArgs.g.h"
 #include "NewTabArgs.g.h"
 #include "SwitchToTabArgs.g.h"
+#include "SwitchToWorkspaceSurfaceArgs.g.h"
 #include "ResizePaneArgs.g.h"
 #include "MoveFocusArgs.g.h"
 #include "MovePaneArgs.g.h"
@@ -120,6 +121,10 @@ protected:                                                                  \
 ////////////////////////////////////////////////////////////////////////////////
 #define SWITCH_TO_TAB_ARGS(X) \
     X(uint32_t, TabIndex, "index", false, ArgTypeHint::None, 0)
+
+////////////////////////////////////////////////////////////////////////////////
+#define SWITCH_TO_WORKSPACE_SURFACE_ARGS(X) \
+    X(uint32_t, SurfaceIndex, "index", false, ArgTypeHint::None, 0)
 
 ////////////////////////////////////////////////////////////////////////////////
 #define RESIZE_PANE_ARGS(X) \
@@ -889,6 +894,8 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
 
     ACTION_ARGS_STRUCT(SwitchToTabArgs, SWITCH_TO_TAB_ARGS);
 
+    ACTION_ARGS_STRUCT(SwitchToWorkspaceSurfaceArgs, SWITCH_TO_WORKSPACE_SURFACE_ARGS);
+
     ACTION_ARGS_STRUCT(ResizePaneArgs, RESIZE_PANE_ARGS);
 
     ACTION_ARGS_STRUCT(MoveFocusArgs, MOVE_FOCUS_ARGS);
@@ -1052,6 +1059,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::factory_implementation
     BASIC_FACTORY(BaseContentArgs);
     BASIC_FACTORY(CopyTextArgs);
     BASIC_FACTORY(SwitchToTabArgs);
+    BASIC_FACTORY(SwitchToWorkspaceSurfaceArgs);
     BASIC_FACTORY(NewTerminalArgs);
     BASIC_FACTORY(NewTabArgs);
     BASIC_FACTORY(MoveFocusArgs);

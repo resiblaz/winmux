@@ -79,7 +79,8 @@
         </StackPanel>
 
         <Grid Grid.Row="2"
-              Grid.Column="1">
+              Grid.Column="1"
+              KeyDown="_KeyDownHandler">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />

@@ -230,6 +230,12 @@ namespace Microsoft.Terminal.Settings.Model
         UInt32 TabIndex;
     };
 
+    [default_interface] runtimeclass SwitchToWorkspaceSurfaceArgs : IActionArgs, IActionArgsDescriptorAccess
+    {
+        SwitchToWorkspaceSurfaceArgs(UInt32 surfaceIndex);
+        UInt32 SurfaceIndex;
+    };
+
     [default_interface] runtimeclass ResizePaneArgs : IActionArgs, IActionArgsDescriptorAccess
     {
         ResizeDirection ResizeDirection { get; };

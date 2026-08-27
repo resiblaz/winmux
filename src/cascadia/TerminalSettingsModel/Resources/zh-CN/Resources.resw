@@ -768,6 +768,9 @@
   <data name="WorkspaceForwardCommandKey" xml:space="preserve">
     <value>前进到下一个工作区</value>
   </data>
+  <data name="SwitchToWorkspaceSurfaceCommandKey" xml:space="preserve">
+    <value>切换到工作区终端</value>
+  </data>
   <data name="CloseTab" xml:space="preserve">
     <value>关闭标签页</value>
   </data>
@@ -862,6 +865,9 @@
   </data>
   <data name="TabIndexActionArgumentLocalized" xml:space="preserve">
     <value>Tab 索引</value>
+  </data>
+  <data name="SurfaceIndexActionArgumentLocalized" xml:space="preserve">
+    <value>工作区终端索引</value>
   </data>
   <data name="WindowActionArgumentLocalized" xml:space="preserve">
     <value>窗口</value>

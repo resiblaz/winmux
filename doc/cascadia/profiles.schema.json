@@ -471,6 +471,7 @@
         "swapPane",
         "switchSelectionEndpoint",
         "switchToTab",
+        "switchToWorkspaceSurface",
         "tabSearch",
         "toggleAlwaysOnTop",
         "toggleBlockSelection",
@@ -962,6 +963,32 @@
               "type": "integer",
               "default": 0,
               "description": "Which tab to switch to, with the first being 0"
+            }
+          }
+        }
+      ],
+      "required": [
+        "index"
+      ]
+    },
+    "SwitchToWorkspaceSurfaceAction": {
+      "description": "Arguments corresponding to switching terminals within the current workspace",
+      "allOf": [
+        {
+          "$ref": "#/$defs/ShortcutAction"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "switchToWorkspaceSurface"
+            },
+            "index": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "description": "Which terminal to select in the current workspace, with the first being 0"
             }
           }
         }
@@ -2161,6 +2188,9 @@
             },
             {
               "$ref": "#/$defs/SwitchToTabAction"
+            },
+            {
+              "$ref": "#/$defs/SwitchToWorkspaceSurfaceAction"
             },
             {
               "$ref": "#/$defs/ScrollToMarkAction"

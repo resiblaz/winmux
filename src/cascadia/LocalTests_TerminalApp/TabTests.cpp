@@ -170,6 +170,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceSidebarAdaptsToWindowModes);
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
         TEST_METHOD(WorkspaceGroupsMultipleTerminalSurfaces);
+        TEST_METHOD(WorkspaceSurfaceShortcutActions);
         TEST_METHOD(WorkspaceEnvironmentUsesAuthoritativeRoutingMetadata);
         TEST_METHOD(WorkspaceWorkingDirectoryDisplayIsCompact);
         TEST_METHOD(WorkspaceGitBranchParsesStructuredOutput);
@@ -592,6 +593,53 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(2u, page->_WorkspaceItems().Size());
             VERIFY_ARE_EQUAL(1u, page->_WorkspaceItems().GetAt(1).SurfaceCount());
             page->_workspaceFeatures->Workspaces().AssertInvariants(page->_tabs);
+        });
+    }
+
+    void TabTests::WorkspaceSurfaceShortcutActions()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+            page->_OpenNewWorkspace();
+            page->_OpenNewTab(NewTerminalArgs{ 2 });
+
+            VERIFY_ARE_EQUAL(2u, page->_WorkspaceItems().Size());
+            const auto workspace = page->_WorkspaceItems().GetAt(1);
+            VERIFY_ARE_EQUAL(2u, workspace.SurfaceCount());
+
+            const auto switchSurface = [&](const uint32_t index) {
+                const SwitchToWorkspaceSurfaceArgs shortcutArgs{ index };
+                return page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToWorkspaceSurface, shortcutArgs });
+            };
+
+            VERIFY_IS_TRUE(switchSurface(0));
+            VERIFY_ARE_EQUAL(workspace.Surfaces().GetAt(0), page->_GetFocusedTab());
+            VERIFY_IS_TRUE(switchSurface(1));
+            VERIFY_ARE_EQUAL(workspace.Surfaces().GetAt(1), page->_GetFocusedTab());
+
+            page->_SetWorkspaceToolTabSelected(true);
+            VERIFY_IS_TRUE(page->_workspaceToolTabSelected);
+            VERIFY_IS_TRUE(switchSurface(1));
+            VERIFY_IS_FALSE(page->_workspaceToolTabSelected);
+            VERIFY_ARE_EQUAL(workspace.Surfaces().GetAt(1), page->_GetFocusedTab());
+
+            const auto selectedTab = page->_GetFocusedTab();
+            VERIFY_IS_TRUE(switchSurface(8));
+            VERIFY_ARE_EQUAL(selectedTab, page->_GetFocusedTab());
+
+            page->_SidebarController().Enabled = false;
+            VERIFY_IS_FALSE(switchSurface(0));
+            VERIFY_ARE_EQUAL(selectedTab, page->_GetFocusedTab());
+            page->_SidebarController().Enabled = true;
+
+            const auto workspaceCount = page->_WorkspaceItems().Size();
+            const auto surfaceCount = workspace.SurfaceCount();
+            const NewTabArgs newTabArgs{ NewTerminalArgs{} };
+            VERIFY_IS_TRUE(page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::NewTab, newTabArgs }));
+            VERIFY_ARE_EQUAL(workspaceCount, page->_WorkspaceItems().Size());
+            VERIFY_ARE_EQUAL(surfaceCount + 1, workspace.SurfaceCount());
         });
     }
 

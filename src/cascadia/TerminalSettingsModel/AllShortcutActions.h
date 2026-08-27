@@ -39,6 +39,7 @@
     ON_ALL_ACTIONS(ToggleSplitOrientation)  \
     ON_ALL_ACTIONS(TogglePaneZoom)          \
     ON_ALL_ACTIONS(SwitchToTab)             \
+    ON_ALL_ACTIONS(SwitchToWorkspaceSurface) \
     ON_ALL_ACTIONS(AdjustFontSize)          \
     ON_ALL_ACTIONS(ResetFontSize)           \
     ON_ALL_ACTIONS(ScrollUp)                \
@@ -157,6 +158,7 @@
     ON_ALL_ACTIONS_WITH_ARGS(SetTabColor)          \
     ON_ALL_ACTIONS_WITH_ARGS(SplitPane)            \
     ON_ALL_ACTIONS_WITH_ARGS(SwitchToTab)          \
+    ON_ALL_ACTIONS_WITH_ARGS(SwitchToWorkspaceSurface) \
     ON_ALL_ACTIONS_WITH_ARGS(ToggleCommandPalette) \
     ON_ALL_ACTIONS_WITH_ARGS(FocusPane)            \
     ON_ALL_ACTIONS_WITH_ARGS(ExportBuffer)         \

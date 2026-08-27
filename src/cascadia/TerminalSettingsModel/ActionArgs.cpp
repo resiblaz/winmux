@@ -11,6 +11,7 @@
 #include "CopyTextArgs.g.cpp"
 #include "NewTabArgs.g.cpp"
 #include "SwitchToTabArgs.g.cpp"
+#include "SwitchToWorkspaceSurfaceArgs.g.cpp"
 #include "ResizePaneArgs.g.cpp"
 #include "MoveFocusArgs.g.cpp"
 #include "MovePaneArgs.g.cpp"
@@ -323,6 +324,13 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
 
         return winrt::hstring{
             fmt::format(FMT_COMPILE(L"{}, index:{}"), RS_switchable_(L"SwitchToTabCommandKey"), TabIndex())
+        };
+    }
+
+    winrt::hstring SwitchToWorkspaceSurfaceArgs::GenerateName(const winrt::WARC::ResourceContext& context) const
+    {
+        return winrt::hstring{
+            fmt::format(FMT_COMPILE(L"{}, index:{}"), RS_switchable_(L"SwitchToWorkspaceSurfaceCommandKey"), SurfaceIndex())
         };
     }
 

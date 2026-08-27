@@ -91,7 +91,7 @@ namespace winrt::TerminalApp::implementation
         auto& _conclusionSidebar = _page._conclusionSidebar;
         const auto _currentWindowSettings = [&]() { return _page._currentWindowSettings(); };
         const auto _GetTabImpl = [&](const TerminalApp::Tab& tab) { return TerminalPage::_GetTabImpl(tab); };
-        const auto _SelectTab = [&](const uint32_t index) { return _page._SelectTab(index); };
+        const auto _SelectWorkspace = [&](const TerminalApp::WorkspaceItemViewModel& item) { return _page._SelectWorkspace(item); };
         const auto _ReserveWorkspaceIdForNewTab = [&]() { return _page._ReserveWorkspaceIdForNewTab(); };
         const auto _MakePane = [&](auto&&... args) { return _page._MakePane(std::forward<decltype(args)>(args)...); };
         const auto _CreateNewTabFromPane = [&](auto&&... args) { return _page._CreateNewTabFromPane(std::forward<decltype(args)>(args)...); };
@@ -117,6 +117,7 @@ namespace winrt::TerminalApp::implementation
             workspace.Insert(L"title", JsonValue::CreateStringValue(item.Title()));
             workspace.Insert(L"selected", JsonValue::CreateBooleanValue(item.IsSelected()));
             workspace.Insert(L"pinned", JsonValue::CreateBooleanValue(item.IsPinned()));
+            workspace.Insert(L"surfaceCount", JsonValue::CreateNumberValue(item.SurfaceCount()));
             workspace.Insert(L"workingDirectory", JsonValue::CreateStringValue(item.WorkingDirectory()));
             workspace.Insert(L"gitBranch", JsonValue::CreateStringValue(item.GitBranch()));
             JsonArray listeningPorts;
@@ -127,20 +128,23 @@ namespace winrt::TerminalApp::implementation
             workspace.Insert(L"listeningPorts", listeningPorts);
 
             JsonArray terminalSessionIds;
-            if (const auto tabImpl = _GetTabImpl(item.SourceTab()); tabImpl && tabImpl->GetRootPane())
+            for (const auto& surface : item.Surfaces())
             {
-                tabImpl->GetRootPane()->WalkTree([&](const auto& pane) {
-                    if (const auto control = pane->GetTerminalControl())
-                    {
-                        if (const auto connection = control.Connection())
+                if (const auto tabImpl = _GetTabImpl(surface); tabImpl && tabImpl->GetRootPane())
+                {
+                    tabImpl->GetRootPane()->WalkTree([&](const auto& pane) {
+                        if (const auto control = pane->GetTerminalControl())
                         {
-                            if (const auto sessionId = connection.SessionId(); sessionId != winrt::guid{})
+                            if (const auto connection = control.Connection())
                             {
-                                terminalSessionIds.Append(JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(sessionId)));
+                                if (const auto sessionId = connection.SessionId(); sessionId != winrt::guid{})
+                                {
+                                    terminalSessionIds.Append(JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(sessionId)));
+                                }
                             }
                         }
-                    }
-                });
+                    });
+                }
             }
             workspace.Insert(L"terminalSessionIds", terminalSessionIds);
             return workspace;
@@ -199,6 +203,7 @@ namespace winrt::TerminalApp::implementation
             JsonObject value;
             value.Insert(L"id", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(notification.NotificationId())));
             value.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(notification.WorkspaceId())));
+            value.Insert(L"surfaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(notification.SurfaceId())));
             value.Insert(L"paneId", JsonValue::CreateNumberValue(notification.PaneId()));
             value.Insert(L"title", JsonValue::CreateStringValue(notification.Title()));
             value.Insert(L"body", JsonValue::CreateStringValue(notification.Message()));
@@ -261,7 +266,7 @@ namespace winrt::TerminalApp::implementation
             {
                 return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
             }
-            _SelectTab(index.value());
+            _SelectWorkspace(_workspaceItems.GetAt(index.value()));
 
             JsonObject result;
             result.Insert(L"workspace", workspaceJson(_workspaceItems.GetAt(index.value()), index.value()));
@@ -303,11 +308,15 @@ namespace winrt::TerminalApp::implementation
                 return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
             }
 
-            const auto tab = _workspaceItems.GetAt(index.value()).SourceTab();
-            const auto closeQueued = DispatcherQueue::GetForCurrentThread().TryEnqueue([weakThis{ _page.get_weak() }, tab]() {
+            std::vector<TerminalApp::Tab> tabs;
+            for (const auto& tab : _workspaceItems.GetAt(index.value()).Surfaces())
+            {
+                tabs.emplace_back(tab);
+            }
+            const auto closeQueued = DispatcherQueue::GetForCurrentThread().TryEnqueue([weakThis{ _page.get_weak() }, tabs{ std::move(tabs) }]() {
                 if (const auto page = weakThis.get())
                 {
-                    page->_HandleCloseTabRequested(tab);
+                    page->_RemoveTabs(tabs);
                 }
             });
             if (!closeQueued)
@@ -373,7 +382,7 @@ namespace winrt::TerminalApp::implementation
                 return WorkspaceAutomationProtocol::MakeError(request.Id, "pane_not_found", "Pane was not found in the requested workspace");
             }
 
-            _SelectTab(workspaceIndex.value());
+            _SelectWorkspace(_workspaceItems.GetAt(workspaceIndex.value()));
             if (!tabImpl->FocusPane(request.PaneId.value()))
             {
                 return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "Unable to focus Pane");
@@ -409,7 +418,7 @@ namespace winrt::TerminalApp::implementation
                 return WorkspaceAutomationProtocol::MakeError(request.Id, "pane_not_supported", "Only terminal Panes can be split through automation");
             }
 
-            _SelectTab(workspaceIndex.value());
+            _SelectWorkspace(_workspaceItems.GetAt(workspaceIndex.value()));
             if (!tabImpl->FocusPane(request.PaneId.value()))
             {
                 return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "Unable to focus the target Pane");

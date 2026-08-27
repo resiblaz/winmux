@@ -40,6 +40,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         static constexpr uint32_t LegacyVersion{ 1 };
         static constexpr uint32_t MaximumSnapshots{ 128 };
         static constexpr uint32_t MaximumActions{ 256 };
+        static constexpr uint32_t MaximumSurfaces{ 32 };
         static constexpr uint32_t MaximumAgentResumeEntries{ 256 };
         static constexpr size_t MaximumNameCharacters{ 160 };
         static constexpr size_t MaximumTextCharacters{ 4096 };

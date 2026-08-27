@@ -247,11 +247,16 @@ namespace SettingsModelUnitTests
     {
         const winrt::guid firstId{ 0x115e973d, 0x0a23, 0x4b0c, { 0x93, 0x4f, 0x18, 0x2c, 0xa9, 0xc5, 0xc6, 0x18 } };
         const winrt::guid secondId{ 0x2c63e818, 0x6aa7, 0x452f, { 0xb5, 0x72, 0xd3, 0x30, 0xa1, 0x7a, 0x96, 0xa2 } };
+        const winrt::guid firstSurfaceId{ 0x315e973d, 0x0a23, 0x4b0c, { 0x93, 0x4f, 0x18, 0x2c, 0xa9, 0xc5, 0xc6, 0x18 } };
+        const winrt::guid secondSurfaceId{ 0x415e973d, 0x0a23, 0x4b0c, { 0x93, 0x4f, 0x18, 0x2c, 0xa9, 0xc5, 0xc6, 0x18 } };
+        const winrt::guid thirdSurfaceId{ 0x515e973d, 0x0a23, 0x4b0c, { 0x93, 0x4f, 0x18, 0x2c, 0xa9, 0xc5, 0xc6, 0x18 } };
 
         WindowLayout layout;
         layout.TabLayout(winrt::single_threaded_vector<ActionAndArgs>());
-        layout.WorkspaceStateVersion(1);
-        layout.WorkspaceIds(winrt::single_threaded_vector<winrt::guid>({ firstId, secondId }));
+        layout.WorkspaceStateVersion(2);
+        layout.WorkspaceIds(winrt::single_threaded_vector<winrt::guid>({ firstId, firstId, secondId }));
+        layout.WorkspaceSurfaceIds(winrt::single_threaded_vector<winrt::guid>({ firstSurfaceId, secondSurfaceId, thirdSurfaceId }));
+        layout.ActiveWorkspaceSurfaceIds(winrt::single_threaded_vector<winrt::guid>({ secondSurfaceId, thirdSurfaceId }));
         layout.PinnedWorkspaceIndices(winrt::single_threaded_vector<uint32_t>({ 0 }));
         AgentResumeInfo resumeInfo;
         resumeInfo.Version = 1;
@@ -272,11 +277,19 @@ namespace SettingsModelUnitTests
         layout.WorkspaceSnapshotSources(winrt::single_threaded_vector<WorkspaceSnapshotSourceInfo>({ firstSource, secondSource }));
 
         const auto restored = WindowLayout::FromJson(WindowLayout::ToJson(layout));
-        VERIFY_ARE_EQUAL(1u, restored.WorkspaceStateVersion());
+        VERIFY_ARE_EQUAL(2u, restored.WorkspaceStateVersion());
         VERIFY_IS_NOT_NULL(restored.WorkspaceIds());
-        VERIFY_ARE_EQUAL(2u, restored.WorkspaceIds().Size());
+        VERIFY_ARE_EQUAL(3u, restored.WorkspaceIds().Size());
         VERIFY_ARE_EQUAL(firstId, restored.WorkspaceIds().GetAt(0));
-        VERIFY_ARE_EQUAL(secondId, restored.WorkspaceIds().GetAt(1));
+        VERIFY_ARE_EQUAL(firstId, restored.WorkspaceIds().GetAt(1));
+        VERIFY_ARE_EQUAL(secondId, restored.WorkspaceIds().GetAt(2));
+        VERIFY_IS_NOT_NULL(restored.WorkspaceSurfaceIds());
+        VERIFY_ARE_EQUAL(3u, restored.WorkspaceSurfaceIds().Size());
+        VERIFY_ARE_EQUAL(secondSurfaceId, restored.WorkspaceSurfaceIds().GetAt(1));
+        VERIFY_IS_NOT_NULL(restored.ActiveWorkspaceSurfaceIds());
+        VERIFY_ARE_EQUAL(2u, restored.ActiveWorkspaceSurfaceIds().Size());
+        VERIFY_ARE_EQUAL(secondSurfaceId, restored.ActiveWorkspaceSurfaceIds().GetAt(0));
+        VERIFY_ARE_EQUAL(thirdSurfaceId, restored.ActiveWorkspaceSurfaceIds().GetAt(1));
         VERIFY_IS_NOT_NULL(restored.PinnedWorkspaceIndices());
         VERIFY_ARE_EQUAL(1u, restored.PinnedWorkspaceIndices().Size());
         VERIFY_ARE_EQUAL(0u, restored.PinnedWorkspaceIndices().GetAt(0));
@@ -303,6 +316,8 @@ namespace SettingsModelUnitTests
         const auto legacy = WindowLayout::FromJson(L"{\"tabLayout\":[]}");
         VERIFY_ARE_EQUAL(0u, legacy.WorkspaceStateVersion());
         VERIFY_IS_NULL(legacy.WorkspaceIds());
+        VERIFY_IS_NULL(legacy.WorkspaceSurfaceIds());
+        VERIFY_IS_NULL(legacy.ActiveWorkspaceSurfaceIds());
         VERIFY_IS_NULL(legacy.PinnedWorkspaceIndices());
         VERIFY_IS_NULL(legacy.AgentResumeEntries());
         VERIFY_IS_NULL(legacy.WorkspaceSnapshotSources());

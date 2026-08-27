@@ -21,7 +21,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
             "snapshot",
         };
 
-        constexpr std::array<std::string_view, 13> SnapshotFields{
+        constexpr std::array<std::string_view, 15> SnapshotFields{
             "version",
             "revision",
             "id",
@@ -32,6 +32,8 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
             "updatedAt",
             "lastOpenedAt",
             "actions",
+            "surfaceIds",
+            "activeSurfaceId",
             "pinned",
             "agentResumeEntries",
             "gitBinding",
@@ -384,6 +386,31 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
             copy.CreatedAt(now);
             copy.UpdatedAt(now);
             copy.LastOpenedAt(0);
+
+            if (const auto surfaceIds = copy.SurfaceIds(); surfaceIds && surfaceIds.Size() > 0)
+            {
+                auto rewritten = winrt::single_threaded_vector<winrt::guid>();
+                winrt::guid rewrittenActiveSurfaceId{};
+                for (const auto& surfaceId : surfaceIds)
+                {
+                    winrt::guid replacement{};
+                    if (!_newGuid(replacement))
+                    {
+                        return nullptr;
+                    }
+                    rewritten.Append(replacement);
+                    if (surfaceId == copy.ActiveSurfaceId())
+                    {
+                        rewrittenActiveSurfaceId = replacement;
+                    }
+                }
+                if (rewrittenActiveSurfaceId == winrt::guid{})
+                {
+                    return nullptr;
+                }
+                copy.SurfaceIds(std::move(rewritten));
+                copy.ActiveSurfaceId(rewrittenActiveSurfaceId);
+            }
 
             if (const auto entries = copy.AgentResumeEntries())
             {

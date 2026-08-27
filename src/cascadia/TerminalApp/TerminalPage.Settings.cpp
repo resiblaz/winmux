@@ -251,26 +251,103 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::SetStartupWorkspaceState(const uint32_t version,
                                                 std::vector<winrt::guid> workspaceIds,
                                                 std::vector<uint32_t> pinnedWorkspaceIndices,
-                                                std::vector<AgentResumeInfo> agentResumeEntries)
+                                                std::vector<AgentResumeInfo> agentResumeEntries,
+                                                std::vector<winrt::guid> surfaceIds,
+                                                std::vector<winrt::guid> activeSurfaceIds)
     {
         _SessionRestore().StartupWorkspaceIds.clear();
-        _SessionRestore().PinnedWorkspaceIndices.clear();
+        _SessionRestore().StartupSurfaceIds.clear();
+        _SessionRestore().PinnedWorkspaceIds.clear();
+        _SessionRestore().ActiveSurfaceIds.clear();
         _SessionRestore().AgentResumeEntries.clear();
         _SessionRestore().SnapshotSources.clear();
         _SessionRestore().RestoreIndex = 0;
+        _SessionRestore().StateVersion = 0;
         _SessionRestore().Restoring = false;
 
-        if (version != CurrentWorkspaceStateVersion || workspaceIds.empty())
+        if ((version != LegacyWorkspaceStateVersion && version != CurrentWorkspaceStateVersion) || workspaceIds.empty())
         {
             return;
         }
 
+        std::vector<winrt::guid> workspaceOrder;
+        std::unordered_set<winrt::guid> seenWorkspaceIds;
+        winrt::guid previousWorkspaceId{};
+        for (const auto& workspaceId : workspaceIds)
+        {
+            if (workspaceId == winrt::guid{})
+            {
+                return;
+            }
+            if (workspaceId != previousWorkspaceId)
+            {
+                // A Workspace may occupy only one contiguous run of flat Tabs.
+                if (!seenWorkspaceIds.emplace(workspaceId).second)
+                {
+                    return;
+                }
+                workspaceOrder.emplace_back(workspaceId);
+                previousWorkspaceId = workspaceId;
+            }
+        }
+
+        if (version == LegacyWorkspaceStateVersion && workspaceOrder.size() != workspaceIds.size())
+        {
+            return;
+        }
+
+        if (!surfaceIds.empty())
+        {
+            if (version != CurrentWorkspaceStateVersion || surfaceIds.size() != workspaceIds.size())
+            {
+                return;
+            }
+            std::unordered_set<winrt::guid> seenSurfaceIds;
+            for (const auto& surfaceId : surfaceIds)
+            {
+                if (surfaceId == winrt::guid{} || !seenSurfaceIds.emplace(surfaceId).second)
+                {
+                    return;
+                }
+            }
+        }
+
+        if (!activeSurfaceIds.empty())
+        {
+            if (surfaceIds.empty() || activeSurfaceIds.size() != workspaceOrder.size())
+            {
+                return;
+            }
+            for (uint32_t workspaceIndex = 0; workspaceIndex < workspaceOrder.size(); ++workspaceIndex)
+            {
+                const auto activeSurfaceId = activeSurfaceIds[workspaceIndex];
+                bool belongsToWorkspace{};
+                for (uint32_t flatIndex = 0; flatIndex < workspaceIds.size(); ++flatIndex)
+                {
+                    if (workspaceIds[flatIndex] == workspaceOrder[workspaceIndex] && surfaceIds[flatIndex] == activeSurfaceId)
+                    {
+                        belongsToWorkspace = true;
+                        break;
+                    }
+                }
+                if (!belongsToWorkspace)
+                {
+                    return;
+                }
+                _SessionRestore().ActiveSurfaceIds.emplace(workspaceOrder[workspaceIndex], activeSurfaceId);
+            }
+        }
+
         _SessionRestore().StartupWorkspaceIds = std::move(workspaceIds);
+        _SessionRestore().StartupSurfaceIds = std::move(surfaceIds);
+        _SessionRestore().StateVersion = version;
         for (const auto index : pinnedWorkspaceIndices)
         {
-            if (index < _SessionRestore().StartupWorkspaceIds.size())
+            const auto limit = version == LegacyWorkspaceStateVersion ? _SessionRestore().StartupWorkspaceIds.size() : workspaceOrder.size();
+            if (index < limit)
             {
-                _SessionRestore().PinnedWorkspaceIndices.emplace(index);
+                const auto workspaceId = version == LegacyWorkspaceStateVersion ? _SessionRestore().StartupWorkspaceIds[index] : workspaceOrder[index];
+                _SessionRestore().PinnedWorkspaceIds.emplace(workspaceId);
             }
         }
         for (auto&& entry : agentResumeEntries)

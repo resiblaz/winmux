@@ -24,9 +24,12 @@ namespace winrt::TerminalApp::implementation
     struct WorkspaceSessionRestoreState
     {
         std::vector<winrt::guid> StartupWorkspaceIds;
-        std::unordered_set<uint32_t> PinnedWorkspaceIndices;
+        std::vector<winrt::guid> StartupSurfaceIds;
+        std::unordered_set<winrt::guid> PinnedWorkspaceIds;
+        std::unordered_map<winrt::guid, winrt::guid> ActiveSurfaceIds;
         std::vector<Microsoft::Terminal::Settings::Model::AgentResumeInfo> AgentResumeEntries;
         uint32_t RestoreIndex{};
+        uint32_t StateVersion{};
         bool Restoring{};
         std::unordered_map<winrt::guid, std::pair<winrt::guid, uint64_t>> SnapshotSources;
         bool SnapshotReplayInFlight{};
@@ -37,9 +40,12 @@ namespace winrt::TerminalApp::implementation
         void Reset() noexcept
         {
             StartupWorkspaceIds.clear();
-            PinnedWorkspaceIndices.clear();
+            StartupSurfaceIds.clear();
+            PinnedWorkspaceIds.clear();
+            ActiveSurfaceIds.clear();
             AgentResumeEntries.clear();
             RestoreIndex = 0;
+            StateVersion = 0;
             Restoring = false;
             SnapshotSources.clear();
             SnapshotReplayInFlight = false;

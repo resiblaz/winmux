@@ -1018,6 +1018,30 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebarCloseButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Close workspace</value>
   </data>
+  <data name="WorkspaceSurfaceTabCloseButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Close terminal tab</value>
+  </data>
+  <data name="WorkspaceSurfaceTabCloseButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Close terminal tab</value>
+  </data>
+  <data name="WorkspaceSurfaceNewTabButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>New terminal tab in this workspace</value>
+  </data>
+  <data name="WorkspaceSurfaceNewTabButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>New terminal tab</value>
+  </data>
+  <data name="WorkspaceConclusionTab.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Open conclusions</value>
+  </data>
+  <data name="WorkspaceConclusionTab.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Conclusions</value>
+  </data>
+  <data name="WorkspaceSidebarNewWorkspaceButton.Content" xml:space="preserve">
+    <value>+ New workspace</value>
+  </data>
+  <data name="WorkspaceSidebarNewWorkspaceButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Create a new workspace</value>
+  </data>
   <data name="WorkspaceSidebarRenameMenuItem.Text" xml:space="preserve">
     <value>Rename</value>
   </data>
@@ -1065,6 +1089,9 @@ For all available options, run 'wt new-tab --help'.</value>
   </data>
   <data name="WorkspaceSidebar_ItemAutomationShortcut" xml:space="preserve">
     <value>shortcut {0}</value>
+  </data>
+  <data name="WorkspaceSidebar_ItemAutomationSurfaceCount" xml:space="preserve">
+    <value>{0} terminals</value>
   </data>
   <data name="WorkspaceSidebar_CollapseAutomationName" xml:space="preserve">
     <value>Collapse workspace sidebar</value>

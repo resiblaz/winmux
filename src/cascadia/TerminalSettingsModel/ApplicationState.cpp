@@ -25,6 +25,8 @@ static constexpr std::string_view InitialSizeKey{ "initialSize" };
 static constexpr std::string_view LaunchModeKey{ "launchMode" };
 static constexpr std::string_view WorkspaceStateVersionKey{ "workspaceStateVersion" };
 static constexpr std::string_view WorkspaceIdsKey{ "workspaceIds" };
+static constexpr std::string_view WorkspaceSurfaceIdsKey{ "workspaceSurfaceIds" };
+static constexpr std::string_view ActiveWorkspaceSurfaceIdsKey{ "activeWorkspaceSurfaceIds" };
 static constexpr std::string_view PinnedWorkspaceIndicesKey{ "pinnedWorkspaceIndices" };
 static constexpr std::string_view AgentResumeEntriesKey{ "agentResumeEntries" };
 static constexpr std::string_view WorkspaceSnapshotSourcesKey{ "workspaceSnapshotSources" };
@@ -47,6 +49,8 @@ static constexpr std::string_view WorkspaceSnapshotCreatedAtKey{ "createdAt" };
 static constexpr std::string_view WorkspaceSnapshotUpdatedAtKey{ "updatedAt" };
 static constexpr std::string_view WorkspaceSnapshotLastOpenedAtKey{ "lastOpenedAt" };
 static constexpr std::string_view WorkspaceSnapshotActionsKey{ "actions" };
+static constexpr std::string_view WorkspaceSnapshotSurfaceIdsKey{ "surfaceIds" };
+static constexpr std::string_view WorkspaceSnapshotActiveSurfaceIdKey{ "activeSurfaceId" };
 static constexpr std::string_view WorkspaceSnapshotPinnedKey{ "pinned" };
 static constexpr std::string_view WorkspaceSnapshotAgentResumeEntriesKey{ "agentResumeEntries" };
 static constexpr std::string_view WorkspaceSnapshotGitBindingKey{ "gitBinding" };
@@ -171,6 +175,8 @@ namespace Microsoft::Terminal::Settings::Model::JsonUtils
             GetValueForKey(json, InitialSizeKey, layout->_InitialSize);
             GetValueForKey(json, WorkspaceStateVersionKey, layout->_WorkspaceStateVersion);
             GetValueForKey(json, WorkspaceIdsKey, layout->_WorkspaceIds);
+            GetValueForKey(json, WorkspaceSurfaceIdsKey, layout->_WorkspaceSurfaceIds);
+            GetValueForKey(json, ActiveWorkspaceSurfaceIdsKey, layout->_ActiveWorkspaceSurfaceIds);
             GetValueForKey(json, PinnedWorkspaceIndicesKey, layout->_PinnedWorkspaceIndices);
             GetValueForKey(json, AgentResumeEntriesKey, layout->_AgentResumeEntries);
             GetValueForKey(json, WorkspaceSnapshotSourcesKey, layout->_WorkspaceSnapshotSources);
@@ -193,6 +199,8 @@ namespace Microsoft::Terminal::Settings::Model::JsonUtils
             SetValueForKey(json, InitialSizeKey, val.InitialSize());
             SetValueForKey(json, WorkspaceStateVersionKey, val.WorkspaceStateVersion());
             SetValueForKey(json, WorkspaceIdsKey, val.WorkspaceIds());
+            SetValueForKey(json, WorkspaceSurfaceIdsKey, val.WorkspaceSurfaceIds());
+            SetValueForKey(json, ActiveWorkspaceSurfaceIdsKey, val.ActiveWorkspaceSurfaceIds());
             SetValueForKey(json, PinnedWorkspaceIndicesKey, val.PinnedWorkspaceIndices());
             SetValueForKey(json, AgentResumeEntriesKey, val.AgentResumeEntries());
             SetValueForKey(json, WorkspaceSnapshotSourcesKey, val.WorkspaceSnapshotSources());
@@ -290,6 +298,8 @@ namespace Microsoft::Terminal::Settings::Model::JsonUtils
             GetValueForKey(json, WorkspaceSnapshotUpdatedAtKey, snapshot->_UpdatedAt);
             GetValueForKey(json, WorkspaceSnapshotLastOpenedAtKey, snapshot->_LastOpenedAt);
             GetValueForKey(json, WorkspaceSnapshotActionsKey, snapshot->_Actions);
+            GetValueForKey(json, WorkspaceSnapshotSurfaceIdsKey, snapshot->_SurfaceIds);
+            GetValueForKey(json, WorkspaceSnapshotActiveSurfaceIdKey, snapshot->_ActiveSurfaceId);
             GetValueForKey(json, WorkspaceSnapshotPinnedKey, snapshot->_Pinned);
             GetValueForKey(json, WorkspaceSnapshotAgentResumeEntriesKey, snapshot->_AgentResumeEntries);
             if (const auto& binding = json[WorkspaceSnapshotGitBindingKey.data()]; !binding.isNull())
@@ -319,6 +329,8 @@ namespace Microsoft::Terminal::Settings::Model::JsonUtils
             SetValueForKey(json, WorkspaceSnapshotUpdatedAtKey, val.UpdatedAt());
             SetValueForKey(json, WorkspaceSnapshotLastOpenedAtKey, val.LastOpenedAt());
             SetValueForKey(json, WorkspaceSnapshotActionsKey, val.Actions());
+            SetValueForKey(json, WorkspaceSnapshotSurfaceIdsKey, val.SurfaceIds());
+            SetValueForKey(json, WorkspaceSnapshotActiveSurfaceIdKey, val.ActiveSurfaceId());
             SetValueForKey(json, WorkspaceSnapshotPinnedKey, val.Pinned());
             SetValueForKey(json, WorkspaceSnapshotAgentResumeEntriesKey, val.AgentResumeEntries());
             if (const auto binding = val.GitBinding())

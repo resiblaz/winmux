@@ -288,7 +288,8 @@
                              CornerRadius="6"
                              FontFamily="{ThemeResource SymbolThemeFontFamily}"
                              FontSize="12"
-                             Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}">
+                             Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}"
+                             Visibility="Collapsed">
                 <mux:SplitButton.Resources>
                     <Style x:Key="WorkspaceMenuFlyoutPresenterStyle"
                            TargetType="MenuFlyoutPresenter">

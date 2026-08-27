@@ -399,6 +399,10 @@ namespace winrt::TerminalApp::implementation
             if (restoresWorkspace)
             {
                 _SessionRestore().Restoring = false;
+                _SessionRestore().ActiveSurfaceIds.clear();
+                _SessionRestore().StartupSurfaceIds.clear();
+                _SessionRestore().PinnedWorkspaceIds.clear();
+                _SessionRestore().StateVersion = 0;
                 _SessionRestore().AgentResumeEntries.clear();
                 _SessionRestore().SnapshotSources.clear();
                 try

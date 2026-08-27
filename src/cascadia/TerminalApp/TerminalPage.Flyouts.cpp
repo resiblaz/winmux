@@ -695,7 +695,7 @@ namespace winrt::TerminalApp::implementation
         else
         {
             const auto splitTarget = altPressed && !debugTap ? _GetFocusedTabImpl() : nullptr;
-            const auto workspaceId = splitTarget ? _WorkspaceIdForTab(*splitTarget) : _ReserveWorkspaceIdForNewTab();
+            const auto workspaceId = splitTarget ? _WorkspaceIdForTab(*splitTarget) : _WorkspaceIdForNewTab();
             if (workspaceId == winrt::guid{})
             {
                 return;

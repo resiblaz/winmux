@@ -254,7 +254,8 @@
         </DataTemplate>
     </ContentPresenter.Resources>
 
-    <Border Background="{ThemeResource WorkspaceChromeSurfaceBrush}"
+    <Border x:Name="RootBorder"
+            Background="{ThemeResource WorkspaceChromeSurfaceBrush}"
             BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
             BorderThickness="1,0,0,0">
         <Grid>

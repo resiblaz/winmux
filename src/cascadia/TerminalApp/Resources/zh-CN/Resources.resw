@@ -1018,6 +1018,30 @@
   <data name="WorkspaceSidebarCloseButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>关闭工作区</value>
   </data>
+  <data name="WorkspaceSurfaceTabCloseButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>关闭终端标签</value>
+  </data>
+  <data name="WorkspaceSurfaceTabCloseButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>关闭终端标签</value>
+  </data>
+  <data name="WorkspaceSurfaceNewTabButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>在此工作区中新建终端标签</value>
+  </data>
+  <data name="WorkspaceSurfaceNewTabButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>新建终端标签</value>
+  </data>
+  <data name="WorkspaceConclusionTab.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>打开结论</value>
+  </data>
+  <data name="WorkspaceConclusionTab.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>结论</value>
+  </data>
+  <data name="WorkspaceSidebarNewWorkspaceButton.Content" xml:space="preserve">
+    <value>+ 新建工作区</value>
+  </data>
+  <data name="WorkspaceSidebarNewWorkspaceButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>创建新工作区</value>
+  </data>
   <data name="WorkspaceSidebarRenameMenuItem.Text" xml:space="preserve">
     <value>重命名</value>
   </data>
@@ -1065,6 +1089,9 @@
   </data>
   <data name="WorkspaceSidebar_ItemAutomationShortcut" xml:space="preserve">
     <value>快捷键 {0}</value>
+  </data>
+  <data name="WorkspaceSidebar_ItemAutomationSurfaceCount" xml:space="preserve">
+    <value>{0} 个终端</value>
   </data>
   <data name="WorkspaceSidebar_CollapseAutomationName" xml:space="preserve">
     <value>折叠工作区侧边栏</value>

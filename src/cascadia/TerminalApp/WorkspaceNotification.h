@@ -10,6 +10,7 @@ namespace winrt::TerminalApp::implementation
     struct WorkspaceNotification : WorkspaceNotificationT<WorkspaceNotification>
     {
         WorkspaceNotification(const winrt::guid& workspaceId,
+                              const winrt::guid& surfaceId,
                               uint32_t paneId,
                               const winrt::hstring& workspaceTitle,
                               const winrt::hstring& title,
@@ -18,6 +19,7 @@ namespace winrt::TerminalApp::implementation
 
         winrt::guid NotificationId() const noexcept;
         winrt::guid WorkspaceId() const noexcept;
+        winrt::guid SurfaceId() const noexcept;
         uint32_t PaneId() const noexcept;
         winrt::hstring WorkspaceTitle() const;
         winrt::hstring Title() const;
@@ -31,6 +33,7 @@ namespace winrt::TerminalApp::implementation
     private:
         winrt::guid _notificationId{};
         winrt::guid _workspaceId{};
+        winrt::guid _surfaceId{};
         uint32_t _paneId{};
         winrt::hstring _workspaceTitle;
         winrt::hstring _title;

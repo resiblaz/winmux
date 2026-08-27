@@ -219,8 +219,13 @@ namespace winrt::TerminalApp::implementation
         _tabView = _tabRow.TabView();
         _workspaceSidebar = this->WorkspaceSidebar();
         _conclusionSidebar = this->ConclusionSidebar();
+        winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->SetTabContentMode(true);
         _workspaceFeatures->History().Attach(_conclusionSidebar);
         _workspaceList = _workspaceSidebar.WorkspaceList();
+        _workspaceSurfaceTabBar = this->WorkspaceSurfaceTabBar();
+        _workspaceSurfaceTabs = this->WorkspaceSurfaceTabs();
+        _workspaceSurfaceNewTabButton = this->WorkspaceSurfaceNewTabButton();
+        _workspaceToolTabs = this->WorkspaceToolTabs();
         _workspaceList.ItemsSource(_WorkspaceItems());
         _workspaceItemsChangedRevoker = _WorkspaceItems().VectorChanged(winrt::auto_revoke, [weakThis{ get_weak() }](auto&&, auto&&) {
             if (const auto page = weakThis.get())
@@ -257,6 +262,7 @@ namespace winrt::TerminalApp::implementation
         _workspaceSidebar.CloseRequested({ get_weak(), &TerminalPage::_WorkspaceCloseRequested });
         _workspaceSidebar.CloseOthersRequested({ get_weak(), &TerminalPage::_WorkspaceCloseOthersRequested });
         _workspaceSidebar.RenameRequested({ get_weak(), &TerminalPage::_WorkspaceRenameRequested });
+        _workspaceSidebar.NewWorkspaceRequested({ get_weak(), &TerminalPage::_WorkspaceNewWorkspaceRequested });
         _workspaceSidebar.SaveSnapshotRequested([weakThis{ get_weak() }](const auto&, const auto& item) {
             if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
             {

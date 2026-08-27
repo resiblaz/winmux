@@ -64,6 +64,8 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         WINRT_PROPERTY(winrt::Windows::Foundation::IReference<Model::LaunchMode>, LaunchMode, nullptr);
         WINRT_PROPERTY(uint32_t, WorkspaceStateVersion, 0);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<winrt::guid>, WorkspaceIds, nullptr);
+        WINRT_PROPERTY(Windows::Foundation::Collections::IVector<winrt::guid>, WorkspaceSurfaceIds, nullptr);
+        WINRT_PROPERTY(Windows::Foundation::Collections::IVector<winrt::guid>, ActiveWorkspaceSurfaceIds, nullptr);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<uint32_t>, PinnedWorkspaceIndices, nullptr);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::AgentResumeInfo>, AgentResumeEntries, nullptr);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::WorkspaceSnapshotSourceInfo>, WorkspaceSnapshotSources, nullptr);
@@ -90,6 +92,8 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         WINRT_PROPERTY(int64_t, UpdatedAt, 0);
         WINRT_PROPERTY(int64_t, LastOpenedAt, 0);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::ActionAndArgs>, Actions, nullptr);
+        WINRT_PROPERTY(Windows::Foundation::Collections::IVector<winrt::guid>, SurfaceIds, nullptr);
+        WINRT_PROPERTY(winrt::guid, ActiveSurfaceId);
         WINRT_PROPERTY(bool, Pinned, false);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::AgentResumeInfo>, AgentResumeEntries, nullptr);
         WINRT_PROPERTY(Model::WorkspaceGitBinding, GitBinding, nullptr);

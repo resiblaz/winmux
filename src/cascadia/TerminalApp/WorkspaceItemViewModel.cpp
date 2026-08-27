@@ -75,13 +75,195 @@ namespace winrt::TerminalApp::implementation
     }
 
     WorkspaceItemViewModel::WorkspaceItemViewModel(const TerminalApp::Tab& tab) :
-        _tab{ tab },
+        _surfaces{ winrt::single_threaded_observable_vector<TerminalApp::Tab>() },
         _notifications{ winrt::single_threaded_observable_vector<TerminalApp::WorkspaceNotification>() },
         _dispatcher{ Windows::System::DispatcherQueue::GetForCurrentThread() }
     {
         GUID id{};
         THROW_IF_FAILED(CoCreateGuid(&id));
         _workspaceId = id;
+
+        AddSurface(tab);
+    }
+
+    winrt::guid WorkspaceItemViewModel::WorkspaceId() const noexcept
+    {
+        return _workspaceId;
+    }
+
+    TerminalApp::Tab WorkspaceItemViewModel::SourceTab() const noexcept
+    {
+        return _tab;
+    }
+
+    Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> WorkspaceItemViewModel::Surfaces() const noexcept
+    {
+        return _surfaces;
+    }
+
+    uint32_t WorkspaceItemViewModel::SurfaceCount() const noexcept
+    {
+        return _surfaces.Size();
+    }
+
+    winrt::hstring WorkspaceItemViewModel::SurfaceCountText() const
+    {
+        return SurfaceCount() > 1 ? winrt::to_hstring(SurfaceCount()) : winrt::hstring{};
+    }
+
+    bool WorkspaceItemViewModel::HasMultipleSurfaces() const noexcept
+    {
+        return SurfaceCount() > 1;
+    }
+
+    winrt::guid WorkspaceItemViewModel::AddSurface(const TerminalApp::Tab& tab, const std::optional<winrt::guid> surfaceId)
+    {
+        THROW_HR_IF(E_INVALIDARG, !tab);
+        if (const auto existing = SurfaceIdForTab(tab); existing != winrt::guid{})
+        {
+            return existing;
+        }
+
+        auto id = surfaceId.value_or(winrt::guid{});
+        if (id == winrt::guid{})
+        {
+            GUID generated{};
+            THROW_IF_FAILED(CoCreateGuid(&generated));
+            id = generated;
+        }
+        THROW_HR_IF(E_INVALIDARG, TabForSurfaceId(id));
+
+        const auto pinned = IsPinned();
+        _surfaceEntries.emplace_back(SurfaceEntry{ id, tab });
+        _surfaces.Append(tab);
+        if (!_tab)
+        {
+            _AttachActiveTab(tab);
+        }
+        else
+        {
+            tab.IsPinned(pinned);
+        }
+        _RaiseSurfaceProperties();
+        return id;
+    }
+
+    bool WorkspaceItemViewModel::RemoveSurface(const TerminalApp::Tab& tab)
+    {
+        for (uint32_t index = 0; index < _surfaceEntries.size(); ++index)
+        {
+            if (_surfaceEntries[index].Tab == tab)
+            {
+                const auto removedActive = _tab == tab;
+                const auto removedSurfaceId = _surfaceEntries[index].Id;
+                _surfaceEntries.erase(_surfaceEntries.begin() + index);
+                _surfaces.RemoveAt(index);
+                for (auto notificationIndex = _notifications.Size(); notificationIndex > 0; --notificationIndex)
+                {
+                    if (_notifications.GetAt(notificationIndex - 1).SurfaceId() == removedSurfaceId)
+                    {
+                        _notifications.RemoveAt(notificationIndex - 1);
+                    }
+                }
+                if (removedActive)
+                {
+                    const auto replacement = _surfaces.Size() == 0 ? nullptr : _surfaces.GetAt(std::min(index, _surfaces.Size() - 1));
+                    _AttachActiveTab(replacement);
+                }
+                _RaiseSurfaceProperties();
+                _UpdateNotificationProperties();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool WorkspaceItemViewModel::MoveSurface(const TerminalApp::Tab& tab, const uint32_t targetIndex)
+    {
+        THROW_HR_IF(E_BOUNDS, targetIndex >= _surfaceEntries.size());
+
+        for (uint32_t sourceIndex = 0; sourceIndex < _surfaceEntries.size(); ++sourceIndex)
+        {
+            if (_surfaceEntries[sourceIndex].Tab == tab)
+            {
+                if (sourceIndex != targetIndex)
+                {
+                    auto entry = std::move(_surfaceEntries[sourceIndex]);
+                    _surfaceEntries.erase(_surfaceEntries.begin() + sourceIndex);
+                    _surfaceEntries.insert(_surfaceEntries.begin() + targetIndex, std::move(entry));
+
+                    _surfaces.RemoveAt(sourceIndex);
+                    _surfaces.InsertAt(targetIndex, tab);
+                    _RaiseSurfaceProperties();
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool WorkspaceItemViewModel::ContainsTab(const TerminalApp::Tab& tab) const noexcept
+    {
+        return SurfaceIdForTab(tab) != winrt::guid{};
+    }
+
+    void WorkspaceItemViewModel::SetActiveTab(const TerminalApp::Tab& tab)
+    {
+        THROW_HR_IF(E_INVALIDARG, !ContainsTab(tab));
+        if (_tab != tab)
+        {
+            _AttachActiveTab(tab);
+        }
+    }
+
+    winrt::guid WorkspaceItemViewModel::SurfaceIdForTab(const TerminalApp::Tab& tab) const noexcept
+    {
+        for (const auto& entry : _surfaceEntries)
+        {
+            if (entry.Tab == tab)
+            {
+                return entry.Id;
+            }
+        }
+        return {};
+    }
+
+    TerminalApp::Tab WorkspaceItemViewModel::TabForSurfaceId(const winrt::guid& surfaceId) const noexcept
+    {
+        for (const auto& entry : _surfaceEntries)
+        {
+            if (entry.Id == surfaceId)
+            {
+                return entry.Tab;
+            }
+        }
+        return nullptr;
+    }
+
+    void WorkspaceItemViewModel::RestoreSurfaceId(const TerminalApp::Tab& tab, const winrt::guid& surfaceId)
+    {
+        THROW_HR_IF(E_INVALIDARG, !tab || surfaceId == winrt::guid{});
+        if (const auto existing = TabForSurfaceId(surfaceId); existing && existing != tab)
+        {
+            THROW_HR(E_INVALIDARG);
+        }
+
+        for (auto& entry : _surfaceEntries)
+        {
+            if (entry.Tab == tab)
+            {
+                entry.Id = surfaceId;
+                return;
+            }
+        }
+        THROW_HR(E_INVALIDARG);
+    }
+
+    void WorkspaceItemViewModel::_AttachActiveTab(const TerminalApp::Tab& tab)
+    {
+        _tabChangedRevoker.revoke();
+        _tabStatusChangedRevoker.revoke();
+        _tab = tab;
 
         if (_tab)
         {
@@ -123,18 +305,26 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
+        _RaiseActiveTabProperties();
+    }
+
+    void WorkspaceItemViewModel::_RaiseActiveTabProperties()
+    {
         _UpdateWorkingDirectory(false);
         _UpdateStatus();
+        for (const auto propertyName : { L"SourceTab", L"Title", L"AutomationName", L"Icon", L"IsPinned", L"PinIconGlyph", L"PinActionText", L"PinAutomationName", L"SwitchShortcutText", L"SwitchShortcutHintText" })
+        {
+            PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ propertyName });
+        }
     }
 
-    winrt::guid WorkspaceItemViewModel::WorkspaceId() const noexcept
+    void WorkspaceItemViewModel::_RaiseSurfaceProperties()
     {
-        return _workspaceId;
-    }
-
-    TerminalApp::Tab WorkspaceItemViewModel::SourceTab() const noexcept
-    {
-        return _tab;
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"Surfaces" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"SurfaceCount" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"SurfaceCountText" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"HasMultipleSurfaces" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
     }
 
     bool WorkspaceItemViewModel::IsSelected() const noexcept
@@ -195,6 +385,10 @@ namespace winrt::TerminalApp::implementation
         {
             append(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_ItemAutomationShortcut", shortcut) });
         }
+        if (HasMultipleSurfaces())
+        {
+            append(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_ItemAutomationSurfaceCount", SurfaceCount()) });
+        }
         return winrt::hstring{ value };
     }
 
@@ -210,10 +404,14 @@ namespace winrt::TerminalApp::implementation
 
     void WorkspaceItemViewModel::IsPinned(const bool value)
     {
-        if (_tab)
+        for (const auto& surface : _surfaces)
         {
-            _tab.IsPinned(value);
+            surface.IsPinned(value);
         }
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"IsPinned" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"PinIconGlyph" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"PinActionText" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"PinAutomationName" });
     }
 
     winrt::hstring WorkspaceItemViewModel::PinIconGlyph() const
@@ -494,9 +692,10 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void WorkspaceItemViewModel::AddNotification(const uint32_t paneId, const winrt::hstring& title, const winrt::hstring& message)
+    void WorkspaceItemViewModel::AddNotification(const winrt::guid& surfaceId, const uint32_t paneId, const winrt::hstring& title, const winrt::hstring& message)
     {
-        _notifications.Append(TerminalApp::WorkspaceNotification{ _workspaceId, paneId, Title(), title, message, winrt::clock::now() });
+        THROW_HR_IF(E_INVALIDARG, surfaceId == winrt::guid{} || !TabForSurfaceId(surfaceId));
+        _notifications.Append(TerminalApp::WorkspaceNotification{ _workspaceId, surfaceId, paneId, Title(), title, message, winrt::clock::now() });
         if (_notifications.Size() > MaximumNotifications)
         {
             _notifications.RemoveAt(0);
@@ -534,6 +733,23 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
+        if (changed)
+        {
+            _UpdateNotificationProperties();
+        }
+    }
+
+    void WorkspaceItemViewModel::MarkNotificationsReadForSurfacePane(const winrt::guid& surfaceId, const uint32_t paneId)
+    {
+        bool changed = false;
+        for (const auto& notification : _notifications)
+        {
+            if (notification.SurfaceId() == surfaceId && notification.PaneId() == paneId && !notification.IsRead())
+            {
+                notification.IsRead(true);
+                changed = true;
+            }
+        }
         if (changed)
         {
             _UpdateNotificationProperties();

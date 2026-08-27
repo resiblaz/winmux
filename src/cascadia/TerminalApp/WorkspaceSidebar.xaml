@@ -27,13 +27,14 @@
 
         <DataTemplate x:Key="ExpandedWorkspaceTemplate"
                       x:DataType="local:WorkspaceItemViewModel">
-            <Grid MinHeight="36"
-                  Padding="4,4,4,4"
-                  AutomationProperties.HelpText="{x:Bind StatusText, Mode=OneWay}"
-                  AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
-                  Background="Transparent"
-                  PointerEntered="_WorkspaceItem_PointerEntered"
-                  PointerExited="_WorkspaceItem_PointerExited">
+            <StackPanel>
+                <Grid MinHeight="36"
+                      Padding="4,4,4,4"
+                      AutomationProperties.HelpText="{x:Bind StatusText, Mode=OneWay}"
+                      AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
+                      Background="Transparent"
+                      PointerEntered="_WorkspaceItem_PointerEntered"
+                      PointerExited="_WorkspaceItem_PointerExited">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="3" />
                     <ColumnDefinition Width="Auto" />
@@ -111,6 +112,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock FontSize="13"
                                    FontWeight="SemiBold"
@@ -118,6 +120,21 @@
                                    TextTrimming="CharacterEllipsis"
                                    ToolTipService.ToolTip="{x:Bind Title, Mode=OneWay}" />
                         <Border Grid.Column="1"
+                                MinWidth="18"
+                                Height="18"
+                                Margin="6,0,0,0"
+                                Padding="4,0"
+                                VerticalAlignment="Center"
+                                Background="{ThemeResource WorkspaceChromeAccentBrush}"
+                                CornerRadius="9"
+                                Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(SurfaceCountText), Mode=OneWay}">
+                            <TextBlock HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       Text="{x:Bind SurfaceCountText, Mode=OneWay}" />
+                        </Border>
+                        <Border Grid.Column="2"
                                 MaxWidth="54"
                                 Margin="6,0,0,0"
                                 Padding="4,0"
@@ -203,8 +220,8 @@
                         Tag="{Binding}"
                         Visibility="Collapsed" />
 
-                <Grid.ContextFlyout>
-                    <MenuFlyout>
+                    <Grid.ContextFlyout>
+                        <MenuFlyout>
                         <MenuFlyoutItem x:Uid="WorkspaceSidebarOpenNotificationMenuItem"
                                         Click="_Notification_Click"
                                         IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(UnreadBadgeText), Mode=OneWay}"
@@ -246,9 +263,11 @@
                         <MenuFlyoutItem x:Uid="WorkspaceSidebarCloseOthersMenuItem"
                                         Click="_CloseOthers_Click"
                                         Tag="{Binding}" />
-                    </MenuFlyout>
-                </Grid.ContextFlyout>
-            </Grid>
+                        </MenuFlyout>
+                    </Grid.ContextFlyout>
+                </Grid>
+
+            </StackPanel>
         </DataTemplate>
     </ContentPresenter.Resources>
 
@@ -263,6 +282,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="0" />
                 <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid x:Name="SidebarHeader"
@@ -490,6 +510,21 @@
                     </ResourceDictionary>
                 </ListView.Resources>
             </ListView>
+
+            <Border Grid.Row="2"
+                    Grid.Column="0"
+                    Padding="6,4,6,8"
+                    BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
+                    BorderThickness="0,1,0,0">
+                <Button x:Name="NewWorkspaceButton"
+                        x:Uid="WorkspaceSidebarNewWorkspaceButton"
+                        MinHeight="32"
+                        Padding="8,4"
+                        HorizontalContentAlignment="Left"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="_NewWorkspace_Click" />
+            </Border>
 
             <Thumb x:Name="ResizeHandle"
                    x:Uid="WorkspaceSidebarResizeHandle"

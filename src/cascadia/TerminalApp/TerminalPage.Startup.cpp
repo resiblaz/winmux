@@ -325,7 +325,16 @@ namespace winrt::TerminalApp::implementation
         const auto strong = get_strong();
         bool actionsCompleted{ false };
         const auto finalize = wil::scope_exit([&]() noexcept {
+            try
+            {
+                _ApplyRestoredWorkspaceActiveSurfaces();
+            }
+            CATCH_LOG()
             _SessionRestore().Restoring = false;
+            _SessionRestore().ActiveSurfaceIds.clear();
+            _SessionRestore().StartupSurfaceIds.clear();
+            _SessionRestore().PinnedWorkspaceIds.clear();
+            _SessionRestore().StateVersion = 0;
             _SessionRestore().AgentResumeEntries.clear();
             _SessionRestore().SnapshotSources.clear();
             if (!actionsCompleted && failed)

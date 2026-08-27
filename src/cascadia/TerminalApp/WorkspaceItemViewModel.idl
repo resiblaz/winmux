@@ -12,6 +12,10 @@ namespace TerminalApp
 
         Guid WorkspaceId { get; };
         Tab SourceTab { get; };
+        Windows.Foundation.Collections.IObservableVector<Tab> Surfaces { get; };
+        UInt32 SurfaceCount { get; };
+        String SurfaceCountText { get; };
+        Boolean HasMultipleSurfaces { get; };
         String Title { get; };
         String AutomationName { get; };
         String Icon { get; };
@@ -35,9 +39,10 @@ namespace TerminalApp
         WorkspaceNotification LatestUnreadNotification { get; };
         Windows.Foundation.Collections.IObservableVector<WorkspaceNotification> Notifications { get; };
 
-        void AddNotification(UInt32 paneId, String title, String message);
+        void AddNotification(Guid surfaceId, UInt32 paneId, String title, String message);
         void MarkAllNotificationsRead();
         void MarkNotificationsReadForPane(UInt32 paneId);
+        void MarkNotificationsReadForSurfacePane(Guid surfaceId, UInt32 paneId);
         void ClearNotificationHistory();
         void ConfigureAgentResume(String provider, String sessionId, String workingDirectory);
         void ClearAgentResume();

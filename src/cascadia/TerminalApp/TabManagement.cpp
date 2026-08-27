@@ -87,10 +87,10 @@ namespace winrt::TerminalApp::implementation
             // unpackaged, but not packaged.
         }
 
-        // Reserve the Workspace ID before initializing the ConPTY connection.
-        // The child process and the WorkspaceItemViewModel must observe the
-        // same identifier.
-        const auto workspaceId = _ReserveWorkspaceIdForNewTab();
+        // Resolve the owning Workspace before initializing the ConPTY
+        // connection. In Sidebar mode this may be the active Workspace; other
+        // layouts and startup continue to reserve a new one.
+        const auto workspaceId = _WorkspaceIdForNewTab();
 
         // This call to _MakePane won't return nullptr, we already checked that
         // case above with the _maybeElevate call.
@@ -112,9 +112,9 @@ namespace winrt::TerminalApp::implementation
         {
             workspaceId = _ReserveWorkspaceIdForNewTab();
         }
-        THROW_HR_IF(E_UNEXPECTED, std::ranges::any_of(_WorkspaceItems(), [&](const auto& item) {
-                        return item.WorkspaceId() == workspaceId;
-                    }));
+        auto& workspaces = _workspaceFeatures->Workspaces();
+        const auto existingWorkspaceIndex = workspaces.IndexOf(workspaceId);
+        const auto existingWorkspace = existingWorkspaceIndex ? _WorkspaceItems().GetAt(existingWorkspaceIndex.value()) : nullptr;
 
         newTabImpl->Initialize();
 
@@ -129,55 +129,94 @@ namespace winrt::TerminalApp::implementation
         if (_SessionRestore().Restoring && _SessionRestore().RestoreIndex < _SessionRestore().StartupWorkspaceIds.size())
         {
             restoredWorkspaceIndex = _SessionRestore().RestoreIndex++;
-            newTabImpl->IsPinned(_SessionRestore().PinnedWorkspaceIndices.contains(restoredWorkspaceIndex.value()));
+            newTabImpl->IsPinned(_SessionRestore().PinnedWorkspaceIds.contains(workspaceId));
         }
 
-        if (insertPosition == -1)
+        uint32_t workspaceInsertIndex{};
+        if (existingWorkspace)
         {
-            insertPosition = _tabs.Size();
-            if (_currentWindowSettings().NewTabPosition() == NewTabPosition::AfterCurrentTab)
+            // Surfaces in one Workspace must stay contiguous in the compatibility
+            // Tab vector. New Surfaces are appended to their owning Workspace.
+            insertPosition = workspaces.FlatInsertIndexAfter(workspaceId).value();
+            newTabImpl->IsPinned(existingWorkspace.IsPinned());
+        }
+        else
+        {
+            if (insertPosition == -1)
             {
-                auto currentTabIndex = _GetFocusedTabIndex();
-                if (currentTabIndex.has_value())
+                workspaceInsertIndex = _WorkspaceItems().Size();
+                if (_currentWindowSettings().NewTabPosition() == NewTabPosition::AfterCurrentTab)
                 {
-                    insertPosition = currentTabIndex.value() + 1;
+                    if (const auto currentTab = _GetFocusedTab())
+                    {
+                        if (const auto currentWorkspaceIndex = workspaces.IndexOfTab(currentTab))
+                        {
+                            workspaceInsertIndex = currentWorkspaceIndex.value() + 1;
+                        }
+                    }
                 }
             }
-        }
+            else
+            {
+                workspaceInsertIndex = workspaces.WorkspaceIndexForFlatInsertion(std::min(insertPosition, _tabs.Size()));
+            }
 
-        // Runtime tabs are unpinned and stay outside the pinned section. During
-        // session restore, append pinned workspaces to the current pinned block.
-        insertPosition = newTabImpl->IsPinned() ?
-                             std::min(insertPosition, _PinnedTabCount()) :
-                             std::max(insertPosition, _PinnedTabCount());
+            uint32_t pinnedWorkspaceCount{};
+            for (const auto& item : _WorkspaceItems())
+            {
+                pinnedWorkspaceCount += item.IsPinned() ? 1u : 0u;
+            }
+            workspaceInsertIndex = newTabImpl->IsPinned() ?
+                                       std::min(workspaceInsertIndex, pinnedWorkspaceCount) :
+                                       std::max(workspaceInsertIndex, pinnedWorkspaceCount);
+            insertPosition = workspaces.FlatTabCountBefore(workspaceInsertIndex);
+        }
 
         // Add the new tab to the list of our tabs.
         _tabs.InsertAt(insertPosition, *newTabImpl);
-        auto workspaceItem = winrt::make_self<WorkspaceItemViewModel>(*newTabImpl);
-        workspaceItem->RestoreWorkspaceId(workspaceId);
-        if (restoredWorkspaceIndex)
+        TerminalApp::WorkspaceItemViewModel workspaceItem{ existingWorkspace };
+        if (workspaceItem)
         {
-            if (const auto source = _SessionRestore().SnapshotSources.find(workspaceId);
-                source != _SessionRestore().SnapshotSources.end())
-            {
-                auto& snapshots = _workspaceFeatures->Snapshots();
-                snapshots.BindItem(*workspaceItem, source->second.first, source->second.second);
-                snapshots.ValidateRestoredItemBinding(*workspaceItem, source->second.first, source->second.second);
-            }
+            const auto surfaceId = restoredWorkspaceIndex && restoredWorkspaceIndex.value() < _SessionRestore().StartupSurfaceIds.size() ?
+                                       std::optional{ _SessionRestore().StartupSurfaceIds[restoredWorkspaceIndex.value()] } :
+                                       std::nullopt;
+            workspaces.AddSurface(workspaceId, *newTabImpl, surfaceId);
         }
-        if (restoredWorkspaceIndex)
+        else
         {
-            const auto resumeEntry = std::find_if(_SessionRestore().AgentResumeEntries.begin(), _SessionRestore().AgentResumeEntries.end(), [&](const auto& entry) {
-                return entry.WorkspaceId == workspaceItem->WorkspaceId();
-            });
-            if (resumeEntry != _SessionRestore().AgentResumeEntries.end() && WorkspaceAgentResume::IsSupported(*resumeEntry))
+            auto workspaceItemImpl = winrt::make_self<WorkspaceItemViewModel>(*newTabImpl);
+            workspaceItemImpl->RestoreWorkspaceId(workspaceId);
+            if (restoredWorkspaceIndex && restoredWorkspaceIndex.value() < _SessionRestore().StartupSurfaceIds.size())
             {
-                workspaceItem->ConfigureAgentResume(resumeEntry->Provider, resumeEntry->SessionId, resumeEntry->WorkingDirectory);
+                workspaceItemImpl->RestoreSurfaceId(*newTabImpl, _SessionRestore().StartupSurfaceIds[restoredWorkspaceIndex.value()]);
             }
+            workspaceItem = *workspaceItemImpl;
+            if (restoredWorkspaceIndex)
+            {
+                if (const auto source = _SessionRestore().SnapshotSources.find(workspaceId);
+                    source != _SessionRestore().SnapshotSources.end())
+                {
+                    auto& snapshots = _workspaceFeatures->Snapshots();
+                    snapshots.BindItem(workspaceItem, source->second.first, source->second.second);
+                    snapshots.ValidateRestoredItemBinding(workspaceItem, source->second.first, source->second.second);
+                }
+            }
+            if (restoredWorkspaceIndex)
+            {
+                const auto resumeEntry = std::find_if(_SessionRestore().AgentResumeEntries.begin(), _SessionRestore().AgentResumeEntries.end(), [&](const auto& entry) {
+                    return entry.WorkspaceId == workspaceItem.WorkspaceId();
+                });
+                if (resumeEntry != _SessionRestore().AgentResumeEntries.end() && WorkspaceAgentResume::IsSupported(*resumeEntry))
+                {
+                    workspaceItem.ConfigureAgentResume(resumeEntry->Provider, resumeEntry->SessionId, resumeEntry->WorkingDirectory);
+                }
+            }
+            workspaces.Insert(workspaceInsertIndex, workspaceItem);
+            workspaceItemImpl->RefreshGitBranch();
         }
-        _workspaceFeatures->Workspaces().Insert(insertPosition, *workspaceItem);
-        workspaceItem->RefreshGitBranch();
         _mruTabs.Append(*newTabImpl);
+
+        workspaces.AssertInvariants(_tabs);
 
         newTabImpl->SetDispatch(*_actionDispatch);
         newTabImpl->SetActionMap(_settings.ActionMap());
@@ -362,6 +401,10 @@ namespace winrt::TerminalApp::implementation
         {
             _workspaceSidebar.Visibility(_SidebarController().Enabled && navigationVisible ? Visibility::Visible : Visibility::Collapsed);
         }
+        if (_workspaceSurfaceTabBar)
+        {
+            _workspaceSurfaceTabBar.Visibility(_SidebarController().Enabled && navigationVisible ? Visibility::Visible : Visibility::Collapsed);
+        }
     }
 
     // Method Description:
@@ -393,7 +436,7 @@ namespace winrt::TerminalApp::implementation
             {
                 insertPosition = tab.TabViewIndex() + 1;
             }
-            const auto workspaceId = _ReserveWorkspaceIdForNewTab();
+            const auto workspaceId = _WorkspaceIdForNewTab();
             _CreateNewTabFromPane(_MakePane(nullptr, tab, nullptr, true, workspaceId), insertPosition, workspaceId);
 
             const auto runtimeTabText{ tab.GetTabText() };
@@ -618,9 +661,11 @@ namespace winrt::TerminalApp::implementation
         }
 
         _tabs.RemoveAt(tabIndex);
-        _workspaceFeatures->Workspaces().Remove(tabIndex);
+        _workspaceFeatures->Workspaces().RemoveSurface(tab);
         _tabView.TabItems().RemoveAt(tabIndex);
         _UpdateTabIndices();
+
+        _workspaceFeatures->Workspaces().AssertInvariants(_tabs);
 
         // To close the window here, we need to close the hosting window.
         if (_tabs.Size() == 0)
@@ -1185,6 +1230,7 @@ namespace winrt::TerminalApp::implementation
 
         try
         {
+            _SetWorkspaceToolTabSelected(false);
             _tabContent.Children().Clear();
             _tabContent.Children().Append(tab.Content());
             _SyncWorkspaceSelection(tab);
@@ -1308,30 +1354,74 @@ namespace winrt::TerminalApp::implementation
                                    const int32_t suggestedNewTabIndex,
                                    const bool selectMovedTab)
     {
-        const auto tab = _tabs.GetAt(currentTabIndex);
-        const auto newTabIndex = gsl::narrow_cast<uint32_t>(_ClampTabIndexForPinnedState(tab, suggestedNewTabIndex));
-        if (currentTabIndex != newTabIndex)
+        if (currentTabIndex >= _tabs.Size())
         {
-            auto tabViewItem = tab.TabViewItem();
-            const auto previouslySelectedItem = _tabView.SelectedItem();
-            _tabs.RemoveAt(currentTabIndex);
-            _tabs.InsertAt(newTabIndex, tab);
-            if (!_SidebarController().Reordering)
+            return;
+        }
+
+        const auto tab = _tabs.GetAt(currentTabIndex);
+        const auto item = _WorkspaceItemForTab(tab);
+        if (!item)
+        {
+            return;
+        }
+
+        auto& workspaces = _workspaceFeatures->Workspaces();
+        if (item.SurfaceCount() > 1)
+        {
+            const auto span = workspaces.Span(item.WorkspaceId());
+            if (!span)
             {
-                _workspaceFeatures->Workspaces().Move(currentTabIndex, newTabIndex);
+                return;
             }
-            _UpdateTabIndices();
 
-            _tabView.TabItems().RemoveAt(currentTabIndex);
-            _tabView.TabItems().InsertAt(newTabIndex, tabViewItem);
-            _tabView.SelectedItem(selectMovedTab ? tabViewItem : previouslySelectedItem);
+            const auto targetFlatIndex = std::clamp(suggestedNewTabIndex,
+                                                    gsl::narrow_cast<int32_t>(span->First),
+                                                    gsl::narrow_cast<int32_t>(span->First + span->Count - 1));
+            const auto targetSurfaceIndex = gsl::narrow_cast<uint32_t>(targetFlatIndex) - span->First;
+            workspaces.MoveSurface(tab, targetSurfaceIndex);
+        }
+        else
+        {
+            const auto currentWorkspaceIndex = workspaces.IndexOf(item.WorkspaceId());
+            if (!currentWorkspaceIndex)
+            {
+                return;
+            }
 
+            const auto clampedFlatIndex = gsl::narrow_cast<uint32_t>(_ClampTabIndexForPinnedState(tab, suggestedNewTabIndex));
+            auto targetWorkspaceIndex = std::min(workspaces.WorkspaceIndexForFlatInsertion(clampedFlatIndex), _WorkspaceItems().Size() - 1);
+
+            uint32_t pinnedWorkspaceCount{};
+            for (const auto& workspace : _WorkspaceItems())
+            {
+                pinnedWorkspaceCount += workspace.IsPinned() ? 1u : 0u;
+            }
+            targetWorkspaceIndex = item.IsPinned() ?
+                                       std::min(targetWorkspaceIndex, pinnedWorkspaceCount - 1) :
+                                       std::max(targetWorkspaceIndex, pinnedWorkspaceCount);
+            workspaces.Move(currentWorkspaceIndex.value(), targetWorkspaceIndex);
+        }
+
+        const auto previouslySelectedItem = _tabView.SelectedItem();
+        _SynchronizeFlatTabOrder();
+        if (selectMovedTab)
+        {
+            _tabView.SelectedItem(tab.TabViewItem());
+        }
+        else if (previouslySelectedItem)
+        {
+            _tabView.SelectedItem(previouslySelectedItem);
+        }
+
+        if (const auto newTabIndex = _GetTabIndex(tab); newTabIndex && currentTabIndex != newTabIndex.value())
+        {
             if (auto autoPeer = Automation::Peers::FrameworkElementAutomationPeer::FromElement(*this))
             {
                 const auto tabTitle = tab.Title();
                 autoPeer.RaiseNotificationEvent(Automation::Peers::AutomationNotificationKind::ActionCompleted,
                                                 Automation::Peers::AutomationNotificationProcessing::ImportantMostRecent,
-                                                RS_fmt(L"TerminalPage_TabMovedAnnouncement_Direction", tabTitle, newTabIndex + 1),
+                                                RS_fmt(L"TerminalPage_TabMovedAnnouncement_Direction", tabTitle, newTabIndex.value() + 1),
                                                 L"TerminalPageMoveTabWithDirection" /* unique name for this notification category */);
             }
         }
@@ -1356,29 +1446,13 @@ namespace winrt::TerminalApp::implementation
         {
             try
             {
-                auto& tabs{ _tabs };
-                auto tab = tabs.GetAt(from.value());
-                const auto targetIndex = _ClampTabIndexForPinnedState(tab, to.value());
-                tabs.RemoveAt(from.value());
-                tabs.InsertAt(targetIndex, tab);
-                _workspaceFeatures->Workspaces().Move(from.value(), targetIndex);
-                _UpdateTabIndices();
-
-                // TabView has already performed the visual move. Put it back
-                // inside its pinned/unpinned section if the requested drop
-                // crossed the boundary.
                 _rearranging = false;
-                if (targetIndex != to.value())
+                const auto tab = _tabs.GetAt(from.value());
+                _TryMoveTab(from.value(), to.value());
+                if (const auto targetIndex = _GetTabIndex(tab))
                 {
-                    uint32_t visualIndex{};
-                    const auto tabViewItem = tab.TabViewItem();
-                    if (_tabView.TabItems().IndexOf(tabViewItem, visualIndex))
-                    {
-                        _tabView.TabItems().RemoveAt(visualIndex);
-                        _tabView.TabItems().InsertAt(targetIndex, tabViewItem);
-                    }
+                    selectedIndex = gsl::narrow_cast<int32_t>(targetIndex.value());
                 }
-                selectedIndex = targetIndex;
             }
             CATCH_LOG();
         }

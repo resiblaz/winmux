@@ -14,6 +14,10 @@ namespace winrt::TerminalApp::implementation
 
         winrt::guid WorkspaceId() const noexcept;
         TerminalApp::Tab SourceTab() const noexcept;
+        Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> Surfaces() const noexcept;
+        uint32_t SurfaceCount() const noexcept;
+        winrt::hstring SurfaceCountText() const;
+        bool HasMultipleSurfaces() const noexcept;
         winrt::hstring Title() const;
         winrt::hstring AutomationName() const;
         winrt::hstring Icon() const;
@@ -38,6 +42,14 @@ namespace winrt::TerminalApp::implementation
         TerminalApp::WorkspaceNotification LatestUnreadNotification() const;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> Notifications() const noexcept;
         void RestoreWorkspaceId(const winrt::guid& workspaceId) noexcept;
+        winrt::guid AddSurface(const TerminalApp::Tab& tab, std::optional<winrt::guid> surfaceId = std::nullopt);
+        bool RemoveSurface(const TerminalApp::Tab& tab);
+        bool MoveSurface(const TerminalApp::Tab& tab, uint32_t targetIndex);
+        bool ContainsTab(const TerminalApp::Tab& tab) const noexcept;
+        void SetActiveTab(const TerminalApp::Tab& tab);
+        winrt::guid SurfaceIdForTab(const TerminalApp::Tab& tab) const noexcept;
+        TerminalApp::Tab TabForSurfaceId(const winrt::guid& surfaceId) const noexcept;
+        void RestoreSurfaceId(const TerminalApp::Tab& tab, const winrt::guid& surfaceId);
         void BindSourceSnapshot(const winrt::guid& snapshotId, uint64_t revision) noexcept;
         void ClearSourceSnapshot() noexcept;
         std::optional<winrt::guid> SourceSnapshotId() const noexcept;
@@ -47,9 +59,10 @@ namespace winrt::TerminalApp::implementation
         void UpdateListeningPorts(std::vector<uint16_t> ports);
         const std::vector<uint16_t>& ListeningPorts() const noexcept;
 
-        void AddNotification(uint32_t paneId, const winrt::hstring& title, const winrt::hstring& message);
+        void AddNotification(const winrt::guid& surfaceId, uint32_t paneId, const winrt::hstring& title, const winrt::hstring& message);
         void MarkAllNotificationsRead();
         void MarkNotificationsReadForPane(uint32_t paneId);
+        void MarkNotificationsReadForSurfacePane(const winrt::guid& surfaceId, uint32_t paneId);
         void ClearNotificationHistory();
         void ConfigureAgentResume(const winrt::hstring& provider, const winrt::hstring& sessionId, const winrt::hstring& workingDirectory);
         void ClearAgentResume();
@@ -74,8 +87,16 @@ namespace winrt::TerminalApp::implementation
         WINRT_OBSERVABLE_PROPERTY(winrt::hstring, LatestNotification, PropertyChanged.raise, L"");
 
     private:
+        struct SurfaceEntry
+        {
+            winrt::guid Id{};
+            TerminalApp::Tab Tab{ nullptr };
+        };
+
         winrt::guid _workspaceId{};
         TerminalApp::Tab _tab{ nullptr };
+        Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _surfaces;
+        std::vector<SurfaceEntry> _surfaceEntries;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> _notifications;
         Windows::UI::Xaml::Data::INotifyPropertyChanged::PropertyChanged_revoker _tabChangedRevoker;
         Windows::UI::Xaml::Data::INotifyPropertyChanged::PropertyChanged_revoker _tabStatusChangedRevoker;
@@ -98,6 +119,9 @@ namespace winrt::TerminalApp::implementation
         static constexpr auto GitQueryTimeout{ std::chrono::milliseconds{ 1500 } };
         static constexpr auto GitCacheMaximumAge{ std::chrono::seconds{ 10 } };
         safe_void_coroutine _RefreshGitBranchAsync(winrt::hstring directory, uint64_t generation);
+        void _AttachActiveTab(const TerminalApp::Tab& tab);
+        void _RaiseActiveTabProperties();
+        void _RaiseSurfaceProperties();
         void _UpdateWorkingDirectory(bool refreshGit = true);
         void _UpdateStatus();
         void _UpdateNotificationProperties();

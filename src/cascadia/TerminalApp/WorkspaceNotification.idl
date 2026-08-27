@@ -6,6 +6,7 @@ namespace TerminalApp
     runtimeclass WorkspaceNotification
     {
         WorkspaceNotification(Guid workspaceId,
+                              Guid surfaceId,
                               UInt32 paneId,
                               String workspaceTitle,
                               String title,
@@ -14,6 +15,7 @@ namespace TerminalApp
 
         Guid NotificationId { get; };
         Guid WorkspaceId { get; };
+        Guid SurfaceId { get; };
         UInt32 PaneId { get; };
         String WorkspaceTitle { get; };
         String Title { get; };

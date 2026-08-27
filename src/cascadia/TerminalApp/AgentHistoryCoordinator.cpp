@@ -286,10 +286,10 @@ namespace winrt::TerminalApp::implementation
         }
 
         const auto sidebar = winrt::get_self<implementation::ConclusionSidebar>(_sidebar);
-        const auto selectedIndex = _page._tabView.SelectedIndex();
-        if (_page._SidebarController().Enabled && selectedIndex >= 0 && selectedIndex < gsl::narrow_cast<int32_t>(_page._WorkspaceItems().Size()))
+        const auto activeItem = _page._WorkspaceItemForTab(_page._GetFocusedTab());
+        if (_page._SidebarController().Enabled && activeItem)
         {
-            const auto item = _page._WorkspaceItems().GetAt(gsl::narrow_cast<uint32_t>(selectedIndex));
+            const auto item = activeItem;
             const auto workspaceId = item.WorkspaceId();
             const auto workspaceTitle = item.Title();
             const auto cwd = item.WorkingDirectory();
@@ -668,10 +668,11 @@ namespace winrt::TerminalApp::implementation
         {
             return false;
         }
-        const auto selectedIndex = _page._tabView.SelectedIndex();
-        return selectedIndex >= 0 &&
-               selectedIndex < gsl::narrow_cast<int32_t>(_page._WorkspaceItems().Size()) &&
-               _page._WorkspaceItems().GetAt(gsl::narrow_cast<uint32_t>(selectedIndex)).WorkspaceId() == workspaceId;
+        if (const auto item = _page._WorkspaceItemForTab(_page._GetFocusedTab()))
+        {
+            return item.WorkspaceId() == workspaceId;
+        }
+        return false;
     }
 
     void AgentHistoryCoordinator::_CompleteCodexHistoryOperation(const winrt::guid& workspaceId,

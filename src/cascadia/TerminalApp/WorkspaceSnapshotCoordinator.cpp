@@ -265,6 +265,8 @@ namespace winrt::TerminalApp::implementation
     {
         winrt::weak_ref<TerminalApp::WorkspaceItemViewModel> Item;
         std::vector<ActionAndArgs> Actions;
+        std::vector<winrt::guid> SurfaceIds;
+        winrt::guid ActiveSurfaceId{};
         std::vector<AgentResumeInfo> AgentResumeEntries;
         winrt::guid WorkspaceId{};
         winrt::hstring WorkingDirectory;
@@ -319,14 +321,27 @@ namespace winrt::TerminalApp::implementation
             return;
         }
 
-        const auto tab = item.SourceTab();
-        const auto tabImpl = tab ? TerminalPage::_GetTabImpl(tab) : nullptr;
-        if (!tabImpl)
+        std::vector<ActionAndArgs> actions;
+        std::vector<winrt::guid> surfaceIds;
+        const auto itemImpl = winrt::get_self<implementation::WorkspaceItemViewModel>(item);
+        surfaceIds.reserve(item.SurfaceCount());
+        for (const auto& surface : item.Surfaces())
         {
-            return;
+            const auto tabImpl = TerminalPage::_GetTabImpl(surface);
+            if (!tabImpl)
+            {
+                return;
+            }
+            auto surfaceActions = tabImpl->BuildStartupActions(BuildStartupKind::Snapshot);
+            if (surfaceActions.empty())
+            {
+                return;
+            }
+            actions.insert(actions.end(),
+                           std::make_move_iterator(surfaceActions.begin()),
+                           std::make_move_iterator(surfaceActions.end()));
+            surfaceIds.emplace_back(itemImpl->SurfaceIdForTab(surface));
         }
-
-        auto actions = tabImpl->BuildStartupActions(BuildStartupKind::Snapshot);
         if (actions.empty() || item.Title().empty())
         {
             return;
@@ -337,7 +352,6 @@ namespace winrt::TerminalApp::implementation
             return;
         }
 
-        const auto itemImpl = winrt::get_self<implementation::WorkspaceItemViewModel>(item);
         const auto sourceSnapshotId = itemImpl->SourceSnapshotId();
         const auto sourceRevision = itemImpl->SourceSnapshotRevision();
         std::vector<AgentResumeInfo> agentResumeEntries;
@@ -359,6 +373,8 @@ namespace winrt::TerminalApp::implementation
         auto request = std::make_shared<SaveRequest>();
         request->Item = winrt::make_weak(item);
         request->Actions = std::move(actions);
+        request->SurfaceIds = std::move(surfaceIds);
+        request->ActiveSurfaceId = itemImpl->SurfaceIdForTab(item.SourceTab());
         request->AgentResumeEntries = std::move(agentResumeEntries);
         request->WorkspaceId = workspaceId;
         request->WorkingDirectory = item.WorkingDirectory();
@@ -482,6 +498,8 @@ namespace winrt::TerminalApp::implementation
                     snapshot.RootDirectory(gitBinding ? gitBinding.WorktreePath() : request->WorkingDirectory);
                     snapshot.UpdatedAt(now);
                     snapshot.Actions(winrt::single_threaded_vector<ActionAndArgs>(std::move(request->Actions)));
+                    snapshot.SurfaceIds(winrt::single_threaded_vector<winrt::guid>(std::move(request->SurfaceIds)));
+                    snapshot.ActiveSurfaceId(request->ActiveSurfaceId);
                     snapshot.Pinned(request->Pinned);
                     snapshot.AgentResumeEntries(winrt::single_threaded_vector<AgentResumeInfo>(std::move(request->AgentResumeEntries)));
                     if (gitBinding)
@@ -644,7 +662,7 @@ namespace winrt::TerminalApp::implementation
 
         if (const auto existingIndex = page->_FindWorkspaceIndex(snapshot.WorkspaceId()))
         {
-            if (page->_SelectTab(existingIndex.value()))
+            if (page->_SelectWorkspace(page->_WorkspaceItems().GetAt(existingIndex.value())))
             {
                 if (existingIndex.value() < page->_WorkspaceItems().Size())
                 {
@@ -694,10 +712,23 @@ namespace winrt::TerminalApp::implementation
         }
 
         auto actions = wil::to_vector(snapshot.Actions());
+        std::vector<winrt::guid> surfaceIds;
+        if (const auto ids = snapshot.SurfaceIds())
+        {
+            surfaceIds = wil::to_vector(ids);
+        }
+        std::vector<winrt::guid> workspaceIds(std::max<size_t>(surfaceIds.size(), 1), snapshot.WorkspaceId());
+        std::vector<winrt::guid> activeSurfaceIds;
+        if (!surfaceIds.empty())
+        {
+            activeSurfaceIds.emplace_back(snapshot.ActiveSurfaceId());
+        }
         _page.SetStartupWorkspaceState(TerminalPage::CurrentWorkspaceStateVersion,
-                                       { snapshot.WorkspaceId() },
+                                       std::move(workspaceIds),
                                        snapshot.Pinned() ? std::vector<uint32_t>{ 0 } : std::vector<uint32_t>{},
-                                       std::move(agentResumeEntries));
+                                       std::move(agentResumeEntries),
+                                       std::move(surfaceIds),
+                                       std::move(activeSurfaceIds));
         const auto workspaceId = snapshot.WorkspaceId();
         const auto snapshotId = snapshot.Id();
         const auto revision = snapshot.Revision();
@@ -816,7 +847,7 @@ namespace winrt::TerminalApp::implementation
                 {
                     co_return;
                 }
-                if (page->_SelectTab(existingIndex.value()))
+                if (page->_SelectWorkspace(page->_WorkspaceItems().GetAt(existingIndex.value())))
                 {
                     coordinator.BindItem(page->_WorkspaceItems().GetAt(existingIndex.value()), snapshot.Id(), snapshot.Revision());
                     coordinator._MarkWorkspaceSnapshotOpenedAsync(snapshot.Id(), snapshot.WorkspaceId());
@@ -911,7 +942,7 @@ namespace winrt::TerminalApp::implementation
                 if (existingIndex && existingIndex.value() < page->_WorkspaceItems().Size() &&
                     page->_WorkspaceItems().GetAt(existingIndex.value()).WorkingDirectory() == existingWorkspaceCwd)
                 {
-                    page->_SelectTab(existingIndex.value());
+                    page->_SelectWorkspace(page->_WorkspaceItems().GetAt(existingIndex.value()));
                     coordinator._MarkWorkspaceSnapshotOpenedAsync(snapshot.Id(), snapshot.WorkspaceId());
                 }
             }

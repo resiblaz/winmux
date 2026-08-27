@@ -135,6 +135,7 @@ namespace SettingsModelUnitTests
         TEST_CLASS(WorkspaceSnapshotStoreTests);
 
         TEST_METHOD(SchemaV2RoundTripsGitBinding);
+        TEST_METHOD(MultiSurfaceMetadataRoundTrips);
         TEST_METHOD(ValidatorRejectsMalformedGitBinding);
         TEST_METHOD(TwoStoresUseRevisionCas);
         TEST_METHOD(TouchMergesWithoutRevisionChange);
@@ -167,6 +168,29 @@ namespace SettingsModelUnitTests
         VERIFY_ARE_EQUAL(binding.Head(), restored.GitBinding().Head());
         VERIFY_ARE_EQUAL(binding.CapturedAt(), restored.GitBinding().CapturedAt());
         VERIFY_IS_TRUE(static_cast<bool>(WorkspaceSnapshotValidator::Validate(restored, true)));
+    }
+
+    void WorkspaceSnapshotStoreTests::MultiSurfaceMetadataRoundTrips()
+    {
+        auto snapshot = _snapshot();
+        const auto firstSurfaceId = _newGuid();
+        const auto secondSurfaceId = _newGuid();
+        auto actions = snapshot.Actions();
+        actions.Append(actions.GetAt(0));
+        snapshot.SurfaceIds(winrt::single_threaded_vector<winrt::guid>({ firstSurfaceId, secondSurfaceId }));
+        snapshot.ActiveSurfaceId(secondSurfaceId);
+
+        VERIFY_IS_TRUE(static_cast<bool>(WorkspaceSnapshotValidator::Validate(snapshot, true)));
+        const auto restored = WorkspaceSnapshot::FromJson(WorkspaceSnapshot::ToJson(snapshot));
+        VERIFY_ARE_EQUAL(2u, restored.SurfaceIds().Size());
+        VERIFY_ARE_EQUAL(firstSurfaceId, restored.SurfaceIds().GetAt(0));
+        VERIFY_ARE_EQUAL(secondSurfaceId, restored.ActiveSurfaceId());
+
+        restored.ActiveSurfaceId(_newGuid());
+        VERIFY_IS_FALSE(static_cast<bool>(WorkspaceSnapshotValidator::Validate(restored, true)));
+        restored.ActiveSurfaceId(secondSurfaceId);
+        restored.SurfaceIds(nullptr);
+        VERIFY_IS_FALSE(static_cast<bool>(WorkspaceSnapshotValidator::Validate(restored, true)));
     }
 
     void WorkspaceSnapshotStoreTests::ValidatorRejectsMalformedGitBinding()

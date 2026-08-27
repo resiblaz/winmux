@@ -202,6 +202,15 @@ namespace winrt::TerminalApp::implementation
         return false;
     }
 
+    void ConclusionSidebar::SetTabContentMode(const bool value)
+    {
+        if (_isTabContent != value)
+        {
+            _isTabContent = value;
+            _ApplyLayout();
+        }
+    }
+
     void ConclusionSidebar::SetWindowNarrow(const bool value)
     {
         if (_isWindowNarrow != value)
@@ -553,10 +562,24 @@ namespace winrt::TerminalApp::implementation
 
     void ConclusionSidebar::_ApplyLayout()
     {
+        if (_isTabContent)
+        {
+            Width(std::numeric_limits<double>::quiet_NaN());
+            HorizontalAlignment(Windows::UI::Xaml::HorizontalAlignment::Stretch);
+            RootBorder().BorderThickness(Thickness{});
+            ExpandedContent().Visibility(Visibility::Visible);
+            CompactRail().Visibility(Visibility::Collapsed);
+            HeaderToggleButton().Visibility(Visibility::Collapsed);
+            return;
+        }
+
         const auto expanded = _isExpanded && !_isWindowNarrow;
         Width(expanded ? ExpandedWidth : CollapsedWidth);
+        HorizontalAlignment(Windows::UI::Xaml::HorizontalAlignment::Right);
+        RootBorder().BorderThickness(Thickness{ 1, 0, 0, 0 });
         ExpandedContent().Visibility(expanded ? Visibility::Visible : Visibility::Collapsed);
         CompactRail().Visibility(expanded ? Visibility::Collapsed : Visibility::Visible);
+        HeaderToggleButton().Visibility(Visibility::Visible);
 
         const auto automationName = expanded ?
                                         RS_(L"ConclusionSidebar_CollapseAutomationName") :

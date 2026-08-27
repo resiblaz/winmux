@@ -169,6 +169,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(ConclusionMarkdownRestrictsExternalContent);
         TEST_METHOD(WorkspaceSidebarAdaptsToWindowModes);
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
+        TEST_METHOD(WorkspaceGroupsMultipleTerminalSurfaces);
         TEST_METHOD(WorkspaceEnvironmentUsesAuthoritativeRoutingMetadata);
         TEST_METHOD(WorkspaceWorkingDirectoryDisplayIsCompact);
         TEST_METHOD(WorkspaceGitBranchParsesStructuredOutput);
@@ -446,6 +447,7 @@ namespace TerminalAppLocalTests
         TestOnUIThread([&]() {
             VERIFY_IS_TRUE(page->_SidebarController().Enabled);
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSidebar.Visibility());
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSurfaceTabBar.Visibility());
             VERIFY_IS_TRUE(page->_tabRow.WorkspaceSidebarMode());
             VERIFY_ARE_EQUAL(0.0, page->_tabView.Width());
 
@@ -460,6 +462,25 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(regularNewTabFlyout.Items().Size(), workspaceNewTabFlyout.Items().Size());
 
             const auto workspaceItem = page->_WorkspaceItems().GetAt(0);
+            VERIFY_ARE_EQUAL(workspaceItem.Surfaces(), page->_workspaceSurfaceTabs.ItemsSource().as<IObservableVector<winrt::TerminalApp::Tab>>());
+            VERIFY_ARE_EQUAL(workspaceItem.SourceTab(), page->_workspaceSurfaceTabs.SelectedItem().as<winrt::TerminalApp::Tab>());
+            VERIFY_IS_NOT_NULL(page->_workspaceSurfaceNewTabButton);
+            VERIFY_IS_NOT_NULL(page->_workspaceToolTabs);
+            VERIFY_ARE_EQUAL(1u, page->_workspaceToolTabs.Items().Size());
+            VERIFY_ARE_EQUAL(-1, page->_workspaceToolTabs.SelectedIndex());
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_tabContent.Visibility());
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_conclusionSidebar.Visibility());
+
+            page->_workspaceToolTabs.SelectedIndex(0);
+            VERIFY_IS_TRUE(page->_workspaceToolTabSelected);
+            VERIFY_ARE_EQUAL(-1, page->_workspaceSurfaceTabs.SelectedIndex());
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_tabContent.Visibility());
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_conclusionSidebar.Visibility());
+
+            page->_workspaceSurfaceTabs.SelectedItem(workspaceItem.SourceTab());
+            VERIFY_IS_FALSE(page->_workspaceToolTabSelected);
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_tabContent.Visibility());
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_conclusionSidebar.Visibility());
             sidebar->ShowSwitchHints(true);
             const std::wstring_view shortcut{ workspaceItem.SwitchShortcutText() };
             const auto separator = shortcut.find_last_of(L'+');
@@ -485,14 +506,18 @@ namespace TerminalAppLocalTests
 
             page->SetFocusMode(true);
             VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_workspaceSidebar.Visibility());
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_workspaceSurfaceTabBar.Visibility());
             page->SetFocusMode(false);
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSidebar.Visibility());
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSurfaceTabBar.Visibility());
 
             page->SetShowTabsFullscreen(false);
             page->SetFullscreen(true);
             VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_workspaceSidebar.Visibility());
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_workspaceSurfaceTabBar.Visibility());
             page->SetShowTabsFullscreen(true);
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSidebar.Visibility());
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSurfaceTabBar.Visibility());
             page->SetFullscreen(false);
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSidebar.Visibility());
         });
@@ -522,6 +547,51 @@ namespace TerminalAppLocalTests
             VERIFY_IS_TRUE(expectedHint == std::wstring_view{ item.SwitchShortcutHintText() });
             itemImpl->ShowSwitchShortcutHint(false);
             VERIFY_IS_TRUE(item.SwitchShortcutHintText().empty());
+        });
+    }
+
+    void TabTests::WorkspaceGroupsMultipleTerminalSurfaces()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            const auto workspaceId = page->_WorkspaceItems().GetAt(0).WorkspaceId();
+
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+
+            VERIFY_ARE_EQUAL(2u, page->_tabs.Size());
+            VERIFY_ARE_EQUAL(1u, page->_WorkspaceItems().Size());
+            const auto item = page->_WorkspaceItems().GetAt(0);
+            VERIFY_ARE_EQUAL(workspaceId, item.WorkspaceId());
+            VERIFY_ARE_EQUAL(2u, item.SurfaceCount());
+            VERIFY_ARE_EQUAL(page->_tabs.GetAt(0), item.Surfaces().GetAt(0));
+            VERIFY_ARE_EQUAL(page->_tabs.GetAt(1), item.Surfaces().GetAt(1));
+            VERIFY_ARE_EQUAL(page->_tabs.GetAt(1), item.SourceTab());
+            VERIFY_ARE_EQUAL(2u, page->_workspaceSurfaceTabs.Items().Size());
+            VERIFY_ARE_EQUAL(page->_tabs.GetAt(1), page->_workspaceSurfaceTabs.SelectedItem().as<winrt::TerminalApp::Tab>());
+
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            const auto firstSurfaceId = itemImpl->SurfaceIdForTab(page->_tabs.GetAt(0));
+            const auto secondSurfaceId = itemImpl->SurfaceIdForTab(page->_tabs.GetAt(1));
+            VERIFY_IS_TRUE(firstSurfaceId != winrt::guid{});
+            VERIFY_IS_TRUE(secondSurfaceId != winrt::guid{});
+            VERIFY_IS_TRUE(firstSurfaceId != secondSurfaceId);
+            page->_workspaceFeatures->Workspaces().AssertInvariants(page->_tabs);
+
+            const auto layout = page->GetWindowLayout();
+            VERIFY_ARE_EQUAL(2u, layout.WorkspaceStateVersion());
+            VERIFY_ARE_EQUAL(2u, layout.WorkspaceIds().Size());
+            VERIFY_ARE_EQUAL(workspaceId, layout.WorkspaceIds().GetAt(0));
+            VERIFY_ARE_EQUAL(workspaceId, layout.WorkspaceIds().GetAt(1));
+            VERIFY_ARE_EQUAL(firstSurfaceId, layout.WorkspaceSurfaceIds().GetAt(0));
+            VERIFY_ARE_EQUAL(secondSurfaceId, layout.WorkspaceSurfaceIds().GetAt(1));
+            VERIFY_ARE_EQUAL(secondSurfaceId, layout.ActiveWorkspaceSurfaceIds().GetAt(0));
+
+            page->_OpenNewWorkspace();
+            VERIFY_ARE_EQUAL(3u, page->_tabs.Size());
+            VERIFY_ARE_EQUAL(2u, page->_WorkspaceItems().Size());
+            VERIFY_ARE_EQUAL(1u, page->_WorkspaceItems().GetAt(1).SurfaceCount());
+            page->_workspaceFeatures->Workspaces().AssertInvariants(page->_tabs);
         });
     }
 
@@ -592,7 +662,7 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(L"Waiting", item.StatusText());
             VERIFY_IS_TRUE(std::wstring_view{ item.AutomationName() }.find(L"Waiting") != std::wstring_view::npos);
 
-            item.AddNotification(7, L"Agent", L"Input required");
+            item.AddNotification(itemImpl->SurfaceIdForTab(item.SourceTab()), 7, L"Agent", L"Input required");
             VERIFY_IS_FALSE(item.StatusText().empty());
             VERIFY_ARE_NOT_EQUAL(L"Waiting", item.StatusText());
             item.MarkAllNotificationsRead();
@@ -919,11 +989,15 @@ namespace TerminalAppLocalTests
 
             const auto layout = page->GetWindowLayout();
             VERIFY_IS_NOT_NULL(layout);
-            VERIFY_ARE_EQUAL(1u, layout.WorkspaceStateVersion());
+            VERIFY_ARE_EQUAL(2u, layout.WorkspaceStateVersion());
             VERIFY_IS_NOT_NULL(layout.WorkspaceIds());
             VERIFY_ARE_EQUAL(2u, layout.WorkspaceIds().Size());
             VERIFY_ARE_EQUAL(page->_WorkspaceItems().GetAt(0).WorkspaceId(), layout.WorkspaceIds().GetAt(0));
             VERIFY_ARE_EQUAL(page->_WorkspaceItems().GetAt(1).WorkspaceId(), layout.WorkspaceIds().GetAt(1));
+            VERIFY_IS_NOT_NULL(layout.WorkspaceSurfaceIds());
+            VERIFY_ARE_EQUAL(2u, layout.WorkspaceSurfaceIds().Size());
+            VERIFY_IS_NOT_NULL(layout.ActiveWorkspaceSurfaceIds());
+            VERIFY_ARE_EQUAL(2u, layout.ActiveWorkspaceSurfaceIds().Size());
             VERIFY_IS_NOT_NULL(layout.PinnedWorkspaceIndices());
             VERIFY_ARE_EQUAL(1u, layout.PinnedWorkspaceIndices().Size());
             VERIFY_ARE_EQUAL(0u, layout.PinnedWorkspaceIndices().GetAt(0));
@@ -968,9 +1042,10 @@ namespace TerminalAppLocalTests
         TestOnUIThread([&]() {
             const auto tab = page->_tabs.GetAt(0);
             const winrt::TerminalApp::WorkspaceItemViewModel item{ tab };
+            const auto surfaceId = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item)->SurfaceIdForTab(tab);
 
-            item.AddNotification(7, L"Build", L"Build completed");
-            item.AddNotification(9, L"Tests", L"Tests completed");
+            item.AddNotification(surfaceId, 7, L"Build", L"Build completed");
+            item.AddNotification(surfaceId, 9, L"Tests", L"Tests completed");
 
             VERIFY_ARE_EQUAL(2u, item.UnreadCount());
             VERIFY_ARE_EQUAL(L"2", item.UnreadBadgeText());
@@ -981,6 +1056,7 @@ namespace TerminalAppLocalTests
             const auto latest = item.LatestUnreadNotification();
             VERIFY_IS_NOT_NULL(latest);
             VERIFY_ARE_EQUAL(item.WorkspaceId(), latest.WorkspaceId());
+            VERIFY_ARE_EQUAL(surfaceId, latest.SurfaceId());
             VERIFY_ARE_EQUAL(9u, latest.PaneId());
             VERIFY_ARE_EQUAL(tab.Title(), latest.WorkspaceTitle());
             VERIFY_ARE_EQUAL(L"Tests", latest.Title());
@@ -1006,7 +1082,7 @@ namespace TerminalAppLocalTests
 
             for (uint32_t paneId = 0; paneId < 101; ++paneId)
             {
-                item.AddNotification(paneId, L"Agent", L"History entry");
+                item.AddNotification(surfaceId, paneId, L"Agent", L"History entry");
             }
             VERIFY_ARE_EQUAL(100u, item.UnreadCount());
             VERIFY_ARE_EQUAL(100u, item.NotificationHistoryCount());
@@ -1027,9 +1103,10 @@ namespace TerminalAppLocalTests
             for (uint32_t workspaceIndex = 0; workspaceIndex < workspaceCount; ++workspaceIndex)
             {
                 const winrt::TerminalApp::WorkspaceItemViewModel item{ tab };
+                const auto surfaceId = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item)->SurfaceIdForTab(tab);
                 for (uint32_t notificationIndex = 0; notificationIndex < notificationsPerWorkspace; ++notificationIndex)
                 {
-                    item.AddNotification(notificationIndex, L"Stress", winrt::to_hstring(notificationIndex));
+                    item.AddNotification(surfaceId, notificationIndex, L"Stress", winrt::to_hstring(notificationIndex));
                 }
                 VERIFY_ARE_EQUAL(100u, item.NotificationHistoryCount());
                 items.Append(item);

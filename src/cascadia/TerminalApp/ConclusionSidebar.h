@@ -47,6 +47,7 @@ namespace winrt::TerminalApp::implementation
         bool RemoveToolTab(const winrt::hstring& id);
         bool SelectToolTab(const winrt::hstring& id);
 
+        void SetTabContentMode(bool value);
         void SetWindowNarrow(bool value);
         void SetActiveWorkspace(const winrt::guid& workspaceId,
                                 const winrt::hstring& workspaceTitle,
@@ -103,6 +104,7 @@ namespace winrt::TerminalApp::implementation
 
         bool _isExpanded{ true };
         bool _isWindowNarrow{ false };
+        bool _isTabContent{};
         bool _isInitialized{ false };
         bool _showAllWorkspaces{ false };
         bool _codexOperationBusy{ false };

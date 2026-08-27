@@ -209,7 +209,9 @@ namespace winrt::TerminalApp::implementation
         void SetStartupWorkspaceState(uint32_t version,
                                       std::vector<winrt::guid> workspaceIds,
                                       std::vector<uint32_t> pinnedWorkspaceIndices,
-                                      std::vector<Microsoft::Terminal::Settings::Model::AgentResumeInfo> agentResumeEntries);
+                                      std::vector<Microsoft::Terminal::Settings::Model::AgentResumeInfo> agentResumeEntries,
+                                      std::vector<winrt::guid> surfaceIds = {},
+                                      std::vector<winrt::guid> activeSurfaceIds = {});
         void SetStartupWorkspaceSource(const winrt::guid& workspaceId, const winrt::guid& snapshotId, uint64_t revision);
         void AddStartupWorkspaceSource(const winrt::guid& workspaceId, const winrt::guid& snapshotId, uint64_t revision);
         void PrepareForWorkspaceSnapshotOpen(bool suppressStartupActions);
@@ -314,6 +316,11 @@ namespace winrt::TerminalApp::implementation
         TerminalApp::WorkspaceSidebar _workspaceSidebar{ nullptr };
         TerminalApp::ConclusionSidebar _conclusionSidebar{ nullptr };
         Windows::UI::Xaml::Controls::ListView _workspaceList{ nullptr };
+        Windows::UI::Xaml::Controls::Border _workspaceSurfaceTabBar{ nullptr };
+        Windows::UI::Xaml::Controls::ListView _workspaceSurfaceTabs{ nullptr };
+        Windows::UI::Xaml::Controls::Button _workspaceSurfaceNewTabButton{ nullptr };
+        Windows::UI::Xaml::Controls::ListView _workspaceToolTabs{ nullptr };
+        bool _workspaceToolTabSelected{};
         Microsoft::UI::Xaml::Controls::SplitButton _newTabButton{ nullptr };
         Microsoft::UI::Xaml::Controls::SplitButton _workspaceNewTabButton{ nullptr };
         Windows::UI::Xaml::Controls::Button _workspaceNotificationButton{ nullptr };
@@ -371,7 +378,8 @@ namespace winrt::TerminalApp::implementation
         std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> _startupActions;
         winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _startupConnection{ nullptr };
 
-        static constexpr uint32_t CurrentWorkspaceStateVersion{ 1 };
+        static constexpr uint32_t LegacyWorkspaceStateVersion{ 1 };
+        static constexpr uint32_t CurrentWorkspaceStateVersion{ 2 };
 
         std::shared_ptr<Toast> _windowIdToast{ nullptr };
         std::shared_ptr<Toast> _actionSavedToast{ nullptr };
@@ -470,6 +478,10 @@ namespace winrt::TerminalApp::implementation
         void _UpdateWorkspaceSidebarForWindowWidth(double width);
         void _Root_SizeChanged(const IInspectable& sender, const Windows::UI::Xaml::SizeChangedEventArgs& args);
         void _SyncWorkspaceSelection(const winrt::TerminalApp::Tab& tab);
+        void _SetWorkspaceToolTabSelected(bool selected);
+        void _ApplyRestoredWorkspaceActiveSurfaces();
+        bool _SelectWorkspace(const TerminalApp::WorkspaceItemViewModel& item);
+        void _SynchronizeFlatTabOrder();
         std::optional<uint32_t> _FindWorkspaceIndex(const winrt::guid& workspaceId) const;
         void _RecordWorkspaceNavigation(const winrt::TerminalApp::Tab& tab);
         bool _NavigateWorkspaceHistory(bool forward);
@@ -480,6 +492,11 @@ namespace winrt::TerminalApp::implementation
         void _WorkspaceCloseRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceCloseOthersRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceRenameRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        void _WorkspaceNewWorkspaceRequested(const TerminalApp::WorkspaceSidebar& sender, const IInspectable& eventArgs);
+        void _WorkspaceSurfaceTabs_SelectionChanged(const IInspectable& sender, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs& eventArgs);
+        void _WorkspaceSurfaceTabClose_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
+        void _WorkspaceSurfaceNewTab_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
+        void _WorkspaceToolTabs_SelectionChanged(const IInspectable& sender, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs& eventArgs);
         safe_void_coroutine _WorkspaceConfigureAgentResumeRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         safe_void_coroutine _WorkspaceResumeAgentRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceClearAgentResumeRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
@@ -656,6 +673,9 @@ namespace winrt::TerminalApp::implementation
                                         const winrt::guid& workspaceId = {});
 
         winrt::guid _ReserveWorkspaceIdForNewTab() const;
+        winrt::guid _WorkspaceIdForNewTab() const;
+        void _OpenNewWorkspace();
+        void _OpenNewWorkspaceSurface(const TerminalApp::WorkspaceItemViewModel& item);
         winrt::guid _WorkspaceIdForTab(const TerminalApp::Tab& tab) const;
         winrt::guid _WorkspaceIdForPaneContent(const TerminalApp::TerminalPaneContent& paneContent) const;
         static winrt::Windows::Foundation::Collections::IMapView<winrt::hstring, winrt::hstring> _BuildWorkspaceEnvironment(

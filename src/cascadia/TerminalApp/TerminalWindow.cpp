@@ -179,6 +179,8 @@ namespace winrt::TerminalApp::implementation
             // layout will only ever be non-null if there were >0 tabs persisted in
             // .TabLayout(). We can re-evaluate that as a part of TODO: GH#12633
             std::vector<winrt::guid> workspaceIds;
+            std::vector<winrt::guid> workspaceSurfaceIds;
+            std::vector<winrt::guid> activeWorkspaceSurfaceIds;
             std::vector<uint32_t> pinnedWorkspaceIndices;
             std::vector<AgentResumeInfo> agentResumeEntries;
             if (const auto ids = layout.WorkspaceIds())
@@ -189,6 +191,14 @@ namespace winrt::TerminalApp::implementation
             {
                 pinnedWorkspaceIndices = wil::to_vector(indices);
             }
+            if (const auto ids = layout.WorkspaceSurfaceIds())
+            {
+                workspaceSurfaceIds = wil::to_vector(ids);
+            }
+            if (const auto ids = layout.ActiveWorkspaceSurfaceIds())
+            {
+                activeWorkspaceSurfaceIds = wil::to_vector(ids);
+            }
             if (const auto entries = layout.AgentResumeEntries())
             {
                 agentResumeEntries = wil::to_vector(entries);
@@ -196,7 +206,9 @@ namespace winrt::TerminalApp::implementation
             _root->SetStartupWorkspaceState(layout.WorkspaceStateVersion(),
                                             std::move(workspaceIds),
                                             std::move(pinnedWorkspaceIndices),
-                                            std::move(agentResumeEntries));
+                                            std::move(agentResumeEntries),
+                                            std::move(workspaceSurfaceIds),
+                                            std::move(activeWorkspaceSurfaceIds));
             if (const auto sources = layout.WorkspaceSnapshotSources())
             {
                 for (const auto& source : sources)

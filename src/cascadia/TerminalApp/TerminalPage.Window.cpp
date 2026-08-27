@@ -155,14 +155,29 @@ namespace winrt::TerminalApp::implementation
         layout.InitialPosition(launchPosRequest.Position());
 
         std::vector<winrt::guid> workspaceIds;
+        std::vector<winrt::guid> workspaceSurfaceIds;
+        std::vector<winrt::guid> activeWorkspaceSurfaceIds;
         std::vector<uint32_t> pinnedWorkspaceIndices;
         std::vector<AgentResumeInfo> agentResumeEntries;
         std::vector<WorkspaceSnapshotSourceInfo> workspaceSnapshotSources;
         workspaceIds.reserve(tabCount);
-        for (uint32_t index = 0; index < tabCount; ++index)
+        workspaceSurfaceIds.reserve(tabCount);
+        _workspaceFeatures->Workspaces().AssertInvariants(_tabs);
+        for (const auto& tab : _tabs)
+        {
+            const auto item = _WorkspaceItemForTab(tab);
+            THROW_HR_IF(E_UNEXPECTED, !item);
+            const auto itemImpl = winrt::get_self<implementation::WorkspaceItemViewModel>(item);
+            workspaceIds.emplace_back(item.WorkspaceId());
+            workspaceSurfaceIds.emplace_back(itemImpl->SurfaceIdForTab(tab));
+        }
+
+        activeWorkspaceSurfaceIds.reserve(_WorkspaceItems().Size());
+        for (uint32_t index = 0; index < _WorkspaceItems().Size(); ++index)
         {
             const auto item = _WorkspaceItems().GetAt(index);
-            workspaceIds.emplace_back(item.WorkspaceId());
+            const auto itemImpl = winrt::get_self<implementation::WorkspaceItemViewModel>(item);
+            activeWorkspaceSurfaceIds.emplace_back(itemImpl->SurfaceIdForTab(item.SourceTab()));
             if (item.IsPinned())
             {
                 pinnedWorkspaceIndices.emplace_back(index);
@@ -181,7 +196,6 @@ namespace winrt::TerminalApp::implementation
                     agentResumeEntries.emplace_back(std::move(info));
                 }
             }
-            const auto itemImpl = winrt::get_self<implementation::WorkspaceItemViewModel>(item);
             if (const auto sourceSnapshotId = itemImpl->SourceSnapshotId();
                 sourceSnapshotId && itemImpl->SourceSnapshotRevision() != 0)
             {
@@ -194,6 +208,8 @@ namespace winrt::TerminalApp::implementation
         }
         layout.WorkspaceStateVersion(CurrentWorkspaceStateVersion);
         layout.WorkspaceIds(winrt::single_threaded_vector<winrt::guid>(std::move(workspaceIds)));
+        layout.WorkspaceSurfaceIds(winrt::single_threaded_vector<winrt::guid>(std::move(workspaceSurfaceIds)));
+        layout.ActiveWorkspaceSurfaceIds(winrt::single_threaded_vector<winrt::guid>(std::move(activeWorkspaceSurfaceIds)));
         layout.PinnedWorkspaceIndices(winrt::single_threaded_vector<uint32_t>(std::move(pinnedWorkspaceIndices)));
         layout.AgentResumeEntries(winrt::single_threaded_vector<AgentResumeInfo>(std::move(agentResumeEntries)));
         layout.WorkspaceSnapshotSources(winrt::single_threaded_vector<WorkspaceSnapshotSourceInfo>(std::move(workspaceSnapshotSources)));

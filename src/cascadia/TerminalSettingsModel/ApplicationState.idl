@@ -43,6 +43,8 @@ namespace Microsoft.Terminal.Settings.Model
         Windows.Foundation.IReference<LaunchMode> LaunchMode;
         UInt32 WorkspaceStateVersion;
         Windows.Foundation.Collections.IVector<Guid> WorkspaceIds;
+        Windows.Foundation.Collections.IVector<Guid> WorkspaceSurfaceIds;
+        Windows.Foundation.Collections.IVector<Guid> ActiveWorkspaceSurfaceIds;
         Windows.Foundation.Collections.IVector<UInt32> PinnedWorkspaceIndices;
         Windows.Foundation.Collections.IVector<AgentResumeInfo> AgentResumeEntries;
         Windows.Foundation.Collections.IVector<WorkspaceSnapshotSourceInfo> WorkspaceSnapshotSources;
@@ -80,6 +82,8 @@ namespace Microsoft.Terminal.Settings.Model
         Int64 UpdatedAt;
         Int64 LastOpenedAt;
         Windows.Foundation.Collections.IVector<ActionAndArgs> Actions;
+        Windows.Foundation.Collections.IVector<Guid> SurfaceIds;
+        Guid ActiveSurfaceId;
         Boolean Pinned;
         Windows.Foundation.Collections.IVector<AgentResumeInfo> AgentResumeEntries;
         WorkspaceGitBinding GitBinding;

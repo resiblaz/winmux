@@ -9,12 +9,14 @@
 namespace winrt::TerminalApp::implementation
 {
     WorkspaceNotification::WorkspaceNotification(const winrt::guid& workspaceId,
+                                                 const winrt::guid& surfaceId,
                                                  const uint32_t paneId,
                                                  const winrt::hstring& workspaceTitle,
                                                  const winrt::hstring& title,
                                                  const winrt::hstring& message,
                                                  const Windows::Foundation::DateTime& timestamp) :
         _workspaceId{ workspaceId },
+        _surfaceId{ surfaceId },
         _paneId{ paneId },
         _workspaceTitle{ workspaceTitle },
         _title{ title },
@@ -34,6 +36,11 @@ namespace winrt::TerminalApp::implementation
     winrt::guid WorkspaceNotification::WorkspaceId() const noexcept
     {
         return _workspaceId;
+    }
+
+    winrt::guid WorkspaceNotification::SurfaceId() const noexcept
+    {
+        return _surfaceId;
     }
 
     uint32_t WorkspaceNotification::PaneId() const noexcept

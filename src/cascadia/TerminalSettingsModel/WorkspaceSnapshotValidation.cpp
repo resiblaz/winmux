@@ -132,7 +132,8 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 return false;
             }
 
-            bool createdWorkspace = false;
+            bool createdTab = false;
+            uint32_t tabCount{};
             for (uint32_t index = 0; index < actions.Size(); ++index)
             {
                 const auto action = actions.GetAt(index);
@@ -146,17 +147,17 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 case Model::ShortcutAction::NewTab:
                 {
                     const auto args = action.Args().try_as<Model::NewTabArgs>();
-                    if (createdWorkspace || index != 0 || !args || !_isSafeContent(args.ContentArgs()))
+                    if (!args || !_isSafeContent(args.ContentArgs()) || ++tabCount > MaximumSurfaces)
                     {
                         return false;
                     }
-                    createdWorkspace = true;
+                    createdTab = true;
                     break;
                 }
                 case Model::ShortcutAction::SplitPane:
                 {
                     const auto args = action.Args().try_as<Model::SplitPaneArgs>();
-                    if (!createdWorkspace || !args || !std::isfinite(args.SplitSize()) ||
+                    if (!createdTab || !args || !std::isfinite(args.SplitSize()) ||
                         args.SplitSize() <= 0.0f || args.SplitSize() >= 1.0f ||
                         !_isSafeContent(args.ContentArgs()))
                     {
@@ -167,32 +168,32 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 case Model::ShortcutAction::RenameTab:
                 {
                     const auto args = action.Args().try_as<Model::RenameTabArgs>();
-                    if (!createdWorkspace || !args || !_isBoundedText(args.Title(), MaximumTextCharacters))
+                    if (!createdTab || !args || !_isBoundedText(args.Title(), MaximumTextCharacters))
                     {
                         return false;
                     }
                     break;
                 }
                 case Model::ShortcutAction::SetTabColor:
-                    if (!createdWorkspace || !action.Args().try_as<Model::SetTabColorArgs>())
+                    if (!createdTab || !action.Args().try_as<Model::SetTabColorArgs>())
                     {
                         return false;
                     }
                     break;
                 case Model::ShortcutAction::MoveFocus:
-                    if (!createdWorkspace || !action.Args().try_as<Model::MoveFocusArgs>())
+                    if (!createdTab || !action.Args().try_as<Model::MoveFocusArgs>())
                     {
                         return false;
                     }
                     break;
                 case Model::ShortcutAction::FocusPane:
-                    if (!createdWorkspace || !action.Args().try_as<Model::FocusPaneArgs>())
+                    if (!createdTab || !action.Args().try_as<Model::FocusPaneArgs>())
                     {
                         return false;
                     }
                     break;
                 case Model::ShortcutAction::TogglePaneZoom:
-                    if (!createdWorkspace || action.Args())
+                    if (!createdTab || action.Args())
                     {
                         return false;
                     }
@@ -202,7 +203,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 }
             }
 
-            if (!createdWorkspace)
+            if (!createdTab)
             {
                 return false;
             }
@@ -254,6 +255,39 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
             if (!IsSafeActions(snapshot.Actions()))
             {
                 return { WorkspaceSnapshotValidationError::InvalidActions };
+            }
+
+            uint32_t surfaceCount{};
+            for (const auto& action : snapshot.Actions())
+            {
+                surfaceCount += action.Action() == Model::ShortcutAction::NewTab ? 1u : 0u;
+            }
+            if (const auto surfaceIds = snapshot.SurfaceIds(); surfaceIds && surfaceIds.Size() > 0)
+            {
+                if (surfaceIds.Size() != surfaceCount || surfaceIds.Size() > MaximumSurfaces || snapshot.ActiveSurfaceId() == winrt::guid{})
+                {
+                    return { WorkspaceSnapshotValidationError::InvalidIdentity };
+                }
+                std::unordered_set<winrt::guid> uniqueSurfaceIds;
+                bool activeSurfaceFound{};
+                for (const auto& surfaceId : surfaceIds)
+                {
+                    if (surfaceId == winrt::guid{} || !uniqueSurfaceIds.emplace(surfaceId).second)
+                    {
+                        return { WorkspaceSnapshotValidationError::InvalidIdentity };
+                    }
+                    activeSurfaceFound = activeSurfaceFound || surfaceId == snapshot.ActiveSurfaceId();
+                }
+                if (!activeSurfaceFound)
+                {
+                    return { WorkspaceSnapshotValidationError::InvalidIdentity };
+                }
+            }
+            else if (surfaceCount != 1 || snapshot.ActiveSurfaceId() != winrt::guid{})
+            {
+                // Existing v2 snapshots predate Surface metadata and are
+                // interpreted as one implicit Surface.
+                return { WorkspaceSnapshotValidationError::InvalidIdentity };
             }
 
             if (const auto entries = snapshot.AgentResumeEntries())

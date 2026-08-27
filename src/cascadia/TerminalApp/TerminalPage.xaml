@@ -13,13 +13,23 @@
       Background="Transparent"
       mc:Ignorable="d">
 
+    <Page.Resources>
+        <Style x:Key="WorkspaceSurfaceTabItemStyle"
+               TargetType="ListViewItem">
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Margin" Value="2,3,0,3" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="CornerRadius" Value="5" />
+        </Style>
+    </Page.Resources>
+
     <Grid x:Name="Root"
           Background="Transparent"
           SizeChanged="_Root_SizeChanged">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -30,11 +40,6 @@
         <local:WorkspaceSidebar x:Name="WorkspaceSidebar"
                                 Grid.RowSpan="3"
                                 Visibility="Collapsed" />
-
-        <local:ConclusionSidebar x:Name="ConclusionSidebar"
-                                 Grid.RowSpan="3"
-                                 Grid.Column="2"
-                                 Visibility="Collapsed" />
 
         <local:TabRowControl x:Name="TabRow"
                              Grid.Row="0"
@@ -73,14 +78,158 @@
             </mux:InfoBar>
         </StackPanel>
 
-        <Grid x:Name="TabContent"
-              Grid.Row="2"
-              Grid.Column="1"
-              HorizontalAlignment="Stretch"
-              VerticalAlignment="Stretch">
-            <Grid.Background>
-                <ImageBrush />
-            </Grid.Background>
+        <Grid Grid.Row="2"
+              Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border x:Name="WorkspaceSurfaceTabBar"
+                    Height="36"
+                    Background="{ThemeResource WorkspaceChromeSurfaceBrush}"
+                    BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
+                    BorderThickness="0,0,0,1"
+                    RequestedTheme="Dark"
+                    Visibility="Collapsed">
+                <Border.Resources>
+                    <StaticResource x:Key="ListViewItemBackgroundPointerOver"
+                                    ResourceKey="WorkspaceChromeButtonHoverBrush" />
+                    <StaticResource x:Key="ListViewItemBackgroundPressed"
+                                    ResourceKey="WorkspaceChromeButtonPressedBrush" />
+                    <StaticResource x:Key="ListViewItemBackgroundSelected"
+                                    ResourceKey="WorkspaceChromeAccentBrush" />
+                    <StaticResource x:Key="ListViewItemBackgroundSelectedPointerOver"
+                                    ResourceKey="WorkspaceChromeAccentHoverBrush" />
+                    <StaticResource x:Key="ListViewItemBackgroundSelectedPressed"
+                                    ResourceKey="WorkspaceChromeAccentPressedBrush" />
+                    <StaticResource x:Key="ListViewItemForegroundSelected"
+                                    ResourceKey="WorkspaceChromeSelectedForegroundBrush" />
+                </Border.Resources>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                <ListView x:Name="WorkspaceSurfaceTabs"
+                          Margin="4,0,0,0"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
+                          IsSwipeEnabled="False"
+                          ItemContainerStyle="{StaticResource WorkspaceSurfaceTabItemStyle}"
+                          ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                          ScrollViewer.HorizontalScrollMode="Enabled"
+                          ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                          SelectionChanged="_WorkspaceSurfaceTabs_SelectionChanged"
+                          SelectionMode="Single">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsStackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="local:Tab">
+                            <Grid MinWidth="92"
+                                  MaxWidth="220"
+                                  Height="30"
+                                  Padding="10,0,3,0"
+                                  AutomationProperties.Name="{x:Bind Title, Mode=OneWay}"
+                                  Background="Transparent">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="24" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center"
+                                           FontSize="12"
+                                           Text="{x:Bind Title, Mode=OneWay}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTipService.ToolTip="{x:Bind Title, Mode=OneWay}" />
+                                <Button x:Uid="WorkspaceSurfaceTabCloseButton"
+                                        Grid.Column="1"
+                                        Width="22"
+                                        Height="22"
+                                        Padding="0"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Click="_WorkspaceSurfaceTabClose_Click"
+                                        Content="&#xE711;"
+                                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                        FontSize="9"
+                                        IsTabStop="False"
+                                        Opacity="0.72"
+                                        Tag="{Binding}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                    <Button x:Name="WorkspaceSurfaceNewTabButton"
+                            x:Uid="WorkspaceSurfaceNewTabButton"
+                            Grid.Column="1"
+                            Width="32"
+                            Height="30"
+                            Margin="4,3,6,3"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="_WorkspaceSurfaceNewTab_Click"
+                            Content="&#xE710;"
+                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                            FontSize="12" />
+
+                    <ListView x:Name="WorkspaceToolTabs"
+                              Grid.Column="2"
+                              Margin="0,0,4,0"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
+                              IsSwipeEnabled="False"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.HorizontalScrollMode="Disabled"
+                              ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                              SelectionChanged="_WorkspaceToolTabs_SelectionChanged"
+                              SelectionMode="Single">
+                        <ListView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ItemsStackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ListView.ItemsPanel>
+                        <ListViewItem x:Uid="WorkspaceConclusionTab"
+                                      Style="{StaticResource WorkspaceSurfaceTabItemStyle}">
+                            <StackPanel Height="30"
+                                        Padding="10,0"
+                                        Orientation="Horizontal"
+                                        Spacing="7">
+                                <FontIcon VerticalAlignment="Center"
+                                          FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                          FontSize="12"
+                                          Glyph="&#xE8A5;" />
+                                <TextBlock x:Uid="ConclusionSidebarConclusionsTab"
+                                           VerticalAlignment="Center"
+                                           FontSize="12" />
+                            </StackPanel>
+                        </ListViewItem>
+                    </ListView>
+                </Grid>
+            </Border>
+
+            <Grid x:Name="TabContent"
+                  Grid.Row="1"
+                  HorizontalAlignment="Stretch"
+                  VerticalAlignment="Stretch">
+                <Grid.Background>
+                    <ImageBrush />
+                </Grid.Background>
+            </Grid>
+
+            <local:ConclusionSidebar x:Name="ConclusionSidebar"
+                                     Grid.Row="1"
+                                     HorizontalAlignment="Stretch"
+                                     VerticalAlignment="Stretch"
+                                     Visibility="Collapsed" />
         </Grid>
 
         <!--

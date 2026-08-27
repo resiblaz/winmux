@@ -1,12 +1,13 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 //
-// This file contains TerminalPage coordination for durable Workspace
-// snapshots, Git worktree validation, and the saved-workspace flyout.
+// Durable Workspace snapshot save/open coordination and menu projection.
 //
 
 #include "pch.h"
+#include "WorkspaceSnapshotCoordinator.h"
 #include "TerminalPage.h"
+#include "WorkspaceFeatureSet.h"
 
 #include <WtExeUtils.h>
 
@@ -227,16 +228,36 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void TerminalPage::_WorkspaceSaveSnapshotRequested(const TerminalApp::WorkspaceSidebar&,
-                                                         const TerminalApp::WorkspaceItemViewModel& item)
+    WorkspaceSnapshotCoordinator::WorkspaceSnapshotCoordinator(TerminalPage& page) noexcept :
+        _page{ page }
     {
-        if (!item || _workspaceSnapshotReplayInFlight)
+    }
+
+    WorkspaceSnapshotCoordinator::~WorkspaceSnapshotCoordinator()
+    {
+        Stop();
+    }
+
+    void WorkspaceSnapshotCoordinator::Stop() noexcept
+    {
+        _stopped = true;
+        _cacheRefreshPending = false;
+        _cacheRefreshInFlight = false;
+        _openOperationInFlight = false;
+        _replacementTab = nullptr;
+        _saveGenerations.clear();
+    }
+
+    void WorkspaceSnapshotCoordinator::SaveRequested(const TerminalApp::WorkspaceItemViewModel& item)
+    {
+        _stopped = false;
+        if (!item || _page._SessionRestore().SnapshotReplayInFlight)
         {
             return;
         }
 
         const auto tab = item.SourceTab();
-        const auto tabImpl = tab ? _GetTabImpl(tab) : nullptr;
+        const auto tabImpl = tab ? TerminalPage::_GetTabImpl(tab) : nullptr;
         if (!tabImpl)
         {
             return;
@@ -251,7 +272,7 @@ namespace winrt::TerminalApp::implementation
         const auto itemImpl = winrt::get_self<implementation::WorkspaceItemViewModel>(item);
         const auto sourceSnapshotId = itemImpl->SourceSnapshotId();
         const auto sourceRevision = itemImpl->SourceSnapshotRevision();
-        const auto generation = ++_workspaceSnapshotSaveGenerations[item.WorkspaceId()];
+        const auto generation = ++_saveGenerations[item.WorkspaceId()];
         _SaveWorkspaceSnapshotAsync(item,
                                     std::move(actions),
                                     item.WorkingDirectory(),
@@ -261,7 +282,7 @@ namespace winrt::TerminalApp::implementation
                                     sourceRevision);
     }
 
-    safe_void_coroutine TerminalPage::_SaveWorkspaceSnapshotAsync(TerminalApp::WorkspaceItemViewModel item,
+    safe_void_coroutine WorkspaceSnapshotCoordinator::_SaveWorkspaceSnapshotAsync(TerminalApp::WorkspaceItemViewModel item,
                                                                     std::vector<ActionAndArgs> actions,
                                                                     winrt::hstring workingDirectory,
                                                                     winrt::hstring title,
@@ -269,8 +290,8 @@ namespace winrt::TerminalApp::implementation
                                                                     std::optional<winrt::guid> sourceSnapshotId,
                                                                     const uint64_t sourceRevision)
     {
-        const auto weakThis = get_weak();
-        const auto dispatcher = Dispatcher();
+        const auto weakThis = _page.get_weak();
+        const auto dispatcher = _page.Dispatcher();
         co_await winrt::resume_background();
 
         WorkspaceGitMetadataResult metadata;
@@ -281,14 +302,20 @@ namespace winrt::TerminalApp::implementation
 
         co_await wil::resume_foreground(dispatcher);
         const auto page = weakThis.get();
-        if (!page || !item || std::ranges::find(page->_workspaceItems, item) == page->_workspaceItems.end() ||
+        if (!page || !page->_workspaceFeatures)
+        {
+            co_return;
+        }
+        auto& coordinator = page->_workspaceFeatures->Snapshots();
+        const auto workspaceItems = page->_WorkspaceItems();
+        if (coordinator._stopped || !item || std::ranges::find(workspaceItems, item) == workspaceItems.end() ||
             item.WorkingDirectory() != workingDirectory || item.Title() != title)
         {
             co_return;
         }
-        const auto generationEntry = page->_workspaceSnapshotSaveGenerations.find(item.WorkspaceId());
+        const auto generationEntry = coordinator._saveGenerations.find(item.WorkspaceId());
         const auto itemImpl = winrt::get_self<implementation::WorkspaceItemViewModel>(item);
-        if (generationEntry == page->_workspaceSnapshotSaveGenerations.end() || generationEntry->second != generation ||
+        if (generationEntry == coordinator._saveGenerations.end() || generationEntry->second != generation ||
             itemImpl->SourceSnapshotId() != sourceSnapshotId || itemImpl->SourceSnapshotRevision() != sourceRevision)
         {
             co_return;
@@ -306,10 +333,10 @@ namespace winrt::TerminalApp::implementation
             binding.Head(metadata.Binding.Head);
             binding.CapturedAt(metadata.Binding.CapturedAt);
         }
-        page->_CommitWorkspaceSnapshot(item, std::move(actions), binding, sourceSnapshotId, sourceRevision);
+        coordinator._CommitWorkspaceSnapshot(item, std::move(actions), binding, sourceSnapshotId, sourceRevision);
     }
 
-    void TerminalPage::_CommitWorkspaceSnapshot(const TerminalApp::WorkspaceItemViewModel& item,
+    void WorkspaceSnapshotCoordinator::_CommitWorkspaceSnapshot(const TerminalApp::WorkspaceItemViewModel& item,
                                                   std::vector<ActionAndArgs> actions,
                                                   const Microsoft::Terminal::Settings::Model::WorkspaceGitBinding& gitBinding,
                                                   const std::optional<winrt::guid> sourceSnapshotId,
@@ -331,7 +358,7 @@ namespace winrt::TerminalApp::implementation
                 // Another process changed or removed the source snapshot. Do
                 // not redirect this save to an unrelated record that merely
                 // shares the same WorkspaceId.
-                ActionSaveFailed(RS_(L"WorkspaceSnapshotSaveConflict"));
+                _page.ActionSaveFailed(RS_(L"WorkspaceSnapshotSaveConflict"));
                 return;
             }
         }
@@ -383,41 +410,41 @@ namespace winrt::TerminalApp::implementation
             // successful Git identity query. Keeping the old binding while
             // writing actions from an unverified cwd would bypass open-time
             // worktree validation.
-            ActionSaveFailed(RS_(L"WorkspaceSnapshotSaveGitUnverified"));
+            _page.ActionSaveFailed(RS_(L"WorkspaceSnapshotSaveGitUnverified"));
             return;
         }
         if (WorkspaceSnapshot::IsValid(snapshot, true) &&
-            _workspaceSnapshotProfilesExist(snapshot.Actions(), _settings))
+            _workspaceSnapshotProfilesExist(snapshot.Actions(), _page._settings))
         {
             if (state.SaveWorkspaceSnapshot(snapshot))
             {
-                _BindWorkspaceItemToSnapshot(item, snapshot.Id(), snapshot.Revision());
-                _RefreshWorkspaceSnapshotCache();
+                BindItem(item, snapshot.Id(), snapshot.Revision());
+                RefreshCache();
             }
             else
             {
-                ActionSaveFailed(RS_(L"WorkspaceSnapshotSaveFailed"));
+                _page.ActionSaveFailed(RS_(L"WorkspaceSnapshotSaveFailed"));
             }
         }
         else
         {
-            ActionSaveFailed(RS_(L"WorkspaceSnapshotSaveInvalid"));
+            _page.ActionSaveFailed(RS_(L"WorkspaceSnapshotSaveInvalid"));
         }
     }
 
-    void TerminalPage::OpenWorkspaceSnapshot(const winrt::guid& snapshotId, const bool replaceCurrentWorkspace)
+    void WorkspaceSnapshotCoordinator::Open(const winrt::guid& snapshotId, const bool replaceCurrentWorkspace)
     {
-        _workspaceSnapshotReplacementTab = replaceCurrentWorkspace && _tabs.Size() == 1 ? _tabs.GetAt(0) : nullptr;
+        _replacementTab = replaceCurrentWorkspace && _page._tabs.Size() == 1 ? _page._tabs.GetAt(0) : nullptr;
         _OpenWorkspaceSnapshot(snapshotId);
-        if (!_workspaceSnapshotReplayInFlight && !_workspaceSnapshotOpenOperationInFlight)
+        if (!_page._SessionRestore().SnapshotReplayInFlight && !_openOperationInFlight)
         {
             _FinishWorkspaceSnapshotReplacement(false);
         }
     }
 
-    void TerminalPage::_OpenWorkspaceSnapshot(const winrt::guid& snapshotId)
+    void WorkspaceSnapshotCoordinator::_OpenWorkspaceSnapshot(const winrt::guid& snapshotId)
     {
-        if (_workspaceSnapshotReplayInFlight || _workspaceSnapshotOpenOperationInFlight)
+        if (_page._SessionRestore().SnapshotReplayInFlight || _openOperationInFlight)
         {
             return;
         }
@@ -426,25 +453,25 @@ namespace winrt::TerminalApp::implementation
         if (!snapshot ||
             snapshot.WorkspaceId() == winrt::guid{} ||
             !WorkspaceSnapshot::IsValid(snapshot, false) ||
-            !_workspaceSnapshotProfilesExist(snapshot.Actions(), _settings))
+            !_workspaceSnapshotProfilesExist(snapshot.Actions(), _page._settings))
         {
             return;
         }
 
         if (snapshot.GitBinding())
         {
-            _workspaceSnapshotOpenOperationInFlight = true;
+            _openOperationInFlight = true;
             _ValidateAndOpenWorkspaceSnapshotAsync(snapshotId, snapshot.Revision());
             return;
         }
 
-        if (const auto existingIndex = _FindWorkspaceIndex(snapshot.WorkspaceId()))
+        if (const auto existingIndex = _page._FindWorkspaceIndex(snapshot.WorkspaceId()))
         {
-            if (_SelectTab(existingIndex.value()))
+            if (_page._SelectTab(existingIndex.value()))
             {
-                if (existingIndex.value() < _workspaceItems.Size())
+                if (existingIndex.value() < _page._WorkspaceItems().Size())
                 {
-                    _BindWorkspaceItemToSnapshot(_workspaceItems.GetAt(existingIndex.value()), snapshot.Id(), snapshot.Revision());
+                    BindItem(_page._WorkspaceItems().GetAt(existingIndex.value()), snapshot.Id(), snapshot.Revision());
                 }
                 _MarkWorkspaceSnapshotOpened(snapshotId, snapshot.WorkspaceId());
             }
@@ -454,10 +481,10 @@ namespace winrt::TerminalApp::implementation
         _ReplayWorkspaceSnapshot(snapshot);
     }
 
-    void TerminalPage::_ReplayWorkspaceSnapshot(const WorkspaceSnapshot& snapshot)
+    void WorkspaceSnapshotCoordinator::_ReplayWorkspaceSnapshot(const WorkspaceSnapshot& snapshot)
     {
         if (!snapshot || !WorkspaceSnapshot::IsValid(snapshot, false) ||
-            !_workspaceSnapshotProfilesExist(snapshot.Actions(), _settings))
+            !_workspaceSnapshotProfilesExist(snapshot.Actions(), _page._settings))
         {
             return;
         }
@@ -465,7 +492,7 @@ namespace winrt::TerminalApp::implementation
         // Startup restoration and snapshot restoration share the same small
         // metadata handoff into _InitializeTab. Do not overlap them: the action
         // list is replayed asynchronously and owns this state until it finishes.
-        if (_restoringWorkspaceState || _workspaceSnapshotReplayInFlight)
+        if (_page._SessionRestore().Restoring || _page._SessionRestore().SnapshotReplayInFlight)
         {
             return;
         }
@@ -483,68 +510,78 @@ namespace winrt::TerminalApp::implementation
         }
 
         auto actions = wil::to_vector(snapshot.Actions());
-        SetStartupWorkspaceState(CurrentWorkspaceStateVersion,
-                                 { snapshot.WorkspaceId() },
-                                 snapshot.Pinned() ? std::vector<uint32_t>{ 0 } : std::vector<uint32_t>{},
-                                 std::move(agentResumeEntries));
+        _page.SetStartupWorkspaceState(TerminalPage::CurrentWorkspaceStateVersion,
+                                       { snapshot.WorkspaceId() },
+                                       snapshot.Pinned() ? std::vector<uint32_t>{ 0 } : std::vector<uint32_t>{},
+                                       std::move(agentResumeEntries));
         const auto workspaceId = snapshot.WorkspaceId();
         const auto snapshotId = snapshot.Id();
         const auto revision = snapshot.Revision();
-        _startupSnapshotSources.emplace(workspaceId, std::pair{ snapshotId, revision });
-        _workspaceSnapshotReplayInFlight = true;
-        ProcessStartupActions(std::move(actions),
+        _page._SessionRestore().SnapshotSources.emplace(workspaceId, std::pair{ snapshotId, revision });
+        _page._SessionRestore().SnapshotReplayInFlight = true;
+        _page.ProcessStartupActions(std::move(actions),
                               {},
                               {},
-                              [weakThis{ get_weak() }, snapshotId, workspaceId, revision]() {
-                                  if (const auto page = weakThis.get(); page)
-                                  {
-                                      page->_workspaceSnapshotReplayInFlight = false;
-                                      bool opened{};
-                                      if (const auto index = page->_FindWorkspaceIndex(workspaceId))
-                                      {
-                                          if (index.value() < page->_workspaceItems.Size())
-                                          {
-                                              page->_BindWorkspaceItemToSnapshot(page->_workspaceItems.GetAt(index.value()), snapshotId, revision);
-                                              opened = true;
-                                          }
-                                          page->_MarkWorkspaceSnapshotOpened(snapshotId, workspaceId);
-                                      }
-                                      page->_FinishWorkspaceSnapshotReplacement(opened);
-                                  }
-                              },
-                              [weakThis{ get_weak() }, snapshotId, workspaceId, revision]() {
-                                  if (const auto page = weakThis.get(); page)
-                                  {
-                                      page->_workspaceSnapshotReplayInFlight = false;
-                                      if (const auto index = page->_FindWorkspaceIndex(workspaceId);
-                                          index && index.value() < page->_workspaceItems.Size())
-                                      {
-                                          const auto item = winrt::get_self<implementation::WorkspaceItemViewModel>(page->_workspaceItems.GetAt(index.value()));
-                                          if (item->SourceSnapshotId() == std::optional{ snapshotId } && item->SourceSnapshotRevision() == revision)
-                                          {
-                                              page->_ClearWorkspaceItemSnapshotBinding(page->_workspaceItems.GetAt(index.value()));
-                                          }
-                                      }
-                                      page->_FinishWorkspaceSnapshotReplacement(false);
-                                  }
-                              });
+                               [weakThis{ _page.get_weak() }, snapshotId, workspaceId, revision]() {
+                                   if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
+                                   {
+                                       auto& coordinator = page->_workspaceFeatures->Snapshots();
+                                       if (coordinator._stopped)
+                                       {
+                                           return;
+                                       }
+                                       page->_SessionRestore().SnapshotReplayInFlight = false;
+                                       bool opened{};
+                                       if (const auto index = page->_FindWorkspaceIndex(workspaceId))
+                                       {
+                                           if (index.value() < page->_WorkspaceItems().Size())
+                                           {
+                                               coordinator.BindItem(page->_WorkspaceItems().GetAt(index.value()), snapshotId, revision);
+                                               opened = true;
+                                           }
+                                           coordinator._MarkWorkspaceSnapshotOpened(snapshotId, workspaceId);
+                                       }
+                                       coordinator._FinishWorkspaceSnapshotReplacement(opened);
+                                   }
+                               },
+                               [weakThis{ _page.get_weak() }, snapshotId, workspaceId, revision]() {
+                                   if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
+                                   {
+                                       auto& coordinator = page->_workspaceFeatures->Snapshots();
+                                       if (coordinator._stopped)
+                                       {
+                                           return;
+                                       }
+                                       page->_SessionRestore().SnapshotReplayInFlight = false;
+                                       if (const auto index = page->_FindWorkspaceIndex(workspaceId);
+                                           index && index.value() < page->_WorkspaceItems().Size())
+                                       {
+                                           const auto item = winrt::get_self<implementation::WorkspaceItemViewModel>(page->_WorkspaceItems().GetAt(index.value()));
+                                           if (item->SourceSnapshotId() == std::optional{ snapshotId } && item->SourceSnapshotRevision() == revision)
+                                           {
+                                               coordinator.ClearItemBinding(page->_WorkspaceItems().GetAt(index.value()));
+                                           }
+                                       }
+                                       coordinator._FinishWorkspaceSnapshotReplacement(false);
+                                   }
+                               });
     }
 
-    safe_void_coroutine TerminalPage::_ValidateAndOpenWorkspaceSnapshotAsync(winrt::guid snapshotId, const uint64_t revision)
+    safe_void_coroutine WorkspaceSnapshotCoordinator::_ValidateAndOpenWorkspaceSnapshotAsync(winrt::guid snapshotId, const uint64_t revision)
     {
-        const auto weakThis = get_weak();
-        const auto dispatcher = Dispatcher();
+        const auto weakThis = _page.get_weak();
+        const auto dispatcher = _page.Dispatcher();
         auto snapshot = ApplicationState::SharedInstance().WorkspaceSnapshotById(snapshotId);
         const auto savedBinding = snapshot ? _workspaceGitBindingFromSnapshot(snapshot.GitBinding()) : std::nullopt;
         if (!snapshot || snapshot.Revision() != revision || !savedBinding)
         {
-            _workspaceSnapshotOpenOperationInFlight = false;
+            _openOperationInFlight = false;
             co_return;
         }
 
         bool existingWorkspaceFound{ false };
         winrt::hstring existingWorkspaceCwd;
-        for (const auto& item : _workspaceItems)
+        for (const auto& item : _page._WorkspaceItems())
         {
             if (item.WorkspaceId() == snapshot.WorkspaceId())
             {
@@ -562,15 +599,20 @@ namespace winrt::TerminalApp::implementation
         co_await wil::resume_foreground(dispatcher);
 
         const auto page = weakThis.get();
-        if (!page)
+        if (!page || !page->_workspaceFeatures)
+        {
+            co_return;
+        }
+        auto& coordinator = page->_workspaceFeatures->Snapshots();
+        if (coordinator._stopped)
         {
             co_return;
         }
         const auto clearInFlight = wil::scope_exit([&]() {
-            page->_workspaceSnapshotOpenOperationInFlight = false;
-            if (!page->_workspaceSnapshotReplayInFlight)
+            coordinator._openOperationInFlight = false;
+            if (!page->_SessionRestore().SnapshotReplayInFlight)
             {
-                page->_FinishWorkspaceSnapshotReplacement(false);
+                coordinator._FinishWorkspaceSnapshotReplacement(false);
             }
         });
 
@@ -588,20 +630,20 @@ namespace winrt::TerminalApp::implementation
             if (existingWorkspaceFound)
             {
                 const auto existingIndex = page->_FindWorkspaceIndex(snapshot.WorkspaceId());
-                if (!existingIndex || existingIndex.value() >= page->_workspaceItems.Size() ||
-                    page->_workspaceItems.GetAt(existingIndex.value()).WorkingDirectory() != existingWorkspaceCwd)
+                if (!existingIndex || existingIndex.value() >= page->_WorkspaceItems().Size() ||
+                    page->_WorkspaceItems().GetAt(existingIndex.value()).WorkingDirectory() != existingWorkspaceCwd)
                 {
                     co_return;
                 }
                 if (page->_SelectTab(existingIndex.value()))
                 {
-                    page->_BindWorkspaceItemToSnapshot(page->_workspaceItems.GetAt(existingIndex.value()), snapshot.Id(), snapshot.Revision());
-                    page->_MarkWorkspaceSnapshotOpened(snapshot.Id(), snapshot.WorkspaceId());
+                    coordinator.BindItem(page->_WorkspaceItems().GetAt(existingIndex.value()), snapshot.Id(), snapshot.Revision());
+                    coordinator._MarkWorkspaceSnapshotOpened(snapshot.Id(), snapshot.WorkspaceId());
                 }
             }
             else
             {
-                page->_ReplayWorkspaceSnapshot(snapshot);
+                coordinator._ReplayWorkspaceSnapshot(snapshot);
             }
             co_return;
         }
@@ -685,22 +727,22 @@ namespace winrt::TerminalApp::implementation
             if (existingWorkspaceFound)
             {
                 const auto existingIndex = page->_FindWorkspaceIndex(snapshot.WorkspaceId());
-                if (existingIndex && existingIndex.value() < page->_workspaceItems.Size() &&
-                    page->_workspaceItems.GetAt(existingIndex.value()).WorkingDirectory() == existingWorkspaceCwd)
+                if (existingIndex && existingIndex.value() < page->_WorkspaceItems().Size() &&
+                    page->_WorkspaceItems().GetAt(existingIndex.value()).WorkingDirectory() == existingWorkspaceCwd)
                 {
                     page->_SelectTab(existingIndex.value());
-                    page->_MarkWorkspaceSnapshotOpened(snapshot.Id(), snapshot.WorkspaceId());
+                    coordinator._MarkWorkspaceSnapshotOpened(snapshot.Id(), snapshot.WorkspaceId());
                 }
             }
             else
             {
-                page->_ReplayWorkspaceSnapshot(snapshot);
+                coordinator._ReplayWorkspaceSnapshot(snapshot);
             }
             co_return;
         }
         if (choice == OpenChoice::CreateWorktree)
         {
-            if (page->_restoringWorkspaceState || page->_workspaceSnapshotReplayInFlight)
+            if (page->_SessionRestore().Restoring || page->_SessionRestore().SnapshotReplayInFlight)
             {
                 co_return;
             }
@@ -729,7 +771,7 @@ namespace winrt::TerminalApp::implementation
 
         winrt::guid rebindWorkspaceId{};
         winrt::hstring rebindPath;
-        for (const auto& item : page->_workspaceItems)
+        for (const auto& item : page->_WorkspaceItems())
         {
             if (item.IsSelected())
             {
@@ -747,7 +789,7 @@ namespace winrt::TerminalApp::implementation
         const auto rebound = WorkspaceGitMetadata{}.Query(std::filesystem::path{ rebindPath.c_str() });
         co_await wil::resume_foreground(dispatcher);
 
-        const auto selectionUnchanged = std::ranges::any_of(page->_workspaceItems, [&](const auto& item) {
+        const auto selectionUnchanged = std::ranges::any_of(page->_WorkspaceItems(), [&](const auto& item) {
             return item.IsSelected() && item.WorkspaceId() == rebindWorkspaceId && item.WorkingDirectory() == rebindPath;
         });
         if (rebound.Status != WorkspaceGitMetadataStatus::Succeeded || !selectionUnchanged)
@@ -770,7 +812,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         snapshot = ApplicationState::SharedInstance().WorkspaceSnapshotById(snapshotId);
-        const auto selectionStillCurrent = std::ranges::any_of(page->_workspaceItems, [&](const auto& item) {
+        const auto selectionStillCurrent = std::ranges::any_of(page->_WorkspaceItems(), [&](const auto& item) {
             return item.IsSelected() && item.WorkspaceId() == rebindWorkspaceId && item.WorkingDirectory() == rebindPath;
         });
         if (!snapshot || snapshot.Revision() != revision || !selectionStillCurrent)
@@ -790,21 +832,21 @@ namespace winrt::TerminalApp::implementation
                                .count());
         if (ApplicationState::SharedInstance().SaveWorkspaceSnapshot(snapshot))
         {
-            for (const auto& candidate : page->_workspaceItems)
+            for (const auto& candidate : page->_WorkspaceItems())
             {
                 const auto candidateImpl = winrt::get_self<implementation::WorkspaceItemViewModel>(candidate);
                 if (candidate.WorkspaceId() != rebindWorkspaceId &&
                     candidateImpl->SourceSnapshotId() == std::optional{ snapshot.Id() })
                 {
-                    page->_ClearWorkspaceItemSnapshotBinding(candidate);
+                    coordinator.ClearItemBinding(candidate);
                 }
             }
             if (const auto reboundIndex = page->_FindWorkspaceIndex(rebindWorkspaceId);
-                reboundIndex && reboundIndex.value() < page->_workspaceItems.Size())
+                reboundIndex && reboundIndex.value() < page->_WorkspaceItems().Size())
             {
-                page->_BindWorkspaceItemToSnapshot(page->_workspaceItems.GetAt(reboundIndex.value()), snapshot.Id(), snapshot.Revision());
+                coordinator.BindItem(page->_WorkspaceItems().GetAt(reboundIndex.value()), snapshot.Id(), snapshot.Revision());
                 page->_SelectTab(reboundIndex.value());
-                page->_MarkWorkspaceSnapshotOpened(snapshot.Id(), rebindWorkspaceId);
+                coordinator._MarkWorkspaceSnapshotOpened(snapshot.Id(), rebindWorkspaceId);
             }
         }
         else
@@ -813,7 +855,7 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void TerminalPage::_BindWorkspaceItemToSnapshot(const TerminalApp::WorkspaceItemViewModel& item,
+    void WorkspaceSnapshotCoordinator::BindItem(const TerminalApp::WorkspaceItemViewModel& item,
                                                      const winrt::guid& snapshotId,
                                                      const uint64_t revision)
     {
@@ -821,45 +863,45 @@ namespace winrt::TerminalApp::implementation
         {
             return;
         }
-        ++_workspaceSnapshotSaveGenerations[item.WorkspaceId()];
+        ++_saveGenerations[item.WorkspaceId()];
         winrt::get_self<implementation::WorkspaceItemViewModel>(item)->BindSourceSnapshot(snapshotId, revision);
     }
 
-    void TerminalPage::_ClearWorkspaceItemSnapshotBinding(const TerminalApp::WorkspaceItemViewModel& item)
+    void WorkspaceSnapshotCoordinator::ClearItemBinding(const TerminalApp::WorkspaceItemViewModel& item)
     {
         if (!item)
         {
             return;
         }
-        ++_workspaceSnapshotSaveGenerations[item.WorkspaceId()];
+        ++_saveGenerations[item.WorkspaceId()];
         winrt::get_self<implementation::WorkspaceItemViewModel>(item)->ClearSourceSnapshot();
     }
 
-    void TerminalPage::_FinishWorkspaceSnapshotReplacement(const bool removePlaceholder)
+    void WorkspaceSnapshotCoordinator::_FinishWorkspaceSnapshotReplacement(const bool removePlaceholder)
     {
-        const auto placeholder = std::exchange(_workspaceSnapshotReplacementTab, nullptr);
-        const auto preparedEmptyWindow = std::exchange(_workspaceSnapshotPreparedEmptyWindow, false);
-        if (!removePlaceholder && preparedEmptyWindow && _tabs.Size() == 0)
+        const auto placeholder = std::exchange(_replacementTab, nullptr);
+        const auto preparedEmptyWindow = std::exchange(_page._SessionRestore().PreparedEmptyWindow, false);
+        if (!removePlaceholder && preparedEmptyWindow && _page._tabs.Size() == 0)
         {
-            CloseWindowRequested.raise(*this, nullptr);
+            _page.CloseWindowRequested.raise(_page, nullptr);
             return;
         }
-        if (!removePlaceholder || !placeholder || _tabs.Size() <= 1)
+        if (!removePlaceholder || !placeholder || _page._tabs.Size() <= 1)
         {
             return;
         }
         uint32_t placeholderIndex{};
-        if (!_tabs.IndexOf(placeholder, placeholderIndex))
+        if (!_page._tabs.IndexOf(placeholder, placeholderIndex))
         {
             return;
         }
-        if (const auto placeholderImpl = _GetTabImpl(placeholder))
+        if (const auto placeholderImpl = TerminalPage::_GetTabImpl(placeholder))
         {
-            _RemoveTab(*placeholderImpl);
+            _page._RemoveTab(*placeholderImpl);
         }
     }
 
-    void TerminalPage::_MarkWorkspaceSnapshotOpened(const winrt::guid& snapshotId, const winrt::guid& workspaceId)
+    void WorkspaceSnapshotCoordinator::_MarkWorkspaceSnapshotOpened(const winrt::guid& snapshotId, const winrt::guid& workspaceId)
     {
         const auto state = ApplicationState::SharedInstance();
         const auto snapshot = state.WorkspaceSnapshotById(snapshotId);
@@ -872,24 +914,24 @@ namespace winrt::TerminalApp::implementation
                                   std::chrono::system_clock::now().time_since_epoch())
                                   .count());
         state.SaveWorkspaceSnapshot(snapshot);
-        _RefreshWorkspaceSnapshotCache();
+        RefreshCache();
     }
 
-    void TerminalPage::_RefreshWorkspaceSnapshotCache()
+    void WorkspaceSnapshotCoordinator::RefreshCache()
     {
-        if (_workspaceSnapshotCacheRefreshInFlight)
+        if (_cacheRefreshInFlight)
         {
-            _workspaceSnapshotCacheRefreshPending = true;
+            _cacheRefreshPending = true;
             return;
         }
-        _workspaceSnapshotCacheRefreshInFlight = true;
+        _cacheRefreshInFlight = true;
         _RefreshWorkspaceSnapshotCacheAsync();
     }
 
-    safe_void_coroutine TerminalPage::_RefreshWorkspaceSnapshotCacheAsync()
+    safe_void_coroutine WorkspaceSnapshotCoordinator::_RefreshWorkspaceSnapshotCacheAsync()
     {
-        const auto weakThis = get_weak();
-        const auto dispatcher = Dispatcher();
+        const auto weakThis = _page.get_weak();
+        const auto dispatcher = _page.Dispatcher();
         co_await winrt::resume_background();
 
         std::vector<WorkspaceSnapshot> snapshots;
@@ -906,17 +948,22 @@ namespace winrt::TerminalApp::implementation
         }
 
         co_await wil::resume_foreground(dispatcher);
-        if (const auto page = weakThis.get())
+        if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
         {
-            page->_workspaceSnapshotMenuCache = std::move(snapshots);
-            page->_workspaceSnapshotCacheRefreshInFlight = false;
+            auto& coordinator = page->_workspaceFeatures->Snapshots();
+            if (coordinator._stopped)
+            {
+                co_return;
+            }
+            coordinator._menuCache = std::move(snapshots);
+            coordinator._cacheRefreshInFlight = false;
             if (page->_workspaceFlyout && page->_workspaceFlyout.IsOpen())
             {
-                page->_PopulateWorkspaceFlyout(false);
+                coordinator.PopulateFlyout(false);
             }
-            if (std::exchange(page->_workspaceSnapshotCacheRefreshPending, false))
+            if (std::exchange(coordinator._cacheRefreshPending, false))
             {
-                page->_RefreshWorkspaceSnapshotCache();
+                coordinator.RefreshCache();
             }
         }
     }
@@ -924,50 +971,50 @@ namespace winrt::TerminalApp::implementation
     // Rebuild the workspace flyout contents. Called every time the flyout opens
     // so it reflects both durable single-Workspace snapshots and legacy named
     // WindowSession entries.
-    void TerminalPage::_PopulateWorkspaceFlyout(const bool refreshCache)
+    void WorkspaceSnapshotCoordinator::PopulateFlyout(const bool refreshCache)
     {
-        if (!_workspaceFlyout)
+        if (!_page._workspaceFlyout)
         {
             return;
         }
 
-        _workspaceFlyout.Items().Clear();
+        _page._workspaceFlyout.Items().Clear();
         if (refreshCache)
         {
-            _RefreshWorkspaceSnapshotCache();
+            RefreshCache();
         }
 
         // --- "Name / Rename this window" ---
         {
             MenuFlyoutItem item{};
-            item.Text(_WindowProperties.WindowName().empty() ? RS_(L"NameThisWindowMenuItem") : RS_(L"RenameThisWindowMenuItem"));
+            item.Text(_page._WindowProperties.WindowName().empty() ? RS_(L"NameThisWindowMenuItem") : RS_(L"RenameThisWindowMenuItem"));
 
             auto iconElement = UI::IconPathConverter::IconWUX(L"\uE8AC"); // Rename glyph
             Automation::AutomationProperties::SetAccessibilityView(iconElement, Automation::Peers::AccessibilityView::Raw);
             item.Icon(iconElement);
 
-            item.Click([weakThis{ get_weak() }](auto&&, auto&&) {
+            item.Click([weakThis{ _page.get_weak() }](auto&&, auto&&) {
                 if (auto page{ weakThis.get() })
                 {
                     page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::OpenWindowRenamer, nullptr });
                 }
             });
-            _workspaceFlyout.Items().Append(item);
+            _page._workspaceFlyout.Items().Append(item);
         }
 
         // --- Durable single-Workspace snapshots (one snapshot == one Tab) ---
-        if (!_workspaceSnapshotMenuCache.empty())
+        if (!_menuCache.empty())
         {
             std::vector<WorkspaceSnapshot> snapshots;
-            snapshots.reserve(_workspaceSnapshotMenuCache.size());
-            for (const auto& snapshot : _workspaceSnapshotMenuCache)
+            snapshots.reserve(_menuCache.size());
+            for (const auto& snapshot : _menuCache)
             {
                 if (snapshot &&
                     snapshot.Id() != winrt::guid{} &&
                     snapshot.WorkspaceId() != winrt::guid{} &&
                     !snapshot.Name().empty() &&
                     WorkspaceSnapshot::IsValid(snapshot, false) &&
-                    _workspaceSnapshotProfilesExist(snapshot.Actions(), _settings))
+                    _workspaceSnapshotProfilesExist(snapshot.Actions(), _page._settings))
                 {
                     snapshots.emplace_back(snapshot);
                 }
@@ -997,16 +1044,16 @@ namespace winrt::TerminalApp::implementation
                     MenuFlyoutItem item{};
                     item.Text(snapshot.Name());
 
-                    const auto isOpen = _FindWorkspaceIndex(snapshot.WorkspaceId()).has_value();
+                    const auto isOpen = _page._FindWorkspaceIndex(snapshot.WorkspaceId()).has_value();
                     auto iconElement = UI::IconPathConverter::IconWUX(isOpen ? L"\uE73E" : L"\uE8F1");
                     Automation::AutomationProperties::SetAccessibilityView(iconElement, Automation::Peers::AccessibilityView::Raw);
                     item.Icon(iconElement);
 
                     const auto snapshotId = snapshot.Id();
-                    item.Click([weakThis{ get_weak() }, snapshotId](auto&&, auto&&) {
-                        if (const auto page = weakThis.get())
+                    item.Click([weakThis{ _page.get_weak() }, snapshotId](auto&&, auto&&) {
+                        if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
                         {
-                            page->_OpenWorkspaceSnapshot(snapshotId);
+                            page->_workspaceFeatures->Snapshots()._OpenWorkspaceSnapshot(snapshotId);
                         }
                     });
 
@@ -1014,7 +1061,7 @@ namespace winrt::TerminalApp::implementation
                     deleteFlyout.Placement(WUX::Controls::Primitives::FlyoutPlacementMode::BottomEdgeAlignedRight);
                     MenuFlyoutItem deleteItem{};
                     deleteItem.Text(RS_(L"DeleteWorkspaceMenuItem"));
-                    deleteItem.Click([weakThis{ get_weak() }, snapshotId, name = snapshot.Name()](auto&&, auto&&) -> safe_void_coroutine {
+                    deleteItem.Click([weakThis{ _page.get_weak() }, snapshotId, name = snapshot.Name()](auto&&, auto&&) -> safe_void_coroutine {
                         auto page = weakThis.get();
                         if (!page)
                         {
@@ -1032,23 +1079,24 @@ namespace winrt::TerminalApp::implementation
                         {
                             const auto result = co_await presenter.ShowDialog(dialog);
                             page = weakThis.get();
-                            if (page && result == ContentDialogResult::Primary)
+                            if (page && page->_workspaceFeatures && result == ContentDialogResult::Primary)
                             {
+                                auto& coordinator = page->_workspaceFeatures->Snapshots();
                                 if (ApplicationState::SharedInstance().RemoveWorkspaceSnapshot(snapshotId))
                                 {
-                                    for (const auto& workspaceItem : page->_workspaceItems)
+                                    for (const auto& workspaceItem : page->_WorkspaceItems())
                                     {
                                         if (winrt::get_self<implementation::WorkspaceItemViewModel>(workspaceItem)->SourceSnapshotId() == std::optional{ snapshotId })
                                         {
-                                            page->_ClearWorkspaceItemSnapshotBinding(workspaceItem);
+                                            coordinator.ClearItemBinding(workspaceItem);
                                         }
                                     }
-                                    std::erase_if(page->_workspaceSnapshotMenuCache, [&](const auto& snapshot) {
+                                    std::erase_if(coordinator._menuCache, [&](const auto& snapshot) {
                                         return snapshot && snapshot.Id() == snapshotId;
                                     });
-                                    page->_RefreshWorkspaceSnapshotCache();
+                                    coordinator.RefreshCache();
                                 }
-                                page->_PopulateWorkspaceFlyout();
+                                coordinator.PopulateFlyout();
                             }
                         }
                     });
@@ -1061,13 +1109,13 @@ namespace winrt::TerminalApp::implementation
                     savedWorkspaces.Items().Append(item);
                 }
 
-                _workspaceFlyout.Items().Append(savedWorkspaces);
+                _page._workspaceFlyout.Items().Append(savedWorkspaces);
             }
         }
 
         // --- Gather open window info first so we can filter workspaces ---
         const auto windowListReq{ winrt::make<WindowListRequest>() };
-        RequestWindowList.raise(*this, windowListReq);
+        _page.RequestWindowList.raise(_page, windowListReq);
         const auto windowEntries = windowListReq.Entries();
 
         std::set<winrt::hstring> openWindowNames;
@@ -1103,7 +1151,7 @@ namespace winrt::TerminalApp::implementation
 
                 if (!addedSeparator)
                 {
-                    _workspaceFlyout.Items().Append(MenuFlyoutSeparator{});
+                    _page._workspaceFlyout.Items().Append(MenuFlyoutSeparator{});
                     addedSeparator = true;
                 }
 
@@ -1114,7 +1162,7 @@ namespace winrt::TerminalApp::implementation
                 Automation::AutomationProperties::SetAccessibilityView(iconElement, Automation::Peers::AccessibilityView::Raw);
                 item.Icon(iconElement);
 
-                item.Click([weakThis{ get_weak() }, name](auto&&, auto&&) {
+                item.Click([weakThis{ _page.get_weak() }, name](auto&&, auto&&) {
                     if (auto page{ weakThis.get() })
                     {
                         page->_OpenWorkspaceWindow(name);
@@ -1132,7 +1180,7 @@ namespace winrt::TerminalApp::implementation
 
                     auto trashIcon = UI::IconPathConverter::IconWUX(L"\xE74D"); // Delete  glyph
 
-                    deleteItem.Click([weakThis{ get_weak() }, name](auto&&, auto&&) -> safe_void_coroutine {
+                    deleteItem.Click([weakThis{ _page.get_weak() }, name](auto&&, auto&&) -> safe_void_coroutine {
                         auto page{ weakThis.get() };
                         if (!page)
                         {
@@ -1159,7 +1207,10 @@ namespace winrt::TerminalApp::implementation
                             if (result == ContentDialogResult::Primary)
                             {
                                 ApplicationState::SharedInstance().RemoveWorkspace(name);
-                                page->_PopulateWorkspaceFlyout();
+                                if (page->_workspaceFeatures)
+                                {
+                                    page->_workspaceFeatures->Snapshots().PopulateFlyout();
+                                }
                             }
                         }
                     });
@@ -1171,16 +1222,16 @@ namespace winrt::TerminalApp::implementation
                     });
                 }
 
-                _workspaceFlyout.Items().Append(item);
+                _page._workspaceFlyout.Items().Append(item);
             }
         }
 
         // --- Open windows section ---
         if (windowEntries && windowEntries.Size() > 0)
         {
-            _workspaceFlyout.Items().Append(MenuFlyoutSeparator{});
+            _page._workspaceFlyout.Items().Append(MenuFlyoutSeparator{});
 
-            const auto thisWindowId = _WindowProperties.WindowId();
+            const auto thisWindowId = _page._WindowProperties.WindowId();
 
             for (const auto& entry : windowEntries)
             {
@@ -1213,7 +1264,7 @@ namespace winrt::TerminalApp::implementation
                     Automation::AutomationProperties::SetAccessibilityView(iconElement, Automation::Peers::AccessibilityView::Raw);
                     item.Icon(iconElement);
 
-                    item.Click([weakThis{ get_weak() }, id](auto&&, auto&&) {
+                    item.Click([weakThis{ _page.get_weak() }, id](auto&&, auto&&) {
                         if (auto page{ weakThis.get() })
                         {
                             page->SummonWindowByIdRequested.raise(*page, winrt::make<SummonWindowByIdRequestedArgs>(id));
@@ -1221,7 +1272,7 @@ namespace winrt::TerminalApp::implementation
                     });
                 }
 
-                _workspaceFlyout.Items().Append(item);
+                _page._workspaceFlyout.Items().Append(item);
             }
         }
     }

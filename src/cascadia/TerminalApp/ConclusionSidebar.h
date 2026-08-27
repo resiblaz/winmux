@@ -107,6 +107,11 @@ namespace winrt::TerminalApp::implementation
         bool _showAllWorkspaces{ false };
         bool _codexOperationBusy{ false };
         bool _historyClearInFlight{ false };
+        bool _historyAvailable{ false };
+        uint64_t _historyQueryGeneration{};
+        uint64_t _sessionQueryGeneration{};
+        SafeDispatcherTimer _historySearchTimer;
+        SafeDispatcherTimer _sessionSearchTimer;
         CodexHistoryUiState _codexUiState{ CodexHistoryUiState::Unavailable };
         winrt::guid _activeWorkspaceId{};
         winrt::hstring _activeWorkspaceTitle;
@@ -120,8 +125,10 @@ namespace winrt::TerminalApp::implementation
         std::unordered_map<std::wstring, Windows::UI::Xaml::Controls::PivotItem> _toolTabs;
 
         void _ApplyLayout();
-        void _RefreshHistory();
-        void _RefreshSessions();
+        void _QueueHistoryRefresh();
+        void _QueueSessionRefresh();
+        safe_void_coroutine _RefreshHistory();
+        safe_void_coroutine _RefreshSessions();
         void _UpdateContentState();
         void _UpdateSessionActions();
         TerminalApp::AgentHistoryItem _SelectedSession();

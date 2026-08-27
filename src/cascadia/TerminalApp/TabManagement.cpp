@@ -10,6 +10,7 @@
 
 #include "pch.h"
 #include "TerminalPage.h"
+#include "WorkspaceFeatureSet.h"
 #include "Utils.h"
 #include "../../types/inc/utils.hpp"
 #include "../../inc/til/string.h"
@@ -111,7 +112,7 @@ namespace winrt::TerminalApp::implementation
         {
             workspaceId = _ReserveWorkspaceIdForNewTab();
         }
-        THROW_HR_IF(E_UNEXPECTED, std::ranges::any_of(_workspaceItems, [&](const auto& item) {
+        THROW_HR_IF(E_UNEXPECTED, std::ranges::any_of(_WorkspaceItems(), [&](const auto& item) {
                         return item.WorkspaceId() == workspaceId;
                     }));
 
@@ -125,10 +126,10 @@ namespace winrt::TerminalApp::implementation
 
         // If insert position is not passed, calculate it
         std::optional<uint32_t> restoredWorkspaceIndex;
-        if (_restoringWorkspaceState && _startupWorkspaceRestoreIndex < _startupWorkspaceIds.size())
+        if (_SessionRestore().Restoring && _SessionRestore().RestoreIndex < _SessionRestore().StartupWorkspaceIds.size())
         {
-            restoredWorkspaceIndex = _startupWorkspaceRestoreIndex++;
-            newTabImpl->IsPinned(_startupPinnedWorkspaceIndices.contains(restoredWorkspaceIndex.value()));
+            restoredWorkspaceIndex = _SessionRestore().RestoreIndex++;
+            newTabImpl->IsPinned(_SessionRestore().PinnedWorkspaceIndices.contains(restoredWorkspaceIndex.value()));
         }
 
         if (insertPosition == -1)
@@ -156,23 +157,23 @@ namespace winrt::TerminalApp::implementation
         workspaceItem->RestoreWorkspaceId(workspaceId);
         if (restoredWorkspaceIndex)
         {
-            if (const auto source = _startupSnapshotSources.find(workspaceId);
-                source != _startupSnapshotSources.end())
+            if (const auto source = _SessionRestore().SnapshotSources.find(workspaceId);
+                source != _SessionRestore().SnapshotSources.end())
             {
-                _BindWorkspaceItemToSnapshot(*workspaceItem, source->second.first, source->second.second);
+                _workspaceFeatures->Snapshots().BindItem(*workspaceItem, source->second.first, source->second.second);
             }
         }
         if (restoredWorkspaceIndex)
         {
-            const auto resumeEntry = std::find_if(_startupAgentResumeEntries.begin(), _startupAgentResumeEntries.end(), [&](const auto& entry) {
+            const auto resumeEntry = std::find_if(_SessionRestore().AgentResumeEntries.begin(), _SessionRestore().AgentResumeEntries.end(), [&](const auto& entry) {
                 return entry.WorkspaceId == workspaceItem->WorkspaceId();
             });
-            if (resumeEntry != _startupAgentResumeEntries.end() && WorkspaceAgentResume::IsSupported(*resumeEntry))
+            if (resumeEntry != _SessionRestore().AgentResumeEntries.end() && WorkspaceAgentResume::IsSupported(*resumeEntry))
             {
                 workspaceItem->ConfigureAgentResume(resumeEntry->Provider, resumeEntry->SessionId, resumeEntry->WorkingDirectory);
             }
         }
-        _workspaceItems.InsertAt(insertPosition, *workspaceItem);
+        _workspaceFeatures->Workspaces().Insert(insertPosition, *workspaceItem);
         workspaceItem->RefreshGitBranch();
         _mruTabs.Append(*newTabImpl);
 
@@ -330,7 +331,7 @@ namespace winrt::TerminalApp::implementation
         // - there is more than one tab, or the user has chosen to always show tabs
         const auto navigationVisible = !_isInFocusMode &&
                                        (!_isFullscreen || _showTabsFullscreen);
-        const auto isVisible = !_workspaceSidebarEnabled &&
+        const auto isVisible = !_SidebarController().Enabled &&
                                navigationVisible &&
                                (_currentWindowSettings().ShowTabsInTitlebar() ||
                                 (_tabs.Size() > 1) ||
@@ -342,22 +343,22 @@ namespace winrt::TerminalApp::implementation
             // lifecycle and selection control. Keep it active while hiding
             // its zero-height visual row; collapsing it prevents the initial
             // TermControl from being selected, laid out, and connected.
-            const auto keepTabViewActive = _workspaceSidebarEnabled || isVisible;
+            const auto keepTabViewActive = _SidebarController().Enabled || isVisible;
             _tabView.Visibility(keepTabViewActive ? Visibility::Visible : Visibility::Collapsed);
-            _tabView.Opacity(_workspaceSidebarEnabled ? 0.0 : 1.0);
-            _tabView.IsHitTestVisible(!_workspaceSidebarEnabled);
-            _tabView.Width(_workspaceSidebarEnabled ? 0.0 : NAN);
+            _tabView.Opacity(_SidebarController().Enabled ? 0.0 : 1.0);
+            _tabView.IsHitTestVisible(!_SidebarController().Enabled);
+            _tabView.Width(_SidebarController().Enabled ? 0.0 : NAN);
         }
         if (_tabRow)
         {
             // collapse/show the row that the tabs are in.
             // NaN is the special value XAML uses for "Auto" sizing.
-            const auto titleBarVisible = isVisible || (_workspaceSidebarEnabled && navigationVisible);
+            const auto titleBarVisible = isVisible || (_SidebarController().Enabled && navigationVisible);
             _tabRow.Height(titleBarVisible ? NAN : 0);
         }
         if (_workspaceSidebar)
         {
-            _workspaceSidebar.Visibility(_workspaceSidebarEnabled && navigationVisible ? Visibility::Visible : Visibility::Collapsed);
+            _workspaceSidebar.Visibility(_SidebarController().Enabled && navigationVisible ? Visibility::Visible : Visibility::Collapsed);
         }
     }
 
@@ -615,7 +616,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         _tabs.RemoveAt(tabIndex);
-        _workspaceItems.RemoveAt(tabIndex);
+        _workspaceFeatures->Workspaces().Remove(tabIndex);
         _tabView.TabItems().RemoveAt(tabIndex);
         _UpdateTabIndices();
 
@@ -1253,7 +1254,7 @@ namespace winrt::TerminalApp::implementation
             {
                 const auto tab{ _tabs.GetAt(selectedIndex) };
                 _UpdatedSelectedTab(tab);
-                _UpdateConclusionSidebar();
+                _workspaceFeatures->History().UpdateView();
             }
         }
     }
@@ -1310,14 +1311,12 @@ namespace winrt::TerminalApp::implementation
         if (currentTabIndex != newTabIndex)
         {
             auto tabViewItem = tab.TabViewItem();
-            const auto workspaceItem = _workspaceItems.GetAt(currentTabIndex);
             const auto previouslySelectedItem = _tabView.SelectedItem();
             _tabs.RemoveAt(currentTabIndex);
             _tabs.InsertAt(newTabIndex, tab);
-            if (!_workspaceReordering)
+            if (!_SidebarController().Reordering)
             {
-                _workspaceItems.RemoveAt(currentTabIndex);
-                _workspaceItems.InsertAt(newTabIndex, workspaceItem);
+                _workspaceFeatures->Workspaces().Move(currentTabIndex, newTabIndex);
             }
             _UpdateTabIndices();
 
@@ -1357,12 +1356,10 @@ namespace winrt::TerminalApp::implementation
             {
                 auto& tabs{ _tabs };
                 auto tab = tabs.GetAt(from.value());
-                const auto workspaceItem = _workspaceItems.GetAt(from.value());
                 const auto targetIndex = _ClampTabIndexForPinnedState(tab, to.value());
                 tabs.RemoveAt(from.value());
                 tabs.InsertAt(targetIndex, tab);
-                _workspaceItems.RemoveAt(from.value());
-                _workspaceItems.InsertAt(targetIndex, workspaceItem);
+                _workspaceFeatures->Workspaces().Move(from.value(), targetIndex);
                 _UpdateTabIndices();
 
                 // TabView has already performed the visual move. Put it back

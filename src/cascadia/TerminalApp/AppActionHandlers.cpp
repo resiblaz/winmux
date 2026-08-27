@@ -5,6 +5,7 @@
 #include "App.h"
 
 #include "TerminalPage.h"
+#include "WorkspaceFeatureSet.h"
 #include "ScratchpadContent.h"
 #include "../WinRTUtils/inc/WtExeUtils.h"
 #include "../../types/inc/utils.hpp"
@@ -754,7 +755,7 @@ namespace winrt::TerminalApp::implementation
     {
         if (const auto activeTab{ _senderOrFocusedTab(sender) })
         {
-            if (_workspaceSidebarEnabled)
+            if (_SidebarController().Enabled)
             {
                 _RenameWorkspace(*activeTab);
             }
@@ -1657,7 +1658,7 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_HandleToggleWorkspacePin(const IInspectable& /*sender*/,
                                                  const ActionEventArgs& args)
     {
-        if (_workspaceSidebarEnabled)
+        if (_SidebarController().Enabled)
         {
             if (const auto tab = _GetFocusedTab())
             {
@@ -1670,7 +1671,7 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_HandleToggleWorkspaceSidebar(const IInspectable& /*sender*/,
                                                      const ActionEventArgs& args)
     {
-        if (_workspaceSidebarEnabled && _workspaceSidebar)
+        if (_SidebarController().Enabled && _workspaceSidebar)
         {
             const auto sidebar = winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar);
             if (!sidebar->IsWindowNarrow())
@@ -1685,7 +1686,7 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_HandleOpenWorkspaceNotificationCenter(const IInspectable& /*sender*/,
                                                               const ActionEventArgs& args)
     {
-        if (_workspaceSidebarEnabled && _workspaceSidebar && _workspaceNotificationButton)
+        if (_SidebarController().Enabled && _workspaceSidebar && _workspaceNotificationButton)
         {
             winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar)->OpenNotificationCenter(_workspaceNotificationButton);
             args.Handled(true);
@@ -1711,7 +1712,7 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_HandleWorkspaceBack(const IInspectable& /*sender*/,
                                             const ActionEventArgs& args)
     {
-        if (_workspaceSidebarEnabled)
+        if (_SidebarController().Enabled)
         {
             _NavigateWorkspaceHistory(false);
             args.Handled(true);
@@ -1721,7 +1722,7 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_HandleWorkspaceForward(const IInspectable& /*sender*/,
                                                const ActionEventArgs& args)
     {
-        if (_workspaceSidebarEnabled)
+        if (_SidebarController().Enabled)
         {
             _NavigateWorkspaceHistory(true);
             args.Handled(true);

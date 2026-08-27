@@ -46,7 +46,12 @@ namespace winrt::Microsoft::Terminal::Settings
 namespace winrt::TerminalApp::implementation
 {
     struct TerminalSettingsCache;
-    class WorkspaceAutomationServer;
+    class WorkspaceFeatureSet;
+    class WorkspaceAutomationController;
+    class AgentHistoryCoordinator;
+    class WorkspaceSnapshotCoordinator;
+    struct WorkspaceSessionRestoreState;
+    class WorkspaceSidebarController;
 
     inline constexpr uint32_t DefaultRowsToScroll{ 3 };
     inline constexpr std::wstring_view TabletInputServiceKey{ L"TabletInputService" };
@@ -320,10 +325,14 @@ namespace winrt::TerminalApp::implementation
         Microsoft::Terminal::Settings::Model::CascadiaSettings _settings{ nullptr };
 
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _tabs;
-        Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel> _workspaceItems;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel>::VectorChanged_revoker _workspaceItemsChangedRevoker;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _mruTabs;
         static winrt::com_ptr<Tab> _GetTabImpl(const TerminalApp::Tab& tab);
+        Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel> _WorkspaceItems() const noexcept;
+        WorkspaceSessionRestoreState& _SessionRestore() noexcept;
+        const WorkspaceSessionRestoreState& _SessionRestore() const noexcept;
+        WorkspaceSidebarController& _SidebarController() noexcept;
+        const WorkspaceSidebarController& _SidebarController() const noexcept;
 
         void _UpdateTabIndices();
 
@@ -341,32 +350,7 @@ namespace winrt::TerminalApp::implementation
         std::optional<int> _rearrangeFrom{};
         std::optional<int> _rearrangeTo{};
         bool _removing{ false };
-        bool _workspaceSidebarEnabled{ false };
-        bool _workspaceSidebarLayoutInitialized{ false };
-        std::unique_ptr<WorkspaceAutomationServer> _workspaceAutomationServer;
-        std::deque<std::chrono::steady_clock::time_point> _workspaceAutomationNotificationTimes;
-        SafeDispatcherTimer _workspaceListeningPortsTimer;
-        bool _workspaceListeningPortsRefreshInFlight{ false };
-        bool _workspaceListeningPortsRefreshPending{ false };
-        uint64_t _workspaceListeningPortsGeneration{ 0 };
-        SafeDispatcherTimer _agentHistoryCleanupTimer;
-        bool _agentHistoryInboxImportInFlight{ false };
-        bool _agentHistoryInboxImportPending{ false };
-        bool _agentHistoryCleanupInFlight{ false };
-        bool _codexHistoryOperationInFlight{ false };
-        bool _workspaceSnapshotOpenOperationInFlight{ false };
-        TerminalApp::Tab _workspaceSnapshotReplacementTab{ nullptr };
-        bool _workspaceSnapshotPreparedEmptyWindow{ false };
-        std::unordered_map<winrt::guid, uint64_t> _workspaceSnapshotSaveGenerations;
-        std::unordered_set<winrt::guid> _codexHistoryAutoSyncAttempted;
-        bool _syncingWorkspaceSelection{ false };
-        static constexpr size_t MaximumWorkspaceNavigationHistory{ 100 };
-        std::vector<winrt::guid> _workspaceBackHistory;
-        std::vector<winrt::guid> _workspaceForwardHistory;
-        std::optional<winrt::guid> _workspaceNavigationCurrent;
-        bool _workspaceReordering{ false };
-        std::optional<uint32_t> _workspaceReorderFrom{};
-        TerminalApp::WorkspaceItemViewModel _workspaceReorderItem{ nullptr };
+        std::unique_ptr<WorkspaceFeatureSet> _workspaceFeatures;
 
         bool _activated{ false };
         bool _visible{ true };
@@ -385,26 +369,6 @@ namespace winrt::TerminalApp::implementation
         StartupState _startupState{ StartupState::NotInitialized };
 
         std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> _startupActions;
-        std::vector<winrt::guid> _startupWorkspaceIds;
-        std::unordered_set<uint32_t> _startupPinnedWorkspaceIndices;
-        std::vector<Microsoft::Terminal::Settings::Model::AgentResumeInfo> _startupAgentResumeEntries;
-        uint32_t _startupWorkspaceRestoreIndex{ 0 };
-        bool _restoringWorkspaceState{ false };
-        std::unordered_map<winrt::guid, std::pair<winrt::guid, uint64_t>> _startupSnapshotSources;
-        bool _workspaceSnapshotReplayInFlight{ false };
-        struct PendingWorkspaceContent
-        {
-            std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> Actions;
-            uint32_t TabIndex{};
-            winrt::guid WorkspaceId{};
-            winrt::guid SourceSnapshotId{};
-            uint64_t SourceSnapshotRevision{};
-        };
-        std::deque<PendingWorkspaceContent> _pendingWorkspaceContent;
-        bool _drainingPendingWorkspaceContent{ false };
-        std::vector<Microsoft::Terminal::Settings::Model::WorkspaceSnapshot> _workspaceSnapshotMenuCache;
-        bool _workspaceSnapshotCacheRefreshInFlight{ false };
-        bool _workspaceSnapshotCacheRefreshPending{ false };
         winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _startupConnection{ nullptr };
 
         static constexpr uint32_t CurrentWorkspaceStateVersion{ 1 };
@@ -492,37 +456,6 @@ namespace winrt::TerminalApp::implementation
         void _UpdateTabView();
         void _UpdateTabWidthMode();
         void _UpdateWorkspaceSidebar();
-        void _UpdateConclusionSidebar();
-        void _ImportAgentHistoryInbox();
-        safe_void_coroutine _ImportAgentHistoryInboxAsync(std::vector<AgentHistoryInboxWorkspace> workspaces);
-        void _CleanupAgentHistoryIfDue();
-        safe_void_coroutine _CleanupAgentHistoryAsync(AgentHistoryRetentionPolicy policy);
-        void _SyncCodexHistoryRequested(const winrt::guid& workspaceId,
-                                        const winrt::hstring& workspaceTitle,
-                                        const winrt::hstring& cwd);
-        safe_void_coroutine _SyncCodexHistoryAsync(winrt::guid workspaceId,
-                                                    winrt::hstring workspaceTitle,
-                                                    winrt::hstring cwd);
-        void _LoadCodexHistoryRequested(const winrt::guid& workspaceId,
-                                        const winrt::hstring& workspaceTitle,
-                                        const winrt::hstring& cwd,
-                                        const winrt::hstring& sessionId);
-        safe_void_coroutine _LoadCodexHistoryAsync(winrt::guid workspaceId,
-                                                    winrt::hstring workspaceTitle,
-                                                    winrt::hstring cwd,
-                                                    winrt::hstring sessionId);
-        void _ResumeCodexHistoryRequested(const winrt::guid& workspaceId,
-                                          const winrt::hstring& workspaceTitle,
-                                          const winrt::hstring& cwd,
-                                          const winrt::hstring& sessionId);
-        safe_void_coroutine _ResumeCodexSession(winrt::guid workspaceId,
-                                                 winrt::hstring sessionId,
-                                                 winrt::hstring workingDirectory);
-        bool _IsCodexHistoryWorkspaceActive(const winrt::guid& workspaceId) const;
-        void _CompleteCodexHistoryOperation(const winrt::guid& workspaceId,
-                                            CodexHistoryUiState state,
-                                            bool refreshHistory,
-                                            bool refreshSessions);
         void _UpdateWorkspaceTitleBar();
         void _UpdateWorkspaceListeningPortsTimer();
         void _RefreshWorkspaceListeningPorts();
@@ -536,8 +469,6 @@ namespace winrt::TerminalApp::implementation
                                                                  std::vector<uint32_t> rootProcessIds);
         void _UpdateWorkspaceSidebarForWindowWidth(double width);
         void _Root_SizeChanged(const IInspectable& sender, const Windows::UI::Xaml::SizeChangedEventArgs& args);
-        void _UpdateWorkspaceAutomationServer();
-        std::string _HandleWorkspaceAutomationRequest(std::string_view request);
         void _SyncWorkspaceSelection(const winrt::TerminalApp::Tab& tab);
         std::optional<uint32_t> _FindWorkspaceIndex(const winrt::guid& workspaceId) const;
         void _RecordWorkspaceNavigation(const winrt::TerminalApp::Tab& tab);
@@ -549,19 +480,6 @@ namespace winrt::TerminalApp::implementation
         void _WorkspaceCloseRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceCloseOthersRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceRenameRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
-        void _WorkspaceSaveSnapshotRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
-        safe_void_coroutine _SaveWorkspaceSnapshotAsync(TerminalApp::WorkspaceItemViewModel item,
-                                                         std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> actions,
-                                                         winrt::hstring workingDirectory,
-                                                         winrt::hstring title,
-                                                         uint64_t generation,
-                                                         std::optional<winrt::guid> sourceSnapshotId,
-                                                         uint64_t sourceRevision);
-        void _CommitWorkspaceSnapshot(const TerminalApp::WorkspaceItemViewModel& item,
-                                      std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> actions,
-                                      const Microsoft::Terminal::Settings::Model::WorkspaceGitBinding& gitBinding,
-                                      std::optional<winrt::guid> sourceSnapshotId,
-                                      uint64_t sourceRevision);
         safe_void_coroutine _WorkspaceConfigureAgentResumeRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         safe_void_coroutine _WorkspaceResumeAgentRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceClearAgentResumeRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
@@ -831,17 +749,7 @@ namespace winrt::TerminalApp::implementation
 
         void _PopulateContextMenu(const Microsoft::Terminal::Control::TermControl& control, const Microsoft::UI::Xaml::Controls::CommandBarFlyout& sender, const bool withSelection);
         void _PopulateQuickFixMenu(const Microsoft::Terminal::Control::TermControl& control, const Windows::UI::Xaml::Controls::MenuFlyout& sender);
-        void _PopulateWorkspaceFlyout(bool refreshCache = true);
-        void _RefreshWorkspaceSnapshotCache();
-        safe_void_coroutine _RefreshWorkspaceSnapshotCacheAsync();
-        void _OpenWorkspaceSnapshot(const winrt::guid& snapshotId);
-        void _ReplayWorkspaceSnapshot(const Microsoft::Terminal::Settings::Model::WorkspaceSnapshot& snapshot);
-        safe_void_coroutine _ValidateAndOpenWorkspaceSnapshotAsync(winrt::guid snapshotId, uint64_t revision);
-        void _BindWorkspaceItemToSnapshot(const TerminalApp::WorkspaceItemViewModel& item, const winrt::guid& snapshotId, uint64_t revision);
-        void _ClearWorkspaceItemSnapshotBinding(const TerminalApp::WorkspaceItemViewModel& item);
-        void _FinishWorkspaceSnapshotReplacement(bool removePlaceholder);
         void _DrainPendingWorkspaceContent();
-        void _MarkWorkspaceSnapshotOpened(const winrt::guid& snapshotId, const winrt::guid& workspaceId);
         winrt::Windows::UI::Xaml::Controls::MenuFlyout _CreateRunAsAdminFlyout(int profileIndex);
 
         winrt::Microsoft::Terminal::Control::TermControl _senderOrActiveControl(const winrt::Windows::Foundation::IInspectable& sender);
@@ -862,6 +770,9 @@ namespace winrt::TerminalApp::implementation
 
         friend class TerminalAppLocalTests::TabTests;
         friend class TerminalAppLocalTests::SettingsTests;
+        friend class WorkspaceAutomationController;
+        friend class AgentHistoryCoordinator;
+        friend class WorkspaceSnapshotCoordinator;
     };
 }
 

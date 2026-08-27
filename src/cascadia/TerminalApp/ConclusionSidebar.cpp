@@ -14,6 +14,7 @@ using namespace winrt::Windows::ApplicationModel::DataTransfer;
 using namespace winrt::Windows::UI::Xaml;
 using namespace winrt::Windows::UI::Xaml::Automation;
 using namespace winrt::Windows::UI::Xaml::Controls;
+using namespace std::chrono_literals;
 
 namespace winrt::TerminalApp::implementation
 {
@@ -74,6 +75,24 @@ namespace winrt::TerminalApp::implementation
         _sessionItems{ winrt::single_threaded_observable_vector<TerminalApp::AgentHistoryItem>() }
     {
         InitializeComponent();
+        _historyAvailable = _historyStore.IsAvailable();
+        const auto weakThis = get_weak();
+        _historySearchTimer.Interval(200ms);
+        _historySearchTimer.Tick([weakThis](const auto&, const auto&) {
+            if (const auto self = weakThis.get())
+            {
+                self->_historySearchTimer.Stop();
+                self->_RefreshHistory();
+            }
+        });
+        _sessionSearchTimer.Interval(200ms);
+        _sessionSearchTimer.Tick([weakThis](const auto&, const auto&) {
+            if (const auto self = weakThis.get())
+            {
+                self->_sessionSearchTimer.Stop();
+                self->_RefreshSessions();
+            }
+        });
         _isInitialized = true;
         _ApplyLayout();
         _RefreshHistory();
@@ -346,7 +365,7 @@ namespace winrt::TerminalApp::implementation
     {
         if (_isInitialized)
         {
-            _RefreshHistory();
+            _QueueHistoryRefresh();
         }
     }
 
@@ -354,7 +373,7 @@ namespace winrt::TerminalApp::implementation
     {
         if (_isInitialized)
         {
-            _RefreshHistory();
+            _QueueHistoryRefresh();
         }
     }
 
@@ -362,7 +381,7 @@ namespace winrt::TerminalApp::implementation
     {
         if (_isInitialized)
         {
-            _RefreshHistory();
+            _QueueHistoryRefresh();
         }
     }
 
@@ -370,7 +389,7 @@ namespace winrt::TerminalApp::implementation
     {
         if (_isInitialized)
         {
-            _RefreshSessions();
+            _QueueSessionRefresh();
         }
     }
 
@@ -475,7 +494,7 @@ namespace winrt::TerminalApp::implementation
 
     safe_void_coroutine ConclusionSidebar::_ClearHistory_Click(const Windows::Foundation::IInspectable&, const RoutedEventArgs&)
     {
-        if (_historyClearInFlight || !_historyStore.IsAvailable() || (!_showAllWorkspaces && _activeWorkspaceId == winrt::guid{}))
+        if (_historyClearInFlight || !_historyAvailable || (!_showAllWorkspaces && _activeWorkspaceId == winrt::guid{}))
         {
             co_return;
         }
@@ -551,19 +570,34 @@ namespace winrt::TerminalApp::implementation
         RailToggleButton().IsEnabled(!_isWindowNarrow);
     }
 
-    void ConclusionSidebar::_RefreshHistory()
+    void ConclusionSidebar::_QueueHistoryRefresh()
+    {
+        if (_isInitialized)
+        {
+            _historySearchTimer.Stop();
+            _historySearchTimer.Start();
+        }
+    }
+
+    void ConclusionSidebar::_QueueSessionRefresh()
+    {
+        if (_isInitialized)
+        {
+            _sessionSearchTimer.Stop();
+            _sessionSearchTimer.Start();
+        }
+    }
+
+    safe_void_coroutine ConclusionSidebar::_RefreshHistory()
     {
         if (!_isInitialized)
         {
-            return;
+            co_return;
         }
 
-        _historyItems.Clear();
-        if (!_historyStore.IsAvailable() || (!_showAllWorkspaces && _activeWorkspaceId == winrt::guid{}))
-        {
-            _UpdateContentState();
-            return;
-        }
+        const auto generation = ++_historyQueryGeneration;
+        const auto weakThis = get_weak();
+        const auto dispatcher = Dispatcher();
 
         std::optional<winrt::guid> workspaceId;
         if (!_showAllWorkspaces)
@@ -589,43 +623,76 @@ namespace winrt::TerminalApp::implementation
                 query.ReceivedTo = now;
             }
         }
-        const auto records = _historyStore.ListTurns(query);
+
+        co_await winrt::resume_background();
+        AgentHistoryStore store{ AgentHistoryStore::DefaultPath() };
+        const auto available = store.IsAvailable();
+        auto records = available ? store.ListTurns(query) : std::vector<AgentHistoryRecord>{};
+        co_await wil::resume_foreground(dispatcher);
+
+        const auto self = weakThis.get();
+        if (!self || generation != self->_historyQueryGeneration)
+        {
+            co_return;
+        }
+
+        self->_historyAvailable = available;
+        self->_historyItems.Clear();
         for (const auto& record : records)
         {
-            _historyItems.Append(_makeHistoryItem(record));
+            self->_historyItems.Append(_makeHistoryItem(record));
         }
-        _UpdateContentState();
+        self->_UpdateContentState();
     }
 
-    void ConclusionSidebar::_RefreshSessions()
+    safe_void_coroutine ConclusionSidebar::_RefreshSessions()
     {
         if (!_isInitialized)
         {
-            return;
+            co_return;
         }
 
-        _sessionItems.Clear();
-        if (!_historyStore.IsAvailable() || _activeWorkspaceId == winrt::guid{})
+        const auto generation = ++_sessionQueryGeneration;
+        const auto workspaceId = _activeWorkspaceId;
+        if (workspaceId == winrt::guid{})
         {
+            _sessionItems.Clear();
             _UpdateContentState();
-            return;
+            co_return;
         }
 
         const auto search = SessionSearchBox().Text();
-        const auto records = _historyStore.ListSessionSummaries(_activeWorkspaceId,
-                                                                std::wstring_view{ search.c_str(), search.size() },
-                                                                MaximumSessions);
+        const auto weakThis = get_weak();
+        const auto dispatcher = Dispatcher();
+        co_await winrt::resume_background();
+        AgentHistoryStore store{ AgentHistoryStore::DefaultPath() };
+        const auto available = store.IsAvailable();
+        auto records = available ?
+                           store.ListSessionSummaries(workspaceId,
+                                                      std::wstring_view{ search.c_str(), search.size() },
+                                                      MaximumSessions) :
+                           std::vector<AgentHistorySessionRecord>{};
+        co_await wil::resume_foreground(dispatcher);
+
+        const auto self = weakThis.get();
+        if (!self || generation != self->_sessionQueryGeneration || workspaceId != self->_activeWorkspaceId)
+        {
+            co_return;
+        }
+
+        self->_historyAvailable = available;
+        self->_sessionItems.Clear();
         for (const auto& record : records)
         {
             const std::wstring_view sessionId{ record.SessionId };
             const auto validSessionId = WorkspaceAgentResume::IsValidCodexSessionId(sessionId);
             const auto validOpaqueSessionId = !sessionId.empty() &&
                                               sessionId.size() <= CodexAppServerClient::MaximumIdentifierCharacters;
-            _sessionItems.Append(_makeSessionItem(record,
-                                                  static_cast<bool>(_codexLoadHandler) && validOpaqueSessionId,
-                                                  static_cast<bool>(_codexResumeHandler) && validSessionId));
+            self->_sessionItems.Append(_makeSessionItem(record,
+                                                        static_cast<bool>(self->_codexLoadHandler) && validOpaqueSessionId,
+                                                        static_cast<bool>(self->_codexResumeHandler) && validSessionId));
         }
-        _UpdateContentState();
+        self->_UpdateContentState();
     }
 
     void ConclusionSidebar::_UpdateContentState()
@@ -641,7 +708,7 @@ namespace winrt::TerminalApp::implementation
         EmptyState().Visibility(hasHistory ? Visibility::Collapsed : Visibility::Visible);
         CountBadge().Visibility(hasHistory ? Visibility::Visible : Visibility::Collapsed);
         CountText().Text(hasHistory ? winrt::to_hstring(count) : winrt::hstring{});
-        ClearHistoryButton().IsEnabled(!_historyClearInFlight && _historyStore.IsAvailable() &&
+        ClearHistoryButton().IsEnabled(!_historyClearInFlight && _historyAvailable &&
                                        (_showAllWorkspaces || _activeWorkspaceId != winrt::guid{}));
         WorkspaceNameText().Text(_showAllWorkspaces ?
                                      RS_(L"ConclusionSidebar_AllWorkspaces") :

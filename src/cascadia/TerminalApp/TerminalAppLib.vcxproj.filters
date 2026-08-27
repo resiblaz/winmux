@@ -10,6 +10,17 @@
   <ItemGroup>
     <ClCompile Include="init.cpp" />
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="TerminalPage.Workspaces.cpp"><Filter>controls</Filter></ClCompile>
+    <ClCompile Include="TerminalPage.Startup.cpp"><Filter>controls</Filter></ClCompile>
+    <ClCompile Include="TerminalPage.Flyouts.cpp"><Filter>controls</Filter></ClCompile>
+    <ClCompile Include="TerminalPage.Connections.cpp"><Filter>controls</Filter></ClCompile>
+    <ClCompile Include="TerminalPage.Input.cpp"><Filter>controls</Filter></ClCompile>
+    <ClCompile Include="TerminalPage.Window.cpp"><Filter>controls</Filter></ClCompile>
+    <ClCompile Include="TerminalPage.Panes.cpp"><Filter>controls</Filter></ClCompile>
+    <ClCompile Include="TerminalPage.Clipboard.cpp"><Filter>controls</Filter></ClCompile>
+    <ClCompile Include="TerminalPage.PaneFactory.cpp"><Filter>controls</Filter></ClCompile>
+    <ClCompile Include="TerminalPage.Settings.cpp"><Filter>controls</Filter></ClCompile>
+    <ClCompile Include="TerminalPage.Menus.cpp"><Filter>controls</Filter></ClCompile>
     <ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
     <ClCompile Include="Pane.cpp">
       <Filter>pane</Filter>
@@ -51,6 +62,9 @@
     <ClCompile Include="AgentHistoryInbox.cpp">
       <Filter>workspace</Filter>
     </ClCompile>
+    <ClCompile Include="AgentHistoryCoordinator.cpp">
+      <Filter>workspace</Filter>
+    </ClCompile>
     <ClCompile Include="CodexAppServerClient.cpp">
       <Filter>workspace</Filter>
     </ClCompile>
@@ -64,6 +78,18 @@
       <Filter>workspace</Filter>
     </ClCompile>
     <ClCompile Include="WorkspaceAutomation.cpp">
+      <Filter>workspace</Filter>
+    </ClCompile>
+    <ClCompile Include="WorkspaceAutomationController.cpp">
+      <Filter>workspace</Filter>
+    </ClCompile>
+    <ClCompile Include="WorkspaceFeatureSet.cpp">
+      <Filter>workspace</Filter>
+    </ClCompile>
+    <ClCompile Include="WorkspaceCollection.cpp">
+      <Filter>workspace</Filter>
+    </ClCompile>
+    <ClCompile Include="WorkspaceSnapshotCoordinator.cpp">
       <Filter>workspace</Filter>
     </ClCompile>
     <ClCompile Include="WorkspaceNotification.cpp">
@@ -116,6 +142,9 @@
     <ClInclude Include="AgentHistoryInbox.h">
       <Filter>workspace</Filter>
     </ClInclude>
+    <ClInclude Include="AgentHistoryCoordinator.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
     <ClInclude Include="CodexAppServerClient.h">
       <Filter>workspace</Filter>
     </ClInclude>
@@ -132,6 +161,24 @@
       <Filter>workspace</Filter>
     </ClInclude>
     <ClInclude Include="WorkspaceAutomation.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
+    <ClInclude Include="WorkspaceAutomationController.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
+    <ClInclude Include="WorkspaceFeatureSet.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
+    <ClInclude Include="WorkspaceCollection.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
+    <ClInclude Include="WorkspaceSnapshotCoordinator.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
+    <ClInclude Include="WorkspaceSessionRestoreState.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
+    <ClInclude Include="WorkspaceSidebarController.h">
       <Filter>workspace</Filter>
     </ClInclude>
     <ClInclude Include="WorkspaceNotification.h">

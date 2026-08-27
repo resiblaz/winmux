@@ -1,12 +1,13 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 //
-// This file contains TerminalPage coordination for durable Agent history and
-// Codex App Server discovery/resume.
+// Agent history lifecycle, persistence and provider coordination for one page.
 //
 
 #include "pch.h"
+#include "AgentHistoryCoordinator.h"
 #include "TerminalPage.h"
+#include "WorkspaceFeatureSet.h"
 
 #include "../../types/inc/utils.hpp"
 
@@ -21,6 +22,7 @@ using namespace winrt::Windows::UI::Xaml;
 using namespace winrt::Windows::UI::Xaml::Controls;
 using namespace ::TerminalApp;
 using namespace ::Microsoft::Console;
+using namespace std::chrono_literals;
 
 namespace winrt::TerminalApp::implementation
 {
@@ -192,18 +194,102 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void TerminalPage::_UpdateConclusionSidebar()
+    AgentHistoryCoordinator::AgentHistoryCoordinator(TerminalPage& page) noexcept :
+        _page{ page }
     {
-        if (!_conclusionSidebar || !_tabView)
+    }
+
+    AgentHistoryCoordinator::~AgentHistoryCoordinator()
+    {
+        Stop();
+    }
+
+    void AgentHistoryCoordinator::Attach(const TerminalApp::ConclusionSidebar& sidebar)
+    {
+        assert(_page.Dispatcher().HasThreadAccess());
+        Stop();
+        _sidebar = sidebar;
+        _stopped = false;
+
+        const auto weakPage = _page.get_weak();
+        winrt::get_self<implementation::ConclusionSidebar>(_sidebar)->SetCodexHistoryHandlers(
+            [weakPage](const auto& workspaceId, const auto& workspaceTitle, const auto& cwd) {
+                if (const auto page = weakPage.get(); page && page->_workspaceFeatures)
+                {
+                    page->_workspaceFeatures->History()._SyncCodexHistoryRequested(workspaceId, workspaceTitle, cwd);
+                }
+            },
+            [weakPage](const auto& workspaceId, const auto& workspaceTitle, const auto& cwd, const auto& sessionId) {
+                if (const auto page = weakPage.get(); page && page->_workspaceFeatures)
+                {
+                    page->_workspaceFeatures->History()._LoadCodexHistoryRequested(workspaceId, workspaceTitle, cwd, sessionId);
+                }
+            },
+            [weakPage](const auto& workspaceId, const auto&, const auto& cwd, const auto& sessionId) {
+                if (const auto page = weakPage.get(); page && page->_workspaceFeatures)
+                {
+                    page->_workspaceFeatures->History()._ResumeCodexHistoryRequested(workspaceId, {}, cwd, sessionId);
+                }
+            });
+
+        _cleanupTimer.Interval(1h);
+        _cleanupTimer.Tick([weakPage](const auto&, const auto&) {
+            if (const auto page = weakPage.get(); page && page->_workspaceFeatures)
+            {
+                page->_workspaceFeatures->History()._CleanupAgentHistoryIfDue();
+            }
+        });
+        _cleanupTimer.Start();
+        _CleanupAgentHistoryIfDue();
+        _ImportAgentHistoryInbox();
+        _UpdateConclusionSidebar();
+    }
+
+    void AgentHistoryCoordinator::Stop() noexcept
+    {
+        _stopped = true;
+        _cleanupTimer.Stop();
+        _sidebar = nullptr;
+        _inboxImportPending = false;
+        _autoSyncAttempted.clear();
+    }
+
+    void AgentHistoryCoordinator::OnWorkspaceItemsChanged()
+    {
+        if (!_stopped)
+        {
+            _ImportAgentHistoryInbox();
+            _UpdateConclusionSidebar();
+        }
+    }
+
+    void AgentHistoryCoordinator::UpdateView()
+    {
+        if (!_stopped)
+        {
+            _UpdateConclusionSidebar();
+        }
+    }
+
+    safe_void_coroutine AgentHistoryCoordinator::ResumeSession(winrt::guid workspaceId,
+                                                                 winrt::hstring sessionId,
+                                                                 winrt::hstring workingDirectory)
+    {
+        return _ResumeCodexSession(workspaceId, std::move(sessionId), std::move(workingDirectory));
+    }
+
+    void AgentHistoryCoordinator::_UpdateConclusionSidebar()
+    {
+        if (_stopped || !_sidebar || !_page._tabView)
         {
             return;
         }
 
-        const auto sidebar = winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar);
-        const auto selectedIndex = _tabView.SelectedIndex();
-        if (_workspaceSidebarEnabled && selectedIndex >= 0 && selectedIndex < gsl::narrow_cast<int32_t>(_workspaceItems.Size()))
+        const auto sidebar = winrt::get_self<implementation::ConclusionSidebar>(_sidebar);
+        const auto selectedIndex = _page._tabView.SelectedIndex();
+        if (_page._SidebarController().Enabled && selectedIndex >= 0 && selectedIndex < gsl::narrow_cast<int32_t>(_page._WorkspaceItems().Size()))
         {
-            const auto item = _workspaceItems.GetAt(gsl::narrow_cast<uint32_t>(selectedIndex));
+            const auto item = _page._WorkspaceItems().GetAt(gsl::narrow_cast<uint32_t>(selectedIndex));
             const auto workspaceId = item.WorkspaceId();
             const auto workspaceTitle = item.Title();
             const auto cwd = item.WorkingDirectory();
@@ -212,7 +298,7 @@ namespace winrt::TerminalApp::implementation
             size_t matchingCwdCount{};
             if (!cwd.empty())
             {
-                for (const auto& candidate : _workspaceItems)
+                for (const auto& candidate : _page._WorkspaceItems())
                 {
                     if (_sameHistoryCwd(candidate.WorkingDirectory(), cwd))
                     {
@@ -226,13 +312,13 @@ namespace winrt::TerminalApp::implementation
             // background; failures leave the local History projection intact.
             // Cwd is only an inference for old sessions, so duplicate-cwd tabs
             // require an explicit Sync click instead of an automatic binding.
-            if (!_codexHistoryOperationInFlight &&
+            if (!_providerOperationInFlight &&
                 workspaceId != winrt::guid{} &&
                 !cwd.empty() &&
                 matchingCwdCount == 1 &&
-                !_codexHistoryAutoSyncAttempted.contains(workspaceId))
+                !_autoSyncAttempted.contains(workspaceId))
             {
-                _codexHistoryAutoSyncAttempted.emplace(workspaceId);
+                _autoSyncAttempted.emplace(workspaceId);
                 _SyncCodexHistoryRequested(workspaceId, workspaceTitle, cwd);
             }
         }
@@ -242,21 +328,21 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void TerminalPage::_ImportAgentHistoryInbox()
+    void AgentHistoryCoordinator::_ImportAgentHistoryInbox()
     {
-        if (_agentHistoryInboxImportInFlight)
+        if (_inboxImportInFlight)
         {
-            _agentHistoryInboxImportPending = true;
+            _inboxImportPending = true;
             return;
         }
-        if (_workspaceItems.Size() == 0)
+        if (_page._WorkspaceItems().Size() == 0)
         {
             return;
         }
 
         std::vector<AgentHistoryInboxWorkspace> workspaces;
-        workspaces.reserve(_workspaceItems.Size());
-        for (const auto& item : _workspaceItems)
+        workspaces.reserve(_page._WorkspaceItems().Size());
+        for (const auto& item : _page._WorkspaceItems())
         {
             if (item.WorkspaceId() != winrt::guid{})
             {
@@ -272,14 +358,14 @@ namespace winrt::TerminalApp::implementation
             return;
         }
 
-        _agentHistoryInboxImportInFlight = true;
+        _inboxImportInFlight = true;
         _ImportAgentHistoryInboxAsync(std::move(workspaces));
     }
 
-    safe_void_coroutine TerminalPage::_ImportAgentHistoryInboxAsync(std::vector<AgentHistoryInboxWorkspace> workspaces)
+    safe_void_coroutine AgentHistoryCoordinator::_ImportAgentHistoryInboxAsync(std::vector<AgentHistoryInboxWorkspace> workspaces)
     {
-        const auto weakThis = get_weak();
-        const auto dispatcher = Dispatcher();
+        const auto weakThis = _page.get_weak();
+        const auto dispatcher = _page.Dispatcher();
         co_await winrt::resume_background();
 
         AgentHistoryStore store{ AgentHistoryStore::DefaultPath() };
@@ -291,25 +377,30 @@ namespace winrt::TerminalApp::implementation
         }
 
         co_await wil::resume_foreground(dispatcher);
-        if (const auto page = weakThis.get())
+        if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
         {
-            page->_agentHistoryInboxImportInFlight = false;
-            if (committed > 0 && page->_conclusionSidebar)
+            auto& coordinator = page->_workspaceFeatures->History();
+            if (coordinator._stopped)
             {
-                const auto sidebar = winrt::get_self<implementation::ConclusionSidebar>(page->_conclusionSidebar);
+                co_return;
+            }
+            coordinator._inboxImportInFlight = false;
+            if (committed > 0 && coordinator._sidebar)
+            {
+                const auto sidebar = winrt::get_self<implementation::ConclusionSidebar>(coordinator._sidebar);
                 sidebar->RefreshHistory();
                 sidebar->RefreshSessions();
             }
-            if (std::exchange(page->_agentHistoryInboxImportPending, false))
+            if (std::exchange(coordinator._inboxImportPending, false))
             {
-                page->_ImportAgentHistoryInbox();
+                coordinator._ImportAgentHistoryInbox();
             }
         }
     }
 
-    void TerminalPage::_CleanupAgentHistoryIfDue()
+    void AgentHistoryCoordinator::_CleanupAgentHistoryIfDue()
     {
-        if (_agentHistoryCleanupInFlight)
+        if (_cleanupInFlight)
         {
             return;
         }
@@ -336,21 +427,21 @@ namespace winrt::TerminalApp::implementation
         state.AgentHistoryLastCleanupAt(now);
         state.Flush();
 
-        const auto settings = _settings.GlobalSettings();
+        const auto settings = _page._settings.GlobalSettings();
         AgentHistoryRetentionPolicy policy;
         policy.RetentionDays = std::min(settings.AgentHistoryRetentionDays(), maximumRetentionDays);
         policy.MaximumTurns = std::min(settings.AgentHistoryMaximumTurns(), maximumTurns);
         policy.MaximumPayloadBytes = static_cast<uint64_t>(std::min(settings.AgentHistoryMaximumPayloadMiB(), maximumPayloadMiB)) * 1024 * 1024;
         policy.ReceiptTombstoneDays = 30;
 
-        _agentHistoryCleanupInFlight = true;
+        _cleanupInFlight = true;
         _CleanupAgentHistoryAsync(policy);
     }
 
-    safe_void_coroutine TerminalPage::_CleanupAgentHistoryAsync(AgentHistoryRetentionPolicy policy)
+    safe_void_coroutine AgentHistoryCoordinator::_CleanupAgentHistoryAsync(AgentHistoryRetentionPolicy policy)
     {
-        const auto weakThis = get_weak();
-        const auto dispatcher = Dispatcher();
+        const auto weakThis = _page.get_weak();
+        const auto dispatcher = _page.Dispatcher();
         co_await winrt::resume_background();
 
         AgentHistoryCleanupResult result;
@@ -364,9 +455,14 @@ namespace winrt::TerminalApp::implementation
         }
 
         co_await wil::resume_foreground(dispatcher);
-        if (const auto page = weakThis.get())
+        if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
         {
-            page->_agentHistoryCleanupInFlight = false;
+            auto& coordinator = page->_workspaceFeatures->History();
+            if (coordinator._stopped)
+            {
+                co_return;
+            }
+            coordinator._cleanupInFlight = false;
             const auto retryNeeded = !result.Succeeded ||
                                      (result.SoftLimitUnsatisfied &&
                                       (result.TurnsDeleted != 0 || result.ReceiptsDeleted != 0));
@@ -386,41 +482,41 @@ namespace winrt::TerminalApp::implementation
                 state.AgentHistoryLastCleanupAt(retryLease);
                 state.Flush();
             }
-            if (result.Succeeded && (result.TurnsDeleted != 0 || result.SessionsDeleted != 0) && page->_conclusionSidebar)
+            if (result.Succeeded && (result.TurnsDeleted != 0 || result.SessionsDeleted != 0) && coordinator._sidebar)
             {
-                const auto sidebar = winrt::get_self<implementation::ConclusionSidebar>(page->_conclusionSidebar);
+                const auto sidebar = winrt::get_self<implementation::ConclusionSidebar>(coordinator._sidebar);
                 sidebar->RefreshHistory();
                 sidebar->RefreshSessions();
             }
         }
     }
 
-    void TerminalPage::_SyncCodexHistoryRequested(const winrt::guid& workspaceId,
+    void AgentHistoryCoordinator::_SyncCodexHistoryRequested(const winrt::guid& workspaceId,
                                                    const winrt::hstring& workspaceTitle,
                                                    const winrt::hstring& cwd)
     {
-        if (_codexHistoryOperationInFlight ||
+        if (_providerOperationInFlight ||
             workspaceId == winrt::guid{} ||
             cwd.empty() || cwd.size() > CodexAppServerClient::MaximumCwdCharacters)
         {
             return;
         }
 
-        _codexHistoryAutoSyncAttempted.emplace(workspaceId);
-        _codexHistoryOperationInFlight = true;
-        if (_conclusionSidebar)
+        _autoSyncAttempted.emplace(workspaceId);
+        _providerOperationInFlight = true;
+        if (_sidebar)
         {
-            winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->SetCodexOperationState(true, CodexHistoryUiState::Syncing);
+            winrt::get_self<implementation::ConclusionSidebar>(_sidebar)->SetCodexOperationState(true, CodexHistoryUiState::Syncing);
         }
         _SyncCodexHistoryAsync(workspaceId, workspaceTitle, cwd);
     }
 
-    safe_void_coroutine TerminalPage::_SyncCodexHistoryAsync(winrt::guid workspaceId,
+    safe_void_coroutine AgentHistoryCoordinator::_SyncCodexHistoryAsync(winrt::guid workspaceId,
                                                                winrt::hstring workspaceTitle,
                                                                winrt::hstring cwd)
     {
-        const auto weakThis = get_weak();
-        const auto dispatcher = Dispatcher();
+        const auto weakThis = _page.get_weak();
+        const auto dispatcher = _page.Dispatcher();
         co_await winrt::resume_background();
 
         auto completionState = CodexHistoryUiState::Error;
@@ -467,18 +563,18 @@ namespace winrt::TerminalApp::implementation
         CATCH_LOG();
 
         co_await wil::resume_foreground(dispatcher);
-        if (const auto page = weakThis.get())
+        if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
         {
-            page->_CompleteCodexHistoryOperation(workspaceId, completionState, false, saved > 0);
+            page->_workspaceFeatures->History()._CompleteCodexHistoryOperation(workspaceId, completionState, false, saved > 0);
         }
     }
 
-    void TerminalPage::_LoadCodexHistoryRequested(const winrt::guid& workspaceId,
+    void AgentHistoryCoordinator::_LoadCodexHistoryRequested(const winrt::guid& workspaceId,
                                                    const winrt::hstring& workspaceTitle,
                                                    const winrt::hstring& cwd,
                                                    const winrt::hstring& sessionId)
     {
-        if (_codexHistoryOperationInFlight ||
+        if (_providerOperationInFlight ||
             workspaceId == winrt::guid{} ||
             cwd.empty() || cwd.size() > CodexAppServerClient::MaximumCwdCharacters ||
             sessionId.empty() || sessionId.size() > MaximumHistoryIdentifierCharacters)
@@ -486,21 +582,21 @@ namespace winrt::TerminalApp::implementation
             return;
         }
 
-        _codexHistoryOperationInFlight = true;
-        if (_conclusionSidebar)
+        _providerOperationInFlight = true;
+        if (_sidebar)
         {
-            winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->SetCodexOperationState(true, CodexHistoryUiState::Loading);
+            winrt::get_self<implementation::ConclusionSidebar>(_sidebar)->SetCodexOperationState(true, CodexHistoryUiState::Loading);
         }
         _LoadCodexHistoryAsync(workspaceId, workspaceTitle, cwd, sessionId);
     }
 
-    safe_void_coroutine TerminalPage::_LoadCodexHistoryAsync(winrt::guid workspaceId,
+    safe_void_coroutine AgentHistoryCoordinator::_LoadCodexHistoryAsync(winrt::guid workspaceId,
                                                                winrt::hstring workspaceTitle,
                                                                winrt::hstring cwd,
                                                                winrt::hstring sessionId)
     {
-        const auto weakThis = get_weak();
-        const auto dispatcher = Dispatcher();
+        const auto weakThis = _page.get_weak();
+        const auto dispatcher = _page.Dispatcher();
         co_await winrt::resume_background();
 
         auto completionState = CodexHistoryUiState::Error;
@@ -560,34 +656,34 @@ namespace winrt::TerminalApp::implementation
         CATCH_LOG();
 
         co_await wil::resume_foreground(dispatcher);
-        if (const auto page = weakThis.get())
+        if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
         {
-            page->_CompleteCodexHistoryOperation(workspaceId, completionState, savedTurns > 0, true);
+            page->_workspaceFeatures->History()._CompleteCodexHistoryOperation(workspaceId, completionState, savedTurns > 0, true);
         }
     }
 
-    bool TerminalPage::_IsCodexHistoryWorkspaceActive(const winrt::guid& workspaceId) const
+    bool AgentHistoryCoordinator::_IsCodexHistoryWorkspaceActive(const winrt::guid& workspaceId) const
     {
-        if (!_workspaceSidebarEnabled || !_tabView || workspaceId == winrt::guid{})
+        if (!_page._SidebarController().Enabled || !_page._tabView || workspaceId == winrt::guid{})
         {
             return false;
         }
-        const auto selectedIndex = _tabView.SelectedIndex();
+        const auto selectedIndex = _page._tabView.SelectedIndex();
         return selectedIndex >= 0 &&
-               selectedIndex < gsl::narrow_cast<int32_t>(_workspaceItems.Size()) &&
-               _workspaceItems.GetAt(gsl::narrow_cast<uint32_t>(selectedIndex)).WorkspaceId() == workspaceId;
+               selectedIndex < gsl::narrow_cast<int32_t>(_page._WorkspaceItems().Size()) &&
+               _page._WorkspaceItems().GetAt(gsl::narrow_cast<uint32_t>(selectedIndex)).WorkspaceId() == workspaceId;
     }
 
-    void TerminalPage::_CompleteCodexHistoryOperation(const winrt::guid& workspaceId,
+    void AgentHistoryCoordinator::_CompleteCodexHistoryOperation(const winrt::guid& workspaceId,
                                                        const CodexHistoryUiState state,
                                                        const bool refreshHistory,
                                                        const bool refreshSessions)
     {
-        _codexHistoryOperationInFlight = false;
+        _providerOperationInFlight = false;
         const auto stillActive = _IsCodexHistoryWorkspaceActive(workspaceId);
-        if (_conclusionSidebar)
+        if (_sidebar)
         {
-            const auto sidebar = winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar);
+            const auto sidebar = winrt::get_self<implementation::ConclusionSidebar>(_sidebar);
             if (stillActive)
             {
                 if (refreshHistory)
@@ -608,7 +704,7 @@ namespace winrt::TerminalApp::implementation
         _UpdateConclusionSidebar();
     }
 
-    void TerminalPage::_ResumeCodexHistoryRequested(const winrt::guid& workspaceId,
+    void AgentHistoryCoordinator::_ResumeCodexHistoryRequested(const winrt::guid& workspaceId,
                                                      const winrt::hstring&,
                                                      const winrt::hstring& cwd,
                                                      const winrt::hstring& sessionId)
@@ -616,11 +712,11 @@ namespace winrt::TerminalApp::implementation
         _ResumeCodexSession(workspaceId, sessionId, cwd);
     }
 
-    safe_void_coroutine TerminalPage::_ResumeCodexSession(winrt::guid workspaceId,
+    safe_void_coroutine AgentHistoryCoordinator::_ResumeCodexSession(winrt::guid workspaceId,
                                                            winrt::hstring sessionId,
                                                            winrt::hstring workingDirectory)
     {
-        if (_codexHistoryOperationInFlight)
+        if (_providerOperationInFlight)
         {
             co_return;
         }
@@ -638,8 +734,8 @@ namespace winrt::TerminalApp::implementation
             co_return;
         }
 
-        const auto weakThis = get_weak();
-        const auto presenter = _dialogPresenter.get();
+        const auto weakThis = _page.get_weak();
+        const auto presenter = _page._dialogPresenter.get();
         if (!presenter)
         {
             co_return;
@@ -659,7 +755,12 @@ namespace winrt::TerminalApp::implementation
         }
 
         auto page = weakThis.get();
-        if (!page || page->_codexHistoryOperationInFlight)
+        if (!page || !page->_workspaceFeatures)
+        {
+            co_return;
+        }
+        auto* coordinator = &page->_workspaceFeatures->History();
+        if (coordinator->_stopped || coordinator->_providerOperationInFlight)
         {
             co_return;
         }
@@ -676,14 +777,15 @@ namespace winrt::TerminalApp::implementation
             co_return;
         }
 
-        page->_codexHistoryOperationInFlight = true;
-        if (page->_conclusionSidebar)
+        coordinator->_providerOperationInFlight = true;
+        if (coordinator->_sidebar)
         {
-            winrt::get_self<implementation::ConclusionSidebar>(page->_conclusionSidebar)->SetCodexOperationState(true, CodexHistoryUiState::Resuming);
+            winrt::get_self<implementation::ConclusionSidebar>(coordinator->_sidebar)->SetCodexOperationState(true, CodexHistoryUiState::Resuming);
         }
 
         const auto dispatcher = page->Dispatcher();
         page = nullptr;
+        coordinator = nullptr;
         co_await winrt::resume_background();
 
         CodexAppServerResumeResult preflight;
@@ -704,11 +806,16 @@ namespace winrt::TerminalApp::implementation
 
         co_await wil::resume_foreground(dispatcher);
         page = weakThis.get();
-        if (!page)
+        if (!page || !page->_workspaceFeatures)
         {
             co_return;
         }
-        page->_CompleteCodexHistoryOperation(workspaceId, completionState, false, false);
+        coordinator = &page->_workspaceFeatures->History();
+        if (coordinator->_stopped)
+        {
+            co_return;
+        }
+        coordinator->_CompleteCodexHistoryOperation(workspaceId, completionState, false, false);
 
         if (semanticFailure)
         {
@@ -745,7 +852,7 @@ namespace winrt::TerminalApp::implementation
         // The App Server is only a capability/identity preflight. The actual
         // interactive resume remains the fixed, explicitly confirmed CLI path.
         TerminalApp::WorkspaceItemViewModel workspaceItem{ nullptr };
-        for (const auto& candidate : page->_workspaceItems)
+        for (const auto& candidate : page->_WorkspaceItems())
         {
             if (candidate.WorkspaceId() == workspaceId)
             {
@@ -775,7 +882,7 @@ namespace winrt::TerminalApp::implementation
         page->_SelectTab(tabIndex);
         if (const auto newPane = page->_MakePane(args, nullptr, nullptr, true, workspaceId))
         {
-            page->_SplitPane(_GetTabImpl(tab), SplitDirection::Automatic, 0.5f, newPane, workspaceId);
+            page->_SplitPane(TerminalPage::_GetTabImpl(tab), SplitDirection::Automatic, 0.5f, newPane, workspaceId);
         }
     }
 }

@@ -4,6 +4,7 @@
 #include "pch.h"
 
 #include "../TerminalApp/TerminalPage.h"
+#include "../TerminalApp/WorkspaceFeatureSet.h"
 #include "../TerminalApp/TerminalWindow.h"
 #include "../TerminalApp/MinMaxCloseControl.h"
 #include "../TerminalApp/TabRowControl.h"
@@ -442,7 +443,7 @@ namespace TerminalAppLocalTests
         _initializeTerminalPage(page, settings);
 
         TestOnUIThread([&]() {
-            VERIFY_IS_TRUE(page->_workspaceSidebarEnabled);
+            VERIFY_IS_TRUE(page->_SidebarController().Enabled);
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSidebar.Visibility());
             VERIFY_IS_TRUE(page->_tabRow.WorkspaceSidebarMode());
             VERIFY_ARE_EQUAL(0.0, page->_tabView.Width());
@@ -457,7 +458,7 @@ namespace TerminalAppLocalTests
             VERIFY_IS_NOT_NULL(workspaceNewTabFlyout);
             VERIFY_ARE_EQUAL(regularNewTabFlyout.Items().Size(), workspaceNewTabFlyout.Items().Size());
 
-            const auto workspaceItem = page->_workspaceItems.GetAt(0);
+            const auto workspaceItem = page->_WorkspaceItems().GetAt(0);
             sidebar->ShowSwitchHints(true);
             const std::wstring_view shortcut{ workspaceItem.SwitchShortcutText() };
             const auto separator = shortcut.find_last_of(L'+');
@@ -568,7 +569,7 @@ namespace TerminalAppLocalTests
     {
         const auto page = _commonSetup();
         TestOnUIThread([&]() {
-            const auto item = page->_workspaceItems.GetAt(0);
+            const auto item = page->_WorkspaceItems().GetAt(0);
             const auto status = item.SourceTab().TabStatus();
             status.IsConnectionClosed(false);
             VERIFY_IS_TRUE(item.StatusText().empty());
@@ -610,7 +611,7 @@ namespace TerminalAppLocalTests
     {
         const auto page = _commonSetup();
         TestOnUIThread([&]() {
-            const auto item = page->_workspaceItems.GetAt(0);
+            const auto item = page->_WorkspaceItems().GetAt(0);
 
             item.WorkingDirectory(L"F:\\RicherLife\\codes\\win_terminal\\src");
             VERIFY_ARE_EQUAL(L"win_terminal\\src", item.WorkingDirectoryDisplay());
@@ -642,7 +643,7 @@ namespace TerminalAppLocalTests
     {
         const auto page = _commonSetup();
         TestOnUIThread([&]() {
-            const auto item = page->_workspaceItems.GetAt(0);
+            const auto item = page->_WorkspaceItems().GetAt(0);
             const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
 
             itemImpl->UpdateListeningPorts({ 5173, 80, 65535, 3000, 5173 });
@@ -725,7 +726,7 @@ namespace TerminalAppLocalTests
     {
         const auto page = _commonSetup();
         TestOnUIThread([&]() {
-            const auto item = page->_workspaceItems.GetAt(0);
+            const auto item = page->_WorkspaceItems().GetAt(0);
             const auto tab = page->_GetFocusedTabImpl();
             VERIFY_IS_NOT_NULL(tab);
 
@@ -745,7 +746,7 @@ namespace TerminalAppLocalTests
             VERIFY_IS_TRUE(state.SaveWorkspaceSnapshot(snapshot));
             const auto tabCount = page->_tabs.Size();
 
-            page->_OpenWorkspaceSnapshot(snapshotId);
+            page->OpenWorkspaceSnapshot(snapshotId, false);
 
             VERIFY_ARE_EQUAL(tabCount, page->_tabs.Size());
             const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
@@ -780,7 +781,7 @@ namespace TerminalAppLocalTests
             VERIFY_IS_FALSE(state.SaveWorkspaceSnapshot(snapshot));
             const auto tabCount = page->_tabs.Size();
 
-            page->_OpenWorkspaceSnapshot(snapshotId);
+            page->OpenWorkspaceSnapshot(snapshotId, false);
 
             VERIFY_ARE_EQUAL(tabCount, page->_tabs.Size());
             VERIFY_IS_NULL(state.WorkspaceSnapshotById(snapshotId));
@@ -818,7 +819,7 @@ namespace TerminalAppLocalTests
 
             const auto index = page->_FindWorkspaceIndex(workspaceId);
             VERIFY_IS_TRUE(index.has_value());
-            const auto item = page->_workspaceItems.GetAt(index.value());
+            const auto item = page->_WorkspaceItems().GetAt(index.value());
             const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
             VERIFY_IS_TRUE(itemImpl->SourceSnapshotId().has_value());
             VERIFY_ARE_EQUAL(snapshotId, itemImpl->SourceSnapshotId().value());
@@ -838,28 +839,28 @@ namespace TerminalAppLocalTests
             const auto secondTab = page->_GetFocusedTabImpl();
             VERIFY_IS_NOT_NULL(secondTab);
             secondTab->SetTabText(L"Persisted workspace");
-            page->_workspaceItems.GetAt(1).ConfigureAgentResume(L"codex",
+            page->_WorkspaceItems().GetAt(1).ConfigureAgentResume(L"codex",
                                                                  L"12345678-1234-1234-1234-123456789abc",
                                                                  L"C:\\src\\repo");
             const winrt::guid sourceSnapshotId{ 0x39393939, 0x3939, 0x4939, { 0x89, 0x39, 0x39, 0x39, 0x39, 0x39, 0x39, 0x39 } };
-            page->_BindWorkspaceItemToSnapshot(page->_workspaceItems.GetAt(1), sourceSnapshotId, 9);
+            page->_workspaceFeatures->Snapshots().BindItem(page->_WorkspaceItems().GetAt(1), sourceSnapshotId, 9);
 
             const auto layout = page->GetWindowLayout();
             VERIFY_IS_NOT_NULL(layout);
             VERIFY_ARE_EQUAL(1u, layout.WorkspaceStateVersion());
             VERIFY_IS_NOT_NULL(layout.WorkspaceIds());
             VERIFY_ARE_EQUAL(2u, layout.WorkspaceIds().Size());
-            VERIFY_ARE_EQUAL(page->_workspaceItems.GetAt(0).WorkspaceId(), layout.WorkspaceIds().GetAt(0));
-            VERIFY_ARE_EQUAL(page->_workspaceItems.GetAt(1).WorkspaceId(), layout.WorkspaceIds().GetAt(1));
+            VERIFY_ARE_EQUAL(page->_WorkspaceItems().GetAt(0).WorkspaceId(), layout.WorkspaceIds().GetAt(0));
+            VERIFY_ARE_EQUAL(page->_WorkspaceItems().GetAt(1).WorkspaceId(), layout.WorkspaceIds().GetAt(1));
             VERIFY_IS_NOT_NULL(layout.PinnedWorkspaceIndices());
             VERIFY_ARE_EQUAL(1u, layout.PinnedWorkspaceIndices().Size());
             VERIFY_ARE_EQUAL(0u, layout.PinnedWorkspaceIndices().GetAt(0));
             VERIFY_IS_NOT_NULL(layout.AgentResumeEntries());
             VERIFY_ARE_EQUAL(1u, layout.AgentResumeEntries().Size());
-            VERIFY_ARE_EQUAL(page->_workspaceItems.GetAt(1).WorkspaceId(), layout.AgentResumeEntries().GetAt(0).WorkspaceId);
+            VERIFY_ARE_EQUAL(page->_WorkspaceItems().GetAt(1).WorkspaceId(), layout.AgentResumeEntries().GetAt(0).WorkspaceId);
             VERIFY_IS_NOT_NULL(layout.WorkspaceSnapshotSources());
             VERIFY_ARE_EQUAL(1u, layout.WorkspaceSnapshotSources().Size());
-            VERIFY_ARE_EQUAL(page->_workspaceItems.GetAt(1).WorkspaceId(), layout.WorkspaceSnapshotSources().GetAt(0).WorkspaceId);
+            VERIFY_ARE_EQUAL(page->_WorkspaceItems().GetAt(1).WorkspaceId(), layout.WorkspaceSnapshotSources().GetAt(0).WorkspaceId);
             VERIFY_ARE_EQUAL(sourceSnapshotId, layout.WorkspaceSnapshotSources().GetAt(0).SnapshotId);
             VERIFY_ARE_EQUAL(9ull, layout.WorkspaceSnapshotSources().GetAt(0).Revision);
 
@@ -877,10 +878,11 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(restoredId, page->_ReserveWorkspaceIdForNewTab());
             page->_OpenNewTab(NewTerminalArgs{ 2 });
 
-            const auto restored = std::find_if(page->_workspaceItems.begin(), page->_workspaceItems.end(), [&](const auto& item) {
+            const auto workspaceItems = page->_WorkspaceItems();
+            const auto restored = std::find_if(workspaceItems.begin(), workspaceItems.end(), [&](const auto& item) {
                 return item.WorkspaceId() == restoredId;
             });
-            VERIFY_IS_TRUE(restored != page->_workspaceItems.end());
+            VERIFY_IS_TRUE(restored != workspaceItems.end());
             VERIFY_IS_TRUE((*restored).IsPinned());
             VERIFY_IS_TRUE((*restored).HasAgentResume());
             VERIFY_ARE_EQUAL(L"abcdefab-1234-1234-1234-123456789abc", (*restored).AgentResumeSessionId());

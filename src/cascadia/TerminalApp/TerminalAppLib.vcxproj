@@ -140,6 +140,7 @@
     </ClInclude>
     <ClInclude Include="AgentHistoryStore.h" />
     <ClInclude Include="AgentHistoryInbox.h" />
+    <ClInclude Include="AgentHistoryCoordinator.h" />
     <ClInclude Include="CodexAppServerClient.h" />
     <ClInclude Include="WorkspaceItemViewModel.h">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
@@ -149,6 +150,12 @@
     <ClInclude Include="WorkspaceListeningPorts.h" />
     <ClInclude Include="WorkspaceAgentResume.h" />
     <ClInclude Include="WorkspaceAutomation.h" />
+    <ClInclude Include="WorkspaceAutomationController.h" />
+    <ClInclude Include="WorkspaceFeatureSet.h" />
+    <ClInclude Include="WorkspaceCollection.h" />
+    <ClInclude Include="WorkspaceSnapshotCoordinator.h" />
+    <ClInclude Include="WorkspaceSessionRestoreState.h" />
+    <ClInclude Include="WorkspaceSidebarController.h" />
     <ClInclude Include="WorkspaceNotification.h">
       <DependentUpon>WorkspaceNotification.idl</DependentUpon>
     </ClInclude>
@@ -245,14 +252,52 @@
       <DependentUpon>TerminalPage.xaml</DependentUpon>
       <SubType>Code</SubType>
     </ClCompile>
-    <ClCompile Include="TerminalPage.AgentHistory.cpp">
+    <ClCompile Include="TerminalPage.Workspaces.cpp">
       <DependentUpon>TerminalPage.xaml</DependentUpon>
       <SubType>Code</SubType>
     </ClCompile>
-    <ClCompile Include="TerminalPage.WorkspaceSnapshots.cpp">
+    <ClCompile Include="TerminalPage.Startup.cpp">
       <DependentUpon>TerminalPage.xaml</DependentUpon>
       <SubType>Code</SubType>
     </ClCompile>
+    <ClCompile Include="TerminalPage.Flyouts.cpp">
+      <DependentUpon>TerminalPage.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </ClCompile>
+    <ClCompile Include="TerminalPage.Connections.cpp">
+      <DependentUpon>TerminalPage.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </ClCompile>
+    <ClCompile Include="TerminalPage.Input.cpp">
+      <DependentUpon>TerminalPage.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </ClCompile>
+    <ClCompile Include="TerminalPage.Window.cpp">
+      <DependentUpon>TerminalPage.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </ClCompile>
+    <ClCompile Include="TerminalPage.Panes.cpp">
+      <DependentUpon>TerminalPage.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </ClCompile>
+    <ClCompile Include="TerminalPage.Clipboard.cpp">
+      <DependentUpon>TerminalPage.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </ClCompile>
+    <ClCompile Include="TerminalPage.PaneFactory.cpp">
+      <DependentUpon>TerminalPage.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </ClCompile>
+    <ClCompile Include="TerminalPage.Settings.cpp">
+      <DependentUpon>TerminalPage.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </ClCompile>
+    <ClCompile Include="TerminalPage.Menus.cpp">
+      <DependentUpon>TerminalPage.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </ClCompile>
+    <ClCompile Include="AgentHistoryCoordinator.cpp" />
+    <ClCompile Include="WorkspaceSnapshotCoordinator.cpp" />
     <ClCompile Include="TabManagement.cpp">
       <DependentUpon>TerminalPage.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -293,6 +338,9 @@
     <ClCompile Include="WorkspaceGitMetadata.cpp" />
     <ClCompile Include="WorkspaceListeningPorts.cpp" />
     <ClCompile Include="WorkspaceAutomation.cpp" />
+    <ClCompile Include="WorkspaceAutomationController.cpp" />
+    <ClCompile Include="WorkspaceFeatureSet.cpp" />
+    <ClCompile Include="WorkspaceCollection.cpp" />
     <ClCompile Include="WorkspaceNotification.cpp">
       <DependentUpon>WorkspaceNotification.idl</DependentUpon>
     </ClCompile>

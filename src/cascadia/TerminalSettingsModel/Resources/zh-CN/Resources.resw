@@ -771,6 +771,9 @@
   <data name="SwitchToWorkspaceSurfaceCommandKey" xml:space="preserve">
     <value>切换到工作区终端</value>
   </data>
+  <data name="SwitchToWorkspaceConclusionCommandKey" xml:space="preserve">
+    <value>切换到工作区结论</value>
+  </data>
   <data name="CloseTab" xml:space="preserve">
     <value>关闭标签页</value>
   </data>

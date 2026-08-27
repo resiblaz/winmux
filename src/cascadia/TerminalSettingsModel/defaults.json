@@ -589,6 +589,7 @@
         { "command": { "action": "switchToWorkspaceSurface", "index": 6 }, "id": "Terminal.SwitchToWorkspaceSurface6" },
         { "command": { "action": "switchToWorkspaceSurface", "index": 7 }, "id": "Terminal.SwitchToWorkspaceSurface7" },
         { "command": { "action": "switchToWorkspaceSurface", "index": 8 }, "id": "Terminal.SwitchToWorkspaceSurface8" },
+        { "command": "switchToWorkspaceConclusion", "id": "Terminal.SwitchToWorkspaceConclusion" },
         { "command": { "action": "moveTab", "window": "new" }, "id": "Terminal.MoveTabToNewWindow" },
 
         // Pane Management
@@ -791,6 +792,7 @@
         { "keys": "alt+7", "id": "Terminal.SwitchToWorkspaceSurface6" },
         { "keys": "alt+8", "id": "Terminal.SwitchToWorkspaceSurface7" },
         { "keys": "alt+9", "id": "Terminal.SwitchToWorkspaceSurface8" },
+        { "keys": "alt+c", "id": "Terminal.SwitchToWorkspaceConclusion" },
 
         // Pane Management
         { "keys": "ctrl+shift+w", "id": "Terminal.ClosePane" },

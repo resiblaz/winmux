@@ -181,7 +181,6 @@ namespace winrt::TerminalApp::implementation
         SidebarTitle().Visibility(visibility);
         NotificationCenterButton().Visibility(visibility);
         WorkspaceList().Visibility(visibility);
-        NewWorkspaceButton().Visibility(visibility);
     }
 
     void WorkspaceSidebar::_ApplyLayout()
@@ -403,11 +402,6 @@ namespace winrt::TerminalApp::implementation
         {
             RenameRequested.raise(*this, item);
         }
-    }
-
-    void WorkspaceSidebar::_NewWorkspace_Click(const IInspectable&, const RoutedEventArgs&)
-    {
-        NewWorkspaceRequested.raise(*this, nullptr);
     }
 
     void WorkspaceSidebar::_SaveSnapshot_Click(const IInspectable& sender, const RoutedEventArgs&)

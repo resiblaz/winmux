@@ -771,6 +771,9 @@
   <data name="SwitchToWorkspaceSurfaceCommandKey" xml:space="preserve">
     <value>Switch to workspace terminal</value>
   </data>
+  <data name="SwitchToWorkspaceConclusionCommandKey" xml:space="preserve">
+    <value>Switch to workspace conclusions</value>
+  </data>
   <data name="CloseTab" xml:space="preserve">
     <value>Close tab</value>
   </data>

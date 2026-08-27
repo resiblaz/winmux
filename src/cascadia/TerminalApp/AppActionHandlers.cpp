@@ -529,6 +529,19 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void TerminalPage::_HandleSwitchToWorkspaceConclusion(const IInspectable& /*sender*/,
+                                                          const ActionEventArgs& args)
+    {
+        if (!_SidebarController().Enabled)
+        {
+            args.Handled(false);
+            return;
+        }
+
+        _SetWorkspaceToolTabSelected(true);
+        args.Handled(true);
+    }
+
     void TerminalPage::_HandleResizePane(const IInspectable& /*sender*/,
                                          const ActionEventArgs& args)
     {

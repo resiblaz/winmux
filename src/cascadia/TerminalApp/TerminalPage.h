@@ -492,7 +492,6 @@ namespace winrt::TerminalApp::implementation
         void _WorkspaceCloseRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceCloseOthersRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceRenameRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
-        void _WorkspaceNewWorkspaceRequested(const TerminalApp::WorkspaceSidebar& sender, const IInspectable& eventArgs);
         void _WorkspaceSurfaceTabs_SelectionChanged(const IInspectable& sender, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs& eventArgs);
         void _WorkspaceSurfaceTabClose_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
         void _WorkspaceSurfaceNewTab_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);

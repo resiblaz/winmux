@@ -472,6 +472,7 @@
         "switchSelectionEndpoint",
         "switchToTab",
         "switchToWorkspaceSurface",
+        "switchToWorkspaceConclusion",
         "tabSearch",
         "toggleAlwaysOnTop",
         "toggleBlockSelection",

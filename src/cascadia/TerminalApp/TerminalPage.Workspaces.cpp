@@ -628,11 +628,6 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void TerminalPage::_WorkspaceNewWorkspaceRequested(const TerminalApp::WorkspaceSidebar&, const IInspectable&)
-    {
-        _OpenNewWorkspace();
-    }
-
     void TerminalPage::_WorkspaceSurfaceTabs_SelectionChanged(const IInspectable& sender, const SelectionChangedEventArgs&)
     {
         if (_SidebarController().SyncingSelection || _removing || _rearranging)

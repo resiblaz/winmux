@@ -262,7 +262,6 @@ namespace winrt::TerminalApp::implementation
         _workspaceSidebar.CloseRequested({ get_weak(), &TerminalPage::_WorkspaceCloseRequested });
         _workspaceSidebar.CloseOthersRequested({ get_weak(), &TerminalPage::_WorkspaceCloseOthersRequested });
         _workspaceSidebar.RenameRequested({ get_weak(), &TerminalPage::_WorkspaceRenameRequested });
-        _workspaceSidebar.NewWorkspaceRequested({ get_weak(), &TerminalPage::_WorkspaceNewWorkspaceRequested });
         _workspaceSidebar.SaveSnapshotRequested([weakThis{ get_weak() }](const auto&, const auto& item) {
             if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
             {

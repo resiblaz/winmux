@@ -282,7 +282,6 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="0" />
                 <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid x:Name="SidebarHeader"
@@ -510,21 +509,6 @@
                     </ResourceDictionary>
                 </ListView.Resources>
             </ListView>
-
-            <Border Grid.Row="2"
-                    Grid.Column="0"
-                    Padding="6,4,6,8"
-                    BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
-                    BorderThickness="0,1,0,0">
-                <Button x:Name="NewWorkspaceButton"
-                        x:Uid="WorkspaceSidebarNewWorkspaceButton"
-                        MinHeight="32"
-                        Padding="8,4"
-                        HorizontalContentAlignment="Left"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Click="_NewWorkspace_Click" />
-            </Border>
 
             <Thumb x:Name="ResizeHandle"
                    x:Uid="WorkspaceSidebarResizeHandle"

@@ -457,6 +457,8 @@ namespace TerminalAppLocalTests
             VERIFY_IS_NOT_NULL(tabRow->WorkspaceNewTabButton());
             VERIFY_IS_NOT_NULL(tabRow->WorkspaceNotificationButton());
             VERIFY_IS_NOT_NULL(tabRow->WorkspaceSidebarToggleButton());
+            VERIFY_ARE_EQUAL(Visibility::Visible, tabRow->WorkspaceNewTabButton().Visibility());
+            VERIFY_IS_NULL(page->_workspaceSidebar.FindName(L"NewWorkspaceButton"));
             const auto regularNewTabFlyout = page->_newTabButton.Flyout().as<MenuFlyout>();
             const auto workspaceNewTabFlyout = tabRow->WorkspaceNewTabButton().Flyout().as<MenuFlyout>();
             VERIFY_IS_NOT_NULL(workspaceNewTabFlyout);
@@ -466,8 +468,15 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(workspaceItem.Surfaces(), page->_workspaceSurfaceTabs.ItemsSource().as<IObservableVector<winrt::TerminalApp::Tab>>());
             VERIFY_ARE_EQUAL(workspaceItem.SourceTab(), page->_workspaceSurfaceTabs.SelectedItem().as<winrt::TerminalApp::Tab>());
             VERIFY_IS_NOT_NULL(page->_workspaceSurfaceNewTabButton);
+            const auto newTerminalGlyph = winrt::unbox_value<winrt::hstring>(page->_workspaceSurfaceNewTabButton.Content());
+            VERIFY_IS_TRUE(std::wstring_view{ newTerminalGlyph } == L"\uE756");
             VERIFY_IS_NOT_NULL(page->_workspaceToolTabs);
             VERIFY_ARE_EQUAL(1u, page->_workspaceToolTabs.Items().Size());
+            const auto conclusionItem = page->_workspaceToolTabs.Items().GetAt(0).as<ListViewItem>();
+            const auto conclusionContent = conclusionItem.Content().as<Grid>();
+            VERIFY_ARE_EQUAL(36.0, conclusionItem.Width());
+            VERIFY_ARE_EQUAL(1u, conclusionContent.Children().Size());
+            VERIFY_IS_NOT_NULL(conclusionContent.Children().GetAt(0).try_as<FontIcon>());
             VERIFY_ARE_EQUAL(-1, page->_workspaceToolTabs.SelectedIndex());
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_tabContent.Visibility());
             VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_conclusionSidebar.Visibility());
@@ -613,13 +622,21 @@ namespace TerminalAppLocalTests
                 const SwitchToWorkspaceSurfaceArgs shortcutArgs{ index };
                 return page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToWorkspaceSurface, shortcutArgs });
             };
+            const auto switchConclusion = [&]() {
+                return page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToWorkspaceConclusion, nullptr });
+            };
+
+            VERIFY_IS_TRUE(switchConclusion());
+            VERIFY_IS_TRUE(page->_workspaceToolTabSelected);
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_conclusionSidebar.Visibility());
 
             VERIFY_IS_TRUE(switchSurface(0));
+            VERIFY_IS_FALSE(page->_workspaceToolTabSelected);
             VERIFY_ARE_EQUAL(workspace.Surfaces().GetAt(0), page->_GetFocusedTab());
             VERIFY_IS_TRUE(switchSurface(1));
             VERIFY_ARE_EQUAL(workspace.Surfaces().GetAt(1), page->_GetFocusedTab());
 
-            page->_SetWorkspaceToolTabSelected(true);
+            VERIFY_IS_TRUE(switchConclusion());
             VERIFY_IS_TRUE(page->_workspaceToolTabSelected);
             VERIFY_IS_TRUE(switchSurface(1));
             VERIFY_IS_FALSE(page->_workspaceToolTabSelected);
@@ -631,6 +648,7 @@ namespace TerminalAppLocalTests
 
             page->_SidebarController().Enabled = false;
             VERIFY_IS_FALSE(switchSurface(0));
+            VERIFY_IS_FALSE(switchConclusion());
             VERIFY_ARE_EQUAL(selectedTab, page->_GetFocusedTab());
             page->_SidebarController().Enabled = true;
 

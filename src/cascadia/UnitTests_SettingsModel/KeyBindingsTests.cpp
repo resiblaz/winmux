@@ -115,6 +115,7 @@ namespace SettingsModelUnitTests
             { "command": "toggleWorkspaceSidebar", "keys": "ctrl+alt+s" },
             { "command": "openWorkspaceNotificationCenter", "keys": "ctrl+alt+n" },
             { "command": { "action": "switchToWorkspaceSurface", "index": 2 }, "keys": "alt+3" },
+            { "command": "switchToWorkspaceConclusion", "keys": "alt+c" },
             { "command": "newTab", "keys": "alt+n" },
             { "command": "openTabRenamer", "keys": "ctrl+r" }
         ])");
@@ -132,6 +133,8 @@ namespace SettingsModelUnitTests
         const auto switchSurface = ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, '3', 0 });
         VERIFY_ARE_EQUAL(ShortcutAction::SwitchToWorkspaceSurface, switchSurface.Action());
         VERIFY_ARE_EQUAL(2u, switchSurface.Args().as<SwitchToWorkspaceSurfaceArgs>().SurfaceIndex());
+        VERIFY_ARE_EQUAL(ShortcutAction::SwitchToWorkspaceConclusion,
+                         ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, 'C', 0 }).Action());
         VERIFY_ARE_EQUAL(ShortcutAction::NewTab,
                          ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, 'N', 0 }).Action());
         VERIFY_ARE_EQUAL(ShortcutAction::OpenTabRenamer,
@@ -156,6 +159,8 @@ namespace SettingsModelUnitTests
 
         VERIFY_ARE_EQUAL(ShortcutAction::NewTab,
                          ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, 'N', 0 }).Action());
+        VERIFY_ARE_EQUAL(ShortcutAction::SwitchToWorkspaceConclusion,
+                         ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, 'C', 0 }).Action());
     }
 
     void KeyBindingsTests::ManyKeysSameAction()

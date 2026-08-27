@@ -1036,12 +1036,6 @@
   <data name="WorkspaceConclusionTab.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>结论</value>
   </data>
-  <data name="WorkspaceSidebarNewWorkspaceButton.Content" xml:space="preserve">
-    <value>+ 新建工作区</value>
-  </data>
-  <data name="WorkspaceSidebarNewWorkspaceButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>创建新工作区</value>
-  </data>
   <data name="WorkspaceSidebarRenameMenuItem.Text" xml:space="preserve">
     <value>重命名</value>
   </data>

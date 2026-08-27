@@ -177,9 +177,9 @@
                             Background="Transparent"
                             BorderThickness="0"
                             Click="_WorkspaceSurfaceNewTab_Click"
-                            Content="&#xE710;"
+                            Content="&#xE756;"
                             FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                            FontSize="12" />
+                            FontSize="13" />
 
                     <ListView x:Name="WorkspaceToolTabs"
                               Grid.Column="2"
@@ -199,19 +199,16 @@
                             </ItemsPanelTemplate>
                         </ListView.ItemsPanel>
                         <ListViewItem x:Uid="WorkspaceConclusionTab"
+                                      Width="36"
+                                      MinWidth="36"
                                       Style="{StaticResource WorkspaceSurfaceTabItemStyle}">
-                            <StackPanel Height="30"
-                                        Padding="10,0"
-                                        Orientation="Horizontal"
-                                        Spacing="7">
+                            <Grid Width="36"
+                                  Height="30">
                                 <FontIcon VerticalAlignment="Center"
                                           FontFamily="{ThemeResource SymbolThemeFontFamily}"
                                           FontSize="12"
                                           Glyph="&#xE8A5;" />
-                                <TextBlock x:Uid="ConclusionSidebarConclusionsTab"
-                                           VerticalAlignment="Center"
-                                           FontSize="12" />
-                            </StackPanel>
+                            </Grid>
                         </ListViewItem>
                     </ListView>
                 </Grid>

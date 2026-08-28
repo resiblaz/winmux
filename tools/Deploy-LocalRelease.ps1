@@ -7,7 +7,9 @@ param(
 
     [switch]$NoLaunch,
 
-    [switch]$BuildOnly
+    [switch]$BuildOnly,
+
+    [switch]$IncludeWorkspaceTests
 )
 
 Set-StrictMode -Version Latest
@@ -55,12 +57,22 @@ try
         Invoke-CheckedCommand $nuget restore $solution
         Invoke-CheckedCommand $nuget restore $nugetPackages
 
-        Write-Host 'Building the optimized local Release package...' -ForegroundColor Cyan
+        $buildTargets = [System.Collections.Generic.List[string]]::new()
+        $buildTargets.Add('Terminal\CascadiaPackage')
+        if ($IncludeWorkspaceTests)
+        {
+            $buildTargets.Add('Terminal\Tests\TerminalApp_LocalTests')
+            $buildTargets.Add('Terminal\Tests\TestHostApp')
+            $buildTargets.Add('Terminal\Tests\SettingsModel_UnitTests')
+        }
+
+        $buildDescription = if ($IncludeWorkspaceTests) { 'package and Workspace native tests' } else { 'package' }
+        Write-Host "Building the optimized local Release $buildDescription..." -ForegroundColor Cyan
         $env:CL_MPCount = '1'
         $msbuild = (Get-Command msbuild.exe -ErrorAction Stop).Source
         $buildArguments = @(
             $solution
-            '/t:Terminal\CascadiaPackage'
+            "/t:$($buildTargets -join ';')"
             "/p:Configuration=$configuration"
             "/p:Platform=$Platform"
             '/p:WindowsTerminalBranding=Dev'

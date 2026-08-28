@@ -25,6 +25,10 @@ $hookTests = Join-Path $repoRoot '.codex\hooks\test-workspace-history.ps1'
 $testHostDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\TestHostApp"
 $settingsTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_SettingsModel"
 $wt = Join-Path $repoRoot "src\cascadia\CascadiaPackage\bin\$Platform\$configuration\wtd.exe"
+$workspaceTestTargets = @(
+    'Terminal\Tests\TerminalApp_LocalTests',
+    'Terminal\Tests\TestHostApp',
+    'Terminal\Tests\SettingsModel_UnitTests')
 $oldClMpCount = $env:CL_MPCount
 
 function Invoke-CheckedCommand
@@ -152,6 +156,7 @@ try
         (Join-Path $repoRoot '.codex\hooks\install-workspace-history.ps1'),
         (Join-Path $repoRoot '.codex\hooks\uninstall-workspace-history.ps1'),
         $hookTests,
+        $packageBuild,
         $PSCommandPath)
 
     if (-not $SkipHookTests)
@@ -166,8 +171,7 @@ try
 
     if (-not $SkipPackageBuild)
     {
-        Write-Host 'Building the Release/MSIX package...' -ForegroundColor Cyan
-        Invoke-CheckedCommand -Executable (Get-Command pwsh.exe -ErrorAction Stop).Source -Arguments @(
+        $buildArguments = [System.Collections.Generic.List[string]]@(
             '-NoLogo',
             '-NoProfile',
             '-File',
@@ -175,6 +179,17 @@ try
             '-Platform',
             $Platform,
             '-BuildOnly')
+        if (-not $SkipTestBuild)
+        {
+            Write-Host 'Building the unified Release/MSIX and native-test graph...' -ForegroundColor Cyan
+            $buildArguments.Add('-IncludeWorkspaceTests')
+        }
+        else
+        {
+            Write-Host 'Building the Release/MSIX package...' -ForegroundColor Cyan
+        }
+
+        Invoke-CheckedCommand -Executable (Get-Command pwsh.exe -ErrorAction Stop).Source -Arguments $buildArguments
     }
 
     if (-not $SkipTestBuild -or -not $SkipNativeTests)
@@ -183,28 +198,24 @@ try
         Set-MsbuildDevEnvironment -Prerelease
     }
 
-    if (-not $SkipTestBuild)
+    if ($SkipPackageBuild -and -not $SkipTestBuild)
     {
         Write-Host 'Building Workspace/History native tests...' -ForegroundColor Cyan
         $env:CL_MPCount = '1'
         $msbuild = (Get-Command msbuild.exe -ErrorAction Stop).Source
-        $solutionDirectory = $repoRoot.TrimEnd('\\') + '\\'
-        $commonArguments = @(
+        $buildArguments = @(
+            (Join-Path $repoRoot 'OpenConsole.slnx'),
+            "/t:$($workspaceTestTargets -join ';')",
             "/p:Configuration=$configuration",
             "/p:Platform=$Platform",
-            "/p:SolutionDir=$solutionDirectory",
             '/p:WindowsTerminalBranding=Dev',
+            '/p:AppxPackageSigningEnabled=false',
+            '/p:AppxBundle=Never',
+            '/p:AppxSymbolPackageEnabled=false',
             '/m:1',
             '/nologo',
             '/verbosity:minimal')
-        foreach ($project in @(
-                'src\cascadia\LocalTests_TerminalApp\TerminalApp.LocalTests.vcxproj',
-                'src\cascadia\LocalTests_TerminalApp\TestHostApp\TestHostApp.vcxproj',
-                'src\cascadia\UnitTests_SettingsModel\SettingsModel.UnitTests.vcxproj'))
-        {
-            Invoke-CheckedCommand -Executable $msbuild -Arguments (@(
-                    (Join-Path $repoRoot $project)) + $commonArguments)
-        }
+        Invoke-CheckedCommand -Executable $msbuild -Arguments $buildArguments
     }
 
     if (-not $SkipNativeTests)

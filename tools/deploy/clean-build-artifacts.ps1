@@ -55,8 +55,16 @@ function Get-TargetStatistics
     {
         $measure = Get-ChildItem -LiteralPath $Path -Force -Recurse -File -ErrorAction SilentlyContinue |
             Measure-Object -Property Length -Sum
-        $bytes = if ($null -eq $measure.Sum) { 0L } else { [long]$measure.Sum }
-        $fileCount = $measure.Count
+        if ($null -eq $measure)
+        {
+            $bytes = 0L
+            $fileCount = 0
+        }
+        else
+        {
+            $bytes = if ($null -eq $measure.Sum) { 0L } else { [long]$measure.Sum }
+            $fileCount = $measure.Count
+        }
     }
     else
     {

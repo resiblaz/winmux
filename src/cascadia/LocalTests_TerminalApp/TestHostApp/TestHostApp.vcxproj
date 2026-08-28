@@ -144,7 +144,7 @@
     <TestDll Include="$(OpenConsoleCommonOutDir)\LocalTests_TerminalApp\TerminalApp.LocalTests.dll" />
   </ItemGroup>
 
-  <Target Name="AfterBuild" Inputs="@(TestDll)" Outputs="@(TestDll->'$(TargetDir)'\%(Filename)%(Extension)')">
+  <Target Name="AfterBuild">
 
     <!-- Use this to auto-find all the dll's that TerminalConnection produces. We
       don't roll these up automatically, so we'll need to copy them manually
@@ -169,17 +169,25 @@
     <Copy SourceFiles="$(TargetDir)\AppxManifest.xml" DestinationFiles="$(TargetDir)\TestHostAppXManifest.xml" />
 
     <!-- Copy all test code -->
+    <!--
+      Do not hardlink files into the loose package layout. AppX registration
+      grants the package identity access to the files under TargetDir, but an
+      external hardlink keeps the source file's DACL and fails to load in the
+      AppContainer with ERROR_ACCESS_DENIED.
+    -->
+    <Delete Files="@(TestDll->'$(TargetDir)%(Filename)%(Extension)')" />
     <Copy SourceFiles="@(TestDll)"
           DestinationFolder="$(TargetDir)"
-          UseHardLinksIfPossible="true"
-          SkipUnchangedFiles="true" />
+          UseHardLinksIfPossible="false"
+          SkipUnchangedFiles="false" />
 
     <!-- Copy some dlls which TerminalConnection is dependent upon that didn't
       get rolled up into this  directory -->
+    <Delete Files="@(TerminalConnectionDlls->'$(TargetDir)%(Filename)%(Extension)')" />
     <Copy SourceFiles="@(TerminalConnectionDlls)"
           DestinationFolder="$(TargetDir)"
-          UseHardLinksIfPossible="true"
-          SkipUnchangedFiles="true" />
+          UseHardLinksIfPossible="false"
+          SkipUnchangedFiles="false" />
 
   </Target>
 </Project>

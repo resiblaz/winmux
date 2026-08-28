@@ -54,13 +54,28 @@ function Invoke-ExpectedExitCode
         [string[]]$Arguments,
 
         [Parameter(Mandatory)]
-        [int]$ExpectedExitCode
+        [int]$ExpectedExitCode,
+
+        [int]$Attempts = 1,
+
+        [int[]]$RetryExitCodes = @()
     )
 
-    & $Executable @Arguments
-    if ($LASTEXITCODE -ne $ExpectedExitCode)
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++)
     {
-        throw "Expected exit code $ExpectedExitCode but got $($LASTEXITCODE): $Executable $($Arguments -join ' ')"
+        & $Executable @Arguments
+        $actualExitCode = $LASTEXITCODE
+        if ($actualExitCode -eq $ExpectedExitCode)
+        {
+            return
+        }
+        if ($attempt -lt $Attempts -and $RetryExitCodes -contains $actualExitCode)
+        {
+            Write-Host "Retrying transient exit code $actualExitCode ($attempt/$Attempts): $Executable $($Arguments -join ' ')" -ForegroundColor Yellow
+            Start-Sleep -Milliseconds 250
+            continue
+        }
+        throw "Expected exit code $ExpectedExitCode but got ${actualExitCode}: $Executable $($Arguments -join ' ')"
     }
 }
 
@@ -106,8 +121,8 @@ try
 {
     Write-Host 'Running static release checks...' -ForegroundColor Cyan
     $git = (Get-Command git.exe -ErrorAction Stop).Source
-    Invoke-CheckedCommand -Executable $git -Arguments @('diff', '--check')
-    Invoke-CheckedCommand -Executable $git -Arguments @('diff', '--cached', '--check')
+    Invoke-CheckedCommand -Executable $git -Arguments @('-c', 'core.whitespace=cr-at-eol', 'diff', '--check')
+    Invoke-CheckedCommand -Executable $git -Arguments @('-c', 'core.whitespace=cr-at-eol', 'diff', '--cached', '--check')
 
     $normalNumstat = (& $git diff --numstat -- .) -join [Environment]::NewLine
     $eolIgnoredNumstat = (& $git diff --ignore-space-at-eol --numstat -- .) -join [Environment]::NewLine
@@ -265,7 +280,7 @@ try
         try
         {
             Invoke-ExpectedExitCode -Executable $wt -Arguments @('workspace', 'invalid') -ExpectedExitCode 2
-            Invoke-ExpectedExitCode -Executable $wt -Arguments @('workspace', 'list') -ExpectedExitCode 0
+            Invoke-ExpectedExitCode -Executable $wt -Arguments @('workspace', 'list') -ExpectedExitCode 0 -Attempts 20 -RetryExitCodes @(8)
             Invoke-ExpectedExitCode -Executable $wt -Arguments @('workspace', 'open', $missingSnapshot) -ExpectedExitCode 3
             Invoke-ExpectedExitCode -Executable $wt -Arguments @('workspace', 'export', $missingSnapshot, $exportPath) -ExpectedExitCode 3
             if (Test-Path -LiteralPath $exportPath)

@@ -299,6 +299,9 @@ namespace winrt::TerminalApp::implementation
     //   the given dimension. If the global setting `snapToGridOnResize` is set
     //   to `false`, this will just immediately return the provided dimension,
     //   effectively disabling snapping.
+    // - The window dimension includes client-side chrome such as the Workspace
+    //   Sidebar and Surface Tab bar. Subtract that chrome before snapping the
+    //   pane, then add it back so the terminal viewport remains cell-aligned.
     // - See Pane::CalcSnappedDimension
     float TerminalPage::CalcSnappedDimension(const bool widthOrHeight, const float dimension) const
     {
@@ -306,6 +309,21 @@ namespace winrt::TerminalApp::implementation
         {
             if (const auto tabImpl{ _GetFocusedTabImpl() })
             {
+                const auto rootDimension = static_cast<float>(widthOrHeight ? ActualWidth() : ActualHeight());
+                const auto tabContentVisible = _tabContent.Visibility() == Visibility::Visible;
+                const auto contentDimension = static_cast<float>(widthOrHeight ?
+                                                                     (tabContentVisible ? _tabContent.ActualWidth() : _conclusionSidebar.ActualWidth()) :
+                                                                     (tabContentVisible ? _tabContent.ActualHeight() : _conclusionSidebar.ActualHeight()));
+
+                // Before the first layout pass there is no reliable chrome
+                // measurement, so retain the original snapping behavior.
+                if (rootDimension > 0.0f && contentDimension > 0.0f)
+                {
+                    const auto chromeDimension = std::max(0.0f, rootDimension - contentDimension);
+                    const auto paneDimension = std::max(0.0f, dimension - chromeDimension);
+                    return chromeDimension + tabImpl->CalcSnappedDimension(widthOrHeight, paneDimension);
+                }
+
                 return tabImpl->CalcSnappedDimension(widthOrHeight, dimension);
             }
         }

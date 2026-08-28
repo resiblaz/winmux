@@ -185,7 +185,13 @@ try
     $defaultSettings = [ordered]@{
         '$schema' = 'https://raw.githubusercontent.com/microsoft/terminal/main/doc/cascadia/profiles.schema.json'
         tabLayout = 'workspaceSidebar'
-    } | ConvertTo-Json
+        profiles = [ordered]@{
+            defaults = [ordered]@{
+                padding = '3'
+                scrollbarState = 'hidden'
+            }
+        }
+    } | ConvertTo-Json -Depth 4
     [System.IO.File]::WriteAllText($settingsPath, $defaultSettings + "`r`n", [System.Text.UTF8Encoding]::new($false))
 
     $configuredZipName = '{0}_workspace-sidebar.zip' -f [System.IO.Path]::GetFileNameWithoutExtension($officialZip.Name)

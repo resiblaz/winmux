@@ -28,9 +28,7 @@ namespace winrt::TerminalApp::implementation
         const auto state = ApplicationState::SharedInstance();
         const auto savedWidth = state.WorkspaceSidebarWidth();
         const auto usesPreviousDefault = savedWidth == PreviousDefaultExpandedWidth || savedWidth == LegacyDefaultExpandedWidth;
-        _expandedWidth = std::clamp(usesPreviousDefault ? DefaultExpandedWidth : savedWidth,
-                                    MinimumExpandedWidth,
-                                    MaximumExpandedWidth);
+        _expandedWidth = NormalizeExpandedWidth(savedWidth);
         if (usesPreviousDefault)
         {
             state.WorkspaceSidebarWidth(_expandedWidth);
@@ -105,6 +103,14 @@ namespace winrt::TerminalApp::implementation
     bool WorkspaceSidebar::IsEffectivelyExpanded() const noexcept
     {
         return _isExpanded && !_isWindowNarrow;
+    }
+
+    double WorkspaceSidebar::NormalizeExpandedWidth(const double value) noexcept
+    {
+        const auto usesPreviousDefault = value == PreviousDefaultExpandedWidth || value == LegacyDefaultExpandedWidth;
+        return std::clamp(usesPreviousDefault ? DefaultExpandedWidth : value,
+                          MinimumExpandedWidth,
+                          MaximumExpandedWidth);
     }
 
     Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> WorkspaceSidebar::NotificationHistory() const noexcept

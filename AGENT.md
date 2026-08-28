@@ -26,7 +26,7 @@ The script:
 
 - builds the x64 Release package unless `-SkipBuild` is specified;
 - creates an unpackaged portable distribution using the repository's official packaging script;
-- writes a clean default `settings/settings.json` with `"tabLayout": "workspaceSidebar"` into the ZIP;
+- writes a clean default `settings/settings.json` with Workspace Sidebar enabled, terminal padding set to `3`, and the scrollbar hidden into the ZIP;
 - deploys the extracted application under `dist/terminal-<version>`;
 - preserves the existing deployed `settings` directory across rebuilds and keeps Workspace Sidebar enabled;
 - replaces the deployed directory through a staged update and starts its `WindowsTerminal.exe` unless `-NoLaunch` is specified;

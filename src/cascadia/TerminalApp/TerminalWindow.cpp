@@ -128,6 +128,31 @@ static Documents::Run _BuildErrorRun(const winrt::hstring& text, const ResourceD
 
 namespace winrt::TerminalApp::implementation
 {
+    namespace
+    {
+        // Keep this synchronized with WorkspaceSurfaceTabBar.Height in
+        // TerminalPage.xaml. GetLaunchDimensions runs before XAML exists.
+        constexpr float WorkspaceSurfaceTabBarHeight{ 36.0f };
+
+        Windows::Foundation::Size _WorkspaceChromeSize(const WindowSettings& settings,
+                                                       const bool navigationVisible,
+                                                       const float scale)
+        {
+            Windows::Foundation::Size size{};
+            if (navigationVisible && settings.TabLayout() == TabLayout::WorkspaceSidebar)
+            {
+                size.Height = WorkspaceSurfaceTabBarHeight * scale;
+
+                const auto state = ApplicationState::SharedInstance();
+                if (state.WorkspaceSidebarExpanded())
+                {
+                    size.Width = static_cast<float>(WorkspaceSidebar::NormalizeExpandedWidth(state.WorkspaceSidebarWidth())) * scale;
+                }
+            }
+            return size;
+        }
+    }
+
     TerminalWindow::TerminalWindow(const TerminalApp::SettingsLoadEventArgs& settingsLoadedResult,
                                    const TerminalApp::ContentManager& manager) :
         _settings{ settingsLoadedResult.NewSettings() },
@@ -149,6 +174,8 @@ namespace winrt::TerminalApp::implementation
     // - Implements the IInitializeWithWindow interface from shobjidl_core.
     HRESULT TerminalWindow::Initialize(HWND hwnd)
     {
+        _hostingHwnd = hwnd;
+
         // Now that we know we can do XAML, build our page.
         _root = winrt::make_self<TerminalPage>(*_WindowProperties, _manager);
         if (_pendingWorkspaceSnapshotId)
@@ -301,6 +328,26 @@ namespace winrt::TerminalApp::implementation
             _root->SetFullscreen(true);
         }
 
+        // GetLaunchDimensions runs before XAML and the renderer exist, so its
+        // font measurement can differ slightly from the live control. Once
+        // the first layout is complete, correct a normal window to the nearest
+        // character grid while accounting for Workspace client-side chrome.
+        if (!_WindowProperties->IsQuakeWindow() &&
+            !WI_IsFlagSet(launchMode, LaunchMode::MaximizedMode) &&
+            !WI_IsFlagSet(launchMode, LaunchMode::FullscreenMode) &&
+            !_contentBounds)
+        {
+            _initialGridSnapTimer.Interval(std::chrono::milliseconds(250));
+            _initialGridSnapTimer.Tick([weakThis{ get_weak() }](const auto&, const auto&) {
+                if (const auto self = weakThis.get())
+                {
+                    self->_initialGridSnapTimer.Stop();
+                    self->_SnapWindowToGrid();
+                }
+            });
+            _initialGridSnapTimer.Start();
+        }
+
         _pageIsInitialized = true;
         if (_pendingWorkspaceSnapshotId)
         {
@@ -310,6 +357,41 @@ namespace winrt::TerminalApp::implementation
         }
 
         AppLogic::Current()->NotifyRootInitialized();
+    }
+
+    void TerminalWindow::_SnapWindowToGrid()
+    {
+        if (!_root || !_hostingHwnd)
+        {
+            return;
+        }
+
+        const auto scale = static_cast<float>(DisplayInformation::GetForCurrentView().RawPixelsPerViewPixel());
+        const auto currentWidth = static_cast<float>(_root->ActualWidth());
+        const auto currentHeight = static_cast<float>(_root->ActualHeight());
+        const auto snappedWidth = _root->CalcSnappedDimension(true, currentWidth);
+        const auto snappedHeight = _root->CalcSnappedDimension(false, currentHeight);
+        if (scale > 0.0f &&
+            (std::abs(snappedWidth - currentWidth) >= 0.5f || std::abs(snappedHeight - currentHeight) >= 0.5f))
+        {
+            RECT windowRect{};
+            if (GetWindowRect(_hostingHwnd, &windowRect))
+            {
+                const auto currentClientWidth = static_cast<int32_t>(std::lround(currentWidth * scale));
+                const auto currentClientHeight = static_cast<int32_t>(std::lround(currentHeight * scale));
+                const auto nonClientWidth = std::max(0L, (windowRect.right - windowRect.left) - currentClientWidth);
+                const auto nonClientHeight = std::max(0L, (windowRect.bottom - windowRect.top) - currentClientHeight);
+                const auto targetWidth = static_cast<int32_t>(std::lround(snappedWidth * scale)) + nonClientWidth;
+                const auto targetHeight = static_cast<int32_t>(std::lround(snappedHeight * scale)) + nonClientHeight;
+                LOG_LAST_ERROR_IF(!SetWindowPos(_hostingHwnd,
+                                                nullptr,
+                                                windowRect.left,
+                                                windowRect.top,
+                                                targetWidth,
+                                                targetHeight,
+                                                SWP_NOACTIVATE | SWP_NOZORDER));
+            }
+        }
     }
 
     void TerminalWindow::OpenWorkspaceSnapshot(const winrt::guid& snapshotId, const bool replaceCurrentWorkspace)
@@ -726,9 +808,10 @@ namespace winrt::TerminalApp::implementation
             // If we've been created as a torn-out window, then we'll need to
             // use that size instead. _contentBounds is in DIPs. Scale
             // accordingly to the new pixel size.
+            const auto workspaceChrome = _WorkspaceChromeSize(_currentWindowSettings(), !focusMode, scale);
             return {
-                _contentBounds.Value().Width * scale,
-                _contentBounds.Value().Height * scale
+                _contentBounds.Value().Width * scale + workspaceChrome.Width,
+                _contentBounds.Value().Height * scale + workspaceChrome.Height
             };
         }
 
@@ -766,6 +849,10 @@ namespace winrt::TerminalApp::implementation
             static constexpr auto tabRowHeight = 32;
             proposedSize.Height += (tabRowHeight + 10) * scale;
         }
+
+        const auto workspaceChrome = _WorkspaceChromeSize(_currentWindowSettings(), !focusMode, scale);
+        proposedSize.Width += workspaceChrome.Width;
+        proposedSize.Height += workspaceChrome.Height;
 
         return proposedSize;
     }
@@ -1475,6 +1562,10 @@ namespace winrt::TerminalApp::implementation
     {
         winrt::Windows::Foundation::Size pixelSize = { static_cast<float>(args.Width()), static_cast<float>(args.Height()) };
         const auto scale = static_cast<float>(DisplayInformation::GetForCurrentView().RawPixelsPerViewPixel());
+        const auto navigationVisible = !FocusMode() && (!Fullscreen() || ShowTabsFullscreen());
+        const auto workspaceChrome = _WorkspaceChromeSize(_currentWindowSettings(), navigationVisible, scale);
+        pixelSize.Width += workspaceChrome.Width;
+        pixelSize.Height += workspaceChrome.Height;
 
         if (!FocusMode())
         {
@@ -1499,6 +1590,16 @@ namespace winrt::TerminalApp::implementation
             // IslandWindow::GetTotalNonClientExclusiveSize() is called, and it
             // doesn't take the title bar height into account, so we have to do
             // the calculation manually.
+        }
+
+        // A terminal application can request a window size in rows and
+        // columns. Re-snap the resulting client size with the live layout and
+        // font metrics so Workspace chrome cannot leave a partial cell at the
+        // right or bottom edge.
+        if (_root && scale > 0.0f)
+        {
+            pixelSize.Width = _root->CalcSnappedDimension(true, pixelSize.Width / scale) * scale;
+            pixelSize.Height = _root->CalcSnappedDimension(false, pixelSize.Height / scale) * scale;
         }
 
         args.Width(static_cast<int32_t>(pixelSize.Width));

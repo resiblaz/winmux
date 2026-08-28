@@ -174,6 +174,8 @@ namespace winrt::TerminalApp::implementation
         // ALSO: If you add any UIElements as roots here, make sure they're
         // updated in _ApplyTheme. The root currently is _root.
         winrt::com_ptr<TerminalPage> _root{ nullptr };
+        HWND _hostingHwnd{};
+        SafeDispatcherTimer _initialGridSnapTimer;
 
         wil::com_ptr<CommandlineArgs> _appArgs{ nullptr };
         winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _startupConnection{ nullptr };
@@ -210,6 +212,7 @@ namespace winrt::TerminalApp::implementation
         void _RefreshThemeRoutine();
         void _OnLoaded(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
         void _pageInitialized(const IInspectable& sender, const IInspectable& eventArgs);
+        void _SnapWindowToGrid();
         void _OpenSettingsUI();
         void _WindowSizeChanged(const IInspectable& sender, winrt::Microsoft::Terminal::Control::WindowSizeChangedEventArgs args);
         void _RenameWindowRequested(const IInspectable& sender, const winrt::TerminalApp::RenameWindowRequestedArgs args);

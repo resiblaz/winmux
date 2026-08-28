@@ -18,6 +18,7 @@ namespace winrt::TerminalApp::implementation
         void SetWindowNarrow(bool value);
         bool IsWindowNarrow() const noexcept;
         bool IsEffectivelyExpanded() const noexcept;
+        static double NormalizeExpandedWidth(double value) noexcept;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> NotificationHistory() const noexcept;
         void RefreshNotifications();
         void OpenNotificationCenter(const Windows::UI::Xaml::FrameworkElement& target);

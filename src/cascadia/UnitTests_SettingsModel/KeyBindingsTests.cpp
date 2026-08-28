@@ -161,6 +161,8 @@ namespace SettingsModelUnitTests
                          ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, 'N', 0 }).Action());
         VERIFY_ARE_EQUAL(ShortcutAction::SwitchToWorkspaceConclusion,
                          ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, 'C', 0 }).Action());
+        VERIFY_ARE_EQUAL(ShortcutAction::ToggleWorkspaceSidebar,
+                         ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Control, 'B', 0 }).Action());
     }
 
     void KeyBindingsTests::ManyKeysSameAction()

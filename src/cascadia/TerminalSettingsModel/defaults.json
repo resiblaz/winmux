@@ -749,6 +749,7 @@
         { "keys": "win+sc(41)", "id": "Terminal.QuakeMode" },
         { "keys": "alt+space", "id": "Terminal.OpenSystemMenu" },
         { "keys": "ctrl+shift+period", "id": "Terminal.Suggestions" },
+        { "keys": "ctrl+b", "id": "Terminal.ToggleWorkspaceSidebar" },
         { "keys": "ctrl+p", "id": "Terminal.ToggleWorkspacePin" },
         { "keys": "ctrl+r", "id": "Terminal.OpenTabRenamer" },
         { "keys": "ctrl+shift+u", "id": "Terminal.FocusLatestNotification" },

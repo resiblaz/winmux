@@ -244,6 +244,7 @@ try
                     '*AgentHistoryStoreTests*',
                     '*CodexAppServerTests*',
                     '*WorkspaceGitMetadataTests*',
+                    '*WorkspaceSidebarAdaptsToWindowModes*',
                     '*TabTests*WorkspaceSnapshot*',
                     '*WorkspaceLayoutPersistsMetadata*'))
             {
@@ -263,6 +264,7 @@ try
                     '*WorkspaceSnapshotStoreTests*',
                     '*WorkspaceSnapshotExchangeTests*',
                     '*WorkspaceCommandlineTests*',
+                    '*DefaultWorkspaceSurfaceBindings*',
                     '*AgentHistoryRetentionSettings*'))
             {
                 Invoke-TaefSelection -Taef $taef -TestDll $settingsTests -Pattern $pattern

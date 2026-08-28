@@ -499,15 +499,22 @@ namespace TerminalAppLocalTests
             sidebar->ShowSwitchHints(false);
             VERIFY_IS_TRUE(workspaceItem.SwitchShortcutHintText().empty());
 
-            page->_workspaceSidebar.IsExpanded(false);
+            const auto toggleSidebar = [&]() {
+                return page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::ToggleWorkspaceSidebar, nullptr });
+            };
+            VERIFY_IS_TRUE(page->_workspaceSidebar.IsExpanded());
+            VERIFY_IS_TRUE(toggleSidebar());
+            VERIFY_IS_FALSE(page->_workspaceSidebar.IsExpanded());
             VERIFY_ARE_EQUAL(0.0, page->_workspaceSidebar.Width());
             VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_workspaceSidebar.WorkspaceList().Visibility());
-            page->_workspaceSidebar.IsExpanded(true);
+            VERIFY_IS_TRUE(toggleSidebar());
+            VERIFY_IS_TRUE(page->_workspaceSidebar.IsExpanded());
             page->_UpdateWorkspaceSidebarForWindowWidth(winrt::TerminalApp::implementation::WorkspaceSidebar::NarrowWindowThreshold - 1.0);
             VERIFY_IS_TRUE(sidebar->IsWindowNarrow());
             VERIFY_IS_TRUE(page->_workspaceSidebar.IsExpanded());
             VERIFY_IS_FALSE(sidebar->IsEffectivelyExpanded());
             VERIFY_IS_FALSE(page->_workspaceSidebar.FindName(L"ToggleButton").as<Button>().IsEnabled());
+            VERIFY_IS_FALSE(toggleSidebar());
 
             page->_UpdateWorkspaceSidebarForWindowWidth(winrt::TerminalApp::implementation::WorkspaceSidebar::NarrowWindowThreshold);
             VERIFY_IS_FALSE(sidebar->IsWindowNarrow());

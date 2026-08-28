@@ -1,5 +1,59 @@
 # Repository Agent Notes
 
+## Required Incremental Development Workflow
+
+These rules apply to AI agents and automated development workflows. The default loop is an incremental Release build; preserving the build cache is required unless a cold build is explicitly justified.
+
+### Default edit, validate, and publish loop
+
+Run commands from the repository root with PowerShell 7:
+
+```powershell
+# Build the package and native tests in one MSBuild graph, then run the full gate.
+pwsh -NoLogo -NoProfile -File .\tools\deploy\test-workspace-release.ps1
+
+# Repackage the outputs, update the portable deployment, and restart the app.
+pwsh -NoLogo -NoProfile -File .\tools\deploy\build-portable-release.ps1 -SkipBuild
+```
+
+The first command intentionally builds `CascadiaPackage`, `TerminalApp.LocalTests`, `TestHostApp`, and `SettingsModel.UnitTests` in one solution-level MSBuild invocation with one global-property set. Keep `bin/`, `obj/`, generated source directories, and the vcpkg install tree between runs so that later invocations remain incremental.
+
+On the current reference machine, a clean full gate takes about 29 minutes, while an unchanged incremental full gate takes about 2 minutes. Treat a hot run that recompiles hundreds of C++ files or repeats MIDL/metadata generation as a build-graph regression. Inspect the invoked targets and global properties instead of hiding the problem with a clean build.
+
+For a focused loop, use the gate's skip switches rather than invoking projects directly:
+
+```powershell
+# Native test build and execution, reusing an existing package output.
+pwsh -NoLogo -NoProfile -File .\tools\deploy\test-workspace-release.ps1 `
+    -SkipPackageBuild -SkipHookTests -SkipCliSmoke
+
+# Package build and CLI smoke, reusing existing native-test outputs.
+pwsh -NoLogo -NoProfile -File .\tools\deploy\test-workspace-release.ps1 `
+    -SkipTestBuild -SkipNativeTests -SkipHookTests
+```
+
+Do not build these projects directly as separate MSBuild commands:
+
+- `src\cascadia\LocalTests_TerminalApp\TerminalApp.LocalTests.vcxproj`
+- `src\cascadia\LocalTests_TerminalApp\TestHostApp\TestHostApp.vcxproj`
+- `src\cascadia\UnitTests_SettingsModel\SettingsModel.UnitTests.vcxproj`
+
+Do not build the package and tests with different global-property sets against the same `bin/obj` tree. Alternating those modes invalidates the shared TerminalApp, Settings, Control, MIDL, and metadata outputs.
+
+### Cold builds and cleanup
+
+Do not clean before a normal edit/build/test cycle. A root or deep clean is appropriate only when:
+
+- the user explicitly requests a from-zero or cold-build measurement;
+- the compiler, SDK, architecture, configuration, or foundational build properties changed; or
+- concrete diagnostics show that generated artifacts are corrupt and an incremental rebuild cannot repair them.
+
+When cleanup is necessary, state the reason, verify that repository build processes have stopped, and use `tools/deploy/clean-build-artifacts.ps1`. Never use `git clean -fdX` at the repository root and never clean merely to retry an unexplained build failure.
+
+### Meaning of hot update
+
+For this native C++/WinRT Release workflow, "hot update" means incremental compilation followed by staged portable replacement and application restart. It is not in-process native code hot reload. After a successful gate, use `build-portable-release.ps1 -SkipBuild`; do not rebuild the package a second time and do not copy `WindowsTerminal.exe` by itself.
+
 ## PowerShell Release Workflows
 
 Run release scripts from the repository root with PowerShell 7 (`pwsh`). The machine must have the Visual Studio C++/UWP build tools and a compatible Windows SDK installed.

@@ -112,7 +112,6 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock FontSize="13"
                                    FontWeight="SemiBold"
@@ -120,21 +119,6 @@
                                    TextTrimming="CharacterEllipsis"
                                    ToolTipService.ToolTip="{x:Bind Title, Mode=OneWay}" />
                         <Border Grid.Column="1"
-                                MinWidth="18"
-                                Height="18"
-                                Margin="6,0,0,0"
-                                Padding="4,0"
-                                VerticalAlignment="Center"
-                                Background="{ThemeResource WorkspaceChromeAccentBrush}"
-                                CornerRadius="9"
-                                Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(SurfaceCountText), Mode=OneWay}">
-                            <TextBlock HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       FontSize="9"
-                                       FontWeight="SemiBold"
-                                       Text="{x:Bind SurfaceCountText, Mode=OneWay}" />
-                        </Border>
-                        <Border Grid.Column="2"
                                 MaxWidth="54"
                                 Margin="6,0,0,0"
                                 Padding="4,0"

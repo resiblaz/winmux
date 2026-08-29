@@ -106,6 +106,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 { ShortcutAction::MoveTab, USES_RESOURCE(L"MoveTab") },
                 { ShortcutAction::MultipleActions, USES_RESOURCE(L"MultipleActions") },
                 { ShortcutAction::NewTab, USES_RESOURCE(L"NewTabCommandKey") },
+                { ShortcutAction::NewWorkspace, USES_RESOURCE(L"NewWorkspaceCommandKey") },
                 { ShortcutAction::NewWindow, USES_RESOURCE(L"NewWindowCommandKey") },
                 { ShortcutAction::NextTab, USES_RESOURCE(L"NextTabCommandKey") },
                 { ShortcutAction::OpenAbout, USES_RESOURCE(L"OpenAboutCommandKey") },

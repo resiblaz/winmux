@@ -542,6 +542,7 @@
         { "command": "quickFix", "id": "Terminal.QuickFix" },
         { "command": { "action": "showSuggestions", "source": "all"}, "id": "Terminal.Suggestions" },
         { "command": "openCWD", "id": "Terminal.OpenCWD" },
+        { "command": "newWorkspace", "id": "Terminal.OpenNewWorkspace" },
         { "command": "toggleWorkspacePin", "id": "Terminal.ToggleWorkspacePin" },
         { "command": "toggleWorkspaceSidebar", "id": "Terminal.ToggleWorkspaceSidebar" },
         { "command": "openWorkspaceNotificationCenter", "id": "Terminal.OpenWorkspaceNotificationCenter" },
@@ -760,7 +761,7 @@
         // "command": "closeTab" is unbound by default.
         //   The closeTab command closes a tab without confirmation, even if it has multiple panes.
         { "keys": "ctrl+shift+t", "id": "Terminal.OpenNewTab" },
-        { "keys": "ctrl+n", "id": "Terminal.OpenNewTab" },
+        { "keys": "ctrl+n", "id": "Terminal.OpenNewWorkspace" },
         { "keys": "alt+n", "id": "Terminal.OpenNewTab" },
         { "keys": "ctrl+shift+n", "id": "Terminal.OpenNewWindow" },
         { "keys": "ctrl+shift+1", "id": "Terminal.OpenNewTabProfile0" },

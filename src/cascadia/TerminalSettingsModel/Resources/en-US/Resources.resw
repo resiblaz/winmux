@@ -747,6 +747,9 @@
   <data name="OpenCWDCommandKey" xml:space="preserve">
     <value>Open current working directory</value>
   </data>
+  <data name="NewWorkspaceCommandKey" xml:space="preserve">
+    <value>Create new workspace</value>
+  </data>
   <data name="ToggleWorkspacePinCommandKey" xml:space="preserve">
     <value>Pin or unpin current workspace</value>
   </data>

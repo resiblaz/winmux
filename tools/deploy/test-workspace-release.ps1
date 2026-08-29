@@ -245,6 +245,7 @@ try
                     '*CodexAppServerTests*',
                     '*WorkspaceGitMetadataTests*',
                     '*WorkspaceSidebarAdaptsToWindowModes*',
+                    '*WorkspaceSurfaceShortcutActions*',
                     '*TabTests*WorkspaceSnapshot*',
                     '*WorkspaceLayoutPersistsMetadata*'))
             {
@@ -264,6 +265,7 @@ try
                     '*WorkspaceSnapshotStoreTests*',
                     '*WorkspaceSnapshotExchangeTests*',
                     '*WorkspaceCommandlineTests*',
+                    '*WorkspaceActionsCanBeCustomized*',
                     '*DefaultWorkspaceSurfaceBindings*',
                     '*AgentHistoryRetentionSettings*'))
             {

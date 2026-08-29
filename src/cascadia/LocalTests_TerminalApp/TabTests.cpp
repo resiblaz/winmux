@@ -665,6 +665,13 @@ namespace TerminalAppLocalTests
             VERIFY_IS_TRUE(page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::NewTab, newTabArgs }));
             VERIFY_ARE_EQUAL(workspaceCount, page->_WorkspaceItems().Size());
             VERIFY_ARE_EQUAL(surfaceCount + 1, workspace.SurfaceCount());
+
+            VERIFY_IS_TRUE(page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::NewWorkspace, nullptr }));
+            VERIFY_ARE_EQUAL(workspaceCount + 1, page->_WorkspaceItems().Size());
+            const auto newWorkspace = page->_WorkspaceItemForTab(page->_GetFocusedTab());
+            VERIFY_IS_NOT_NULL(newWorkspace);
+            VERIFY_ARE_EQUAL(1u, newWorkspace.SurfaceCount());
+            VERIFY_IS_TRUE(workspace.WorkspaceId() != newWorkspace.WorkspaceId());
         });
     }
 

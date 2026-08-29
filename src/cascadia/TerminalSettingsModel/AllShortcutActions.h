@@ -123,7 +123,8 @@
     ON_ALL_ACTIONS(WorkspaceBack)           \
     ON_ALL_ACTIONS(WorkspaceForward)        \
     ON_ALL_ACTIONS(Workspaces)              \
-    ON_ALL_ACTIONS(SwitchToWorkspaceConclusion)
+    ON_ALL_ACTIONS(SwitchToWorkspaceConclusion) \
+    ON_ALL_ACTIONS(NewWorkspace)
 
 #define ALL_SHORTCUT_ACTIONS_WITH_ARGS             \
     ON_ALL_ACTIONS_WITH_ARGS(AdjustFontSize)       \

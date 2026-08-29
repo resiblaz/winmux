@@ -30,6 +30,7 @@ Replace it with `"tabLayout": "workspaceSidebar"`. If both keys exist, `tabLayou
 
 - Select a workspace with the mouse or Up/Down Arrow.
 - Press `Ctrl+N` to create a workspace.
+- Press `Alt+N` or `Ctrl+Shift+T` to create a terminal in the current workspace.
 - Press `Ctrl+1` through `Ctrl+8` to select the corresponding workspace; `Ctrl+9` selects the last workspace.
 - Press `Ctrl+R` to quickly rename the active workspace, or `F2` while the sidebar list is focused.
 - Press `Delete` to close the selected workspace.
@@ -37,7 +38,7 @@ Replace it with `"tabLayout": "workspaceSidebar"`. If both keys exist, `tabLayou
 - Drag workspaces to reorder them. Pinned workspaces remain grouped before unpinned workspaces.
 - Drag the right edge to resize the sidebar, or focus the resize handle and use Left/Right Arrow. `Home` and `End` choose the minimum and maximum width.
 
-The shortcuts use the regular Actions settings and can be reassigned. The standard `Ctrl+Shift+T` new-tab shortcut remains available.
+The shortcuts use the regular Actions settings and can be reassigned.
 
 When the window is narrower than 640 DIP, the sidebar temporarily uses its 48-DIP compact layout. Widening the window restores the saved expanded/collapsed state and width.
 

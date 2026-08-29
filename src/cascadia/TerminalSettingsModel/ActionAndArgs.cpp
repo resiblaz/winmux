@@ -25,6 +25,7 @@ static constexpr std::string_view MoveFocusKey{ "moveFocus" };
 static constexpr std::string_view MovePaneKey{ "movePane" };
 static constexpr std::string_view SwapPaneKey{ "swapPane" };
 static constexpr std::string_view NewTabKey{ "newTab" };
+static constexpr std::string_view NewWorkspaceKey{ "newWorkspace" };
 static constexpr std::string_view NextTabKey{ "nextTab" };
 static constexpr std::string_view OpenNewTabDropdownKey{ "openNewTabDropdown" };
 static constexpr std::string_view OpenSettingsKey{ "openSettings" };

@@ -485,6 +485,13 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void TerminalPage::_HandleNewWorkspace(const IInspectable& /*sender*/,
+                                           const ActionEventArgs& args)
+    {
+        _OpenNewWorkspace();
+        args.Handled(true);
+    }
+
     void TerminalPage::_HandleSwitchToTab(const IInspectable& /*sender*/,
                                           const ActionEventArgs& args)
     {

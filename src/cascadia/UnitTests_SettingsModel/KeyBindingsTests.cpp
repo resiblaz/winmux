@@ -114,6 +114,7 @@ namespace SettingsModelUnitTests
             { "command": "toggleWorkspacePin", "keys": "ctrl+alt+p" },
             { "command": "toggleWorkspaceSidebar", "keys": "ctrl+alt+s" },
             { "command": "openWorkspaceNotificationCenter", "keys": "ctrl+alt+n" },
+            { "command": "newWorkspace", "keys": "ctrl+alt+w" },
             { "command": { "action": "switchToWorkspaceSurface", "index": 2 }, "keys": "alt+3" },
             { "command": "switchToWorkspaceConclusion", "keys": "alt+c" },
             { "command": "newTab", "keys": "alt+n" },
@@ -130,6 +131,8 @@ namespace SettingsModelUnitTests
                          ::TestUtils::GetActionAndArgs(*actionMap, { modifiers, 'S', 0 }).Action());
         VERIFY_ARE_EQUAL(ShortcutAction::OpenWorkspaceNotificationCenter,
                          ::TestUtils::GetActionAndArgs(*actionMap, { modifiers, 'N', 0 }).Action());
+        VERIFY_ARE_EQUAL(ShortcutAction::NewWorkspace,
+                         ::TestUtils::GetActionAndArgs(*actionMap, { modifiers, 'W', 0 }).Action());
         const auto switchSurface = ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, '3', 0 });
         VERIFY_ARE_EQUAL(ShortcutAction::SwitchToWorkspaceSurface, switchSurface.Action());
         VERIFY_ARE_EQUAL(2u, switchSurface.Args().as<SwitchToWorkspaceSurfaceArgs>().SurfaceIndex());
@@ -159,6 +162,12 @@ namespace SettingsModelUnitTests
 
         VERIFY_ARE_EQUAL(ShortcutAction::NewTab,
                          ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, 'N', 0 }).Action());
+        VERIFY_ARE_EQUAL(ShortcutAction::NewWorkspace,
+                         ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Control, 'N', 0 }).Action());
+        VERIFY_ARE_EQUAL(ShortcutAction::NewTab,
+                         ::TestUtils::GetActionAndArgs(*actionMap,
+                                                      { VirtualKeyModifiers::Control | VirtualKeyModifiers::Shift, 'T', 0 })
+                             .Action());
         VERIFY_ARE_EQUAL(ShortcutAction::SwitchToWorkspaceConclusion,
                          ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, 'C', 0 }).Action());
         VERIFY_ARE_EQUAL(ShortcutAction::ToggleWorkspaceSidebar,

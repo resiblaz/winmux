@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Richer Terminal · Tasks 原型</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="prototype-note" role="status">
+        <span class="prototype-note__dot" aria-hidden="true"></span>
+        交互原型 · 所有操作仅修改本页模拟数据
+    </div>
+
+    <div class="terminal-window">
+        <header class="titlebar" aria-label="应用标题栏">
+            <div class="titlebar__brand">
+                <span class="terminal-mark" aria-hidden="true">›_</span>
+                <span>Richer Terminal</span>
+            </div>
+            <div class="titlebar__caption">win_terminal · Tasks 设计评审</div>
+            <div class="window-actions" aria-hidden="true">
+                <span>—</span><span>□</span><span>×</span>
+            </div>
+        </header>
+
+        <div class="application-grid">
+            <aside class="workspace-sidebar" aria-label="工作区">
+                <div class="sidebar-heading">
+                    <span>WORKSPACES</span>
+                    <button class="icon-button small" type="button" aria-label="新建工作区" title="新建工作区">＋</button>
+                </div>
+                <nav class="workspace-list" aria-label="工作区列表">
+                    <button class="workspace-item selected" type="button" data-workspace="win_terminal">
+                        <span class="workspace-glyph accent" aria-hidden="true">WT</span>
+                        <span class="workspace-copy">
+                            <strong>win_terminal</strong>
+                            <small>feature/task-page-ui-prototype</small>
+                        </span>
+                        <span class="workspace-state" aria-label="当前工作区"></span>
+                    </button>
+                    <button class="workspace-item" type="button" data-workspace="richerlife_api">
+                        <span class="workspace-glyph violet" aria-hidden="true">RA</span>
+                        <span class="workspace-copy">
+                            <strong>richerlife-api</strong>
+                            <small>main</small>
+                        </span>
+                        <span class="workspace-state" aria-label="当前工作区" hidden></span>
+                    </button>
+                    <button class="workspace-item" type="button" data-workspace="website">
+                        <span class="workspace-glyph green" aria-hidden="true">RL</span>
+                        <span class="workspace-copy">
+                            <strong>website</strong>
+                            <small>feature/landing</small>
+                        </span>
+                        <span class="workspace-state" aria-label="当前工作区" hidden></span>
+                    </button>
+                </nav>
+                <div class="sidebar-footer">
+                    <span class="runtime-dot" aria-hidden="true"></span>
+                    Codex 本地运行时已就绪
+                </div>
+            </aside>
+
+            <main class="workspace-main">
+                <nav class="surface-bar" aria-label="工作区页面">
+                    <div class="surface-tabs" role="tablist" aria-label="终端 Surface">
+                        <button class="surface-tab" type="button" role="tab" aria-selected="false" data-surface="powershell">
+                            <span class="surface-icon" aria-hidden="true">›_</span>
+                            <span>PowerShell</span>
+                            <span class="surface-close" aria-hidden="true">×</span>
+                        </button>
+                        <button id="task-surface-tab" class="surface-tab task-owned" type="button" role="tab" aria-selected="false" data-surface="task-agent" title="由 Task 管理，只能从 Tasks 页面关闭">
+                            <span class="surface-icon" aria-hidden="true">✦</span>
+                            <span id="task-surface-title">RWT-42 · Agent</span>
+                            <span class="task-surface-lock" aria-label="由任务管理">◆</span>
+                        </button>
+                        <button class="surface-new" type="button" aria-label="新建终端 Surface" title="新建终端 Surface">＋</button>
+                    </div>
+
+                    <div class="tool-tabs" role="tablist" aria-label="固定工具页">
+                        <button class="tool-tab selected" type="button" role="tab" aria-selected="true" data-tool-page="tasks" title="Tasks（固定页）">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.2 6.1l1.2 1.2 2.2-2.6M4.2 12.1l1.2 1.2 2.2-2.6M4.2 18.1l1.2 1.2 2.2-2.6"/></svg>
+                            <span class="sr-only">Tasks</span>
+                            <span class="live-indicator" aria-label="有任务正在运行"></span>
+                        </button>
+                        <button class="tool-tab" type="button" role="tab" aria-selected="false" data-tool-page="summary" title="总结（固定页）">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg>
+                            <span class="sr-only">总结</span>
+                        </button>
+                    </div>
+                </nav>
+
+                <section id="tasks-page" class="tasks-page page-surface" aria-labelledby="tasks-title">
+                    <header class="tasks-header">
+                        <div>
+                            <div class="eyebrow">LOCAL-FIRST WORKFLOW</div>
+                            <h1 id="tasks-title">Tasks</h1>
+                            <p>把目标、执行过程与验收结果留在同一个工作区。</p>
+                        </div>
+                        <button id="new-task-button" class="button primary" type="button">
+                            <span aria-hidden="true">＋</span>
+                            新建任务
+                        </button>
+                    </header>
+
+                    <div class="task-controls" aria-label="任务筛选">
+                        <div class="segmented-control" role="group" aria-label="工作区范围">
+                            <button class="segment selected" type="button" data-scope="current" aria-pressed="true">当前 Workspace</button>
+                            <button class="segment" type="button" data-scope="all" aria-pressed="false">全部 Workspace</button>
+                        </div>
+                        <label class="search-field">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m16 16 4.2 4.2"/></svg>
+                            <span class="sr-only">搜索任务</span>
+                            <input id="task-search" type="search" placeholder="搜索任务、编号或工作区">
+                        </label>
+                        <label class="select-field">
+                            <span class="sr-only">状态筛选</span>
+                            <select id="status-filter">
+                                <option value="open">未完成</option>
+                                <option value="all">全部状态</option>
+                                <option value="todo">待处理</option>
+                                <option value="in_progress">进行中</option>
+                                <option value="in_review">待验收</option>
+                                <option value="blocked">受阻</option>
+                                <option value="done">已完成</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <div class="tasks-layout">
+                        <section class="task-list-pane" aria-labelledby="task-list-title">
+                            <div class="pane-heading">
+                                <div>
+                                    <h2 id="task-list-title">任务</h2>
+                                    <span id="task-count" class="count-label"></span>
+                                </div>
+                                <button id="sort-button" class="icon-button" type="button" aria-label="切换排序" title="按最近更新排序">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h8M8 18h4M4 5v14m0 0-2-2m2 2 2-2"/></svg>
+                                </button>
+                            </div>
+                            <div id="task-list" class="task-list" role="listbox" aria-label="任务列表"></div>
+                            <div id="task-list-empty" class="empty-list" hidden>
+                                <span aria-hidden="true">⌕</span>
+                                <strong>没有符合条件的任务</strong>
+                                <small>调整筛选条件或新建任务。</small>
+                            </div>
+                        </section>
+
+                        <article id="task-detail" class="task-detail" aria-live="polite"></article>
+                    </div>
+                </section>
+
+                <section id="summary-page" class="summary-page page-surface" aria-labelledby="summary-title" hidden>
+                    <div class="placeholder-page">
+                        <div class="placeholder-icon" aria-hidden="true">≡</div>
+                        <h1 id="summary-title">总结</h1>
+                        <p>现有总结与 Codex 会话页面保持独立。Tasks 不会嵌入这里。</p>
+                        <button class="button secondary" type="button" data-return-tasks>返回 Tasks</button>
+                    </div>
+                </section>
+
+                <section id="terminal-page" class="terminal-page agent-terminal-page" aria-label="Task Agent 终端" hidden>
+                    <div class="agent-terminal-header">
+                        <div>
+                            <span class="eyebrow">APP SERVER PROJECTION</span>
+                            <strong id="agent-terminal-title">RWT-42 · Codex Agent</strong>
+                        </div>
+                        <button class="button secondary small" type="button" data-open-terminal-task>打开 Task</button>
+                    </div>
+                    <pre id="agent-terminal-output" class="agent-terminal-output" aria-live="polite"></pre>
+                    <form id="agent-terminal-form" class="agent-terminal-input">
+                        <span aria-hidden="true">›</span>
+                        <label class="sr-only" for="agent-terminal-message">向当前 Agent 输入消息</label>
+                        <input id="agent-terminal-message" autocomplete="off" placeholder="实时输入；Esc 停止当前 turn">
+                        <button class="button primary small" type="submit">发送</button>
+                    </form>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <dialog id="run-detail-dialog" class="modal run-modal">
+        <div class="modal-header">
+            <div>
+                <span class="eyebrow">TASK RUN</span>
+                <h2 id="run-dialog-title">运行详情</h2>
+            </div>
+            <button class="icon-button" type="button" data-close-run-dialog aria-label="关闭">×</button>
+        </div>
+        <div id="run-dialog-content" class="run-dialog-content"></div>
+        <div class="modal-actions">
+            <button class="button secondary" type="button" data-close-run-dialog>关闭</button>
+        </div>
+    </dialog>
+
+    <div id="toast-region" class="toast-region" role="status" aria-live="polite"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

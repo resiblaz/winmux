@@ -20,6 +20,9 @@
     </ClCompile>
     <ClCompile Include="TaskCoreIdentifierTests.cpp" />
     <ClCompile Include="TaskCoreRecordValidationTests.cpp" />
+    <ClCompile Include="TaskCoreRunStatePolicyTests.cpp" />
+    <ClCompile Include="TaskCoreTaskStatusPolicyTests.cpp" />
+    <ClCompile Include="TaskCoreTerminalStatePolicyTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskCore\TaskCore.vcxproj">

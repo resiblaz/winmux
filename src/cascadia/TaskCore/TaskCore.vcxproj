@@ -13,10 +13,14 @@
   <Import Project="$(SolutionDir)src\common.nugetversions.props" />
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="StateTransition.h" />
     <ClInclude Include="TaskEnums.h" />
     <ClInclude Include="TaskIdentifiers.h" />
     <ClInclude Include="TaskRecords.h" />
     <ClInclude Include="TaskRecordValidation.h" />
+    <ClInclude Include="TaskRunStatePolicy.h" />
+    <ClInclude Include="TaskStatusPolicy.h" />
+    <ClInclude Include="TaskTerminalStatePolicy.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -24,6 +28,9 @@
     </ClCompile>
     <ClCompile Include="TaskIdentifiers.cpp" />
     <ClCompile Include="TaskRecordValidation.cpp" />
+    <ClCompile Include="TaskRunStatePolicy.cpp" />
+    <ClCompile Include="TaskStatusPolicy.cpp" />
+    <ClCompile Include="TaskTerminalStatePolicy.cpp" />
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>

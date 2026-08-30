@@ -34,9 +34,11 @@ foundational contracts required to avoid disposable data/process designs.
   bounded maintenance are covered by deterministic native tests.
 - M2 is active on `feature/task-runtime-foundation`. M2A establishes the
   process-neutral handshake, capability negotiation, strict control framing,
-  and binary terminal framing with deterministic tests. M2B adds Runtime user
-  identity, single-instance ownership, and secure named-pipe primitives; real
-  Codex, Git, and task-owned Surface integration remain later milestones.
+  and binary terminal framing. M2B adds Runtime user identity,
+  single-instance ownership, current-user security descriptors, secure pipe
+  creation, and the bootstrap executable. M2C is next: bounded asynchronous
+  control sessions and client request routing. Real Codex, Git, and task-owned
+  Surface integration remain later milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
 
@@ -235,7 +237,8 @@ Tests:
 
 ### M2: Runtime process and protocol
 
-Status: **in progress; M2A protocol foundation complete (2026-08-30)**.
+Status: **in progress; M2A protocol and M2B host/bootstrap foundations complete
+(2026-08-30)**.
 
 Deliverables:
 

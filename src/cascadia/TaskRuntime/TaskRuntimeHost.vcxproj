@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{C87CE61D-7EE5-4CF8-8BCD-B5EE2817B4A9}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>Microsoft.Terminal.TaskRuntime</RootNamespace>
+    <ProjectName>TaskRuntimeHost</ProjectName>
+    <TargetName>TaskRuntimeHost</TargetName>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <OpenConsoleUniversalApp>false</OpenConsoleUniversalApp>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\common.build.pre.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.props" />
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="RuntimeBootstrap.h" />
+    <ClInclude Include="RuntimeIdentity.h" />
+    <ClInclude Include="RuntimePipe.h" />
+    <ClInclude Include="RuntimeSecurity.h" />
+    <ClInclude Include="RuntimeSingleInstance.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="RuntimeBootstrap.cpp" />
+    <ClCompile Include="RuntimeIdentity.cpp" />
+    <ClCompile Include="RuntimePipe.cpp" />
+    <ClCompile Include="RuntimeSecurity.cpp" />
+    <ClCompile Include="RuntimeSingleInstance.cpp" />
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(OpenConsoleDir)src\cascadia\TaskRuntime;$(OpenConsoleDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>advapi32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\common.build.post.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.targets" />
+</Project>

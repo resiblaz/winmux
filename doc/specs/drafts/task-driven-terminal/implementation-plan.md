@@ -79,8 +79,11 @@ foundational contracts required to avoid disposable data/process designs.
   head-of-line isolation evidence. M2E2 composes a bounded VT reconnect ring,
   per-client queues, snapshot/replay/reset, one expiring versioned input lease,
   and a deterministic terminal Backend. Stale queued input and Release carry
-  their captured lease revision and fail closed after lease reuse. Real Codex,
-  Git, and task-owned Surface integration remain later milestones.
+  their captured lease revision and fail closed after lease reuse. M2F1 adds
+  exact DTOs for the four Agent-scoped commands plus a bounded, ten-minute,
+  random Run/method capability registry with strict text limits and redacted
+  diagnostics. Real Codex, Git, and task-owned Surface integration remain later
+  milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
 - The executable M2/M3 commit queue and frozen technical defaults are tracked

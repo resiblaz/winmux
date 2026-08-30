@@ -27,6 +27,8 @@
     <ClInclude Include="RuntimeControlThreadContext.h" />
     <ClInclude Include="RuntimeFoundationRouter.h" />
     <ClInclude Include="RuntimeProductHost.h" />
+    <ClInclude Include="RuntimeRtaskCapabilityRegistry.h" />
+    <ClInclude Include="RuntimeRtaskCapabilityToken.h" />
     <ClInclude Include="RuntimeSingleInstance.h" />
     <ClInclude Include="RuntimeTerminalOutputRing.h" />
     <ClInclude Include="RuntimeTerminalInputLease.h" />
@@ -51,6 +53,8 @@
     <ClCompile Include="RuntimeControlThreadContext.cpp" />
     <ClCompile Include="RuntimeFoundationRouter.cpp" />
     <ClCompile Include="RuntimeProductHost.cpp" />
+    <ClCompile Include="RuntimeRtaskCapabilityRegistry.cpp" />
+    <ClCompile Include="RuntimeRtaskCapabilityToken.cpp" />
     <ClCompile Include="RuntimeSingleInstance.cpp" />
     <ClCompile Include="RuntimeTerminalOutputRing.cpp" />
     <ClCompile Include="RuntimeTerminalInputLease.cpp" />

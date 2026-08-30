@@ -1,11 +1,11 @@
 # Task Runtime host foundation
 
 This directory contains the Windows host boundary for the per-user Task
-Runtime. The completed M2E2 foundation accepts multiple control and terminal
+Runtime. The completed M2F1 foundation accepts multiple control and terminal
 clients, drives Hello-first control sessions, routes typed requests through an
 injected interface, delivers targeted subscription notifications, and owns a
 bounded Agent-terminal session state machine. It deliberately stops before
-real Task commands or provider integration.
+the `rtask.exe` frontend, TaskCore command routing, or provider integration.
 
 Implemented foundations:
 
@@ -56,6 +56,13 @@ Implemented foundations:
   receiving output, with controller ownership released on disconnect;
 - one injected terminal Backend boundary for snapshot, input, resize, and
   interrupt, so physical `Esc` and control Stop converge on one operation;
+- strict process-neutral DTOs for the four Agent-scoped `rtask` commands,
+  including per-method text bounds, canonical idempotency IDs, exact JSON, and
+  bounded capability/text-redacted diagnostics;
+- a bounded single-owner capability registry using 256-bit system-random
+  tokens, exact TaskRun/method binding, idempotent same-scope renewal, a hard
+  ten-minute lifetime, constant-work token comparison, and immediate Run-wide
+  invalidation;
 - `TaskRuntime.exe --serve` long-running composition with graceful console
   shutdown, plus the retained `--bootstrap-check` smoke entry point.
 
@@ -85,4 +92,5 @@ that process exits, restart after a forced Runtime crash, and prove the child
 is outside every parent Job before the launcher commits ownership. M2E1 adds
 the secure binary terminal transport, and M2E2 composes its output ring, client
 registry, input lease, and deterministic Backend into the serialized terminal
-session described above.
+session described above. M2F1 adds the scoped command DTO and capability
+authorization foundations; M2F2 will connect them to `rtask.exe` and TaskCore.

@@ -27,6 +27,8 @@
     <ClCompile Include="ProtocolRpcJsonTests.cpp" />
     <ClCompile Include="ProtocolValidationTests.cpp" />
     <ClCompile Include="RuntimeFoundationRpcTests.cpp" />
+    <ClCompile Include="RtaskCommandTests.cpp" />
+    <ClCompile Include="RtaskCommandJsonTests.cpp" />
     <ClCompile Include="SnapshotAndSubscribeTests.cpp" />
     <ClCompile Include="SubscriptionCursorTests.cpp" />
     <ClCompile Include="TerminalFrameTests.cpp" />

@@ -50,6 +50,25 @@ resnapshots; Unsubscribe is never replayed across a connection. Mutating
 commands may retry only before writing starts—after that their result is
 `OutcomeUnknown` until a durable idempotency receipt can resolve it.
 
+## Agent-scoped rtask commands
+
+`SubmitCommand` carries an exact `rtask` params object for one of four methods:
+`status_in_progress`, `status_in_review`, `status_blocked`, or `result`. The
+object always contains canonical `commandId` and `runId` values, a 64-byte
+lowercase hexadecimal capability, and the method. Only blocked/result methods
+contain `text`; status methods reject it. There is deliberately no caller-
+supplied Task ID.
+
+Blocked reasons are limited to 16 KiB and 4,096 Unicode scalar values. Results
+are limited to 256 KiB and 65,536 scalar values. Both require nonempty strict
+UTF-8 without embedded NUL. Result DTOs return the original command ID,
+`applied` or `replayed`, and nonzero task/event sequences so the durable
+command receipt remains the idempotency authority.
+
+Diagnostic summaries include only validated correlation IDs, method, text byte
+count, and a literal `<redacted>` capability marker. They never include the
+capability or long text, and malformed JSON errors do not echo parser context.
+
 ## Agent-terminal framing
 
 The terminal stream uses this fixed 32-byte little-endian header:

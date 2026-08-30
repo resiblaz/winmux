@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-08-31
-status: active execution queue; M2E2 complete, scoped rtask capabilities next
+status: active execution queue; M2F1 complete, rtask product routing next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -39,7 +39,7 @@ untouched until the feature branch has passed both milestone closure gates.
 | M2D2 (complete) | On-demand launch coordination and parent independence | connect-first, one launch under concurrent clients, launch failure/cancel, crash restart, short-lived parent test |
 | M2E1 (complete) | Secure binary terminal transport | framing fragmentation/coalescing, ACL/identity/generation, payload bounds, cancellation, control/data HOL |
 | M2E2 (complete) | Terminal session, input lease, bounded VT ring, deterministic Fake VT | observers/controller, stale input, resize, ack/reset/catch-up, slow peer, Esc/Stop convergence |
-| M2F1 | Scoped `rtask` DTOs and capability registry | missing/expired/wrong-run/wrong-method, method bounds, redaction, idempotency |
+| M2F1 (complete) | Scoped `rtask` DTOs and capability registry | missing/expired/wrong-run/wrong-method, method bounds, redaction, idempotency |
 | M2F2 | `rtask.exe`, TaskCore command router, package integration | four ADR commands, stdin/UTF-8/exit codes, duplicate command, cross-task refusal, CLI/package smoke |
 | M2G1 | Five-minute terminal idle suspend and idempotent wake | active-run exclusion, attach race, new generation, Closed never auto-wakes |
 | M2G2 | Helper idle exit and final parent-exit recovery | active work survives all UI clients, reconnect catch-up, idle-exit cancellation, eventual exit |
@@ -76,6 +76,12 @@ untouched until the feature branch has passed both milestone closure gates.
 - `rtask` capabilities are random, method/run-bound, renewable per active turn,
   expire after ten minutes at most, and are invalidated immediately when the
   run becomes terminal.
+- Capability material is 32 system-random bytes encoded as 64 lowercase hex
+  bytes. The bounded registry defaults to 1,024 active Runs; same-Run,
+  same-method-set issuance renews idempotently without creating another token.
+- Blocked reasons are bounded to 16 KiB / 4,096 Unicode scalars and results to
+  256 KiB / 65,536 scalars. Both are strict nonempty UTF-8 with no embedded
+  NUL, and neither capability nor text is included in diagnostics.
 - Update/drain across executable versions remains an M8 concern; M2 fails a
   mismatched protocol closed and supports clean restart.
 

@@ -23,6 +23,8 @@
     <ClInclude Include="ProtocolRpcJson.h" />
     <ClInclude Include="ProtocolValidation.h" />
     <ClInclude Include="ProtocolVersion.h" />
+    <ClInclude Include="RtaskCommand.h" />
+    <ClInclude Include="RtaskCommandJson.h" />
     <ClInclude Include="RuntimeFoundationRpc.h" />
     <ClInclude Include="SnapshotAndSubscribe.h" />
     <ClInclude Include="SubscriptionCursor.h" />
@@ -41,6 +43,8 @@
     <ClCompile Include="ProtocolRpc.cpp" />
     <ClCompile Include="ProtocolRpcJson.cpp" />
     <ClCompile Include="ProtocolValidation.cpp" />
+    <ClCompile Include="RtaskCommand.cpp" />
+    <ClCompile Include="RtaskCommandJson.cpp" />
     <ClCompile Include="RuntimeFoundationRpc.cpp" />
     <ClCompile Include="SnapshotAndSubscribe.cpp" />
     <ClCompile Include="SubscriptionCursor.cpp" />

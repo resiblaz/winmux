@@ -14,6 +14,7 @@
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="FakeRuntimeTerminalBackend.h" />
+    <ClInclude Include="FakeRuntimeRtaskCapabilityTokenSource.h" />
     <ClInclude Include="RuntimeControlNotificationTestFixtures.h" />
     <ClInclude Include="RuntimeControlTestFixtures.h" />
     <ClInclude Include="RuntimeOnDemandActivationTestSupport.h" />
@@ -38,6 +39,7 @@
     <ClCompile Include="RuntimeControlSubscriptionRecoveryTests.cpp" />
     <ClCompile Include="RuntimeFoundationRouterTests.cpp" />
     <ClCompile Include="RuntimeProductHostProcessTests.cpp" />
+    <ClCompile Include="RuntimeRtaskCapabilityRegistryTests.cpp" />
     <ClCompile Include="RuntimeIdentityTests.cpp" />
     <ClCompile Include="RuntimeActivationJobTests.cpp" />
     <ClCompile Include="RuntimeOnDemandActivationTests.cpp" />

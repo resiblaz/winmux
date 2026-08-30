@@ -29,6 +29,7 @@
     <ClInclude Include="RuntimeProductHost.h" />
     <ClInclude Include="RuntimeSingleInstance.h" />
     <ClInclude Include="RuntimeTerminalOutputRing.h" />
+    <ClInclude Include="RuntimeTerminalInputLease.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -49,6 +50,7 @@
     <ClCompile Include="RuntimeProductHost.cpp" />
     <ClCompile Include="RuntimeSingleInstance.cpp" />
     <ClCompile Include="RuntimeTerminalOutputRing.cpp" />
+    <ClCompile Include="RuntimeTerminalInputLease.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">

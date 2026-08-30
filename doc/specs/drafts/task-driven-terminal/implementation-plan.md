@@ -57,6 +57,8 @@ foundational contracts required to avoid disposable data/process designs.
   integration remain later milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
+- The executable M2/M3 commit queue and frozen technical defaults are tracked
+  in [`m2-m3-execution-plan.md`](./m2-m3-execution-plan.md).
 
 ## 2. First-slice capabilities
 

@@ -90,6 +90,10 @@ namespace TaskRuntimeClientLocalTests
         TEST_METHOD(RetireEpochResnapshotsDesiredAndFinalizesRemoving);
         TEST_METHOD(RejectsWireConflictDuplicateRequestAndStaleRevision);
         TEST_METHOD(StaleEpochAndUnknownWireDoNotMutateCursor);
+        TEST_METHOD(FindsSnapshotAndUnsubscribeRequestBindings);
+        TEST_METHOD(SnapshotRequestFailureRetriesOrFinalizesRemoval);
+        TEST_METHOD(UnsubscribeRequestFailurePreservesWireForRetry);
+        TEST_METHOD(ForceNeedsSnapshotRejectsStaleAndFinalizesRemoval);
     };
 
     void RuntimeClientSubscriptionTests::BoundsLogicalIdentityAndSelectsDesiredDeterministically()
@@ -240,17 +244,24 @@ namespace TaskRuntimeClientLocalTests
                        RuntimeClientSubscriptionRemovalAction::AwaitSnapshot);
         VERIFY_ARE_EQUAL(size_t{ 1 }, registry.RetireEpoch(8).Finalized);
         VERIFY_IS_TRUE(registry.Add(1, 2) == RuntimeClientSubscriptionStatus::Succeeded);
-        VERIFY_IS_TRUE(registry.BeginSnapshot(1, 2, 9, RequestIds[1]) ==
+        VERIFY_IS_TRUE(registry.BeginSnapshot(1, 2, 9, RequestIds[0]) ==
                        RuntimeClientSubscriptionStatus::Succeeded);
         VERIFY_IS_TRUE(registry.BeginRemove(1, 1).Status == RuntimeClientSubscriptionStatus::Stale);
         VERIFY_IS_TRUE(registry.BeginSnapshot(1, 1, 9, RequestIds[2]) ==
                        RuntimeClientSubscriptionStatus::Stale);
+        VERIFY_IS_TRUE(registry.FailRequest(8, RequestIds[0]) == RuntimeClientSubscriptionStatus::Stale);
+        VERIFY_IS_TRUE(registry.ForceNeedsSnapshot(1, 1, 8) == RuntimeClientSubscriptionStatus::Stale);
         VERIFY_IS_TRUE(registry.ApplySnapshot(8, RequestIds[0], Snapshot(WireIds[0])).Status ==
                        RuntimeClientSubscriptionStatus::Stale);
         const auto view = registry.Find(1);
         VERIFY_ARE_EQUAL(uint64_t{ 2 }, view->Revision);
+        VERIFY_ARE_EQUAL(uint64_t{ 9 }, view->Epoch);
+        VERIFY_ARE_EQUAL(std::string{ RequestIds[0] }, view->RequestId);
         VERIFY_IS_TRUE(view->Phase == RuntimeClientSubscriptionPhase::SnapshotInFlight);
-        VERIFY_IS_TRUE(registry.ApplySnapshot(9, RequestIds[1], Snapshot(WireIds[1])).Status ==
+        const auto rebound = registry.FindRequestBinding(9, RequestIds[0]);
+        VERIFY_IS_TRUE(rebound.has_value());
+        VERIFY_ARE_EQUAL(uint64_t{ 2 }, rebound->Revision);
+        VERIFY_IS_TRUE(registry.ApplySnapshot(9, RequestIds[0], Snapshot(WireIds[1])).Status ==
                        RuntimeClientSubscriptionStatus::Succeeded);
     }
 
@@ -321,5 +332,133 @@ namespace TaskRuntimeClientLocalTests
         const auto unknown = registry.Observe(12, Notification(WireIds[1], 1, 8));
         VERIFY_IS_TRUE(unknown.Status == RuntimeClientSubscriptionStatus::NotFound);
         VERIFY_ARE_EQUAL(uint64_t{ 7 }, registry.Find(1)->Cursor);
+    }
+
+    void RuntimeClientSubscriptionTests::FindsSnapshotAndUnsubscribeRequestBindings()
+    {
+        RuntimeClientSubscriptionRegistry registry{ { 1 } };
+        VERIFY_IS_TRUE(registry.Add(1, 2) == RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_TRUE(registry.BeginSnapshot(1, 2, 13, RequestIds[0]) ==
+                       RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_FALSE(registry.FindRequestBinding(12, RequestIds[0]).has_value());
+        VERIFY_IS_FALSE(registry.FindRequestBinding(13, RequestIds[1]).has_value());
+        const auto snapshot = registry.FindRequestBinding(13, RequestIds[0]);
+        VERIFY_IS_TRUE(snapshot.has_value());
+        VERIFY_ARE_EQUAL(uint64_t{ 1 }, snapshot->LogicalId);
+        VERIFY_ARE_EQUAL(uint64_t{ 2 }, snapshot->Revision);
+        VERIFY_IS_TRUE(snapshot->Kind == RuntimeClientSubscriptionRequestKind::Snapshot);
+
+        VERIFY_IS_TRUE(registry.ApplySnapshot(13, RequestIds[0], Snapshot(WireIds[0])).Status ==
+                       RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_TRUE(registry.BeginRemove(1, 2).Action ==
+                       RuntimeClientSubscriptionRemovalAction::SendUnsubscribe);
+        VERIFY_IS_TRUE(registry.BeginUnsubscribe(1, 2, 13, RequestIds[1]) ==
+                       RuntimeClientSubscriptionStatus::Succeeded);
+        const auto unsubscribe = registry.FindRequestBinding(13, RequestIds[1]);
+        VERIFY_IS_TRUE(unsubscribe.has_value());
+        VERIFY_IS_TRUE(unsubscribe->Kind == RuntimeClientSubscriptionRequestKind::Unsubscribe);
+        VERIFY_ARE_EQUAL(std::string{ RequestIds[1] }, registry.Find(1)->RequestId);
+    }
+
+    void RuntimeClientSubscriptionTests::SnapshotRequestFailureRetriesOrFinalizesRemoval()
+    {
+        RuntimeClientSubscriptionRegistry registry{ { 2 } };
+        VERIFY_IS_TRUE(registry.Add(1, 3) == RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_TRUE(registry.BeginSnapshot(1, 3, 14, RequestIds[0]) ==
+                       RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_TRUE(registry.FailRequest(15, RequestIds[0]) == RuntimeClientSubscriptionStatus::Stale);
+        VERIFY_IS_TRUE(registry.FindRequestBinding(14, RequestIds[0]).has_value());
+        VERIFY_IS_TRUE(registry.FailRequest(14, RequestIds[0]) == RuntimeClientSubscriptionStatus::Succeeded);
+        auto view = registry.Find(1);
+        VERIFY_IS_TRUE(view->Phase == RuntimeClientSubscriptionPhase::NeedsSnapshot);
+        VERIFY_ARE_EQUAL(uint64_t{ 0 }, view->Epoch);
+        VERIFY_IS_TRUE(view->RequestId.empty());
+        VERIFY_IS_TRUE(registry.FailRequest(14, RequestIds[0]) == RuntimeClientSubscriptionStatus::Stale);
+        VERIFY_IS_TRUE(registry.NextNeedingSnapshot()->LogicalId == 1);
+
+        VERIFY_IS_TRUE(registry.Add(2, 4) == RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_TRUE(registry.BeginSnapshot(2, 4, 14, RequestIds[1]) ==
+                       RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_TRUE(registry.BeginRemove(2, 4).Action ==
+                       RuntimeClientSubscriptionRemovalAction::AwaitSnapshot);
+        VERIFY_IS_TRUE(registry.FailRequest(14, RequestIds[1]) == RuntimeClientSubscriptionStatus::Finalized);
+        VERIFY_IS_FALSE(registry.Find(2).has_value());
+        VERIFY_IS_TRUE(registry.FailRequest(14, RequestIds[1]) == RuntimeClientSubscriptionStatus::Stale);
+        VERIFY_IS_TRUE(registry.ApplySnapshot(14, RequestIds[1], Snapshot(WireIds[1])).Status ==
+                       RuntimeClientSubscriptionStatus::Stale);
+    }
+
+    void RuntimeClientSubscriptionTests::UnsubscribeRequestFailurePreservesWireForRetry()
+    {
+        RuntimeClientSubscriptionRegistry registry{ { 1 } };
+        MakeLive(registry, 1, 5, 16, RequestIds[0], WireIds[0], 3, 7);
+        VERIFY_IS_TRUE(registry.BeginRemove(1, 5).Action ==
+                       RuntimeClientSubscriptionRemovalAction::SendUnsubscribe);
+        VERIFY_IS_TRUE(registry.BeginUnsubscribe(1, 5, 16, RequestIds[1]) ==
+                       RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_TRUE(registry.FailRequest(17, RequestIds[1]) == RuntimeClientSubscriptionStatus::Stale);
+        VERIFY_IS_TRUE(registry.FindRequestBinding(16, RequestIds[1]).has_value());
+        VERIFY_IS_TRUE(registry.FailRequest(16, RequestIds[1]) == RuntimeClientSubscriptionStatus::Succeeded);
+        auto view = registry.Find(1);
+        VERIFY_IS_TRUE(view->Phase == RuntimeClientSubscriptionPhase::Removing);
+        VERIFY_ARE_EQUAL(std::string{ WireIds[0] }, view->WireSubscriptionId);
+        VERIFY_ARE_EQUAL(uint64_t{ 3 }, view->Generation);
+        VERIFY_ARE_EQUAL(uint64_t{ 7 }, view->Cursor);
+        VERIFY_ARE_EQUAL(uint64_t{ 16 }, view->Epoch);
+        VERIFY_IS_TRUE(view->RequestId.empty());
+        VERIFY_IS_TRUE(registry.FailRequest(16, RequestIds[1]) == RuntimeClientSubscriptionStatus::Stale);
+
+        VERIFY_IS_TRUE(registry.BeginRemove(1, 5).Action ==
+                       RuntimeClientSubscriptionRemovalAction::SendUnsubscribe);
+        VERIFY_IS_TRUE(registry.BeginUnsubscribe(1, 5, 16, RequestIds[2]) ==
+                       RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_TRUE(registry.CompleteUnsubscribe(16, RequestIds[2]) ==
+                       RuntimeClientSubscriptionStatus::Finalized);
+    }
+
+    void RuntimeClientSubscriptionTests::ForceNeedsSnapshotRejectsStaleAndFinalizesRemoval()
+    {
+        RuntimeClientSubscriptionRegistry registry{ { 3 } };
+        MakeLive(registry, 1, 6, 18, RequestIds[0], WireIds[0]);
+        VERIFY_IS_TRUE(registry.ForceNeedsSnapshot(1, 5, 18) == RuntimeClientSubscriptionStatus::Stale);
+        VERIFY_IS_TRUE(registry.ForceNeedsSnapshot(1, 6, 17) == RuntimeClientSubscriptionStatus::Stale);
+        const auto unchanged = registry.Find(1);
+        VERIFY_IS_TRUE(unchanged->Phase == RuntimeClientSubscriptionPhase::Live);
+        VERIFY_ARE_EQUAL(uint64_t{ 18 }, unchanged->Epoch);
+        VERIFY_ARE_EQUAL(std::string{ WireIds[0] }, unchanged->WireSubscriptionId);
+        VERIFY_ARE_EQUAL(uint64_t{ 1 }, unchanged->Generation);
+        VERIFY_ARE_EQUAL(uint64_t{ 10 }, unchanged->Cursor);
+        VERIFY_IS_TRUE(registry.ForceNeedsSnapshot(1, 6, 18) == RuntimeClientSubscriptionStatus::Succeeded);
+        const auto live = registry.Find(1);
+        VERIFY_IS_TRUE(live->Phase == RuntimeClientSubscriptionPhase::NeedsSnapshot);
+        VERIFY_ARE_EQUAL(uint64_t{ 0 }, live->Epoch);
+        VERIFY_IS_TRUE(live->WireSubscriptionId.empty());
+        VERIFY_ARE_EQUAL(uint64_t{ 0 }, live->Generation);
+        VERIFY_ARE_EQUAL(uint64_t{ 0 }, live->Cursor);
+        VERIFY_IS_TRUE(registry.Observe(18, Notification(WireIds[0], 1, 11)).Status ==
+                       RuntimeClientSubscriptionStatus::NotFound);
+        VERIFY_IS_TRUE(registry.NextNeedingSnapshot()->LogicalId == 1);
+        VERIFY_IS_TRUE(registry.ForceNeedsSnapshot(1, 6, 18) == RuntimeClientSubscriptionStatus::Stale);
+        VERIFY_IS_TRUE(registry.Find(1)->Phase == RuntimeClientSubscriptionPhase::NeedsSnapshot);
+
+        VERIFY_IS_TRUE(registry.Add(2, 7) == RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_TRUE(registry.BeginSnapshot(2, 7, 18, RequestIds[1]) ==
+                       RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_TRUE(registry.ForceNeedsSnapshot(2, 7, 18) ==
+                       RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_FALSE(registry.FindRequestBinding(18, RequestIds[1]).has_value());
+        VERIFY_IS_TRUE(registry.ApplySnapshot(18, RequestIds[1], Snapshot(WireIds[1])).Status ==
+                       RuntimeClientSubscriptionStatus::Stale);
+
+        MakeLive(registry, 3, 8, 18, RequestIds[2], WireIds[2]);
+        VERIFY_IS_TRUE(registry.BeginRemove(3, 8).Action ==
+                       RuntimeClientSubscriptionRemovalAction::SendUnsubscribe);
+        VERIFY_IS_TRUE(registry.BeginUnsubscribe(3, 8, 18, RequestIds[3]) ==
+                       RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_TRUE(registry.ForceNeedsSnapshot(3, 8, 18) ==
+                       RuntimeClientSubscriptionStatus::Finalized);
+        VERIFY_IS_FALSE(registry.Find(3).has_value());
+        VERIFY_IS_TRUE(registry.CompleteUnsubscribe(18, RequestIds[3]) ==
+                       RuntimeClientSubscriptionStatus::Stale);
     }
 }

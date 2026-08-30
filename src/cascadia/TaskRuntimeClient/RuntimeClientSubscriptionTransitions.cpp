@@ -137,7 +137,7 @@ namespace Microsoft::Terminal::TaskRuntime
             std::string recordRequestId{ requestId };
             const auto inserted = _impl->RequestBindings.emplace(
                 recordRequestId,
-                RuntimeClientSubscriptionRequestBinding{
+                RuntimeClientSubscriptionRequestRecord{
                     logicalId,
                     revision,
                     epoch,
@@ -192,6 +192,108 @@ namespace Microsoft::Terminal::TaskRuntime
         _impl->RequestBindings.erase(request);
         _impl->Records.erase(found);
         return RuntimeClientSubscriptionStatus::Finalized;
+    }
+
+    RuntimeClientSubscriptionStatus RuntimeClientSubscriptionRegistry::FailRequest(
+        const RuntimeClientEpoch epoch,
+        const std::string_view requestId)
+    {
+        if (!Valid() || epoch == 0 || !IsCanonicalProtocolUuid(requestId))
+        {
+            return RuntimeClientSubscriptionStatus::Invalid;
+        }
+        std::string key;
+        try
+        {
+            key.assign(requestId);
+        }
+        catch (...)
+        {
+            return RuntimeClientSubscriptionStatus::AllocationFailure;
+        }
+        const auto request = _impl->RequestBindings.find(key);
+        if (request == _impl->RequestBindings.end() || request->second.Epoch != epoch)
+        {
+            return RuntimeClientSubscriptionStatus::Stale;
+        }
+        const auto found = _impl->Records.find(request->second.LogicalId);
+        if (found == _impl->Records.end())
+        {
+            return RuntimeClientSubscriptionStatus::Stale;
+        }
+        auto& record = found->second;
+        if (record.Revision != request->second.Revision || record.Epoch != epoch ||
+            record.RequestId != key)
+        {
+            return RuntimeClientSubscriptionStatus::Stale;
+        }
+
+        if (request->second.Kind == RuntimeClientSubscriptionRequestKind::Snapshot)
+        {
+            if ((record.Phase != RuntimeClientSubscriptionPhase::SnapshotInFlight &&
+                 record.Phase != RuntimeClientSubscriptionPhase::Removing) ||
+                record.Cursor.State() != SubscriptionCursorState::Empty)
+            {
+                return RuntimeClientSubscriptionStatus::Stale;
+            }
+            const auto wasRemoving = record.Phase == RuntimeClientSubscriptionPhase::Removing;
+            _impl->RequestBindings.erase(request);
+            record.RequestId.clear();
+            if (wasRemoving)
+            {
+                _impl->RemoveWire(record);
+                _impl->Records.erase(found);
+                return RuntimeClientSubscriptionStatus::Finalized;
+            }
+            _impl->RemoveWire(record);
+            record.Epoch = 0;
+            record.Phase = RuntimeClientSubscriptionPhase::NeedsSnapshot;
+            return RuntimeClientSubscriptionStatus::Succeeded;
+        }
+
+        if (request->second.Kind != RuntimeClientSubscriptionRequestKind::Unsubscribe ||
+            record.Phase != RuntimeClientSubscriptionPhase::UnsubscribeInFlight ||
+            record.Cursor.State() != SubscriptionCursorState::Synchronized)
+        {
+            return RuntimeClientSubscriptionStatus::Stale;
+        }
+        _impl->RequestBindings.erase(request);
+        record.RequestId.clear();
+        record.Phase = RuntimeClientSubscriptionPhase::Removing;
+        return RuntimeClientSubscriptionStatus::Succeeded;
+    }
+
+    RuntimeClientSubscriptionStatus RuntimeClientSubscriptionRegistry::ForceNeedsSnapshot(
+        const RuntimeClientLogicalSubscriptionId logicalId,
+        const RuntimeClientSubscriptionRevision revision,
+        const RuntimeClientEpoch epoch) noexcept
+    {
+        if (!Valid() || !_validIdentity(logicalId, revision) || epoch == 0)
+        {
+            return RuntimeClientSubscriptionStatus::Invalid;
+        }
+        const auto found = _impl->Records.find(logicalId);
+        if (found == _impl->Records.end())
+        {
+            return RuntimeClientSubscriptionStatus::NotFound;
+        }
+        auto& record = found->second;
+        if (record.Revision != revision || record.Epoch != epoch)
+        {
+            return RuntimeClientSubscriptionStatus::Stale;
+        }
+
+        const auto wasRemoving = _removing(record.Phase);
+        _impl->RemoveRequest(record);
+        _impl->RemoveWire(record);
+        if (wasRemoving)
+        {
+            _impl->Records.erase(found);
+            return RuntimeClientSubscriptionStatus::Finalized;
+        }
+        record.Epoch = 0;
+        record.Phase = RuntimeClientSubscriptionPhase::NeedsSnapshot;
+        return RuntimeClientSubscriptionStatus::Succeeded;
     }
 
     RuntimeClientObservedNotification RuntimeClientSubscriptionRegistry::Observe(

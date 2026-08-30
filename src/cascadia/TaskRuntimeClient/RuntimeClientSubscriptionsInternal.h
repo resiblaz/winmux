@@ -9,13 +9,7 @@
 
 namespace Microsoft::Terminal::TaskRuntime
 {
-    enum class RuntimeClientSubscriptionRequestKind
-    {
-        Snapshot,
-        Unsubscribe,
-    };
-
-    struct RuntimeClientSubscriptionRequestBinding
+    struct RuntimeClientSubscriptionRequestRecord
     {
         RuntimeClientLogicalSubscriptionId LogicalId{};
         RuntimeClientSubscriptionRevision Revision{};
@@ -37,7 +31,7 @@ namespace Microsoft::Terminal::TaskRuntime
         RuntimeClientSubscriptionConfiguration Configuration;
         bool IsValid{};
         std::unordered_map<RuntimeClientLogicalSubscriptionId, RuntimeClientSubscriptionRecord> Records;
-        std::unordered_map<std::string, RuntimeClientSubscriptionRequestBinding> RequestBindings;
+        std::unordered_map<std::string, RuntimeClientSubscriptionRequestRecord> RequestBindings;
         std::unordered_map<std::string, RuntimeClientLogicalSubscriptionId> WireOwners;
 
         explicit Impl(const RuntimeClientSubscriptionConfiguration configuration) :

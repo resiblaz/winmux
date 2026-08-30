@@ -38,6 +38,9 @@ client state lock.
 The public request API deliberately rejects `SnapshotAndSubscribe` and
 `Unsubscribe`. M2C4c2a now supplies a bounded, caller-serialized desired
 subscription registry with snapshot/request correlation, wire ownership,
-cursor/gap policy, idempotent removal, and epoch recovery. M2C4c2b will connect
-that state to bounded pull streams and the Reader/Supervisor. Heartbeat liveness
-remains M2C4c3.
+cursor/gap policy, idempotent removal, and epoch recovery. M2C4c2b1 adds bounded
+pull streams that remain finite under hidden string capacity, preserve terminal
+delivery under queue pressure, and never invoke user callbacks. It also adds
+explicit snapshot/unsubscribe request failure and overflow recovery transitions.
+M2C4c2b2 will connect these foundations to the Reader/Writer/Supervisor.
+Heartbeat liveness remains M2C4c3.

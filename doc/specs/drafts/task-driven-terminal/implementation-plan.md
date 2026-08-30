@@ -55,8 +55,10 @@ foundational contracts required to avoid disposable data/process designs.
   outcomes, bounded backoff, deterministic Stop, and exactly-once futures.
   M2C4c2a adds the bounded pure desired-subscription registry, snapshot/request
   correlation, cursor/gap policy, removal transitions, and epoch recovery.
-  M2C4c2b threaded subscription delivery is next. Real Codex, Git, and
-  task-owned Surface integration remain later milestones.
+  M2C4c2b1 adds bounded pull streams plus explicit internal request binding,
+  RPC-failure, and overflow transitions. M2C4c2b2 threaded Reader/Writer/
+  Supervisor integration is next. Real Codex, Git, and task-owned Surface
+  integration remain later milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
 - The executable M2/M3 commit queue and frozen technical defaults are tracked
@@ -263,7 +265,7 @@ multi-client request serving, and M2C3 atomic notification delivery complete
 along with M2C4a client protocol policy and M2C4b shared transport/connector
 foundation, plus M2C4c1a client epoch/request state and M2C4c1b reconnecting
 request client, followed by M2C4c2a pure client subscription state
-(2026-08-30)**.
+and M2C4c2b1 bounded subscription delivery foundations (2026-08-30)**.
 
 Deliverables:
 

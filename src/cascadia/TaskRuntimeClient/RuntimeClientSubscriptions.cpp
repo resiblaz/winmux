@@ -119,7 +119,7 @@ namespace Microsoft::Terminal::TaskRuntime
             std::string recordRequestId{ requestId };
             const auto inserted = _impl->RequestBindings.emplace(
                 recordRequestId,
-                RuntimeClientSubscriptionRequestBinding{
+                RuntimeClientSubscriptionRequestRecord{
                     logicalId,
                     revision,
                     epoch,
@@ -218,5 +218,59 @@ namespace Microsoft::Terminal::TaskRuntime
         result.Phase = record.Phase;
         result.NeedsUnsubscribe = wasRemoving;
         return result;
+    }
+
+    std::optional<RuntimeClientSubscriptionRequestBinding>
+        RuntimeClientSubscriptionRegistry::FindRequestBinding(
+            const RuntimeClientEpoch epoch,
+            const std::string_view requestId) const
+    {
+        if (!Valid() || epoch == 0 || !IsCanonicalProtocolUuid(requestId))
+        {
+            return std::nullopt;
+        }
+
+        std::string key;
+        try
+        {
+            key.assign(requestId);
+        }
+        catch (...)
+        {
+            return std::nullopt;
+        }
+        const auto request = _impl->RequestBindings.find(key);
+        if (request == _impl->RequestBindings.end() || request->second.Epoch != epoch)
+        {
+            return std::nullopt;
+        }
+        const auto found = _impl->Records.find(request->second.LogicalId);
+        if (found == _impl->Records.end())
+        {
+            return std::nullopt;
+        }
+        const auto& record = found->second;
+        if (record.Revision != request->second.Revision || record.Epoch != epoch ||
+            record.RequestId != key)
+        {
+            return std::nullopt;
+        }
+
+        const auto snapshot = request->second.Kind == RuntimeClientSubscriptionRequestKind::Snapshot &&
+                              (record.Phase == RuntimeClientSubscriptionPhase::SnapshotInFlight ||
+                               record.Phase == RuntimeClientSubscriptionPhase::Removing) &&
+                              record.Cursor.State() == SubscriptionCursorState::Empty;
+        const auto unsubscribe = request->second.Kind == RuntimeClientSubscriptionRequestKind::Unsubscribe &&
+                                 record.Phase == RuntimeClientSubscriptionPhase::UnsubscribeInFlight &&
+                                 record.Cursor.State() == SubscriptionCursorState::Synchronized;
+        if (!snapshot && !unsubscribe)
+        {
+            return std::nullopt;
+        }
+        return RuntimeClientSubscriptionRequestBinding{
+            request->second.LogicalId,
+            request->second.Revision,
+            request->second.Kind,
+        };
     }
 }

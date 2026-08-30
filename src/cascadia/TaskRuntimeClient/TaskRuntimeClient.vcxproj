@@ -17,11 +17,14 @@
     <ClInclude Include="RuntimeClientEpoch.h" />
     <ClInclude Include="RuntimeClientRequests.h" />
     <ClInclude Include="RuntimeClientState.h" />
+    <ClInclude Include="RuntimeClientSubscriptionStream.h" />
+    <ClInclude Include="RuntimeClientSubscriptionStreamInternal.h" />
     <ClInclude Include="RuntimeClientSubscriptions.h" />
     <ClInclude Include="RuntimeClientSubscriptionsInternal.h" />
     <ClInclude Include="RuntimeClientThreads.h" />
     <ClInclude Include="RuntimeClientTypes.h" />
     <ClInclude Include="TaskRuntimeClient.h" />
+    <ClInclude Include="TaskRuntimeClientSubscriptionTypes.h" />
     <ClInclude Include="TaskRuntimeClientTypes.h" />
   </ItemGroup>
   <ItemGroup>
@@ -34,6 +37,7 @@
     <ClCompile Include="RuntimeClientReader.cpp" />
     <ClCompile Include="RuntimeClientRequests.cpp" />
     <ClCompile Include="RuntimeClientState.cpp" />
+    <ClCompile Include="RuntimeClientSubscriptionStream.cpp" />
     <ClCompile Include="RuntimeClientSubscriptions.cpp" />
     <ClCompile Include="RuntimeClientSubscriptionTransitions.cpp" />
     <ClCompile Include="RuntimeClientSupervisor.cpp" />

@@ -57,6 +57,12 @@ namespace Microsoft::Terminal::TaskRuntime
         UnsubscribeInFlight,
     };
 
+    enum class RuntimeClientSubscriptionRequestKind
+    {
+        Snapshot,
+        Unsubscribe,
+    };
+
     struct RuntimeClientSubscriptionConfiguration
     {
         size_t MaximumSubscriptions{ DefaultMaximumRuntimeClientSubscriptions };
@@ -66,6 +72,15 @@ namespace Microsoft::Terminal::TaskRuntime
     {
         RuntimeClientLogicalSubscriptionId LogicalId{};
         RuntimeClientSubscriptionRevision Revision{};
+    };
+
+    // A value-only view of an in-flight internal request. Mutating this value
+    // cannot change registry state.
+    struct RuntimeClientSubscriptionRequestBinding
+    {
+        RuntimeClientLogicalSubscriptionId LogicalId{};
+        RuntimeClientSubscriptionRevision Revision{};
+        RuntimeClientSubscriptionRequestKind Kind{ RuntimeClientSubscriptionRequestKind::Snapshot };
     };
 
     struct RuntimeClientSubscriptionView
@@ -152,6 +167,18 @@ namespace Microsoft::Terminal::TaskRuntime
         [[nodiscard]] RuntimeClientSubscriptionStatus CompleteUnsubscribe(
             RuntimeClientEpoch epoch,
             std::string_view requestId);
+        [[nodiscard]] std::optional<RuntimeClientSubscriptionRequestBinding> FindRequestBinding(
+            RuntimeClientEpoch epoch,
+            std::string_view requestId) const;
+        [[nodiscard]] RuntimeClientSubscriptionStatus FailRequest(
+            RuntimeClientEpoch epoch,
+            std::string_view requestId);
+        // Integration-only recovery for a bounded pull-stream overflow. The
+        // epoch guard prevents an old reader from invalidating a newer wire.
+        [[nodiscard]] RuntimeClientSubscriptionStatus ForceNeedsSnapshot(
+            RuntimeClientLogicalSubscriptionId logicalId,
+            RuntimeClientSubscriptionRevision revision,
+            RuntimeClientEpoch epoch) noexcept;
         [[nodiscard]] RuntimeClientObservedNotification Observe(
             RuntimeClientEpoch epoch,
             const Microsoft::Terminal::TaskRuntimeProtocol::ControlNotification& notification);

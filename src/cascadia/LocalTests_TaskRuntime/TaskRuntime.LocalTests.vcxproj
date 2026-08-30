@@ -45,6 +45,7 @@
     <ClCompile Include="RuntimeTerminalChannelTests.cpp" />
     <ClCompile Include="RuntimeTerminalHandshakeTests.cpp" />
     <ClCompile Include="RuntimeTerminalResourceTests.cpp" />
+    <ClCompile Include="RuntimeTerminalOutputRingTests.cpp" />
     <ClCompile Include="TaskRuntimeProcessArgv.cpp" />
     <ClCompile Include="TaskRuntimeProcessLauncher.cpp" />
     <ClCompile Include="TaskRuntimeProcessTestFixtures.cpp" />

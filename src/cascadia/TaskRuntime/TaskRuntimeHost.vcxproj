@@ -28,6 +28,7 @@
     <ClInclude Include="RuntimeFoundationRouter.h" />
     <ClInclude Include="RuntimeProductHost.h" />
     <ClInclude Include="RuntimeSingleInstance.h" />
+    <ClInclude Include="RuntimeTerminalOutputRing.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -47,6 +48,7 @@
     <ClCompile Include="RuntimeFoundationRouter.cpp" />
     <ClCompile Include="RuntimeProductHost.cpp" />
     <ClCompile Include="RuntimeSingleInstance.cpp" />
+    <ClCompile Include="RuntimeTerminalOutputRing.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">

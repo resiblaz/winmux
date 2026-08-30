@@ -152,8 +152,15 @@ namespace Microsoft::Terminal::TaskRuntime::details
                                 connected.SystemError,
                                 connected.Error,
                                 completions);
+                            FailSubscriptionsLocked(
+                                RuntimeClientSubscriptionEventKind::Faulted,
+                                connected.Status,
+                                connected.SystemError,
+                                connected.Error,
+                                SubscriptionDeliveryBuffer);
                         }
                         Deliver(completions);
+                        DeliverSubscriptions(SubscriptionDeliveryBuffer);
                         WaitForSingleObject(StopEvent.Get(), INFINITE);
                         break;
                     }
@@ -243,8 +250,15 @@ namespace Microsoft::Terminal::TaskRuntime::details
                                 ERROR_ARITHMETIC_OVERFLOW,
                                 "Client epoch identifier space is exhausted",
                                 completions);
+                            FailSubscriptionsLocked(
+                                RuntimeClientSubscriptionEventKind::Faulted,
+                                RuntimeTransportStatus::SystemError,
+                                ERROR_ARITHMETIC_OVERFLOW,
+                                "Client epoch identifier space is exhausted",
+                                SubscriptionDeliveryBuffer);
                         }
                         Deliver(completions);
+                        DeliverSubscriptions(SubscriptionDeliveryBuffer);
                         WaitForSingleObject(StopEvent.Get(), INFINITE);
                     }
                     break;
@@ -334,6 +348,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
                             "Client retirement buffer is unavailable",
                             completions);
                     }
+                    RetireSubscriptionsLocked(epoch->Epoch, stopping, SubscriptionDeliveryBuffer);
                     retired.clear();
                     Requests.ClearRetiredEpochTombstones(epoch->Epoch);
                     (void)Epochs.CompleteRetire(epoch->Epoch);
@@ -353,6 +368,12 @@ namespace Microsoft::Terminal::TaskRuntime::details
                             epoch->SystemError,
                             epoch->Diagnostic,
                             completions);
+                        FailSubscriptionsLocked(
+                            RuntimeClientSubscriptionEventKind::Faulted,
+                            epoch->FailureStatus,
+                            epoch->SystemError,
+                            epoch->Diagnostic,
+                            SubscriptionDeliveryBuffer);
                         retries.clear();
                     }
                     else if (stopping)
@@ -378,6 +399,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
                     QueueRetries(retries, completions);
                 }
                 Deliver(completions);
+                DeliverSubscriptions(SubscriptionDeliveryBuffer);
                 if (protocolFault && !stopping)
                 {
                     WaitForSingleObject(StopEvent.Get(), INFINITE);
@@ -457,15 +479,23 @@ namespace Microsoft::Terminal::TaskRuntime::details
                     ERROR_UNHANDLED_EXCEPTION,
                     "Unexpected client supervisor failure",
                     completions);
+                FailSubscriptionsLocked(
+                    RuntimeClientSubscriptionEventKind::Faulted,
+                    RuntimeTransportStatus::SystemError,
+                    ERROR_UNHANDLED_EXCEPTION,
+                    "Unexpected client supervisor failure",
+                    SubscriptionDeliveryBuffer);
             }
             catch (...)
             {
             }
             Deliver(completions);
+            DeliverSubscriptions(SubscriptionDeliveryBuffer);
             WaitForSingleObject(StopEvent.Get(), INFINITE);
         }
 
         FinishStopped(completions);
         Deliver(completions);
+        DeliverSubscriptions(SubscriptionDeliveryBuffer);
     }
 }

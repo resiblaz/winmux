@@ -47,6 +47,17 @@ namespace Microsoft::Terminal::TaskRuntime::details
         {
             while (true)
             {
+                const auto subscriptionWrite = RunSubscriptionWriter(epoch);
+                if (subscriptionWrite == RuntimeClientSubscriptionWriteResult::Sent)
+                {
+                    continue;
+                }
+                if (subscriptionWrite == RuntimeClientSubscriptionWriteResult::RetireEpoch ||
+                    subscriptionWrite == RuntimeClientSubscriptionWriteResult::Stop)
+                {
+                    break;
+                }
+
                 RuntimeClientWriterItem item;
                 ControlMethod method{ ControlMethod::Ping };
                 std::string payload;
@@ -55,13 +66,22 @@ namespace Microsoft::Terminal::TaskRuntime::details
                     WriterWake.wait(lock, [&] {
                         return ClientState == TaskRuntimeClientState::Stopping ||
                                !Active || Active.get() != epoch.get() ||
-                               !Epochs.IsActive(epoch->Epoch) || !WriterQueue.empty();
+                               !Epochs.IsActive(epoch->Epoch) || !WriterQueue.empty() ||
+                               HasSubscriptionWriterWorkLocked(epoch->Epoch);
                     });
                     if (ClientState == TaskRuntimeClientState::Stopping ||
                         !Active || Active.get() != epoch.get() ||
                         !Epochs.IsActive(epoch->Epoch))
                     {
                         break;
+                    }
+                    if (HasSubscriptionWriterWorkLocked(epoch->Epoch))
+                    {
+                        continue;
+                    }
+                    if (WriterQueue.empty())
+                    {
+                        continue;
                     }
 
                     item = WriterQueue.front();

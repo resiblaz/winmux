@@ -64,6 +64,14 @@ namespace Microsoft::Terminal::TaskRuntime::details
         QueuedBytes = operation->second.WireBytes <= QueuedBytes ?
                           QueuedBytes - operation->second.WireBytes :
                           0;
+        if (operation->second.Kind == RuntimeClientLogicalOperationKind::UserRequest &&
+            UserOperationCount != 0)
+        {
+            --UserOperationCount;
+            UserQueuedBytes = operation->second.WireBytes <= UserQueuedBytes ?
+                                  UserQueuedBytes - operation->second.WireBytes :
+                                  0;
+        }
         Operations.erase(operation);
         return completion;
     }
@@ -85,6 +93,12 @@ namespace Microsoft::Terminal::TaskRuntime::details
                 operation->second.CurrentAttempt != value.Attempt.Attempt ||
                 operation->second.CurrentRequestId != value.Attempt.RequestId)
             {
+                continue;
+            }
+
+            if (operation->second.Kind != RuntimeClientLogicalOperationKind::UserRequest)
+            {
+                EraseSubscriptionOperationLocked(operation->first);
                 continue;
             }
 
@@ -295,11 +309,23 @@ namespace Microsoft::Terminal::TaskRuntime::details
                 ++iterator;
                 RuntimeClientRequestResult result;
                 result.Outcome = RuntimeClientRequestOutcome::ClientStopped;
-                if (auto completion = CompleteOperationLocked(operationId, std::move(result)))
+                const auto operation = Operations.find(operationId);
+                if (operation != Operations.end() &&
+                    operation->second.Kind != RuntimeClientLogicalOperationKind::UserRequest)
+                {
+                    EraseSubscriptionOperationLocked(operationId);
+                }
+                else if (auto completion = CompleteOperationLocked(operationId, std::move(result)))
                 {
                     completions.emplace_back(std::move(*completion));
                 }
             }
+            FailSubscriptionsLocked(
+                RuntimeClientSubscriptionEventKind::ClientStopped,
+                RuntimeTransportStatus::Cancelled,
+                ERROR_OPERATION_ABORTED,
+                "Task Runtime client stopped",
+                SubscriptionDeliveryBuffer);
             WriterQueue.clear();
             active = std::move(Active);
             AdmissionOpen = false;
@@ -344,7 +370,13 @@ namespace Microsoft::Terminal::TaskRuntime::details
             {
                 result.Diagnostic.clear();
             }
-            if (auto completion = CompleteOperationLocked(operationId, std::move(result)))
+            const auto operation = Operations.find(operationId);
+            if (operation != Operations.end() &&
+                operation->second.Kind != RuntimeClientLogicalOperationKind::UserRequest)
+            {
+                EraseSubscriptionOperationLocked(operationId);
+            }
+            else if (auto completion = CompleteOperationLocked(operationId, std::move(result)))
             {
                 completions.emplace_back(std::move(*completion));
             }

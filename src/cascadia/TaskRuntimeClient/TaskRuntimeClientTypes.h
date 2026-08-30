@@ -51,12 +51,17 @@ namespace Microsoft::Terminal::TaskRuntime
         uint32_t SendTimeoutMilliseconds{ 5000 };
         uint32_t ReceiveTimeoutMilliseconds{ 1000 };
         size_t MaximumOperations{ 256 };
+        size_t MaximumSubscriptions{ 64 };
+        size_t MaximumConcurrentSubscriptionOperations{ 4 };
         size_t MaximumTombstones{ 1024 };
         size_t MaximumQueuedBytes{ 8 * 1024 * 1024 };
+        size_t ReservedSubscriptionRequestBytes{ 4 * 1024 * 1024 };
+        size_t MaximumAggregateSubscriptionEventBytes{ 32 * 1024 * 1024 };
         size_t MaximumRequestBytes{ 1024 * 1024 };
         size_t MaximumRememberedRequestIds{ 65536 };
         uint32_t DefaultMaximumAttempts{ 3 };
         uint32_t MaximumAttemptsPerOperation{ 8 };
+        uint32_t MaximumSubscriptionAttempts{ 3 };
         size_t MaximumDiagnosticBytes{ 4096 };
     };
 

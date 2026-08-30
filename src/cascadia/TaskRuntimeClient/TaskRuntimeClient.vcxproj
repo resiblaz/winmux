@@ -38,13 +38,17 @@
     <ClCompile Include="RuntimeClientRequests.cpp" />
     <ClCompile Include="RuntimeClientState.cpp" />
     <ClCompile Include="RuntimeClientSubscriptionBudget.cpp" />
+    <ClCompile Include="RuntimeClientSubscriptionNotifications.cpp" />
+    <ClCompile Include="RuntimeClientSubscriptionReader.cpp" />
     <ClCompile Include="RuntimeClientSubscriptionStream.cpp" />
     <ClCompile Include="RuntimeClientSubscriptions.cpp" />
     <ClCompile Include="RuntimeClientSubscriptionTransitions.cpp" />
+    <ClCompile Include="RuntimeClientSubscriptionWriter.cpp" />
     <ClCompile Include="RuntimeClientSupervisor.cpp" />
     <ClCompile Include="RuntimeClientThreads.cpp" />
     <ClCompile Include="RuntimeClientWriter.cpp" />
     <ClCompile Include="TaskRuntimeClient.cpp" />
+    <ClCompile Include="TaskRuntimeClientSubscriptions.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">

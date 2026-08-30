@@ -47,7 +47,8 @@ namespace Microsoft::Terminal::TaskRuntime::details
                 }
 
                 auto envelope = DecodeClientControlEnvelope(received.Payload);
-                if (envelope.Status != ProtocolRpcJsonStatus::Succeeded)
+                if (envelope.Status != ProtocolRpcJsonStatus::Succeeded &&
+                    envelope.Status != ProtocolRpcJsonStatus::UnknownNotification)
                 {
                     RequestEpochRetire(
                         epoch,
@@ -57,18 +58,27 @@ namespace Microsoft::Terminal::TaskRuntime::details
                         envelope.Error);
                     break;
                 }
-                if (!std::holds_alternative<ControlResponse>(envelope.Value))
+                if (std::holds_alternative<ControlNotification>(envelope.Value))
                 {
-                    RequestEpochRetire(
-                        epoch,
-                        RuntimeClientRetireCause::ProtocolError,
-                        RuntimeTransportStatus::MalformedFrame,
-                        ERROR_INVALID_DATA,
-                        "Unexpected notification before subscription support is enabled");
-                    break;
+                    auto notification = std::get<ControlNotification>(std::move(envelope.Value));
+                    if (!HandleSubscriptionNotification(epoch, std::move(notification)))
+                    {
+                        RequestEpochRetire(
+                            epoch,
+                            RuntimeClientRetireCause::ProtocolError,
+                            RuntimeTransportStatus::MalformedFrame,
+                            ERROR_INVALID_DATA,
+                            "Notification does not belong to the active subscription epoch");
+                        break;
+                    }
+                    continue;
                 }
 
                 auto response = std::get<ControlResponse>(std::move(envelope.Value));
+                if (HandleSubscriptionResponse(epoch, response))
+                {
+                    continue;
+                }
                 std::optional<RuntimeClientPendingCompletion> completion;
                 bool protocolFault{};
                 {
@@ -90,6 +100,11 @@ namespace Microsoft::Terminal::TaskRuntime::details
                             operation->second.CurrentAttempt != correlated.Attempt->Attempt ||
                             operation->second.CurrentRequestId != correlated.Attempt->RequestId)
                         {
+                            protocolFault = true;
+                        }
+                        else if (operation->second.Kind != RuntimeClientLogicalOperationKind::UserRequest)
+                        {
+                            EraseSubscriptionOperationLocked(operation->first);
                             protocolFault = true;
                         }
                         else

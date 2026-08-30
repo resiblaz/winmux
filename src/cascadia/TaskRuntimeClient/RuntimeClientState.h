@@ -6,6 +6,8 @@
 #include "RuntimeClientEpoch.h"
 #include "RuntimeClientInterfaces.h"
 #include "RuntimeClientRequests.h"
+#include "RuntimeClientSubscriptionStreamInternal.h"
+#include "RuntimeClientSubscriptions.h"
 #include "TaskRuntimeClient.h"
 
 #include "RuntimeControlConnector.h"
@@ -102,9 +104,18 @@ namespace Microsoft::Terminal::TaskRuntime::details
         RetryPending,
     };
 
+    enum class RuntimeClientLogicalOperationKind
+    {
+        UserRequest,
+        SubscriptionSnapshot,
+        SubscriptionUnsubscribe,
+    };
+
     struct RuntimeClientLogicalOperation
     {
         RuntimeClientOperationId OperationId{};
+        RuntimeClientLogicalOperationKind Kind{ RuntimeClientLogicalOperationKind::UserRequest };
+        RuntimeClientSubscriptionTarget Subscription;
         Microsoft::Terminal::TaskRuntimeProtocol::ControlMethod Method{
             Microsoft::Terminal::TaskRuntimeProtocol::ControlMethod::Ping
         };
@@ -115,6 +126,29 @@ namespace Microsoft::Terminal::TaskRuntime::details
         std::string CurrentRequestId;
         RuntimeClientLogicalPhase Phase{ RuntimeClientLogicalPhase::AttemptQueued };
         std::shared_ptr<std::promise<RuntimeClientRequestResult>> Promise;
+    };
+
+    struct RuntimeClientSubscriptionDescriptor
+    {
+        RuntimeClientSubscriptionRevision Revision{};
+        std::string ParamsJson{ "{}" };
+        std::shared_ptr<RuntimeClientSubscriptionStreamProducer> Producer;
+        uint32_t SnapshotAttempts{};
+    };
+
+    enum class RuntimeClientSubscriptionWriteResult
+    {
+        NoWork,
+        Sent,
+        RetireEpoch,
+        Stop,
+    };
+
+    struct RuntimeClientPendingSubscriptionDelivery
+    {
+        std::shared_ptr<RuntimeClientSubscriptionStreamProducer> Producer;
+        RuntimeClientSubscriptionEvent Event;
+        bool Close{};
     };
 
     struct RuntimeClientWriterItem
@@ -139,6 +173,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
     static_assert(std::is_nothrow_move_constructible_v<RuntimeClientPendingCompletion>);
     static_assert(std::is_nothrow_move_constructible_v<RuntimeClientRetryWork>);
     static_assert(std::is_nothrow_move_constructible_v<RuntimeClientRetiredRequest>);
+    static_assert(std::is_nothrow_move_constructible_v<RuntimeClientPendingSubscriptionDelivery>);
 
     struct RuntimeClientSharedState final : std::enable_shared_from_this<RuntimeClientSharedState>
     {
@@ -161,14 +196,23 @@ namespace Microsoft::Terminal::TaskRuntime::details
         RuntimeClientEpochState Epochs;
         std::shared_ptr<RuntimeClientEpochContext> Active;
         RuntimeClientRequestRegistry Requests;
+        RuntimeClientSubscriptionRegistry Subscriptions;
+        std::shared_ptr<RuntimeClientSubscriptionAggregateBudget> SubscriptionBudget;
         std::unordered_map<RuntimeClientOperationId, RuntimeClientLogicalOperation> Operations;
+        std::unordered_map<RuntimeClientLogicalSubscriptionId, RuntimeClientSubscriptionDescriptor>
+            SubscriptionDescriptors;
         std::unordered_set<std::string> IssuedRequestIds;
         std::deque<RuntimeClientWriterItem> WriterQueue;
         std::vector<RuntimeClientPendingCompletion> CompletionBuffer;
         std::vector<RuntimeClientRetryWork> RetryBuffer;
         std::vector<RuntimeClientRetiredRequest> RetiredBuffer;
+        std::vector<RuntimeClientPendingSubscriptionDelivery> SubscriptionDeliveryBuffer;
         size_t QueuedBytes{};
+        size_t UserQueuedBytes{};
+        size_t UserOperationCount{};
+        size_t SubscriptionOperationCount{};
         RuntimeClientOperationId NextOperationId{ 1 };
+        RuntimeClientLogicalSubscriptionId NextSubscriptionId{ 1 };
         uint32_t ConsecutiveFailures{};
         std::string CurrentRuntimeInstanceId;
 
@@ -183,6 +227,10 @@ namespace Microsoft::Terminal::TaskRuntime::details
             Microsoft::Terminal::TaskRuntimeProtocol::ControlMethod method,
             std::string payloadJson,
             uint32_t maximumAttempts);
+        [[nodiscard]] RuntimeClientSubscriptionHandle Subscribe(RuntimeClientSubscribeOptions options);
+        void RequestSubscriptionRemove(
+            RuntimeClientLogicalSubscriptionId logicalId,
+            RuntimeClientSubscriptionRevision revision) noexcept;
         void RequestStop() noexcept;
         [[nodiscard]] bool WaitForStopped() noexcept;
         [[nodiscard]] TaskRuntimeClientState State() const noexcept;
@@ -198,10 +246,33 @@ namespace Microsoft::Terminal::TaskRuntime::details
             RuntimeTransportStatus transportStatus,
             DWORD systemError,
             std::string_view diagnostic) noexcept;
+        [[nodiscard]] bool HasSubscriptionWriterWorkLocked(RuntimeClientEpoch epoch) const noexcept;
+        [[nodiscard]] RuntimeClientSubscriptionWriteResult RunSubscriptionWriter(
+            const std::shared_ptr<RuntimeClientEpochContext>& epoch) noexcept;
+        [[nodiscard]] RuntimeClientSubscriptionWriteResult RejectOversizedSubscriptionRequest(
+            const std::shared_ptr<RuntimeClientEpochContext>& epoch,
+            RuntimeClientSubscriptionTarget target) noexcept;
+        [[nodiscard]] bool HandleSubscriptionResponse(
+            const std::shared_ptr<RuntimeClientEpochContext>& epoch,
+            Microsoft::Terminal::TaskRuntimeProtocol::ControlResponse& response) noexcept;
+        [[nodiscard]] bool HandleSubscriptionNotification(
+            const std::shared_ptr<RuntimeClientEpochContext>& epoch,
+            Microsoft::Terminal::TaskRuntimeProtocol::ControlNotification notification) noexcept;
 
         [[nodiscard]] std::optional<RuntimeClientPendingCompletion> CompleteOperationLocked(
             RuntimeClientOperationId operationId,
             RuntimeClientRequestResult result);
+        void EraseSubscriptionOperationLocked(RuntimeClientOperationId operationId) noexcept;
+        void RetireSubscriptionsLocked(
+            RuntimeClientEpoch epoch,
+            bool stopping,
+            std::vector<RuntimeClientPendingSubscriptionDelivery>& deliveries) noexcept;
+        void FailSubscriptionsLocked(
+            RuntimeClientSubscriptionEventKind kind,
+            RuntimeTransportStatus transportStatus,
+            DWORD systemError,
+            std::string_view diagnostic,
+            std::vector<RuntimeClientPendingSubscriptionDelivery>& deliveries) noexcept;
         void ProcessRetiredLocked(
             std::vector<RuntimeClientRetiredRequest>& retired,
             bool stopping,
@@ -223,5 +294,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
             std::vector<RuntimeClientPendingCompletion>& completions);
 
         static void Deliver(std::vector<RuntimeClientPendingCompletion>& completions) noexcept;
+        static void DeliverSubscriptions(
+            std::vector<RuntimeClientPendingSubscriptionDelivery>& deliveries) noexcept;
     };
 }

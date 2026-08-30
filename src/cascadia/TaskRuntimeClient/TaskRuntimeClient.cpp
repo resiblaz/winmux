@@ -32,6 +32,15 @@ namespace Microsoft::Terminal::TaskRuntime
         bool _validConfiguration(const TaskRuntimeClientConfiguration& configuration)
         {
             const auto hello = EncodeHelloRequest(configuration.Hello);
+            const auto totalOperations = configuration.MaximumOperations +
+                                         configuration.MaximumSubscriptions;
+            const auto subscriptionReservationRequired =
+                configuration.MaximumRequestBytes != 0 &&
+                        configuration.MaximumConcurrentSubscriptionOperations <=
+                            (std::numeric_limits<size_t>::max)() / configuration.MaximumRequestBytes ?
+                    configuration.MaximumConcurrentSubscriptionOperations *
+                        configuration.MaximumRequestBytes :
+                    (std::numeric_limits<size_t>::max)();
             return !configuration.Identity.ControlPipeName.empty() &&
                    !configuration.Identity.ProtocolIdentity.empty() &&
                    configuration.Hello.ExpectedRuntimeIdentity ==
@@ -41,18 +50,44 @@ namespace Microsoft::Terminal::TaskRuntime
                    _validTimeout(configuration.SendTimeoutMilliseconds) &&
                    _validTimeout(configuration.ReceiveTimeoutMilliseconds) &&
                    configuration.MaximumOperations != 0 &&
+                   configuration.MaximumSubscriptions != 0 &&
+                   configuration.MaximumSubscriptions <= AbsoluteMaximumRuntimeClientSubscriptions &&
+                   configuration.MaximumConcurrentSubscriptionOperations != 0 &&
+                   configuration.MaximumConcurrentSubscriptionOperations <= configuration.MaximumSubscriptions &&
+                   totalOperations >= configuration.MaximumOperations && totalOperations <= 4096 &&
                    configuration.MaximumQueuedBytes != 0 &&
+                   configuration.ReservedSubscriptionRequestBytes != 0 &&
+                   configuration.ReservedSubscriptionRequestBytes < configuration.MaximumQueuedBytes &&
+                   configuration.ReservedSubscriptionRequestBytes >= subscriptionReservationRequired &&
                    configuration.MaximumRequestBytes >= MinimumControlFrameBytes &&
                    configuration.MaximumRequestBytes <= MaximumControlFrameBytes &&
                    configuration.MaximumQueuedBytes >= configuration.MaximumRequestBytes &&
+                   configuration.MaximumQueuedBytes - configuration.ReservedSubscriptionRequestBytes >=
+                       configuration.MaximumRequestBytes &&
+                   configuration.MaximumAggregateSubscriptionEventBytes >=
+                       DefaultMaximumSubscriptionStreamBytes &&
+                   configuration.MaximumAggregateSubscriptionEventBytes <=
+                       AbsoluteMaximumClientSubscriptionAggregateBytes &&
                    configuration.MaximumRememberedRequestIds != 0 &&
                    configuration.MaximumRememberedRequestIds <= 1024 * 1024 &&
                    configuration.DefaultMaximumAttempts != 0 &&
                    configuration.MaximumAttemptsPerOperation != 0 &&
                    configuration.DefaultMaximumAttempts <=
                        configuration.MaximumAttemptsPerOperation &&
+                   configuration.MaximumSubscriptionAttempts != 0 &&
+                   configuration.MaximumSubscriptionAttempts <= configuration.MaximumAttemptsPerOperation &&
                    configuration.MaximumDiagnosticBytes != 0 &&
                    configuration.MaximumDiagnosticBytes <= 64 * 1024;
+        }
+
+        size_t _requestRegistryCapacity(const TaskRuntimeClientConfiguration& configuration) noexcept
+        {
+            if (configuration.MaximumSubscriptions >
+                (std::numeric_limits<size_t>::max)() - configuration.MaximumOperations)
+            {
+                return 0;
+            }
+            return configuration.MaximumOperations + configuration.MaximumSubscriptions;
         }
 
         RuntimeClientRequestHandle _readyHandle(RuntimeClientRequestResult result)
@@ -91,7 +126,8 @@ namespace Microsoft::Terminal::TaskRuntime
             TaskRuntimeClientDependencies dependencies) :
             Configuration{ std::move(configuration) },
             Dependencies{ std::move(dependencies) },
-            Requests{ { Configuration.MaximumOperations, Configuration.MaximumTombstones } }
+            Requests{ { _requestRegistryCapacity(Configuration), Configuration.MaximumTombstones } },
+            Subscriptions{ { Configuration.MaximumSubscriptions } }
         {
             if (!Dependencies.Connector)
             {
@@ -105,7 +141,17 @@ namespace Microsoft::Terminal::TaskRuntime
             {
                 Dependencies.Backoff = MakeRuntimeClientBackoffPolicy();
             }
-            IsValid = StopEvent && Requests.Valid() && Dependencies.Connector &&
+            try
+            {
+                SubscriptionBudget = std::make_shared<RuntimeClientSubscriptionAggregateBudget>(
+                    Configuration.MaximumAggregateSubscriptionEventBytes);
+            }
+            catch (...)
+            {
+                SubscriptionBudget.reset();
+            }
+            IsValid = StopEvent && Requests.Valid() && Subscriptions.Valid() && SubscriptionBudget &&
+                      SubscriptionBudget->Valid() && Dependencies.Connector &&
                       Dependencies.RequestIds && Dependencies.Backoff &&
                       _validConfiguration(Configuration);
         }
@@ -149,8 +195,10 @@ namespace Microsoft::Terminal::TaskRuntime
             {
                 CompletionBuffer.reserve(Configuration.MaximumOperations);
                 RetryBuffer.reserve(Configuration.MaximumOperations);
-                RetiredBuffer.reserve(Configuration.MaximumOperations);
-                Operations.reserve(Configuration.MaximumOperations);
+                RetiredBuffer.reserve(_requestRegistryCapacity(Configuration));
+                SubscriptionDeliveryBuffer.reserve(Configuration.MaximumSubscriptions * 2);
+                Operations.reserve(_requestRegistryCapacity(Configuration));
+                SubscriptionDescriptors.reserve(Configuration.MaximumSubscriptions);
                 IssuedRequestIds.reserve(Configuration.MaximumRememberedRequestIds);
 
                 AdmissionOpen = true;
@@ -227,9 +275,13 @@ namespace Microsoft::Terminal::TaskRuntime
                                           RuntimeClientRequestOutcome::ClientStopped;
                     rejectedDiagnostic = "Task Runtime client is not accepting requests";
                 }
-                else if (Operations.size() >= Configuration.MaximumOperations ||
-                         encoded.Payload.size() > Configuration.MaximumQueuedBytes -
-                                                      std::min(QueuedBytes, Configuration.MaximumQueuedBytes))
+                else if (UserOperationCount >= Configuration.MaximumOperations ||
+                         encoded.Payload.size() >
+                                 Configuration.MaximumQueuedBytes - Configuration.ReservedSubscriptionRequestBytes -
+                                 std::min(
+                                     UserQueuedBytes,
+                                     Configuration.MaximumQueuedBytes -
+                                         Configuration.ReservedSubscriptionRequestBytes))
                 {
                     rejectedOutcome = RuntimeClientRequestOutcome::CapacityExceeded;
                     rejectedDiagnostic = "Task Runtime client request queue is full";
@@ -291,6 +343,8 @@ namespace Microsoft::Terminal::TaskRuntime
                             Operations.emplace(operation.OperationId, std::move(operation));
                             WriterQueue.emplace_back(RuntimeClientWriterItem{ operationId, 1, *generatedId });
                             QueuedBytes += encoded.Payload.size();
+                            UserQueuedBytes += encoded.Payload.size();
+                            ++UserOperationCount;
                         }
                         catch (...)
                         {
@@ -427,6 +481,12 @@ namespace Microsoft::Terminal::TaskRuntime
             return _readyHandle(std::move(result));
         }
         return _impl->State->Submit(method, std::move(payloadJson), maximumAttempts);
+    }
+
+    RuntimeClientSubscriptionHandle TaskRuntimeClient::Subscribe(RuntimeClientSubscribeOptions options)
+    {
+        return Valid() ? _impl->State->Subscribe(std::move(options)) :
+                         RuntimeClientSubscriptionHandle{};
     }
 
     void TaskRuntimeClient::RequestStop() noexcept

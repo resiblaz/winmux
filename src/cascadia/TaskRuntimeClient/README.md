@@ -35,12 +35,23 @@ have returned. Injected connector, transport, request-ID, and backoff calls,
 connection cancellation/close, and promise delivery all occur outside the
 client state lock.
 
-The public request API deliberately rejects `SnapshotAndSubscribe` and
-`Unsubscribe`. M2C4c2a now supplies a bounded, caller-serialized desired
-subscription registry with snapshot/request correlation, wire ownership,
-cursor/gap policy, idempotent removal, and epoch recovery. M2C4c2b1 adds bounded
-pull streams that remain finite under hidden string capacity, preserve terminal
-delivery under queue pressure, and never invoke user callbacks. It also adds
-explicit snapshot/unsubscribe request failure and overflow recovery transitions.
-M2C4c2b2 will connect these foundations to the Reader/Writer/Supervisor.
-Heartbeat liveness remains M2C4c3.
+The public request API deliberately rejects direct `SnapshotAndSubscribe` and
+`Unsubscribe`; callers use `Subscribe` and its bounded pull stream instead.
+Logical subscriptions survive connection epochs while every epoch receives a
+fresh wire identity and snapshot. Reader delivery is snapshot-first, advances
+unknown optional events without exposing them, ignores duplicates, and retires
+the whole epoch on a cursor gap, generation drift, stream overflow, or remote
+closure. Writer work reserves request bytes and concurrency independently from
+public requests, correlates internal responses without callbacks, and sends
+unsubscribe before new snapshots.
+
+Each stream and the whole client have retained-memory limits. Permanent local
+delivery failure ends at the configured snapshot-attempt ceiling. Removal is
+allocation-free at the stream integration seam, terminal delivery remains
+available when the ordinary queue is full, and Stop/destruction wins over a
+simultaneous retry ceiling by closing remaining streams with `ClientStopped`.
+An item that exceeds a negotiated epoch frame limit faults only that logical
+subscription; it does not fault unrelated requests or subscriptions.
+
+M2C4c3 next replaces real reconnect waits with the virtual scheduler and adds
+negotiated heartbeat liveness.

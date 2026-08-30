@@ -23,6 +23,7 @@ namespace TaskRuntimeClientLocalTests
     using namespace Microsoft::Terminal::TaskRuntimeProtocol;
 
     enum class FakeConnectionLifecycleAction { CancelPendingIo, Close };
+    using FakeRuntimeClientAutoResponseHandler = std::function<ControlResponse(const ControlRequest&)>;
 
     class FakeRuntimeClientIoScope final
     {
@@ -93,6 +94,13 @@ namespace TaskRuntimeClientLocalTests
             QueueInboundPayload(encoded.Payload);
             return true;
         }
+        bool QueueInboundNotification(const ControlNotification& notification)
+        {
+            const auto encoded = EncodeControlNotification(notification);
+            if (!encoded.Succeeded) { return false; }
+            QueueInboundPayload(encoded.Payload);
+            return true;
+        }
         void QueueInboundFailure(RuntimeTransportStatus status, std::string error = {}, DWORD systemError = 0)
         {
             RuntimeReceiveResult result;
@@ -114,6 +122,16 @@ namespace TaskRuntimeClientLocalTests
         {
             std::scoped_lock lock{ _mutex };
             _autoResponse = enabled;
+        }
+        void SetNextAutoResponseHandler(FakeRuntimeClientAutoResponseHandler handler)
+        {
+            std::scoped_lock lock{ _mutex };
+            _nextAutoResponseHandler = std::move(handler);
+        }
+        void SetAutoResponseHandler(FakeRuntimeClientAutoResponseHandler handler)
+        {
+            std::scoped_lock lock{ _mutex };
+            _autoResponseHandler = std::move(handler);
         }
         void BlockNextSendAfterResponse()
         {
@@ -242,6 +260,8 @@ namespace TaskRuntimeClientLocalTests
         std::function<void()> _receiveHook;
         std::function<void()> _cancelHook;
         std::function<void()> _closeHook;
+        FakeRuntimeClientAutoResponseHandler _nextAutoResponseHandler;
+        FakeRuntimeClientAutoResponseHandler _autoResponseHandler;
         std::array<FakeConnectionLifecycleAction, 2> _lifecycle{};
         size_t _lifecycleCount{};
         std::atomic<RuntimeTransportStatus> _terminalStatus{ RuntimeTransportStatus::Succeeded };
@@ -335,6 +355,7 @@ namespace TaskRuntimeClientLocalTests
             return scripted;
         }
         bool hasScripted{}, autoResponse{}, block{};
+        FakeRuntimeClientAutoResponseHandler autoResponseHandler;
         std::function<void()> hook;
         {
             std::scoped_lock lock{ _state->_mutex };
@@ -351,6 +372,14 @@ namespace TaskRuntimeClientLocalTests
                 hasScripted = true;
             }
             autoResponse = _state->_autoResponse;
+            if (_state->_nextAutoResponseHandler)
+            {
+                autoResponseHandler = std::move(_state->_nextAutoResponseHandler);
+            }
+            else if (_state->_autoResponseHandler)
+            {
+                autoResponseHandler = _state->_autoResponseHandler;
+            }
             block = std::exchange(_state->_blockNextSend, false);
             hook = std::move(_state->_sendHook);
         }
@@ -364,14 +393,20 @@ namespace TaskRuntimeClientLocalTests
             _state->_terminate(scripted.Status, FakeConnectionLifecycleAction::CancelPendingIo);
             return scripted;
         }
-        if (autoResponse)
+        if (autoResponseHandler || autoResponse)
         {
             const auto decoded = DecodeControlRequest(payload);
             if (decoded.Succeeded())
             {
-                ControlResponse response;
-                response.RequestId = decoded.Value.RequestId;
-                response.Succeeded = true;
+                auto response = autoResponseHandler ? autoResponseHandler(decoded.Value) : ControlResponse{};
+                if (response.RequestId.empty())
+                {
+                    response.RequestId = decoded.Value.RequestId;
+                }
+                if (!autoResponseHandler)
+                {
+                    response.Succeeded = true;
+                }
                 _state->QueueInboundResponse(response);
                 SetEvent(_state->_responseQueued);
             }

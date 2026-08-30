@@ -4,6 +4,7 @@
 #pragma once
 
 #include "RuntimeClientInterfaces.h"
+#include "RuntimeClientSubscriptionStream.h"
 #include "TaskRuntimeClientTypes.h"
 
 #include "RuntimeControlConnector.h"
@@ -14,6 +15,14 @@
 
 namespace Microsoft::Terminal::TaskRuntime
 {
+    struct RuntimeClientSubscriptionHandle
+    {
+        bool Accepted{};
+        RuntimeClientLogicalSubscriptionId LogicalId{};
+        RuntimeClientSubscriptionRevision Revision{};
+        std::shared_ptr<RuntimeClientSubscriptionStream> Stream;
+    };
+
     struct TaskRuntimeClientDependencies
     {
         std::shared_ptr<IRuntimeControlConnector> Connector;
@@ -38,6 +47,8 @@ namespace Microsoft::Terminal::TaskRuntime
             Microsoft::Terminal::TaskRuntimeProtocol::ControlMethod method,
             std::string payloadJson = "{}",
             uint32_t maximumAttempts = 0);
+        [[nodiscard]] RuntimeClientSubscriptionHandle Subscribe(
+            RuntimeClientSubscribeOptions options = {});
         void RequestStop() noexcept;
         [[nodiscard]] bool WaitForStopped() noexcept;
 

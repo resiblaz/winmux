@@ -35,7 +35,9 @@ have returned. Injected connector, transport, request-ID, and backoff calls,
 connection cancellation/close, and promise delivery all occur outside the
 client state lock.
 
-This slice deliberately rejects `SnapshotAndSubscribe` and `Unsubscribe` and
-does not yet implement notifications or heartbeat liveness. M2C4c2 adds desired
-subscription state, snapshot/cursor recovery, and resnapshot handling;
-M2C4c3 adds negotiated heartbeat and virtual-time liveness tests.
+The public request API deliberately rejects `SnapshotAndSubscribe` and
+`Unsubscribe`. M2C4c2a now supplies a bounded, caller-serialized desired
+subscription registry with snapshot/request correlation, wire ownership,
+cursor/gap policy, idempotent removal, and epoch recovery. M2C4c2b will connect
+that state to bounded pull streams and the Reader/Supervisor. Heartbeat liveness
+remains M2C4c3.

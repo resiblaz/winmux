@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-08-30
-status: active execution queue; M2C4c2a in progress
+status: active execution queue; M2C4c2a complete, M2C4c2b next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -26,7 +26,7 @@ untouched until the feature branch has passed both milestone closure gates.
 
 | Stage | Deliverable | Required verification |
 |---|---|---|
-| M2C4c2a | Pure bounded desired-subscription registry | snapshot/cursor, duplicate, unknown kind, gap, generation drift, remove-in-flight, epoch retire, ABA/capacity |
+| M2C4c2a (complete) | Pure bounded desired-subscription registry | snapshot/cursor, duplicate, unknown kind, gap, generation drift, remove-in-flight, epoch retire, ABA/capacity |
 | M2C4c2b | `TaskRuntimeClient` subscription pull streams | buffered first event, reconnect/resnapshot, multi-subscription, stale epoch, bounded slow consumer, Stop/destruction |
 | M2C4c3a | Virtual client scheduler replacing real backoff waits | exact virtual deadlines, Stop wake, no busy loop, request regression |
 | M2C4c3b | Negotiated heartbeat/liveness | due/ack/miss, old ACK, full user queue, Stop race, backoff health reset |

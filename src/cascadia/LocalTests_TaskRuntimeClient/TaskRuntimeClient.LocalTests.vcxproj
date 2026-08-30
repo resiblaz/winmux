@@ -25,6 +25,7 @@
     <ClCompile Include="RuntimeClientEpochTests.cpp" />
     <ClCompile Include="RuntimeClientInterfaceTests.cpp" />
     <ClCompile Include="RuntimeClientRequestTests.cpp" />
+    <ClCompile Include="RuntimeClientSubscriptionTests.cpp" />
     <ClCompile Include="TaskRuntimeClientReconnectTests.cpp" />
     <ClCompile Include="TaskRuntimeClientRequestFlowTests.cpp" />
     <ClCompile Include="TaskRuntimeClientStopTests.cpp" />

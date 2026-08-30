@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-08-31
-status: active execution queue; M2E1 complete, terminal session semantics next
+status: active execution queue; M2E2 complete, scoped rtask capabilities next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -22,6 +22,9 @@ untouched until the feature branch has passed both milestone closure gates.
   atomic server-side subscriptions, the long-running `TaskRuntime.exe --serve`
   product foundation, and connect-first on-demand activation that remains
   independent from every client process and parent Job.
+- The terminal foundation provides secure binary transport, a bounded live VT
+  ring, per-client queues, snapshot/replay/reset, one versioned controller
+  lease, deterministic Backend injection, and targeted slow-peer isolation.
 
 ## 2. M2 queue
 
@@ -35,7 +38,7 @@ untouched until the feature branch has passed both milestone closure gates.
 | M2D1 (complete) | Long-running Runtime foundation host and concrete Ping/RuntimeStatus router | real child process, Hello, reconnect, second instance, malformed peer isolation, graceful stop |
 | M2D2 (complete) | On-demand launch coordination and parent independence | connect-first, one launch under concurrent clients, launch failure/cancel, crash restart, short-lived parent test |
 | M2E1 (complete) | Secure binary terminal transport | framing fragmentation/coalescing, ACL/identity/generation, payload bounds, cancellation, control/data HOL |
-| M2E2 | Terminal session, input lease, bounded VT ring, deterministic Fake VT | observers/controller, stale input, resize, ack/reset/catch-up, slow peer, Esc/Stop convergence |
+| M2E2 (complete) | Terminal session, input lease, bounded VT ring, deterministic Fake VT | observers/controller, stale input, resize, ack/reset/catch-up, slow peer, Esc/Stop convergence |
 | M2F1 | Scoped `rtask` DTOs and capability registry | missing/expired/wrong-run/wrong-method, method bounds, redaction, idempotency |
 | M2F2 | `rtask.exe`, TaskCore command router, package integration | four ADR commands, stdin/UTF-8/exit codes, duplicate command, cross-task refusal, CLI/package smoke |
 | M2G1 | Five-minute terminal idle suspend and idempotent wake | active-run exclusion, attach race, new generation, Closed never auto-wakes |
@@ -63,6 +66,10 @@ untouched until the feature branch has passed both milestone closure gates.
   retires the epoch and records resnapshot-required; it does not grow memory.
 - Agent-terminal live output defaults to a 4 MiB / 4,096-frame reconnect ring.
   Durable history remains structured and never stores raw VT.
+- Terminal Input/Resize dispatcher work and Release carry the lease revision
+  captured at receipt. The revision is sideband session state, not injected
+  into raw provider input bytes; stale queued work fails closed after lease
+  expiry, disconnect, or reacquisition.
 - Terminal projection suspension remains five minutes. After all runs are
   inactive and all terminal sessions are Suspended/Closed, the helper uses an
   additional two-minute idle-exit grace. New activity cancels either timer.

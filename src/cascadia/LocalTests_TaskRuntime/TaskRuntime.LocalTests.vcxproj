@@ -13,9 +13,11 @@
   <Import Project="$(SolutionDir)src\common.nugetversions.props" />
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="FakeRuntimeTerminalBackend.h" />
     <ClInclude Include="RuntimeControlNotificationTestFixtures.h" />
     <ClInclude Include="RuntimeControlTestFixtures.h" />
     <ClInclude Include="RuntimeOnDemandActivationTestSupport.h" />
+    <ClInclude Include="RuntimeTerminalSessionTestSupport.h" />
     <ClInclude Include="TaskRuntimeProcessTestFixtures.h" />
     <ClInclude Include="TaskRuntimeProcessWin32Support.h" />
     <ClInclude Include="TaskRuntimeTestFixtures.h" />
@@ -48,6 +50,8 @@
     <ClCompile Include="RuntimeTerminalOutputRingTests.cpp" />
     <ClCompile Include="RuntimeTerminalInputLeaseTests.cpp" />
     <ClCompile Include="RuntimeTerminalClientRegistryTests.cpp" />
+    <ClCompile Include="RuntimeTerminalSessionLifecycleTests.cpp" />
+    <ClCompile Include="RuntimeTerminalSessionFrameTests.cpp" />
     <ClCompile Include="TaskRuntimeProcessArgv.cpp" />
     <ClCompile Include="TaskRuntimeProcessLauncher.cpp" />
     <ClCompile Include="TaskRuntimeProcessTestFixtures.cpp" />

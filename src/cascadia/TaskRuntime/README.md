@@ -1,11 +1,11 @@
 # Task Runtime host foundation
 
 This directory contains the Windows host boundary for the per-user Task
-Runtime. The current M2D1 slice accepts multiple control clients, drives each
-through Hello-first session state, routes typed requests through an injected
-interface, delivers targeted subscription notifications, and composes those
-foundations into a long-running per-user product host. It deliberately stops
-before on-demand launch coordination or real Task commands.
+Runtime. The completed M2E2 foundation accepts multiple control and terminal
+clients, drives Hello-first control sessions, routes typed requests through an
+injected interface, delivers targeted subscription notifications, and owns a
+bounded Agent-terminal session state machine. It deliberately stops before
+real Task commands or provider integration.
 
 Implemented foundations:
 
@@ -44,6 +44,18 @@ Implemented foundations:
 - protocol-level strict Ping and RuntimeStatus result DTOs;
 - a stable UUIDv4 Runtime instance identity shared by reconnecting clients and
   regenerated after process restart;
+- session/generation-bound binary terminal endpoints with independent control
+  and data backpressure;
+- a 4 MiB / 4,096-frame live VT reconnect ring, snapshot reset/replay, exact
+  output acknowledgements, and per-client bounded outbound queues;
+- multiple read-only terminal observers plus one expiring, versioned input
+  controller lease whose disconnect affects no running Task;
+- explicit lease-revision stamping for queued Input/Resize work and Release,
+  preventing stale work from being authorized after lease reuse (ABA);
+- slow terminal peers disconnected individually while healthy observers keep
+  receiving output, with controller ownership released on disconnect;
+- one injected terminal Backend boundary for snapshot, input, resize, and
+  interrupt, so physical `Esc` and control Stop converge on one operation;
 - `TaskRuntime.exe --serve` long-running composition with graceful console
   shutdown, plus the retained `--bootstrap-check` smoke entry point.
 
@@ -54,6 +66,11 @@ immediately during shutdown, avoiding a periodic pipe-recreation loop.
 Each client may own at most 64 subscriptions by default. Pending snapshot
 notifications reserve space for the response itself and share the client's
 bounded queue budget; overflow disconnects only that client.
+The terminal session's default per-client byte budget includes the wire header
+overhead for every frame in a full default reconnect ring. Input and Resize
+payloads remain unchanged on the wire; the future terminal dispatcher must
+carry the lease revision captured at receive time beside its serialized work
+item before calling `RuntimeTerminalSession`.
 
 `--bootstrap-check` creates and validates the identity, security, mutex, and
 first control-pipe instance, prints the protocol identity, and exits.
@@ -65,4 +82,7 @@ scheduler, and negotiated heartbeat. M2D2 adds connect-first, cross-process
 launch coordination while preserving Runtime independence from any Terminal
 parent. Real tests launch through a short-lived client process, reconnect after
 that process exits, restart after a forced Runtime crash, and prove the child
-is outside every parent Job before the launcher commits ownership.
+is outside every parent Job before the launcher commits ownership. M2E1 adds
+the secure binary terminal transport, and M2E2 composes its output ring, client
+registry, input lease, and deterministic Backend into the serialized terminal
+session described above.

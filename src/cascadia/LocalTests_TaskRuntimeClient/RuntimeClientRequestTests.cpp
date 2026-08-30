@@ -66,6 +66,7 @@ namespace TaskRuntimeClientLocalTests
         TEST_METHOD(ClearingOneEpochPreservesOtherTombstones);
         TEST_METHOD(StopDrainRemovesOnlyQueuedAttempts);
         TEST_METHOD(RetiresIntoPreallocatedBufferWithoutPartialMutation);
+        TEST_METHOD(SupersedesOnlyMatchingActiveEpochAttempts);
     };
 
     void RuntimeClientRequestTests::RejectsInvalidDuplicateAndOverCapacityAttempts()
@@ -343,6 +344,42 @@ namespace TaskRuntimeClientLocalTests
         VERIFY_ARE_EQUAL(uint64_t{ 2 }, retired[1].Attempt.OperationId);
         VERIFY_IS_TRUE(retired[0].Action == ClientDisconnectAction::RetryWithNewRequestId);
         VERIFY_IS_TRUE(retired[1].Action == ClientDisconnectAction::OutcomeUnknown);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, registry.ActiveCount());
+    }
+
+    void RuntimeClientRequestTests::SupersedesOnlyMatchingActiveEpochAttempts()
+    {
+        RuntimeClientRequestRegistry registry{ { 2, 1 } };
+        VERIFY_IS_TRUE(registry.SupersedeActive(0, 7) ==
+                       RuntimeClientRequestSupersedeStatus::Invalid);
+        VERIFY_IS_TRUE(registry.SupersedeActive(1, 0) ==
+                       RuntimeClientRequestSupersedeStatus::Invalid);
+        VERIFY_IS_TRUE(registry.SupersedeActive(99, 7) ==
+                       RuntimeClientRequestSupersedeStatus::NotFound);
+
+        VERIFY_IS_TRUE(registry.Add(Attempt(1, 1, RequestIds[0])) ==
+                       RuntimeClientRequestAddStatus::Added);
+        VERIFY_IS_TRUE(registry.SupersedeActive(1, 7) ==
+                       RuntimeClientRequestSupersedeStatus::WrongTransmission);
+        VERIFY_IS_TRUE(registry.BeginWrite(RequestIds[0], 7));
+        VERIFY_IS_TRUE(registry.SupersedeActive(1, 8) ==
+                       RuntimeClientRequestSupersedeStatus::Stale);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, registry.ActiveCount());
+        VERIFY_IS_TRUE(registry.SupersedeActive(1, 7) ==
+                       RuntimeClientRequestSupersedeStatus::Superseded);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, registry.ActiveCount());
+        VERIFY_ARE_EQUAL(size_t{ 1 }, registry.TombstoneCount());
+        VERIFY_IS_TRUE(registry.CompleteResponse(7, 7, RequestIds[0]).Status ==
+                       RuntimeClientResponseMatch::DuplicateOrLate);
+        VERIFY_IS_TRUE(registry.SupersedeActive(1, 7) ==
+                       RuntimeClientRequestSupersedeStatus::NotFound);
+
+        VERIFY_IS_TRUE(registry.Add(Attempt(2, 1, RequestIds[1])) ==
+                       RuntimeClientRequestAddStatus::Added);
+        VERIFY_IS_TRUE(registry.BeginWrite(RequestIds[1], 7));
+        VERIFY_IS_TRUE(registry.MarkWriteCompleted(RequestIds[1], 7));
+        VERIFY_IS_TRUE(registry.SupersedeActive(2, 7) ==
+                       RuntimeClientRequestSupersedeStatus::Superseded);
         VERIFY_ARE_EQUAL(size_t{ 0 }, registry.ActiveCount());
     }
 }

@@ -10,6 +10,15 @@
 
 namespace Microsoft::Terminal::TaskRuntime
 {
+    enum class RuntimeClientRequestSupersedeStatus
+    {
+        Superseded,
+        Invalid,
+        NotFound,
+        Stale,
+        WrongTransmission,
+    };
+
     // Pure caller-serialized request correlation. It performs no IO, waiting,
     // callback dispatch, retry creation, or logical-operation completion.
     class RuntimeClientRequestRegistry final
@@ -35,6 +44,9 @@ namespace Microsoft::Terminal::TaskRuntime
             std::vector<RuntimeClientRetiredRequest>& retired) noexcept;
         [[nodiscard]] std::optional<RuntimeClientRequestAttemptInfo> CancelQueued(
             RuntimeClientOperationId operationId);
+        [[nodiscard]] RuntimeClientRequestSupersedeStatus SupersedeActive(
+            RuntimeClientOperationId operationId,
+            RuntimeClientEpoch epoch) noexcept;
         [[nodiscard]] std::vector<RuntimeClientRequestAttemptInfo> DrainQueuedForStop();
         void ClearRetiredEpochTombstones(RuntimeClientEpoch epoch) noexcept;
 

@@ -358,6 +358,43 @@ namespace Microsoft::Terminal::TaskRuntime
         return cancelled;
     }
 
+    RuntimeClientRequestSupersedeStatus RuntimeClientRequestRegistry::SupersedeActive(
+        const RuntimeClientOperationId operationId,
+        const RuntimeClientEpoch epoch) noexcept
+    {
+        if (!Valid() || operationId == 0 || epoch == 0)
+        {
+            return RuntimeClientRequestSupersedeStatus::Invalid;
+        }
+        const auto operation = _impl->RequestIdByOperation.find(operationId);
+        if (operation == _impl->RequestIdByOperation.end())
+        {
+            return RuntimeClientRequestSupersedeStatus::NotFound;
+        }
+        const auto request = _impl->ActiveByRequestId.find(operation->second);
+        if (request == _impl->ActiveByRequestId.end())
+        {
+            return RuntimeClientRequestSupersedeStatus::NotFound;
+        }
+        const auto& attempt = request->second;
+        if (attempt.Transmission != ClientRequestTransmission::WriteStarted &&
+            attempt.Transmission != ClientRequestTransmission::WriteCompleted)
+        {
+            return RuntimeClientRequestSupersedeStatus::WrongTransmission;
+        }
+        if (attempt.Epoch != epoch)
+        {
+            return RuntimeClientRequestSupersedeStatus::Stale;
+        }
+
+        (void)_impl->AddTombstone(
+            attempt,
+            RuntimeClientRequestTombstoneKind::CompletedDuplicateGuard);
+        _impl->ActiveByRequestId.erase(request);
+        _impl->RequestIdByOperation.erase(operation);
+        return RuntimeClientRequestSupersedeStatus::Superseded;
+    }
+
     std::vector<RuntimeClientRequestAttemptInfo> RuntimeClientRequestRegistry::DrainQueuedForStop()
     {
         std::vector<RuntimeClientRequestAttemptInfo> queued;

@@ -23,6 +23,7 @@
     <ClInclude Include="RuntimePipe.h" />
     <ClInclude Include="RuntimeProcessExitCode.h" />
     <ClInclude Include="RuntimeSecurity.h" />
+    <ClInclude Include="RuntimeTerminalEndpoint.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -36,6 +37,7 @@
     <ClCompile Include="RuntimeIdentity.cpp" />
     <ClCompile Include="RuntimePipe.cpp" />
     <ClCompile Include="RuntimeSecurity.cpp" />
+    <ClCompile Include="RuntimeTerminalEndpoint.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj">

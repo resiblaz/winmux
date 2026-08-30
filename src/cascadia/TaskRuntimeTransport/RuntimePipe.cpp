@@ -10,11 +10,70 @@ namespace Microsoft::Terminal::TaskRuntime
     {
         constexpr DWORD PipeBufferBytes{ 64 * 1024 };
 
-        bool _validPipeName(const std::wstring_view value) noexcept
+        bool _validControlPipeName(const std::wstring_view value) noexcept
         {
             return value.starts_with(L"\\\\.\\pipe\\WT.TaskRuntime.") &&
                    value.ends_with(L".control") && value.size() <= 240 &&
                    value.find(L'\0') == std::wstring_view::npos;
+        }
+
+        bool _validSecurityAttributes(
+            const SECURITY_ATTRIBUTES* const securityAttributes) noexcept
+        {
+            return securityAttributes &&
+                   securityAttributes->nLength == sizeof(SECURITY_ATTRIBUTES) &&
+                   securityAttributes->lpSecurityDescriptor &&
+                   !securityAttributes->bInheritHandle;
+        }
+
+        struct RawPipeResult
+        {
+            RuntimePipeStatus Status{ RuntimePipeStatus::SystemError };
+            HANDLE Handle{ INVALID_HANDLE_VALUE };
+            DWORD SystemError{};
+            std::string Error;
+        };
+
+        RawPipeResult _createPipe(
+            const std::wstring& name,
+            const SECURITY_ATTRIBUTES* const securityAttributes,
+            const bool firstInstance)
+        {
+            auto openMode = PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED;
+            if (firstInstance)
+            {
+                openMode |= FILE_FLAG_FIRST_PIPE_INSTANCE;
+            }
+            const auto pipeMode = PIPE_TYPE_BYTE | PIPE_READMODE_BYTE |
+                                  PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS;
+            const auto handle = CreateNamedPipeW(
+                name.c_str(),
+                openMode,
+                pipeMode,
+                PIPE_UNLIMITED_INSTANCES,
+                PipeBufferBytes,
+                PipeBufferBytes,
+                0,
+                const_cast<SECURITY_ATTRIBUTES*>(securityAttributes));
+            if (handle != INVALID_HANDLE_VALUE)
+            {
+                return { RuntimePipeStatus::Created, handle, ERROR_SUCCESS, {} };
+            }
+
+            RawPipeResult result;
+            result.SystemError = GetLastError();
+            if (result.SystemError == ERROR_PIPE_BUSY ||
+                (result.SystemError == ERROR_ACCESS_DENIED && firstInstance))
+            {
+                result.Status = RuntimePipeStatus::AlreadyExists;
+            }
+            else if (result.SystemError == ERROR_ACCESS_DENIED)
+            {
+                result.Status = RuntimePipeStatus::AccessDenied;
+            }
+            result.Error = "CreateNamedPipe failed: " +
+                           std::to_string(result.SystemError);
+            return result;
         }
     }
 
@@ -73,53 +132,62 @@ namespace Microsoft::Terminal::TaskRuntime
         const bool firstInstance)
     {
         RuntimePipeResult result;
-        if (!_validPipeName(identity.ControlPipeName) ||
-            identity.ProtocolIdentity.empty() || !securityAttributes ||
-            securityAttributes->nLength != sizeof(SECURITY_ATTRIBUTES) ||
-            !securityAttributes->lpSecurityDescriptor || securityAttributes->bInheritHandle)
+        if (!_validControlPipeName(identity.ControlPipeName) ||
+            identity.ProtocolIdentity.empty() ||
+            !_validSecurityAttributes(securityAttributes))
         {
             result.Status = RuntimePipeStatus::InvalidConfiguration;
             result.Error = "Runtime pipe identity or security attributes are invalid";
             return result;
         }
 
-        auto openMode = PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED;
-        if (firstInstance)
+        const auto created = _createPipe(
+            identity.ControlPipeName,
+            securityAttributes,
+            firstInstance);
+        if (created.Status != RuntimePipeStatus::Created)
         {
-            openMode |= FILE_FLAG_FIRST_PIPE_INSTANCE;
-        }
-        const auto pipeMode = PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS;
-        const auto handle = CreateNamedPipeW(
-            identity.ControlPipeName.c_str(),
-            openMode,
-            pipeMode,
-            PIPE_UNLIMITED_INSTANCES,
-            PipeBufferBytes,
-            PipeBufferBytes,
-            0,
-            const_cast<SECURITY_ATTRIBUTES*>(securityAttributes));
-        if (handle == INVALID_HANDLE_VALUE)
-        {
-            const auto systemError = GetLastError();
-            result.SystemError = systemError;
-            if (systemError == ERROR_PIPE_BUSY || (systemError == ERROR_ACCESS_DENIED && firstInstance))
-            {
-                result.Status = RuntimePipeStatus::AlreadyExists;
-            }
-            else if (systemError == ERROR_ACCESS_DENIED)
-            {
-                result.Status = RuntimePipeStatus::AccessDenied;
-            }
-            else
-            {
-                result.Status = RuntimePipeStatus::SystemError;
-            }
-            result.Error = "CreateNamedPipe failed: " + std::to_string(systemError);
+            result.Status = created.Status;
+            result.SystemError = created.SystemError;
+            result.Error = created.Error;
             return result;
         }
 
-        result.Pipe._handle = handle;
+        result.Pipe._handle = created.Handle;
         result.Pipe._name = identity.ControlPipeName;
+        result.Status = RuntimePipeStatus::Created;
+        return result;
+    }
+
+    RuntimePipeResult CreateRuntimeTerminalPipe(
+        const RuntimeTerminalEndpoint& endpoint,
+        const SECURITY_ATTRIBUTES* const securityAttributes,
+        const bool firstInstance)
+    {
+        RuntimePipeResult result;
+        if (!ValidateRuntimeTerminalEndpoint(endpoint) ||
+            !_validSecurityAttributes(securityAttributes))
+        {
+            result.Status = RuntimePipeStatus::InvalidConfiguration;
+            result.Error =
+                "Runtime terminal endpoint or security attributes are invalid";
+            return result;
+        }
+
+        const auto created = _createPipe(
+            endpoint.PipeName,
+            securityAttributes,
+            firstInstance);
+        if (created.Status != RuntimePipeStatus::Created)
+        {
+            result.Status = created.Status;
+            result.SystemError = created.SystemError;
+            result.Error = created.Error;
+            return result;
+        }
+
+        result.Pipe._handle = created.Handle;
+        result.Pipe._name = endpoint.PipeName;
         result.Status = RuntimePipeStatus::Created;
         return result;
     }

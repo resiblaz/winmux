@@ -4,6 +4,7 @@
 #pragma once
 
 #include "RuntimeIdentity.h"
+#include "RuntimeTerminalEndpoint.h"
 
 #include <windows.h>
 
@@ -44,6 +45,10 @@ namespace Microsoft::Terminal::TaskRuntime
             const RuntimeIdentity& identity,
             const SECURITY_ATTRIBUTES* securityAttributes,
             bool firstInstance);
+        friend RuntimePipeResult CreateRuntimeTerminalPipe(
+            const RuntimeTerminalEndpoint& endpoint,
+            const SECURITY_ATTRIBUTES* securityAttributes,
+            bool firstInstance);
         HANDLE _handle{ INVALID_HANDLE_VALUE };
         std::wstring _name;
     };
@@ -63,6 +68,10 @@ namespace Microsoft::Terminal::TaskRuntime
 
     [[nodiscard]] RuntimePipeResult CreateRuntimeControlPipe(
         const RuntimeIdentity& identity,
+        const SECURITY_ATTRIBUTES* securityAttributes,
+        bool firstInstance = true);
+    [[nodiscard]] RuntimePipeResult CreateRuntimeTerminalPipe(
+        const RuntimeTerminalEndpoint& endpoint,
         const SECURITY_ATTRIBUTES* securityAttributes,
         bool firstInstance = true);
 }

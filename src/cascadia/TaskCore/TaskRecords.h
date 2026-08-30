@@ -82,7 +82,7 @@ namespace Microsoft::Terminal::TaskCore
         TaskRunId Id;
         TaskId Task;
         ExecutionContextId ExecutionContext;
-        AgentSessionId AgentSession;
+        std::optional<AgentSessionId> AgentSession;
         std::optional<TaskRunId> RetryOfRunId;
         TaskRunTrigger Trigger{ TaskRunTrigger::Initial };
         TaskRunState State{ TaskRunState::Queued };

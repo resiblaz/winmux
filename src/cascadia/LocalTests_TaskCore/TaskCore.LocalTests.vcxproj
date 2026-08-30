@@ -20,6 +20,7 @@
     </ClCompile>
     <ClCompile Include="TaskCoreIdentifierTests.cpp" />
     <ClCompile Include="TaskCoreRecordValidationTests.cpp" />
+    <ClCompile Include="TaskCoreSchemaTests.cpp" />
     <ClCompile Include="TaskCoreRunStatePolicyTests.cpp" />
     <ClCompile Include="TaskCoreTaskStatusPolicyTests.cpp" />
     <ClCompile Include="TaskCoreTerminalStatePolicyTests.cpp" />
@@ -34,6 +35,9 @@
       <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>winsqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\common.build.post.props" />
   <Import Project="$(SolutionDir)src\common.build.tests.props" />

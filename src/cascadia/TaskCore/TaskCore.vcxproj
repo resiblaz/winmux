@@ -13,6 +13,8 @@
   <Import Project="$(SolutionDir)src\common.nugetversions.props" />
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="ITaskStore.h" />
+    <ClInclude Include="SqliteTaskStore.h" />
     <ClInclude Include="StateTransition.h" />
     <ClInclude Include="TaskEnums.h" />
     <ClInclude Include="TaskIdentifiers.h" />
@@ -20,6 +22,9 @@
     <ClInclude Include="TaskRecordValidation.h" />
     <ClInclude Include="TaskRunStatePolicy.h" />
     <ClInclude Include="TaskStatusPolicy.h" />
+    <ClInclude Include="TaskStoreSchema.h" />
+    <ClInclude Include="TaskStoreSqlite.h" />
+    <ClInclude Include="TaskStoreStatus.h" />
     <ClInclude Include="TaskTerminalStatePolicy.h" />
   </ItemGroup>
   <ItemGroup>
@@ -27,9 +32,12 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="TaskIdentifiers.cpp" />
+    <ClCompile Include="SqliteTaskStore.cpp" />
     <ClCompile Include="TaskRecordValidation.cpp" />
     <ClCompile Include="TaskRunStatePolicy.cpp" />
     <ClCompile Include="TaskStatusPolicy.cpp" />
+    <ClCompile Include="TaskStoreSchema.cpp" />
+    <ClCompile Include="TaskStoreSqlite.cpp" />
     <ClCompile Include="TaskTerminalStatePolicy.cpp" />
   </ItemGroup>
   <ItemDefinitionGroup>

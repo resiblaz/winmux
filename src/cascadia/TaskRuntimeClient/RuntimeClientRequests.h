@@ -30,6 +30,9 @@ namespace Microsoft::Terminal::TaskRuntime
             RuntimeClientEpoch activeEpoch,
             std::string_view requestId);
         [[nodiscard]] std::vector<RuntimeClientRetiredRequest> RetireEpoch(RuntimeClientEpoch epoch);
+        [[nodiscard]] bool RetireEpochInto(
+            RuntimeClientEpoch epoch,
+            std::vector<RuntimeClientRetiredRequest>& retired) noexcept;
         [[nodiscard]] std::optional<RuntimeClientRequestAttemptInfo> CancelQueued(
             RuntimeClientOperationId operationId);
         [[nodiscard]] std::vector<RuntimeClientRequestAttemptInfo> DrainQueuedForStop();

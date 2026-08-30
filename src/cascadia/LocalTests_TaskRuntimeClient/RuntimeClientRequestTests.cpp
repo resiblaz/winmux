@@ -65,6 +65,7 @@ namespace TaskRuntimeClientLocalTests
         TEST_METHOD(SoftTombstonesAreBoundedAndEpochClearable);
         TEST_METHOD(ClearingOneEpochPreservesOtherTombstones);
         TEST_METHOD(StopDrainRemovesOnlyQueuedAttempts);
+        TEST_METHOD(RetiresIntoPreallocatedBufferWithoutPartialMutation);
     };
 
     void RuntimeClientRequestTests::RejectsInvalidDuplicateAndOverCapacityAttempts()
@@ -320,5 +321,28 @@ namespace TaskRuntimeClientLocalTests
 
         registry.ClearRetiredEpochTombstones(2);
         VERIFY_ARE_EQUAL(size_t{ 1 }, registry.TombstoneCount());
+    }
+
+    void RuntimeClientRequestTests::RetiresIntoPreallocatedBufferWithoutPartialMutation()
+    {
+        RuntimeClientRequestRegistry registry{ { 2, 4 } };
+        VERIFY_IS_TRUE(registry.Add(Attempt(2, 1, RequestIds[1], ControlMethod::SubmitCommand)) ==
+                       RuntimeClientRequestAddStatus::Added);
+        VERIFY_IS_TRUE(registry.Add(Attempt(1, 1, RequestIds[0], ControlMethod::QueryTask)) ==
+                       RuntimeClientRequestAddStatus::Added);
+        VERIFY_IS_TRUE(registry.BeginWrite(RequestIds[0], 3));
+        VERIFY_IS_TRUE(registry.BeginWrite(RequestIds[1], 3));
+
+        std::vector<RuntimeClientRetiredRequest> retired;
+        VERIFY_IS_FALSE(registry.RetireEpochInto(3, retired));
+        VERIFY_ARE_EQUAL(size_t{ 2 }, registry.ActiveCount());
+        retired.reserve(2);
+        VERIFY_IS_TRUE(registry.RetireEpochInto(3, retired));
+        VERIFY_ARE_EQUAL(size_t{ 2 }, retired.size());
+        VERIFY_ARE_EQUAL(uint64_t{ 1 }, retired[0].Attempt.OperationId);
+        VERIFY_ARE_EQUAL(uint64_t{ 2 }, retired[1].Attempt.OperationId);
+        VERIFY_IS_TRUE(retired[0].Action == ClientDisconnectAction::RetryWithNewRequestId);
+        VERIFY_IS_TRUE(retired[1].Action == ClientDisconnectAction::OutcomeUnknown);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, registry.ActiveCount());
     }
 }

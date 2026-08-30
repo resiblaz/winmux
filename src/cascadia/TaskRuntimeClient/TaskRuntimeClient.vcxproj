@@ -13,27 +13,46 @@
   <Import Project="$(SolutionDir)src\common.nugetversions.props" />
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="RuntimeClientInterfaces.h" />
     <ClInclude Include="RuntimeClientEpoch.h" />
     <ClInclude Include="RuntimeClientRequests.h" />
+    <ClInclude Include="RuntimeClientState.h" />
+    <ClInclude Include="RuntimeClientThreads.h" />
     <ClInclude Include="RuntimeClientTypes.h" />
+    <ClInclude Include="TaskRuntimeClient.h" />
+    <ClInclude Include="TaskRuntimeClientTypes.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RuntimeClientEpoch.cpp" />
+    <ClCompile Include="RuntimeClientInterfaces.cpp" />
+    <ClCompile Include="RuntimeClientOperations.cpp" />
+    <ClCompile Include="RuntimeClientReader.cpp" />
     <ClCompile Include="RuntimeClientRequests.cpp" />
+    <ClCompile Include="RuntimeClientState.cpp" />
+    <ClCompile Include="RuntimeClientSupervisor.cpp" />
+    <ClCompile Include="RuntimeClientThreads.cpp" />
+    <ClCompile Include="RuntimeClientWriter.cpp" />
+    <ClCompile Include="TaskRuntimeClient.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">
+      <Project>{C227632F-A428-48E3-AB9B-DB3D170DDAAC}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj">
       <Project>{6FC3F6B2-4AA9-4A8B-8784-3AFF0E4B90EF}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>ole32.lib;advapi32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\common.build.post.props" />
   <Import Project="$(SolutionDir)src\common.nugetversions.targets" />

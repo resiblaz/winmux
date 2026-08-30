@@ -653,6 +653,7 @@
     </Project>
     <Project Path="src/cascadia/TaskRuntimeClient/TaskRuntimeClient.vcxproj" Id="7b6394dd-3816-4a08-86f2-242daa6334e4">
       <BuildDependency Project="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" />
+      <BuildDependency Project="src/cascadia/TaskRuntimeTransport/TaskRuntimeTransport.vcxproj" />
       <Platform Solution="*|Any CPU" Project="Win32" />
       <Build Solution="*|Any CPU" Project="false" />
       <Build Solution="AuditMode|ARM64" Project="false" />
@@ -713,6 +714,7 @@
     <Project Path="src/cascadia/LocalTests_TaskRuntimeClient/TaskRuntimeClient.LocalTests.vcxproj" Id="954a9274-208f-4e96-a616-7d706ede7fab">
       <BuildDependency Project="src/cascadia/TaskRuntimeClient/TaskRuntimeClient.vcxproj" />
       <BuildDependency Project="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" />
+      <BuildDependency Project="src/cascadia/TaskRuntimeTransport/TaskRuntimeTransport.vcxproj" />
       <Platform Solution="*|Any CPU" Project="Win32" />
       <Build Solution="*|Any CPU" Project="false" />
       <Build Solution="AuditMode|ARM64" Project="false" />

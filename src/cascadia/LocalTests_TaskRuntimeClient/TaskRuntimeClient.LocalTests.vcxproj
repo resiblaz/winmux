@@ -12,16 +12,27 @@
   <Import Project="$(SolutionDir)src\common.build.pre.props" />
   <Import Project="$(SolutionDir)src\common.nugetversions.props" />
   <ItemGroup>
+    <ClInclude Include="FakeRuntimeClientConnection.h" />
+    <ClInclude Include="FakeRuntimeClientConnector.h" />
+    <ClInclude Include="FakeRuntimeClientServices.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="TaskRuntimeClientTestSupport.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RuntimeClientEpochTests.cpp" />
+    <ClCompile Include="RuntimeClientInterfaceTests.cpp" />
     <ClCompile Include="RuntimeClientRequestTests.cpp" />
+    <ClCompile Include="TaskRuntimeClientReconnectTests.cpp" />
+    <ClCompile Include="TaskRuntimeClientRequestFlowTests.cpp" />
+    <ClCompile Include="TaskRuntimeClientStopTests.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">
+      <Project>{C227632F-A428-48E3-AB9B-DB3D170DDAAC}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\TaskRuntimeClient\TaskRuntimeClient.vcxproj">
       <Project>{7B6394DD-3816-4A08-86F2-242DAA6334E4}</Project>
     </ProjectReference>
@@ -31,9 +42,12 @@
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>ole32.lib;advapi32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\common.build.post.props" />
   <Import Project="$(SolutionDir)src\common.build.tests.props" />

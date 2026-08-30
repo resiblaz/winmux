@@ -9,11 +9,14 @@
 
 #include <algorithm>
 #include <deque>
+#include <type_traits>
 #include <unordered_map>
 
 namespace Microsoft::Terminal::TaskRuntime
 {
     using namespace Microsoft::Terminal::TaskRuntimeProtocol;
+
+    static_assert(std::is_nothrow_move_constructible_v<RuntimeClientRetiredRequest>);
 
     namespace
     {
@@ -265,30 +268,66 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             return retired;
         }
-
-        for (const auto& [requestId, attempt] : _impl->ActiveByRequestId)
+        try
         {
-            if (attempt.Epoch == epoch)
+            retired.reserve(_impl->ActiveByRequestId.size());
+            if (!RetireEpochInto(epoch, retired))
             {
-                retired.emplace_back(RuntimeClientRetiredRequest{
-                    attempt,
-                    EvaluateClientDisconnect(attempt.Method, attempt.Transmission),
-                });
+                retired.clear();
             }
         }
+        catch (...)
+        {
+            retired.clear();
+        }
+        return retired;
+    }
+
+    bool RuntimeClientRequestRegistry::RetireEpochInto(
+        const RuntimeClientEpoch epoch,
+        std::vector<RuntimeClientRetiredRequest>& retired) noexcept
+    {
+        retired.clear();
+        if (!Valid() || epoch == 0)
+        {
+            return false;
+        }
+
+        const auto matching = static_cast<size_t>(std::ranges::count_if(
+            _impl->ActiveByRequestId,
+            [epoch](const auto& value) { return value.second.Epoch == epoch; }));
+        if (retired.capacity() < matching)
+        {
+            return false;
+        }
+
+        auto current = _impl->ActiveByRequestId.begin();
+        while (current != _impl->ActiveByRequestId.end())
+        {
+            auto& attempt = current->second;
+            if (attempt.Epoch != epoch)
+            {
+                ++current;
+                continue;
+            }
+
+            const auto operationId = attempt.OperationId;
+            const auto action = EvaluateClientDisconnect(attempt.Method, attempt.Transmission);
+            _impl->AddTombstone(
+                attempt,
+                RuntimeClientRequestTombstoneKind::RetiredEpoch);
+            retired.emplace_back(RuntimeClientRetiredRequest{
+                std::move(attempt),
+                action,
+            });
+            _impl->RequestIdByOperation.erase(operationId);
+            current = _impl->ActiveByRequestId.erase(current);
+        }
+
         std::ranges::sort(retired, {}, [](const auto& value) {
             return std::pair{ value.Attempt.OperationId, value.Attempt.Attempt };
         });
-
-        for (const auto& value : retired)
-        {
-            _impl->AddTombstone(
-                value.Attempt,
-                RuntimeClientRequestTombstoneKind::RetiredEpoch);
-            _impl->RequestIdByOperation.erase(value.Attempt.OperationId);
-            _impl->ActiveByRequestId.erase(value.Attempt.RequestId);
-        }
-        return retired;
+        return true;
     }
 
     std::optional<RuntimeClientRequestAttemptInfo> RuntimeClientRequestRegistry::CancelQueued(

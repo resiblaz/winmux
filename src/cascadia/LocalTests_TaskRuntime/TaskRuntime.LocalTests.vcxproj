@@ -27,6 +27,7 @@
     <ClCompile Include="RuntimeCommandLineTests.cpp" />
     <ClCompile Include="RuntimeControlChannelTests.cpp" />
     <ClCompile Include="RuntimeControlConnectorTests.cpp" />
+    <ClCompile Include="RuntimeControlDiscoveryTests.cpp" />
     <ClCompile Include="RuntimeControlNotificationConcurrencyTests.cpp" />
     <ClCompile Include="RuntimeControlNotificationTests.cpp" />
     <ClCompile Include="RuntimeControlQueueTests.cpp" />

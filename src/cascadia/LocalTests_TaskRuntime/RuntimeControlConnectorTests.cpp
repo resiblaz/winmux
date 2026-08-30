@@ -153,6 +153,7 @@ namespace TaskRuntimeLocalTests
         VERIFY_IS_TRUE(pair.ServerHandshake.Succeeded());
         VERIFY_IS_TRUE(pair.ServerHandshake.Decision.Accepted);
         VERIFY_IS_TRUE(pair.Client.Succeeded());
+        VERIFY_IS_TRUE(pair.Client.FailureReason == RuntimeControlConnectFailureReason::None);
         VERIFY_IS_NOT_NULL(pair.Client.Connection.get());
         VERIFY_IS_TRUE(pair.Client.Phase == RuntimeControlConnectPhase::Connected);
         VERIFY_IS_TRUE(pair.Client.HandshakeError == HandshakeError::None);
@@ -181,6 +182,7 @@ namespace TaskRuntimeLocalTests
 
         VERIFY_IS_FALSE(result.Succeeded());
         VERIFY_IS_TRUE(result.Status == RuntimeTransportStatus::Timeout);
+        VERIFY_IS_TRUE(result.FailureReason == RuntimeControlConnectFailureReason::DeadlineExpired);
         VERIFY_IS_TRUE(result.Phase == RuntimeControlConnectPhase::Connecting);
         VERIFY_IS_NULL(result.Connection.get());
         VERIFY_IS_TRUE(elapsed < 1000);
@@ -200,6 +202,7 @@ namespace TaskRuntimeLocalTests
             5000,
             precancelled.Get());
         VERIFY_IS_TRUE(immediate.Status == RuntimeTransportStatus::Cancelled);
+        VERIFY_IS_TRUE(immediate.FailureReason == RuntimeControlConnectFailureReason::Cancelled);
         VERIFY_IS_TRUE(immediate.Phase == RuntimeControlConnectPhase::Connecting);
         VERIFY_IS_NULL(immediate.Connection.get());
         VERIFY_IS_TRUE(GetTickCount64() - immediateStarted < 1000);
@@ -226,6 +229,7 @@ namespace TaskRuntimeLocalTests
         connectThread.join();
 
         VERIFY_IS_TRUE(waiting.Status == RuntimeTransportStatus::Cancelled);
+        VERIFY_IS_TRUE(waiting.FailureReason == RuntimeControlConnectFailureReason::Cancelled);
         VERIFY_IS_TRUE(waiting.Phase == RuntimeControlConnectPhase::Connecting);
         VERIFY_IS_NULL(waiting.Connection.get());
         VERIFY_IS_TRUE(GetTickCount64() - cancelStarted < 1000);
@@ -268,6 +272,7 @@ namespace TaskRuntimeLocalTests
         serverThread.join();
 
         VERIFY_IS_TRUE(result.Status == RuntimeTransportStatus::Cancelled);
+        VERIFY_IS_TRUE(result.FailureReason == RuntimeControlConnectFailureReason::Cancelled);
         VERIFY_IS_TRUE(result.Phase == RuntimeControlConnectPhase::Handshaking);
         VERIFY_IS_NULL(result.Connection.get());
     }
@@ -299,6 +304,7 @@ namespace TaskRuntimeLocalTests
             const auto result = connector.Connect(endpoint.Identity, request, 2000);
             serverThread.join();
             VERIFY_IS_TRUE(result.Status == RuntimeTransportStatus::ProtocolRejected);
+            VERIFY_IS_TRUE(result.FailureReason == RuntimeControlConnectFailureReason::HandshakeRejected);
             VERIFY_IS_TRUE(result.Phase == RuntimeControlConnectPhase::Handshaking);
             VERIFY_IS_TRUE(result.HandshakeError == HandshakeError::RuntimeIdentityMismatch);
             VERIFY_IS_NULL(result.Connection.get());
@@ -323,6 +329,7 @@ namespace TaskRuntimeLocalTests
                 2000);
             serverThread.join();
             VERIFY_IS_TRUE(result.Status == RuntimeTransportStatus::MalformedFrame);
+            VERIFY_IS_TRUE(result.FailureReason == RuntimeControlConnectFailureReason::HandshakeMalformed);
             VERIFY_IS_TRUE(result.Phase == RuntimeControlConnectPhase::Handshaking);
             VERIFY_IS_NULL(result.Connection.get());
         }
@@ -397,6 +404,7 @@ namespace TaskRuntimeLocalTests
 
         VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, WaitForSingleObject(helloReceived.Get(), 0));
         VERIFY_IS_TRUE(result.Status == RuntimeTransportStatus::Timeout);
+        VERIFY_IS_TRUE(result.FailureReason == RuntimeControlConnectFailureReason::HandshakeDeadlineExpired);
         VERIFY_IS_TRUE(result.Phase == RuntimeControlConnectPhase::Handshaking);
         VERIFY_IS_NULL(result.Connection.get());
         VERIFY_IS_TRUE(elapsed < 1000);

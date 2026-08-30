@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "RuntimeControlConnectPolicy.h"
 #include "RuntimeControlTransport.h"
 #include "RuntimeIdentity.h"
 
@@ -26,6 +27,9 @@ namespace Microsoft::Terminal::TaskRuntime
         Microsoft::Terminal::TaskRuntimeProtocol::HelloResponse Response;
         Microsoft::Terminal::TaskRuntimeProtocol::HandshakeError HandshakeError{
             Microsoft::Terminal::TaskRuntimeProtocol::HandshakeError::InvalidRequest
+        };
+        RuntimeControlConnectFailureReason FailureReason{
+            RuntimeControlConnectFailureReason::Unclassified
         };
 
         [[nodiscard]] bool Succeeded() const noexcept
@@ -53,10 +57,17 @@ namespace Microsoft::Terminal::TaskRuntime
     class RuntimeNamedPipeControlConnector final : public IRuntimeControlConnector
     {
     public:
+        explicit RuntimeNamedPipeControlConnector(
+            RuntimeControlEndpointDiscoveryPolicy discoveryPolicy =
+                RuntimeControlEndpointDiscoveryPolicy::WaitUntilDeadline) noexcept;
+
         [[nodiscard]] RuntimeControlConnectionResult Connect(
             const RuntimeIdentity& identity,
             const Microsoft::Terminal::TaskRuntimeProtocol::HelloRequest& request,
             uint32_t timeoutMilliseconds,
             HANDLE cancellationEvent = nullptr) noexcept override;
+
+    private:
+        RuntimeControlEndpointDiscoveryPolicy _discoveryPolicy;
     };
 }

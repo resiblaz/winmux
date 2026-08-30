@@ -12,6 +12,12 @@ application of the negotiated control-frame limit. A successful result owns an
 `IRuntimeControlConnection`; failed, cancelled, malformed, or rejected attempts
 never expose a connection.
 
+The default discovery policy retains the original bounded wait for a missing
+pipe. Activation coordinators may explicitly request immediate absence
+detection: only an initial `ERROR_FILE_NOT_FOUND` becomes `EndpointAbsent`.
+An observed busy/available endpoint, a connect race, and every Hello-stage
+failure remain distinct stable reasons and can never authorize process launch.
+
 Connection operations accept a manual-reset cancellation event. A signalled
 event or `CancelPendingIo` returns `RuntimeTransportStatus::Cancelled`.
 Cancellation is idempotent, and broad `CancelPendingIo` makes the connection

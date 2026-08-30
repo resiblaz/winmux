@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "RuntimeControlConnectPolicy.h"
 #include "RuntimeIdentity.h"
 #include "RuntimePipe.h"
 #include "RuntimeControlTransport.h"
@@ -55,12 +56,20 @@ namespace Microsoft::Terminal::TaskRuntime
             const RuntimeIdentity& identity,
             uint32_t timeoutMilliseconds,
             HANDLE cancellationEvent);
+        friend RuntimeControlChannelResult ConnectRuntimeControlChannel(
+            const RuntimeIdentity& identity,
+            uint32_t timeoutMilliseconds,
+            HANDLE cancellationEvent,
+            RuntimeControlEndpointDiscoveryPolicy discoveryPolicy);
         std::unique_ptr<Impl> _impl;
     };
 
     struct RuntimeControlChannelResult : RuntimeTransportResult
     {
         RuntimeControlChannel Channel;
+        RuntimeControlEndpointObservation EndpointObservation{
+            RuntimeControlEndpointObservation::Unknown
+        };
 
         [[nodiscard]] bool Succeeded() const noexcept
         {
@@ -77,4 +86,9 @@ namespace Microsoft::Terminal::TaskRuntime
         const RuntimeIdentity& identity,
         uint32_t timeoutMilliseconds,
         HANDLE cancellationEvent = nullptr);
+    [[nodiscard]] RuntimeControlChannelResult ConnectRuntimeControlChannel(
+        const RuntimeIdentity& identity,
+        uint32_t timeoutMilliseconds,
+        HANDLE cancellationEvent,
+        RuntimeControlEndpointDiscoveryPolicy discoveryPolicy);
 }

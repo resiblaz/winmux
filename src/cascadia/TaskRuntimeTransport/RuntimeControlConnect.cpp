@@ -38,6 +38,27 @@ namespace Microsoft::Terminal::TaskRuntime
             return result;
         }
 
+        struct RuntimeEndpointWaitResult : RuntimeTransportResult
+        {
+            RuntimeControlEndpointObservation Observation{
+                RuntimeControlEndpointObservation::Unknown
+            };
+        };
+
+        RuntimeEndpointWaitResult _endpointFailure(
+            const RuntimeTransportStatus status,
+            const RuntimeControlEndpointObservation observation,
+            std::string error,
+            const DWORD systemError = ERROR_SUCCESS)
+        {
+            RuntimeEndpointWaitResult result;
+            result.Status = status;
+            result.SystemError = systemError;
+            result.Error = std::move(error);
+            result.Observation = observation;
+            return result;
+        }
+
         RuntimeTransportStatus _classifyIoError(const DWORD error) noexcept
         {
             if (error == ERROR_OPERATION_ABORTED)
@@ -79,6 +100,13 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             return timeoutMilliseconds != 0 &&
                    timeoutMilliseconds <= MaximumRuntimeTransportTimeoutMilliseconds;
+        }
+
+        bool _validDiscoveryPolicy(
+            const RuntimeControlEndpointDiscoveryPolicy policy) noexcept
+        {
+            return policy == RuntimeControlEndpointDiscoveryPolicy::WaitUntilDeadline ||
+                   policy == RuntimeControlEndpointDiscoveryPolicy::ReturnImmediatelyIfAbsent;
         }
 
         uint32_t _remaining(const uint64_t deadline) noexcept
@@ -125,45 +153,80 @@ namespace Microsoft::Terminal::TaskRuntime
             return result;
         }
 
-        RuntimeTransportResult _waitForPipe(
+        RuntimeEndpointWaitResult _waitForPipe(
             const std::wstring& pipeName,
             const uint64_t deadline,
-            const HANDLE cancellationEvent)
+            const HANDLE cancellationEvent,
+            const RuntimeControlEndpointDiscoveryPolicy discoveryPolicy)
         {
             constexpr uint32_t waitSliceMilliseconds{ 50 };
+            auto observation = RuntimeControlEndpointObservation::Unknown;
             while (true)
             {
                 if (const auto cancelled = _cancellationFailure(cancellationEvent))
                 {
-                    return *cancelled;
+                    return _endpointFailure(
+                        cancelled->Status,
+                        observation,
+                        cancelled->Error,
+                        cancelled->SystemError);
                 }
                 const auto remaining = _remaining(deadline);
                 if (remaining == 0)
                 {
-                    return _failure(RuntimeTransportStatus::Timeout, "Runtime control pipe wait timed out", WAIT_TIMEOUT);
+                    return _endpointFailure(
+                        RuntimeTransportStatus::Timeout,
+                        observation,
+                        "Runtime control pipe wait timed out",
+                        WAIT_TIMEOUT);
                 }
                 if (WaitNamedPipeW(pipeName.c_str(), std::min(remaining, waitSliceMilliseconds)))
                 {
-                    RuntimeTransportResult result;
+                    RuntimeEndpointWaitResult result;
                     result.Status = RuntimeTransportStatus::Succeeded;
+                    result.Observation = RuntimeControlEndpointObservation::Available;
                     return result;
                 }
 
                 const auto error = GetLastError();
                 if (error == ERROR_SEM_TIMEOUT)
                 {
+                    observation = RuntimeControlEndpointObservation::Busy;
                     continue;
                 }
                 if (error == ERROR_FILE_NOT_FOUND)
                 {
+                    const auto neverObserved =
+                        observation == RuntimeControlEndpointObservation::Unknown;
+                    if (neverObserved)
+                    {
+                        observation = RuntimeControlEndpointObservation::Absent;
+                    }
+                    if (neverObserved && discoveryPolicy ==
+                        RuntimeControlEndpointDiscoveryPolicy::ReturnImmediatelyIfAbsent)
+                    {
+                        return _endpointFailure(
+                            RuntimeTransportStatus::Disconnected,
+                            observation,
+                            "Runtime control endpoint is absent",
+                            error);
+                    }
                     const auto waited = _waitForRetry(deadline, cancellationEvent);
                     if (waited.Succeeded())
                     {
                         continue;
                     }
-                    return waited;
+                    return _endpointFailure(
+                        waited.Status,
+                        observation,
+                        waited.Error,
+                        waited.SystemError);
                 }
-                return _failure(_classifyIoError(error), "WaitNamedPipe failed", error);
+                return _endpointFailure(
+                    _classifyIoError(error),
+                    observation,
+                    "WaitNamedPipe failed",
+                    error);
             }
         }
     }
@@ -173,8 +236,22 @@ namespace Microsoft::Terminal::TaskRuntime
         const uint32_t timeoutMilliseconds,
         const HANDLE cancellationEvent)
     {
+        return ConnectRuntimeControlChannel(
+            identity,
+            timeoutMilliseconds,
+            cancellationEvent,
+            RuntimeControlEndpointDiscoveryPolicy::WaitUntilDeadline);
+    }
+
+    RuntimeControlChannelResult ConnectRuntimeControlChannel(
+        const RuntimeIdentity& identity,
+        const uint32_t timeoutMilliseconds,
+        const HANDLE cancellationEvent,
+        const RuntimeControlEndpointDiscoveryPolicy discoveryPolicy)
+    {
         RuntimeControlChannelResult result;
-        if (identity.ControlPipeName.empty() || !_validTimeout(timeoutMilliseconds))
+        if (identity.ControlPipeName.empty() || !_validTimeout(timeoutMilliseconds) ||
+            !_validDiscoveryPolicy(discoveryPolicy))
         {
             result.Status = RuntimeTransportStatus::InvalidConfiguration;
             result.Error = "Runtime identity or timeout is invalid";
@@ -183,7 +260,12 @@ namespace Microsoft::Terminal::TaskRuntime
         const auto deadline = GetTickCount64() + timeoutMilliseconds;
         while (true)
         {
-            const auto waited = _waitForPipe(identity.ControlPipeName, deadline, cancellationEvent);
+            const auto waited = _waitForPipe(
+                identity.ControlPipeName,
+                deadline,
+                cancellationEvent,
+                discoveryPolicy);
+            result.EndpointObservation = waited.Observation;
             if (!waited.Succeeded())
             {
                 static_cast<RuntimeTransportResult&>(result) = waited;
@@ -201,8 +283,21 @@ namespace Microsoft::Terminal::TaskRuntime
             if (pipe.Value == INVALID_HANDLE_VALUE)
             {
                 const auto error = GetLastError();
-                if (error == ERROR_PIPE_BUSY || error == ERROR_FILE_NOT_FOUND)
+                if (error == ERROR_PIPE_BUSY)
                 {
+                    result.EndpointObservation = RuntimeControlEndpointObservation::Busy;
+                    continue;
+                }
+                if (error == ERROR_FILE_NOT_FOUND)
+                {
+                    if (discoveryPolicy ==
+                        RuntimeControlEndpointDiscoveryPolicy::ReturnImmediatelyIfAbsent)
+                    {
+                        result.Status = RuntimeTransportStatus::Disconnected;
+                        result.SystemError = error;
+                        result.Error = "Observed Runtime control endpoint disappeared before connect";
+                        return result;
+                    }
                     continue;
                 }
                 result.Status = _classifyIoError(error);
@@ -224,6 +319,7 @@ namespace Microsoft::Terminal::TaskRuntime
                 (void)pipe.Release();
                 result.Channel = std::move(channel);
                 result.Status = RuntimeTransportStatus::Succeeded;
+                result.EndpointObservation = RuntimeControlEndpointObservation::Available;
                 return result;
             }
             catch (const std::exception& exception)

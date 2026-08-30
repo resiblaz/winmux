@@ -630,10 +630,31 @@
       <Build Solution="Fuzzing|x64" Project="false" />
       <Build Solution="Fuzzing|x86" Project="false" />
     </Project>
+    <Project Path="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" Id="6fc3f6b2-4aa9-4a8b-8784-3aff0e4b90ef">
+      <Platform Solution="*|Any CPU" Project="Win32" />
+      <Build Solution="*|Any CPU" Project="false" />
+      <Build Solution="AuditMode|ARM64" Project="false" />
+      <Build Solution="AuditMode|x64" Project="false" />
+      <Build Solution="AuditMode|x86" Project="false" />
+      <Build Solution="Fuzzing|ARM64" Project="false" />
+      <Build Solution="Fuzzing|x64" Project="false" />
+      <Build Solution="Fuzzing|x86" Project="false" />
+    </Project>
   </Folder>
   <Folder Name="/Terminal/Tests/">
     <Project Path="src/cascadia/LocalTests_TaskCore/TaskCore.LocalTests.vcxproj" Id="be94e254-eb5c-4cc6-93d8-7c3ea7b88837">
       <BuildDependency Project="src/cascadia/TaskCore/TaskCore.vcxproj" />
+      <Platform Solution="*|Any CPU" Project="Win32" />
+      <Build Solution="*|Any CPU" Project="false" />
+      <Build Solution="AuditMode|ARM64" Project="false" />
+      <Build Solution="AuditMode|x64" Project="false" />
+      <Build Solution="AuditMode|x86" Project="false" />
+      <Build Solution="Fuzzing|ARM64" Project="false" />
+      <Build Solution="Fuzzing|x64" Project="false" />
+      <Build Solution="Fuzzing|x86" Project="false" />
+    </Project>
+    <Project Path="src/cascadia/LocalTests_TaskRuntimeProtocol/TaskRuntimeProtocol.LocalTests.vcxproj" Id="bdf5f498-a056-45f8-b07b-7132e6207a48">
+      <BuildDependency Project="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" />
       <Platform Solution="*|Any CPU" Project="Win32" />
       <Build Solution="*|Any CPU" Project="false" />
       <Build Solution="AuditMode|ARM64" Project="false" />

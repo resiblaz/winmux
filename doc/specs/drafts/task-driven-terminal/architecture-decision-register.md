@@ -937,7 +937,9 @@ Required protocol properties:
 
 Open follow-ons:
 
-- exact JSON method schema and binary frame header;
+- the initial handshake schema and binary frame header are realized by
+  `src/cascadia/TaskRuntimeProtocol/README.md`; per-method DTO schemas remain
+  staged with their owning Runtime commands;
 - reconnect/catch-up and terminal reset contract;
 - VT spool/ring limits and persistence;
 - heartbeat cadence and stale-client lease recovery.

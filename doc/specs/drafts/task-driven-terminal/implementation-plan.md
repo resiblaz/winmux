@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-29
 last updated: 2026-08-30
-status: active staged implementation; M1 TaskCore complete, M2 Runtime foundation next
+status: active staged implementation; M1 complete, M2 Runtime foundation active
 ---
 
 # Task-driven Terminal: Proposed Implementation Plan
@@ -32,8 +32,11 @@ foundational contracts required to avoid disposable data/process designs.
   domain/state policies, versioned SQLite persistence, transactional commands,
   durable message scheduling, recovery intents, deletion tombstones, and
   bounded maintenance are covered by deterministic native tests.
-- M2 is next. It adds only the Runtime process/protocol foundation over M1; it
-  does not yet introduce real Codex, Git, or task-owned Surface integration.
+- M2 is active on `feature/task-runtime-foundation`. M2A establishes the
+  process-neutral handshake, capability negotiation, strict control framing,
+  and binary terminal framing with deterministic tests. M2B adds Runtime user
+  identity, single-instance ownership, and secure named-pipe primitives; real
+  Codex, Git, and task-owned Surface integration remain later milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
 
@@ -231,6 +234,8 @@ Tests:
 - Delete/tombstone/30-day cleanup.
 
 ### M2: Runtime process and protocol
+
+Status: **in progress; M2A protocol foundation complete (2026-08-30)**.
 
 Deliverables:
 

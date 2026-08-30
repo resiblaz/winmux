@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{6FC3F6B2-4AA9-4A8B-8784-3AFF0E4B90EF}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>Microsoft.Terminal.TaskRuntimeProtocol</RootNamespace>
+    <ProjectName>TaskRuntimeProtocol</ProjectName>
+    <TargetName>TaskRuntimeProtocol</TargetName>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <OpenConsoleUniversalApp>false</OpenConsoleUniversalApp>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\common.build.pre.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.props" />
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="ControlFrame.h" />
+    <ClInclude Include="ProtocolCapabilities.h" />
+    <ClInclude Include="ProtocolHandshake.h" />
+    <ClInclude Include="ProtocolJson.h" />
+    <ClInclude Include="ProtocolValidation.h" />
+    <ClInclude Include="ProtocolVersion.h" />
+    <ClInclude Include="TerminalFrame.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="ControlFrame.cpp" />
+    <ClCompile Include="ProtocolCapabilities.cpp" />
+    <ClCompile Include="ProtocolHandshake.cpp" />
+    <ClCompile Include="ProtocolJson.cpp" />
+    <ClCompile Include="ProtocolValidation.cpp" />
+    <ClCompile Include="TerminalFrame.cpp" />
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(OpenConsoleDir)src\cascadia\TaskRuntimeProtocol;$(OpenConsoleDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\common.build.post.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.targets" />
+</Project>

@@ -13,6 +13,8 @@
   <Import Project="$(SolutionDir)src\common.nugetversions.props" />
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="RuntimeControlNotificationTestFixtures.h" />
+    <ClInclude Include="RuntimeControlTestFixtures.h" />
     <ClInclude Include="TaskRuntimeTestFixtures.h" />
   </ItemGroup>
   <ItemGroup>
@@ -21,6 +23,8 @@
     </ClCompile>
     <ClCompile Include="RuntimeBootstrapTests.cpp" />
     <ClCompile Include="RuntimeControlChannelTests.cpp" />
+    <ClCompile Include="RuntimeControlNotificationConcurrencyTests.cpp" />
+    <ClCompile Include="RuntimeControlNotificationTests.cpp" />
     <ClCompile Include="RuntimeControlQueueTests.cpp" />
     <ClCompile Include="RuntimeControlServerTests.cpp" />
     <ClCompile Include="RuntimeIdentityTests.cpp" />

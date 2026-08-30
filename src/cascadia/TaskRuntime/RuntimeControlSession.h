@@ -6,12 +6,15 @@
 #include "RuntimeControlChannel.h"
 #include "RuntimeControlQueue.h"
 #include "RuntimeControlRouter.h"
+#include "RuntimeControlSubscriptions.h"
 
 #include "ControlSession.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
+#include <string>
 
 namespace Microsoft::Terminal::TaskRuntime
 {
@@ -26,6 +29,7 @@ namespace Microsoft::Terminal::TaskRuntime
         };
         size_t MaximumQueuedMessages{ DefaultMaximumQueuedControlMessages };
         size_t MaximumQueuedBytes{ DefaultMaximumQueuedControlBytes };
+        size_t MaximumSubscriptions{ DefaultMaximumSubscriptionsPerControlClient };
     };
 
     enum class RuntimeControlSessionCloseReason
@@ -47,7 +51,8 @@ namespace Microsoft::Terminal::TaskRuntime
         RuntimeControlSession(
             RuntimeControlChannel channel,
             std::shared_ptr<IRuntimeControlRequestRouter> router,
-            RuntimeControlSessionConfiguration configuration);
+            RuntimeControlSessionConfiguration configuration,
+            std::shared_ptr<std::mutex> subscriptionOwnershipMutex);
         ~RuntimeControlSession();
 
         RuntimeControlSession(const RuntimeControlSession&) = delete;
@@ -59,6 +64,11 @@ namespace Microsoft::Terminal::TaskRuntime
 
         [[nodiscard]] bool Finished() const noexcept;
         [[nodiscard]] RuntimeControlSessionCloseReason CloseReason() const noexcept;
+        [[nodiscard]] bool OwnsSubscription(
+            const std::string& subscriptionId,
+            uint64_t generation) const;
+        [[nodiscard]] RuntimeControlNotificationStatus PublishNotification(
+            const Microsoft::Terminal::TaskRuntimeProtocol::ControlNotification& notification);
 
     private:
         struct Impl;

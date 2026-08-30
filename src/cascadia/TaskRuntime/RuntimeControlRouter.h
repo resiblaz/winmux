@@ -7,6 +7,7 @@
 #include "ProtocolRpc.h"
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,11 +23,32 @@ namespace Microsoft::Terminal::TaskRuntime
         Microsoft::Terminal::TaskRuntimeProtocol::ProtocolCapabilitySet NegotiatedCapabilities{};
     };
 
+    enum class RuntimeControlSubscriptionAction
+    {
+        Bind,
+        Unbind,
+    };
+
+    struct RuntimeControlSubscriptionChange
+    {
+        RuntimeControlSubscriptionAction Action{ RuntimeControlSubscriptionAction::Bind };
+        std::string SubscriptionId;
+        uint64_t Generation{};
+        uint64_t Cursor{};
+    };
+
+    struct RuntimeControlSubscriptionPlan
+    {
+        std::string SubscriptionId;
+        uint64_t Generation{};
+    };
+
     struct RuntimeControlRouteResult
     {
         bool Succeeded{};
         std::string ResultJson{ "{}" };
         std::optional<Microsoft::Terminal::TaskRuntimeProtocol::ProtocolRpcError> Error;
+        std::optional<RuntimeControlSubscriptionChange> SubscriptionChange;
     };
 
     class RuntimeControlCancellationToken final
@@ -50,6 +72,28 @@ namespace Microsoft::Terminal::TaskRuntime
     {
     public:
         virtual ~IRuntimeControlRequestRouter() = default;
+
+        // Planning only allocates identity. SnapshotAndSubscribe Route runs
+        // after the Runtime has installed a pending transport reservation, so
+        // Route may atomically register its event source while creating the
+        // snapshot without losing notifications.
+        [[nodiscard]] virtual std::optional<RuntimeControlSubscriptionPlan> PlanSubscription(
+            const RuntimeControlClientContext&,
+            const Microsoft::Terminal::TaskRuntimeProtocol::ControlRequest&,
+            const RuntimeControlCancellationToken&)
+        {
+            return std::nullopt;
+        }
+
+        virtual void CancelSubscriptionPlan(
+            const RuntimeControlClientContext&,
+            const RuntimeControlSubscriptionPlan&) noexcept
+        {
+        }
+
+        virtual void ClientDisconnected(const RuntimeControlClientContext&) noexcept
+        {
+        }
 
         // Implementations may be called concurrently for different clients.
         // Long-running work must observe cancellation and bound its own I/O.

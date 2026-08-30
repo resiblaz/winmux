@@ -22,6 +22,7 @@ namespace TaskRuntimeLocalTests
 
         TEST_METHOD(DequeuedPayloadCountsUntilWriterCompletesIt);
         TEST_METHOD(EnforcesByteAndMessageValidationBounds);
+        TEST_METHOD(BatchEnqueueIsAtomicAndOrdered);
         TEST_METHOD(CloseWakesAWaitingWriter);
     };
 
@@ -60,6 +61,40 @@ namespace TaskRuntimeLocalTests
         VERIFY_IS_TRUE(queue.Enqueue("{}") == RuntimeControlQueueStatus::QueueLimitReached);
         queue.Close();
         VERIFY_IS_TRUE(queue.Enqueue("{}") == RuntimeControlQueueStatus::Closed);
+    }
+
+    void RuntimeControlQueueTests::BatchEnqueueIsAtomicAndOrdered()
+    {
+        RuntimeControlQueue queue{ 3, 1024 };
+        VERIFY_IS_TRUE(queue.Enqueue("{\"first\":true}") == RuntimeControlQueueStatus::Accepted);
+        std::vector<RuntimeControlQueueInput> oversizedBatch{
+            { "{\"second\":true}", std::string{ "30000000-0000-4000-8000-000000000071" } },
+            { "{\"third\":true}", std::nullopt },
+            { "{\"fourth\":true}", std::nullopt },
+        };
+        VERIFY_IS_TRUE(queue.EnqueueBatch(std::move(oversizedBatch)) ==
+                       RuntimeControlQueueStatus::QueueLimitReached);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, queue.OutstandingMessageCount());
+
+        const auto first = queue.WaitDequeue();
+        VERIFY_IS_TRUE(first.has_value());
+        queue.Complete(*first);
+        std::vector<RuntimeControlQueueInput> acceptedBatch{
+            { "{\"second\":true}", std::string{ "30000000-0000-4000-8000-000000000071" } },
+            { "{\"third\":true}", std::nullopt },
+        };
+        VERIFY_IS_TRUE(queue.EnqueueBatch(std::move(acceptedBatch)) ==
+                       RuntimeControlQueueStatus::Accepted);
+        const auto second = queue.WaitDequeue();
+        const auto third = queue.WaitDequeue();
+        VERIFY_IS_TRUE(second.has_value());
+        VERIFY_IS_TRUE(third.has_value());
+        VERIFY_ARE_EQUAL(std::string{ "{\"second\":true}" }, second->Payload);
+        VERIFY_ARE_EQUAL(std::string{ "{\"third\":true}" }, third->Payload);
+        VERIFY_IS_TRUE(second->CompletionRequestId.has_value());
+        queue.Complete(*second);
+        queue.Complete(*third);
+        VERIFY_ARE_EQUAL(size_t{ 0 }, queue.OutstandingMessageCount());
     }
 
     void RuntimeControlQueueTests::CloseWakesAWaitingWriter()

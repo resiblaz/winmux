@@ -5,6 +5,7 @@
 #include "RuntimeControlServer.h"
 
 #include "RuntimeControlChannel.h"
+#include "RuntimeControlPublisher.h"
 #include "RuntimeControlQueue.h"
 #include "RuntimeControlSession.h"
 
@@ -60,7 +61,10 @@ namespace Microsoft::Terminal::TaskRuntime
                    configuration.MaximumQueuedMessages <= AbsoluteMaximumQueuedControlMessages &&
                    configuration.MaximumQueuedBytes >=
                        static_cast<size_t>(handshake.MaximumControlFrameBytes) + sizeof(uint32_t) &&
-                   configuration.MaximumQueuedBytes <= AbsoluteMaximumQueuedControlBytes;
+                   configuration.MaximumQueuedBytes <= AbsoluteMaximumQueuedControlBytes &&
+                   configuration.MaximumSubscriptionsPerClient != 0 &&
+                   configuration.MaximumSubscriptionsPerClient <=
+                       AbsoluteMaximumSubscriptionsPerControlClient;
         }
 
         bool _isSlowClientReason(const RuntimeControlSessionCloseReason reason) noexcept
@@ -84,6 +88,7 @@ namespace Microsoft::Terminal::TaskRuntime
         mutable std::mutex ListenerMutex;
         HANDLE ActiveListener{ INVALID_HANDLE_VALUE };
         mutable std::mutex SessionsMutex;
+        std::shared_ptr<std::mutex> SubscriptionOwnershipMutex{ std::make_shared<std::mutex>() };
         std::vector<std::unique_ptr<RuntimeControlSession>> Sessions;
         std::atomic_uint64_t AcceptedConnections{};
         std::atomic_uint64_t CompletedConnections{};
@@ -117,6 +122,7 @@ namespace Microsoft::Terminal::TaskRuntime
             session.MaximumInflightRequests = Configuration.MaximumInflightRequests;
             session.MaximumQueuedMessages = Configuration.MaximumQueuedMessages;
             session.MaximumQueuedBytes = Configuration.MaximumQueuedBytes;
+            session.MaximumSubscriptions = Configuration.MaximumSubscriptionsPerClient;
             return session;
         }
 
@@ -255,21 +261,44 @@ namespace Microsoft::Terminal::TaskRuntime
                 auto session = std::make_unique<RuntimeControlSession>(
                     std::move(accepted.Channel),
                     Router,
-                    SessionConfiguration());
-                if (!session->Start())
-                {
-                    TransportFailures.fetch_add(1, std::memory_order_relaxed);
-                    continue;
-                }
+                    SessionConfiguration(),
+                    SubscriptionOwnershipMutex);
+                auto* const sessionPointer = session.get();
                 {
                     std::scoped_lock lock{ SessionsMutex };
                     Sessions.emplace_back(std::move(session));
+                }
+                if (!sessionPointer->Start())
+                {
+                    TransportFailures.fetch_add(1, std::memory_order_relaxed);
+                    std::unique_ptr<RuntimeControlSession> failed;
+                    {
+                        std::scoped_lock lock{ SessionsMutex };
+                        const auto found = std::ranges::find_if(Sessions, [&](const auto& candidate) {
+                            return candidate.get() == sessionPointer;
+                        });
+                        if (found != Sessions.end())
+                        {
+                            failed = std::move(*found);
+                            Sessions.erase(found);
+                        }
+                    }
+                    if (failed)
+                    {
+                        failed->RequestStop(RuntimeControlSessionCloseReason::TransportError);
+                        failed->Join();
+                    }
+                    continue;
                 }
             }
 
             {
                 std::scoped_lock lock{ ListenerMutex };
                 ActiveListener = INVALID_HANDLE_VALUE;
+            }
+            {
+                std::scoped_lock lock{ SessionsMutex };
+                StopRequested.store(true, std::memory_order_release);
             }
             StopAndJoinSessions();
             IsRunning.store(false, std::memory_order_release);
@@ -293,7 +322,10 @@ namespace Microsoft::Terminal::TaskRuntime
         void Stop() noexcept
         {
             std::scoped_lock stopLock{ StopMutex };
-            StopRequested.store(true, std::memory_order_release);
+            {
+                std::scoped_lock sessionsLock{ SessionsMutex };
+                StopRequested.store(true, std::memory_order_release);
+            }
             CancelListener();
             if (Acceptor.joinable())
             {
@@ -315,6 +347,17 @@ namespace Microsoft::Terminal::TaskRuntime
             statistics.CapacityRejectedConnections = CapacityRejectedConnections.load(std::memory_order_relaxed);
             statistics.TransportFailures = TransportFailures.load(std::memory_order_relaxed);
             return statistics;
+        }
+
+        RuntimeControlPublishStatus PublishNotification(const ControlNotification& notification)
+        {
+            return PublishRuntimeControlNotification(
+                notification,
+                SessionsMutex,
+                Sessions,
+                *SubscriptionOwnershipMutex,
+                StopRequested,
+                IsRunning);
         }
     };
 
@@ -352,6 +395,14 @@ namespace Microsoft::Terminal::TaskRuntime
     RuntimeControlServerStatistics RuntimeControlServer::Statistics() const noexcept
     {
         return _impl ? _impl->Statistics() : RuntimeControlServerStatistics{};
+    }
+
+    RuntimeControlPublishStatus RuntimeControlServer::PublishNotification(
+        const ControlNotification& notification)
+    {
+        return _impl ?
+                   _impl->PublishNotification(notification) :
+                   RuntimeControlPublishStatus::ServerStopped;
     }
 
     void RuntimeControlServer::Stop() noexcept

@@ -34,6 +34,7 @@ namespace Microsoft::Terminal::TaskRuntime
         };
         size_t MaximumQueuedMessages{ 64 };
         size_t MaximumQueuedBytes{ 8 * 1024 * 1024 };
+        size_t MaximumSubscriptionsPerClient{ 64 };
     };
 
     struct RuntimeControlServerStatistics
@@ -55,6 +56,18 @@ namespace Microsoft::Terminal::TaskRuntime
         ThreadStartFailure,
     };
 
+    enum class RuntimeControlPublishStatus
+    {
+        Delivered,
+        Duplicate,
+        NoSubscriber,
+        AmbiguousSubscription,
+        SequenceGap,
+        InvalidNotification,
+        SlowClientDisconnected,
+        ServerStopped,
+    };
+
     struct RuntimeControlServerResult;
 
     class RuntimeControlServer final
@@ -71,6 +84,8 @@ namespace Microsoft::Terminal::TaskRuntime
         [[nodiscard]] explicit operator bool() const noexcept;
         [[nodiscard]] bool Running() const noexcept;
         [[nodiscard]] RuntimeControlServerStatistics Statistics() const noexcept;
+        [[nodiscard]] RuntimeControlPublishStatus PublishNotification(
+            const Microsoft::Terminal::TaskRuntimeProtocol::ControlNotification& notification);
         void Stop() noexcept;
 
     private:

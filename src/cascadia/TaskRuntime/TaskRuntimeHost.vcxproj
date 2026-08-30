@@ -16,9 +16,12 @@
     <ClInclude Include="RuntimeBootstrap.h" />
     <ClInclude Include="RuntimeControlChannel.h" />
     <ClInclude Include="RuntimeControlQueue.h" />
+    <ClInclude Include="RuntimeControlPublisher.h" />
     <ClInclude Include="RuntimeControlRouter.h" />
     <ClInclude Include="RuntimeControlServer.h" />
     <ClInclude Include="RuntimeControlSession.h" />
+    <ClInclude Include="RuntimeControlSessionState.h" />
+    <ClInclude Include="RuntimeControlSubscriptions.h" />
     <ClInclude Include="RuntimeIdentity.h" />
     <ClInclude Include="RuntimePipe.h" />
     <ClInclude Include="RuntimeSecurity.h" />
@@ -32,8 +35,11 @@
     <ClCompile Include="RuntimeControlChannel.cpp" />
     <ClCompile Include="RuntimeControlHandshake.cpp" />
     <ClCompile Include="RuntimeControlQueue.cpp" />
+    <ClCompile Include="RuntimeControlPublisher.cpp" />
     <ClCompile Include="RuntimeControlServer.cpp" />
     <ClCompile Include="RuntimeControlSession.cpp" />
+    <ClCompile Include="RuntimeControlSessionReader.cpp" />
+    <ClCompile Include="RuntimeControlSubscriptions.cpp" />
     <ClCompile Include="RuntimeIdentity.cpp" />
     <ClCompile Include="RuntimePipe.cpp" />
     <ClCompile Include="RuntimeSecurity.cpp" />

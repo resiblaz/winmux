@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace Microsoft::Terminal::TaskRuntime
 {
@@ -30,6 +31,12 @@ namespace Microsoft::Terminal::TaskRuntime
         size_t WireBytes{};
     };
 
+    struct RuntimeControlQueueInput
+    {
+        std::string Payload;
+        std::optional<std::string> CompletionRequestId;
+    };
+
     class RuntimeControlQueue final
     {
     public:
@@ -42,6 +49,8 @@ namespace Microsoft::Terminal::TaskRuntime
         [[nodiscard]] RuntimeControlQueueStatus Enqueue(
             std::string payload,
             std::optional<std::string> completionRequestId = std::nullopt);
+        [[nodiscard]] RuntimeControlQueueStatus EnqueueBatch(
+            std::vector<RuntimeControlQueueInput> payloads);
         [[nodiscard]] std::optional<RuntimeQueuedControlPayload> WaitDequeue();
         void Complete(const RuntimeQueuedControlPayload& payload) noexcept;
         void Close() noexcept;

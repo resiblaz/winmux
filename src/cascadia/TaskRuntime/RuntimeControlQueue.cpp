@@ -49,32 +49,58 @@ namespace Microsoft::Terminal::TaskRuntime
         std::string payload,
         std::optional<std::string> completionRequestId)
     {
-        const auto wireBytes = payload.size() + sizeof(uint32_t);
+        std::vector<RuntimeControlQueueInput> payloads;
+        payloads.push_back({ std::move(payload), std::move(completionRequestId) });
+        return EnqueueBatch(std::move(payloads));
+    }
+
+    RuntimeControlQueueStatus RuntimeControlQueue::EnqueueBatch(
+        std::vector<RuntimeControlQueueInput> payloads)
+    {
         std::scoped_lock lock{ _impl->Mutex };
         if (_impl->IsClosed)
         {
             return RuntimeControlQueueStatus::Closed;
         }
-        if (!_impl->Valid() || payload.empty() || payload.size() > MaximumControlFrameBytes ||
-            wireBytes < payload.size())
+        if (!_impl->Valid() || payloads.empty())
         {
             return RuntimeControlQueueStatus::InvalidMessage;
         }
-        if (_impl->OutstandingMessages >= _impl->MaximumMessages ||
-            _impl->OutstandingBytes > _impl->MaximumBytes ||
-            wireBytes > _impl->MaximumBytes - _impl->OutstandingBytes)
+        if (payloads.size() > _impl->MaximumMessages)
         {
             return RuntimeControlQueueStatus::QueueLimitReached;
         }
 
-        RuntimeQueuedControlPayload queued;
-        queued.Payload = std::move(payload);
-        queued.CompletionRequestId = std::move(completionRequestId);
-        queued.WireBytes = wireBytes;
-        _impl->Pending.emplace_back(std::move(queued));
-        ++_impl->OutstandingMessages;
-        _impl->OutstandingBytes += wireBytes;
-        _impl->Changed.notify_one();
+        size_t batchBytes{};
+        for (const auto& input : payloads)
+        {
+            const auto wireBytes = input.Payload.size() + sizeof(uint32_t);
+            if (input.Payload.empty() || input.Payload.size() > MaximumControlFrameBytes ||
+                wireBytes < input.Payload.size() || wireBytes > _impl->MaximumBytes - batchBytes)
+            {
+                return RuntimeControlQueueStatus::InvalidMessage;
+            }
+            batchBytes += wireBytes;
+        }
+        if (_impl->OutstandingMessages > _impl->MaximumMessages ||
+            _impl->OutstandingBytes > _impl->MaximumBytes ||
+            payloads.size() > _impl->MaximumMessages - _impl->OutstandingMessages ||
+            batchBytes > _impl->MaximumBytes - _impl->OutstandingBytes)
+        {
+            return RuntimeControlQueueStatus::QueueLimitReached;
+        }
+
+        for (auto& input : payloads)
+        {
+            RuntimeQueuedControlPayload queued;
+            queued.Payload = std::move(input.Payload);
+            queued.CompletionRequestId = std::move(input.CompletionRequestId);
+            queued.WireBytes = queued.Payload.size() + sizeof(uint32_t);
+            _impl->Pending.emplace_back(std::move(queued));
+        }
+        _impl->OutstandingMessages += payloads.size();
+        _impl->OutstandingBytes += batchBytes;
+        _impl->Changed.notify_all();
         return RuntimeControlQueueStatus::Accepted;
     }
 

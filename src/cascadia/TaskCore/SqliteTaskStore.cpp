@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "SqliteTaskStore.h"
+#include "SqliteTaskStoreInternal.h"
 
 #include "TaskStoreSchema.h"
 #include "TaskStoreSqlite.h"
@@ -23,21 +24,13 @@ namespace Microsoft::Terminal::TaskCore
         }
     }
 
-    struct SqliteTaskStore::Impl
+    SqliteTaskStore::Impl::~Impl()
     {
-        sqlite3* Database{};
-        TaskStoreOpenStatus Status{ TaskStoreOpenStatus::IOError };
-        int32_t Version{};
-        std::string Error;
-
-        ~Impl()
+        if (Database)
         {
-            if (Database)
-            {
-                sqlite3_close_v2(Database);
-            }
+            sqlite3_close_v2(Database);
         }
-    };
+    }
 
     SqliteTaskStore::SqliteTaskStore(const std::filesystem::path& path) :
         _impl{ std::make_unique<Impl>() }

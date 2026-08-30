@@ -1,0 +1,186 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+#pragma once
+
+#include "SqliteTaskStore.h"
+
+#include <array>
+#include <cstdio>
+#include <filesystem>
+
+namespace TaskCoreLocalTests::TestFixtures
+{
+    using namespace Microsoft::Terminal::TaskCore;
+
+    class TemporaryDatabasePath final
+    {
+    public:
+        TemporaryDatabasePath()
+        {
+            std::array<wchar_t, MAX_PATH> temporaryDirectory{};
+            VERIFY_IS_GREATER_THAN(
+                GetTempPathW(static_cast<DWORD>(temporaryDirectory.size()), temporaryDirectory.data()),
+                DWORD{ 0 });
+            std::array<wchar_t, MAX_PATH> temporaryFile{};
+            VERIFY_IS_TRUE(GetTempFileNameW(temporaryDirectory.data(), L"tsk", 0, temporaryFile.data()) != 0);
+            _path = temporaryFile.data();
+            std::filesystem::remove(_path);
+        }
+
+        ~TemporaryDatabasePath()
+        {
+            std::error_code ignored;
+            std::filesystem::remove(_path, ignored);
+            std::filesystem::remove(_path.wstring() + L"-wal", ignored);
+            std::filesystem::remove(_path.wstring() + L"-shm", ignored);
+        }
+
+        [[nodiscard]] const std::filesystem::path& Path() const noexcept
+        {
+            return _path;
+        }
+
+    private:
+        std::filesystem::path _path;
+    };
+
+    template<typename TId>
+    TId MakeId(const uint64_t value)
+    {
+        std::array<char, 37> buffer{};
+        sprintf_s(
+            buffer.data(),
+            buffer.size(),
+            "00000000-0000-4000-8000-%012llx",
+            static_cast<unsigned long long>(value));
+        return TId{ buffer.data() };
+    }
+
+    inline TaskCommandMetadata MakeMetadata(
+        const uint64_t commandSeed,
+        const uint64_t expectedVersion,
+        const int64_t timestamp)
+    {
+        TaskCommandMetadata metadata;
+        metadata.Command = MakeId<CommandId>(10000 + commandSeed);
+        metadata.Event = MakeId<TaskEventId>(20000 + commandSeed);
+        metadata.ExpectedTaskVersion = expectedVersion;
+        metadata.RequestDigest = std::string(64, static_cast<char>('a' + commandSeed % 6));
+        metadata.EventPayloadJson = "{\"source\":\"test\"}";
+        metadata.ReceiptResultJson = "{\"accepted\":true}";
+        metadata.TimestampUnixMilliseconds = timestamp;
+        return metadata;
+    }
+
+    inline CreateTaskCommand MakeCreateTaskCommand(
+        const uint64_t taskSeed = 1,
+        const uint64_t workspaceSeed = 1,
+        const uint64_t commandSeed = 1,
+        const int64_t timestamp = 1000)
+    {
+        CreateTaskCommand command;
+        command.Metadata = MakeMetadata(commandSeed, 0, timestamp);
+        command.Task.Id = MakeId<TaskId>(taskSeed);
+        command.Task.Workspace = MakeId<WorkspaceId>(100 + workspaceSeed);
+        command.Task.Title = "Persist Task aggregate";
+        command.Task.Description = "Exercise the transactional TaskStore boundary.";
+        command.Task.AcceptanceCriteria = {
+            { 0, "State is durable", false },
+            { 1, "Events remain ordered", true },
+        };
+        command.Task.Status = TaskStatus::Todo;
+        command.Task.Priority = TaskPriority::High;
+        command.Task.Version = 1;
+        command.Task.CreatedAtUnixMilliseconds = timestamp;
+        command.Task.UpdatedAtUnixMilliseconds = timestamp;
+
+        command.ExecutionContext.Id = MakeId<ExecutionContextId>(1000 + taskSeed);
+        command.ExecutionContext.Task = command.Task.Id;
+        command.ExecutionContext.Revision = 1;
+        command.ExecutionContext.Mode = ExecutionMode::Direct;
+        command.ExecutionContext.SourceRoot = "C:\\src\\repository";
+        command.ExecutionContext.RuntimeRoot = "C:\\src\\repository";
+        command.ExecutionContext.Provider = "codex";
+        command.ExecutionContext.Model = "test-model";
+        command.ExecutionContext.CreatedAtUnixMilliseconds = timestamp;
+
+        command.Terminal.Id = MakeId<TaskTerminalId>(2000 + taskSeed);
+        command.Terminal.Task = command.Task.Id;
+        command.Terminal.State = TaskTerminalState::NotCreated;
+        command.Terminal.Generation = 0;
+        command.Terminal.UpdatedAtUnixMilliseconds = timestamp;
+        return command;
+    }
+
+    inline ChangeTaskStatusCommand MakeStatusCommand(
+        const CreateTaskCommand& task,
+        const uint64_t commandSeed,
+        const uint64_t expectedVersion,
+        const int64_t timestamp,
+        const TaskStatus status,
+        const TaskStatusAuthority authority = TaskStatusAuthority::User)
+    {
+        ChangeTaskStatusCommand command;
+        command.Metadata = MakeMetadata(commandSeed, expectedVersion, timestamp);
+        command.Task = task.Task.Id;
+        command.RequestedStatus = status;
+        command.Authority = authority;
+        return command;
+    }
+
+    inline CreateTaskRunCommand MakeCreateRunCommand(
+        const CreateTaskCommand& task,
+        const uint64_t runSeed,
+        const uint64_t commandSeed,
+        const uint64_t expectedVersion,
+        const int64_t timestamp)
+    {
+        CreateTaskRunCommand command;
+        command.Metadata = MakeMetadata(commandSeed, expectedVersion, timestamp);
+        command.Run.Id = MakeId<TaskRunId>(3000 + runSeed);
+        command.Run.Task = task.Task.Id;
+        command.Run.ExecutionContext = task.ExecutionContext.Id;
+        command.Run.Trigger = TaskRunTrigger::Initial;
+        command.Run.State = TaskRunState::Queued;
+        command.Run.CreatedAtUnixMilliseconds = timestamp;
+        return command;
+    }
+
+    inline ChangeTaskRunStateCommand MakeRunStateCommand(
+        const CreateTaskRunCommand& run,
+        const uint64_t commandSeed,
+        const uint64_t expectedVersion,
+        const int64_t timestamp,
+        const TaskRunState state,
+        std::string result = {},
+        std::string reasonCode = {})
+    {
+        ChangeTaskRunStateCommand command;
+        command.Metadata = MakeMetadata(commandSeed, expectedVersion, timestamp);
+        command.Task = run.Run.Task;
+        command.Run = run.Run.Id;
+        command.RequestedState = state;
+        command.Result = std::move(result);
+        command.ReasonCode = std::move(reasonCode);
+        return command;
+    }
+
+    inline ChangeTaskTerminalStateCommand MakeTerminalStateCommand(
+        const CreateTaskCommand& task,
+        const uint64_t commandSeed,
+        const uint64_t expectedVersion,
+        const int64_t timestamp,
+        const TaskTerminalState state,
+        const uint64_t generation,
+        const bool explicitOpen = false)
+    {
+        ChangeTaskTerminalStateCommand command;
+        command.Metadata = MakeMetadata(commandSeed, expectedVersion, timestamp);
+        command.Task = task.Task.Id;
+        command.RequestedState = state;
+        command.RequestedGeneration = generation;
+        command.ExplicitOpen = explicitOpen;
+        return command;
+    }
+}

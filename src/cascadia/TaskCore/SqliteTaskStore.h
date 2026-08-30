@@ -26,6 +26,16 @@ namespace Microsoft::Terminal::TaskCore
         [[nodiscard]] int32_t SchemaVersion() const noexcept override;
         [[nodiscard]] const std::string& LastError() const noexcept override;
 
+        [[nodiscard]] TaskStoreCommandResult CreateTask(const CreateTaskCommand& command) override;
+        [[nodiscard]] TaskStoreCommandResult ChangeTaskStatus(const ChangeTaskStatusCommand& command) override;
+        [[nodiscard]] TaskStoreCommandResult CreateTaskRun(const CreateTaskRunCommand& command) override;
+        [[nodiscard]] TaskStoreCommandResult ChangeTaskRunState(const ChangeTaskRunStateCommand& command) override;
+        [[nodiscard]] TaskStoreCommandResult ChangeTaskTerminalState(const ChangeTaskTerminalStateCommand& command) override;
+
+        [[nodiscard]] std::optional<TaskAggregateSnapshot> LoadTask(const TaskId& task) const override;
+        [[nodiscard]] std::vector<TaskRecord> ListTasks(const std::optional<WorkspaceId>& workspace) const override;
+        [[nodiscard]] std::vector<TaskEventRecord> ListEvents(const TaskId& task, uint64_t afterSequence, size_t limit) const override;
+
     private:
         struct Impl;
         std::unique_ptr<Impl> _impl;

@@ -46,7 +46,15 @@ namespace Microsoft::Terminal::TaskCore::details
     };
 
     [[nodiscard]] bool ExecuteSql(sqlite3* database, const char* sql, std::string& error);
+    [[nodiscard]] bool BindText(sqlite3* database, sqlite3_stmt* statement, int index, std::string_view value, std::string& error);
+    [[nodiscard]] bool BindInt64(sqlite3* database, sqlite3_stmt* statement, int index, int64_t value, std::string& error);
+    [[nodiscard]] bool BindOptionalText(sqlite3* database, sqlite3_stmt* statement, int index, const std::optional<std::string>& value, std::string& error);
+    [[nodiscard]] bool BindOptionalInt64(sqlite3* database, sqlite3_stmt* statement, int index, const std::optional<int64_t>& value, std::string& error);
+    [[nodiscard]] bool StepDone(sqlite3* database, sqlite3_stmt* statement, std::string& error);
     [[nodiscard]] std::optional<int64_t> QueryInt64(sqlite3* database, const char* sql, std::string& error);
     [[nodiscard]] std::optional<std::string> QueryText(sqlite3* database, const char* sql, std::string& error);
+    [[nodiscard]] std::string ColumnText(sqlite3_stmt* statement, int column);
+    [[nodiscard]] std::optional<std::string> ColumnOptionalText(sqlite3_stmt* statement, int column);
+    [[nodiscard]] std::optional<int64_t> ColumnOptionalInt64(sqlite3_stmt* statement, int column) noexcept;
     [[nodiscard]] std::string SqliteError(sqlite3* database, int result, std::string_view operation) noexcept;
 }

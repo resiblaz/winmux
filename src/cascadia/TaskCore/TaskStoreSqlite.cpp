@@ -113,6 +113,75 @@ namespace Microsoft::Terminal::TaskCore::details
         return true;
     }
 
+    bool BindText(sqlite3* database, sqlite3_stmt* statement, const int index, const std::string_view value, std::string& error)
+    {
+        const auto result = sqlite3_bind_text64(
+            statement,
+            index,
+            value.data(),
+            static_cast<sqlite3_uint64>(value.size()),
+            SQLITE_TRANSIENT,
+            SQLITE_UTF8);
+        if (result == SQLITE_OK)
+        {
+            return true;
+        }
+        error = SqliteError(database, result, "bind text");
+        return false;
+    }
+
+    bool BindInt64(sqlite3* database, sqlite3_stmt* statement, const int index, const int64_t value, std::string& error)
+    {
+        const auto result = sqlite3_bind_int64(statement, index, value);
+        if (result == SQLITE_OK)
+        {
+            return true;
+        }
+        error = SqliteError(database, result, "bind integer");
+        return false;
+    }
+
+    bool BindOptionalText(sqlite3* database, sqlite3_stmt* statement, const int index, const std::optional<std::string>& value, std::string& error)
+    {
+        if (value)
+        {
+            return BindText(database, statement, index, value.value(), error);
+        }
+        const auto result = sqlite3_bind_null(statement, index);
+        if (result == SQLITE_OK)
+        {
+            return true;
+        }
+        error = SqliteError(database, result, "bind null text");
+        return false;
+    }
+
+    bool BindOptionalInt64(sqlite3* database, sqlite3_stmt* statement, const int index, const std::optional<int64_t>& value, std::string& error)
+    {
+        if (value)
+        {
+            return BindInt64(database, statement, index, value.value(), error);
+        }
+        const auto result = sqlite3_bind_null(statement, index);
+        if (result == SQLITE_OK)
+        {
+            return true;
+        }
+        error = SqliteError(database, result, "bind null integer");
+        return false;
+    }
+
+    bool StepDone(sqlite3* database, sqlite3_stmt* statement, std::string& error)
+    {
+        const auto result = sqlite3_step(statement);
+        if (result == SQLITE_DONE)
+        {
+            return true;
+        }
+        error = SqliteError(database, result, "execute statement");
+        return false;
+    }
+
     std::optional<int64_t> QueryInt64(sqlite3* database, const char* sql, std::string& error)
     {
         SqliteStatement statement{ database, sql, error };
@@ -145,5 +214,22 @@ namespace Microsoft::Terminal::TaskCore::details
         const auto text = sqlite3_column_text(statement.Get(), 0);
         const auto size = sqlite3_column_bytes(statement.Get(), 0);
         return text ? std::optional<std::string>{ std::string{ reinterpret_cast<const char*>(text), static_cast<size_t>(size) } } : std::optional<std::string>{ std::string{} };
+    }
+
+    std::string ColumnText(sqlite3_stmt* statement, const int column)
+    {
+        const auto text = sqlite3_column_text(statement, column);
+        const auto size = sqlite3_column_bytes(statement, column);
+        return text ? std::string{ reinterpret_cast<const char*>(text), static_cast<size_t>(size) } : std::string{};
+    }
+
+    std::optional<std::string> ColumnOptionalText(sqlite3_stmt* statement, const int column)
+    {
+        return sqlite3_column_type(statement, column) == SQLITE_NULL ? std::nullopt : std::optional<std::string>{ ColumnText(statement, column) };
+    }
+
+    std::optional<int64_t> ColumnOptionalInt64(sqlite3_stmt* statement, const int column) noexcept
+    {
+        return sqlite3_column_type(statement, column) == SQLITE_NULL ? std::nullopt : std::optional<int64_t>{ sqlite3_column_int64(statement, column) };
     }
 }

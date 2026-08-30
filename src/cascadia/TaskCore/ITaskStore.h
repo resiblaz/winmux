@@ -4,9 +4,13 @@
 #pragma once
 
 #include "TaskStoreStatus.h"
+#include "TaskStoreCommandTypes.h"
+#include "TaskStoreResults.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace Microsoft::Terminal::TaskCore
 {
@@ -19,5 +23,15 @@ namespace Microsoft::Terminal::TaskCore
         [[nodiscard]] virtual TaskStoreOpenStatus OpenStatus() const noexcept = 0;
         [[nodiscard]] virtual int32_t SchemaVersion() const noexcept = 0;
         [[nodiscard]] virtual const std::string& LastError() const noexcept = 0;
+
+        [[nodiscard]] virtual TaskStoreCommandResult CreateTask(const CreateTaskCommand& command) = 0;
+        [[nodiscard]] virtual TaskStoreCommandResult ChangeTaskStatus(const ChangeTaskStatusCommand& command) = 0;
+        [[nodiscard]] virtual TaskStoreCommandResult CreateTaskRun(const CreateTaskRunCommand& command) = 0;
+        [[nodiscard]] virtual TaskStoreCommandResult ChangeTaskRunState(const ChangeTaskRunStateCommand& command) = 0;
+        [[nodiscard]] virtual TaskStoreCommandResult ChangeTaskTerminalState(const ChangeTaskTerminalStateCommand& command) = 0;
+
+        [[nodiscard]] virtual std::optional<TaskAggregateSnapshot> LoadTask(const TaskId& task) const = 0;
+        [[nodiscard]] virtual std::vector<TaskRecord> ListTasks(const std::optional<WorkspaceId>& workspace) const = 0;
+        [[nodiscard]] virtual std::vector<TaskEventRecord> ListEvents(const TaskId& task, uint64_t afterSequence, size_t limit) const = 0;
     };
 }

@@ -13,6 +13,7 @@
   <Import Project="$(SolutionDir)src\common.nugetversions.props" />
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="TaskCoreStoreTestFixtures.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -21,6 +22,8 @@
     <ClCompile Include="TaskCoreIdentifierTests.cpp" />
     <ClCompile Include="TaskCoreRecordValidationTests.cpp" />
     <ClCompile Include="TaskCoreSchemaTests.cpp" />
+    <ClCompile Include="TaskCoreStoreRunTests.cpp" />
+    <ClCompile Include="TaskCoreStoreTaskTests.cpp" />
     <ClCompile Include="TaskCoreRunStatePolicyTests.cpp" />
     <ClCompile Include="TaskCoreTaskStatusPolicyTests.cpp" />
     <ClCompile Include="TaskCoreTerminalStatePolicyTests.cpp" />

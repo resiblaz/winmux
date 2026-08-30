@@ -87,6 +87,7 @@ namespace Microsoft::Terminal::TaskCore::details
             !_enumInRange(command.Task.Priority, TaskPriority::High) ||
             (command.Task.ForkedFromTaskId && command.Task.ForkedFromTaskId.value() == command.Task.Id) ||
             command.ExecutionContext.Task != command.Task.Id || command.ExecutionContext.Revision != 1 ||
+            command.ExecutionContext.IdentityFrozen ||
             command.Terminal.Task != command.Task.Id || !IsCanonicalUuid(command.Terminal.Id.Value()) ||
             command.Terminal.State != TaskTerminalState::NotCreated || command.Terminal.Generation != 0 ||
             command.Terminal.CurrentAgentSessionId || command.Terminal.UpdatedAtUnixMilliseconds < 0 ||
@@ -137,6 +138,40 @@ namespace Microsoft::Terminal::TaskCore::details
             run.CreatedAtUnixMilliseconds > command.Metadata.TimestampUnixMilliseconds)
         {
             error = "New TaskRun is not in its canonical queued state";
+            return false;
+        }
+        return true;
+    }
+
+    bool ValidateInitializeTaskGitWorktreeCommand(
+        const InitializeTaskGitWorktreeCommand& command,
+        std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error))
+        {
+            return false;
+        }
+        const auto validation = ValidateTaskGitWorktreeRecord(command.Worktree);
+        if (!validation.empty())
+        {
+            error = "Task Git Worktree record is invalid";
+            return false;
+        }
+        if (command.Metadata.ExpectedTaskVersion == 0 ||
+            command.Worktree.Revision != 1 ||
+            command.Worktree.State != TaskGitWorktreeState::Planning ||
+            command.Worktree.HasUndeliveredWork ||
+            command.Worktree.CleanupEligible ||
+            !command.Worktree.SnapshotDigest.empty() ||
+            !command.Worktree.BaselineCommit.empty() ||
+            !command.Worktree.PreservedPath.empty() ||
+            !command.Worktree.FailureReasonCode.empty() ||
+            command.Worktree.CreatedAtUnixMilliseconds !=
+                command.Metadata.TimestampUnixMilliseconds ||
+            command.Worktree.UpdatedAtUnixMilliseconds !=
+                command.Metadata.TimestampUnixMilliseconds)
+        {
+            error = "Initial Task Git Worktree state is invalid";
             return false;
         }
         return true;

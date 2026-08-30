@@ -64,6 +64,30 @@ namespace Microsoft::Terminal::TaskCore
         Worktree = 1,
     };
 
+    enum class TaskGitWorktreeState : uint8_t
+    {
+        Planning = 0,
+        CapturingSource = 1,
+        Provisioning = 2,
+        RestoringSource = 3,
+        CreatingBaseline = 4,
+        Ready = 5,
+        Finalizing = 6,
+        Preserved = 7,
+        Finalized = 8,
+        Failed = 9,
+    };
+
+    enum class TaskGitCheckpointState : uint8_t
+    {
+        Pending = 0,
+        Inspecting = 1,
+        Committing = 2,
+        Succeeded = 3,
+        NotNeeded = 4,
+        Failed = 5,
+    };
+
     enum class AgentSessionState : uint8_t
     {
         Available = 0,

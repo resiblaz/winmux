@@ -25,6 +25,46 @@ namespace Microsoft::Terminal::TaskCore::details
             }
             return belongs;
         }
+
+        bool _freezeExecutionContextIdentity(
+            sqlite3* database,
+            const TaskRunRecord& run,
+            std::string& error)
+        {
+            constexpr auto sql = R"SQL(
+UPDATE execution_context SET identity_frozen=1
+WHERE id=?1 AND task_id=?2 AND identity_frozen=0;
+)SQL";
+            SqliteStatement statement{ database, sql, error };
+            if (!statement ||
+                !BindText(database, statement.Get(), 1, run.ExecutionContext.Value(), error) ||
+                !BindText(database, statement.Get(), 2, run.Task.Value(), error) ||
+                !StepDone(database, statement.Get(), error))
+            {
+                return false;
+            }
+            if (sqlite3_changes(database) == 1)
+            {
+                return true;
+            }
+
+            const auto frozen = _referenceBelongsToTask(
+                database,
+                "SELECT EXISTS(SELECT 1 FROM execution_context WHERE id=?1 AND task_id=?2 AND identity_frozen=1);",
+                run.Task,
+                run.ExecutionContext.Value(),
+                error);
+            if (!frozen)
+            {
+                return false;
+            }
+            if (!frozen.value())
+            {
+                error = "TaskRun ExecutionContext identity could not be frozen";
+                return false;
+            }
+            return true;
+        }
     }
 
     TaskRunReferenceValidation ValidateTaskRunReferences(
@@ -92,6 +132,11 @@ namespace Microsoft::Terminal::TaskCore::details
         const uint64_t sequence,
         std::string& error)
     {
+        if (!_freezeExecutionContextIdentity(database, run, error))
+        {
+            return false;
+        }
+
         constexpr auto sql = R"SQL(
 INSERT INTO task_run(id, task_id, execution_context_id, agent_session_id, retry_of_run_id,
                      trigger, state, sequence, created_at, started_at, finished_at, result, reason_code)

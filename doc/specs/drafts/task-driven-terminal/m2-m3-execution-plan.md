@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-08-31
-status: active execution queue; M2 closure complete, M3 next
+status: active execution queue; M2 closure and M3A complete, M3B next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -112,7 +112,7 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
 
 | Stage | Deliverable | Required verification |
 |---|---|---|
-| M3A | Typed Git/worktree records, SQLite v4, identity freeze and delete gate | v3 migration, rollback, replay/conflict, first-run freeze, recovery, undelivered-work refusal |
+| M3A (complete) | Typed Git/worktree records, SQLite v4, identity freeze and delete gate | v3 migration, rollback, replay/conflict, first-run freeze, recovery, undelivered-work refusal |
 | M3B | Canonical directory identity, Direct FIFO lease, Git common-dir mutex | Unicode/alias/reparse, cancellation, abandoned owner, two Runtime identities/processes |
 | M3C | Structured Windows Git runner and repository inspector | argv/env injection, timeout/cancel/tree kill, output/UTF-8 bounds, linked/detached/SHA-1/SHA-256 |
 | M3D | Read-only faithful source-state capture | clean/staged/unstaged/untracked/ignored, 2,000/200 MiB bounds, symlink/vanish, digest race, source unchanged |
@@ -170,6 +170,35 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
 - All non-ignored untracked files within the accepted bounds are captured to
   satisfy faithful visible-state reconstruction. A later UI may preview the
   manifest; M3 does not silently omit files based on content heuristics.
+
+### 4.2 M3A closure evidence
+
+- TaskCore owns bounded typed Worktree/checkpoint records and SQLite schema v4.
+  The v3 migration preserves multiple valid legacy checkpoints for one Run,
+  and an injected migration failure proves schema changes and `user_version`
+  roll back together.
+- Every TaskRun insertion freezes its ExecutionContext identity in the same
+  transaction. Both direct Run creation and message-claim Run creation use the
+  shared persistence entry point; event failure rolls back the Run, message
+  claims, version, and freeze bit. A Task cannot be created pre-frozen.
+- Worktree initialization is one CAS/receipt transaction bound to a frozen
+  Worktree ExecutionContext. Exact replay succeeds, request/command reuse and
+  stale versions fail closed, and Direct, unfrozen, or cross-Task contexts are
+  rejected.
+- Aggregate load, bounded recovery, and Runtime activity expose typed Git
+  state. Delete refuses every Worktree that is not Finalized, still has
+  undelivered work, or is not cleanup-eligible.
+- The focused unified Release gate passed with TaskCore 69/69,
+  TaskRuntimeProtocol 71/71, TaskRuntimeActivation 66/66,
+  TaskRuntimeClient 132/132, and TaskRuntime 182/182. The complete TaskCore
+  suite then passed 100/100 repeated rounds (6,900/6,900 test executions).
+- The split Release/MSIX plus CLI gate and portable repackaging passed. The
+  resulting MSIX is 8,112,516 bytes with SHA256
+  `691419342283F75863C719FD9B36F949226316F41F3B97C9D81049529FDD5207`;
+  the portable ZIP is 11,995,735 bytes with SHA256
+  `237933253BB4E8EC38EC771D093D082E7729E5DAE5A7AE2B51E368A4323CBCB0`.
+- `git diff --check`, LF/final-newline inspection, and both modified MSBuild
+  project XML parses passed without errors.
 
 ## 5. Verification discipline
 

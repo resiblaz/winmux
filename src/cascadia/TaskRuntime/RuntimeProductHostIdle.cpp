@@ -116,7 +116,8 @@ namespace Microsoft::Terminal::TaskRuntime
             const auto& snapshot = storeActivity.Snapshot;
             activity.ActiveRuns = static_cast<size_t>(snapshot.HasActiveRuns);
             activity.PendingWork = static_cast<size_t>(
-                snapshot.HasPendingIntents || snapshot.HasPendingMessages);
+                snapshot.HasPendingIntents || snapshot.HasPendingMessages ||
+                snapshot.HasGitWork);
             activity.LiveTerminalSessions = static_cast<size_t>(
                 snapshot.HasLiveTerminals);
             return activity;

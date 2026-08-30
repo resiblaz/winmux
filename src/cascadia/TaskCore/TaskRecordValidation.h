@@ -16,6 +16,10 @@ namespace Microsoft::Terminal::TaskCore
     inline constexpr size_t MaximumAcceptanceCriterionBytes{ 8 * 1024 };
     inline constexpr size_t MaximumAcceptanceCriteria{ 256 };
     inline constexpr size_t MaximumProviderIdentifierBytes{ 256 };
+    inline constexpr size_t MaximumTaskPathBytes{ 32 * 1024 };
+    inline constexpr size_t MaximumTaskGitReferenceBytes{ 4 * 1024 };
+    inline constexpr size_t MaximumTaskGitJsonBytes{ 64 * 1024 };
+    inline constexpr size_t MaximumTaskGitReasonCodeBytes{ 256 };
 
     enum class RecordValidationError
     {
@@ -26,6 +30,8 @@ namespace Microsoft::Terminal::TaskCore
         InvalidTimestamp,
         InvalidCollection,
         InvalidExecutionMode,
+        InvalidDigest,
+        InvalidState,
     };
 
     struct RecordValidationIssue
@@ -38,4 +44,6 @@ namespace Microsoft::Terminal::TaskCore
 
     [[nodiscard]] RecordValidationResult ValidateTaskRecord(const TaskRecord& task);
     [[nodiscard]] RecordValidationResult ValidateExecutionContextRecord(const ExecutionContextRecord& context);
+    [[nodiscard]] RecordValidationResult ValidateTaskGitWorktreeRecord(const TaskGitWorktreeRecord& worktree);
+    [[nodiscard]] RecordValidationResult ValidateTaskRunGitCheckpointRecord(const TaskRunGitCheckpointRecord& checkpoint);
 }

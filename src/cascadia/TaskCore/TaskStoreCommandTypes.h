@@ -53,6 +53,12 @@ namespace Microsoft::Terminal::TaskCore
         TaskRunRecord Run;
     };
 
+    struct InitializeTaskGitWorktreeCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskGitWorktreeRecord Worktree;
+    };
+
     struct ChangeTaskRunStateCommand
     {
         TaskCommandMetadata Metadata;

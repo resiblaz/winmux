@@ -21,6 +21,7 @@
     </ClCompile>
     <ClCompile Include="TaskCoreIdentifierTests.cpp" />
     <ClCompile Include="TaskCoreAgentMutationTests.cpp" />
+    <ClCompile Include="TaskCoreGitStoreTests.cpp" />
     <ClCompile Include="TaskCoreIntentPolicyTests.cpp" />
     <ClCompile Include="TaskCoreMessageTests.cpp" />
     <ClCompile Include="TaskCoreRecordValidationTests.cpp" />

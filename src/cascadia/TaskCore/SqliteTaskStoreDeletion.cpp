@@ -7,6 +7,7 @@
 
 #include "TaskStoreCommandSqlite.h"
 #include "TaskStoreCommandValidation.h"
+#include "TaskStoreGitSqlite.h"
 #include "TaskStoreRowSqlite.h"
 #include "TaskStoreSqlite.h"
 
@@ -221,6 +222,25 @@ VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);
         if (hasActiveRun)
         {
             return details::CommandFailure(TaskStoreCommandStatus::ActiveRunExists, "Delete Task requires no active TaskRun");
+        }
+
+        bool blockingGitDelivery{};
+        if (!details::HasBlockingGitDelivery(
+                _impl->Database,
+                command.Task,
+                blockingGitDelivery,
+                error))
+        {
+            return details::CommandFailure(
+                TaskStoreCommandStatus::StorageError,
+                std::move(error));
+        }
+        if (blockingGitDelivery)
+        {
+            return details::CommandFailure(
+                TaskStoreCommandStatus::InvalidTransition,
+                "Delete Task requires finalized Git Worktree delivery",
+                TransitionError::UndeliveredWork);
         }
 
         uint64_t eventSequence{};

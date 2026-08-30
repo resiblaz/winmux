@@ -233,6 +233,72 @@ CREATE INDEX task_message_schedule
     ON task_message(task_id, state, created_at, id);
 )SQL";
 
+        constexpr const char* SchemaV4 = R"SQL(
+ALTER TABLE git_checkpoint RENAME TO git_checkpoint_v3;
+
+CREATE TABLE task_git_worktree (
+    task_id TEXT PRIMARY KEY NOT NULL,
+    execution_context_id TEXT NOT NULL UNIQUE,
+    revision INTEGER NOT NULL CHECK(revision > 0),
+    state INTEGER NOT NULL CHECK(state BETWEEN 0 AND 9),
+    repository_root TEXT NOT NULL,
+    repository_common_directory TEXT NOT NULL,
+    repository_identity_digest TEXT NOT NULL CHECK(length(repository_identity_digest) = 64),
+    worktree_path TEXT NOT NULL UNIQUE,
+    branch_ref TEXT NOT NULL UNIQUE,
+    source_head TEXT NOT NULL,
+    source_reference TEXT NOT NULL,
+    snapshot_digest TEXT NOT NULL,
+    baseline_commit TEXT NOT NULL,
+    ownership_nonce TEXT NOT NULL UNIQUE,
+    has_undelivered_work INTEGER NOT NULL CHECK(has_undelivered_work IN (0, 1)),
+    cleanup_eligible INTEGER NOT NULL CHECK(cleanup_eligible IN (0, 1)),
+    preserved_path TEXT NOT NULL,
+    failure_reason_code TEXT NOT NULL,
+    created_at INTEGER NOT NULL CHECK(created_at >= 0),
+    updated_at INTEGER NOT NULL CHECK(updated_at >= created_at),
+    FOREIGN KEY(task_id) REFERENCES task(id) ON DELETE CASCADE,
+    FOREIGN KEY(execution_context_id) REFERENCES execution_context(id)
+);
+
+CREATE INDEX task_git_worktree_recovery
+    ON task_git_worktree(state, updated_at, task_id);
+
+CREATE TABLE git_checkpoint (
+    id TEXT PRIMARY KEY NOT NULL,
+    task_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK(revision > 0),
+    state INTEGER NOT NULL CHECK(state BETWEEN 0 AND 5),
+    start_commit TEXT NOT NULL,
+    end_commit TEXT NOT NULL,
+    checkpoint_commit TEXT NOT NULL,
+    auto_checkpointed INTEGER NOT NULL CHECK(auto_checkpointed IN (0, 1)),
+    changed_paths_json TEXT NOT NULL,
+    diff_summary_json TEXT NOT NULL,
+    preserved_path TEXT NOT NULL,
+    reason_code TEXT NOT NULL,
+    created_at INTEGER NOT NULL CHECK(created_at >= 0),
+    updated_at INTEGER NOT NULL CHECK(updated_at >= created_at),
+    FOREIGN KEY(task_id) REFERENCES task(id) ON DELETE CASCADE,
+    FOREIGN KEY(run_id) REFERENCES task_run(id) ON DELETE CASCADE
+);
+
+INSERT INTO git_checkpoint(
+    id, task_id, run_id, revision, state, start_commit, end_commit,
+    checkpoint_commit, auto_checkpointed, changed_paths_json,
+    diff_summary_json, preserved_path, reason_code, created_at, updated_at)
+SELECT id, task_id, run_id, 1,
+       CASE WHEN state BETWEEN 0 AND 5 THEN state ELSE 5 END,
+       '', commit_id, commit_id, 0, '[]', metadata_json, '',
+       'legacy_v3', created_at, created_at
+FROM git_checkpoint_v3;
+
+DROP TABLE git_checkpoint_v3;
+CREATE INDEX git_checkpoint_task_order
+    ON git_checkpoint(task_id, created_at, run_id);
+)SQL";
+
         bool _hasRequiredTables(sqlite3* database, const int32_t version, std::string& error) noexcept
         {
             constexpr auto query = R"SQL(
@@ -243,11 +309,12 @@ WHERE type = 'table'
     'task', 'task_acceptance', 'execution_context', 'task_terminal',
     'agent_session', 'task_run', 'task_message', 'task_run_message',
     'task_event', 'git_checkpoint', 'command_receipt', 'delete_tombstone',
-    'task_intent'
+    'task_intent', 'task_git_worktree'
   );
 )SQL";
             const auto count = QueryInt64(database, query, error);
-            const auto expectedCount = version >= 2 ? 13 : 12;
+            const auto expectedCount = version >= 4 ? 14 :
+                                       version >= 2 ? 13 : 12;
             return count && count.value() == expectedCount;
         }
 
@@ -275,6 +342,15 @@ WHERE type = 'table'
                    transaction.Commit(error);
         }
 
+        bool _migrateVersionThreeToFour(sqlite3* database, std::string& error)
+        {
+            SqliteTransaction transaction{ database, error };
+            return transaction &&
+                   ExecuteSql(database, SchemaV4, error) &&
+                   _setSchemaVersion(database, 4, error) &&
+                   transaction.Commit(error);
+        }
+
         bool _hasVersionThreeColumns(sqlite3* database, std::string& error)
         {
             constexpr auto sql = R"SQL(
@@ -286,6 +362,27 @@ SELECT
 )SQL";
             const auto count = QueryInt64(database, sql, error);
             return count && count.value() == 3;
+        }
+
+        bool _hasVersionFourGitSchema(sqlite3* database, std::string& error)
+        {
+            constexpr auto sql = R"SQL(
+SELECT
+    (SELECT count(*) FROM pragma_table_info('task_git_worktree')
+     WHERE name IN (
+        'task_id','execution_context_id','revision','state','repository_root',
+        'repository_common_directory','repository_identity_digest','worktree_path',
+        'branch_ref','source_head','source_reference','snapshot_digest',
+        'baseline_commit','ownership_nonce','has_undelivered_work',
+        'cleanup_eligible','preserved_path','failure_reason_code','created_at','updated_at')) +
+    (SELECT count(*) FROM pragma_table_info('git_checkpoint')
+     WHERE name IN (
+        'id','task_id','run_id','revision','state','start_commit','end_commit',
+        'checkpoint_commit','auto_checkpointed','changed_paths_json',
+        'diff_summary_json','preserved_path','reason_code','created_at','updated_at'));
+)SQL";
+            const auto count = QueryInt64(database, sql, error);
+            return count && count.value() == 35;
         }
     }
 
@@ -402,6 +499,14 @@ SELECT
             }
             observedVersion = 3;
         }
+        if (observedVersion == 3)
+        {
+            if (!_migrateVersionThreeToFour(database, error))
+            {
+                return TaskStoreOpenStatus::IOError;
+            }
+            observedVersion = 4;
+        }
         if (!_hasRequiredTables(database, observedVersion, error))
         {
             if (error.empty())
@@ -415,6 +520,14 @@ SELECT
             if (error.empty())
             {
                 error = "Task database message schema is incomplete";
+            }
+            return TaskStoreOpenStatus::RecoveryRequired;
+        }
+        if (observedVersion >= 4 && !_hasVersionFourGitSchema(database, error))
+        {
+            if (error.empty())
+            {
+                error = "Task database Git schema is incomplete";
             }
             return TaskStoreOpenStatus::RecoveryRequired;
         }

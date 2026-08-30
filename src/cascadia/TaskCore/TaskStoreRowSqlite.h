@@ -12,6 +12,8 @@ namespace Microsoft::Terminal::TaskCore::details
     [[nodiscard]] TaskRecord ReadTaskRow(sqlite3_stmt* statement);
     [[nodiscard]] AcceptanceCriterionRecord ReadAcceptanceCriterionRow(sqlite3_stmt* statement, int firstColumn = 0);
     [[nodiscard]] ExecutionContextRecord ReadExecutionContextRow(sqlite3_stmt* statement);
+    [[nodiscard]] TaskGitWorktreeRecord ReadTaskGitWorktreeRow(sqlite3_stmt* statement);
+    [[nodiscard]] TaskRunGitCheckpointRecord ReadTaskRunGitCheckpointRow(sqlite3_stmt* statement);
     [[nodiscard]] TaskTerminalRecord ReadTaskTerminalRow(sqlite3_stmt* statement);
     [[nodiscard]] AgentSessionRecord ReadAgentSessionRow(sqlite3_stmt* statement);
     [[nodiscard]] TaskRunRecord ReadTaskRunRow(sqlite3_stmt* statement);

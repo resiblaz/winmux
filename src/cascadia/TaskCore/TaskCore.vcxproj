@@ -28,6 +28,7 @@
     <ClInclude Include="TaskStoreCommandSqlite.h" />
     <ClInclude Include="TaskStoreCommandValidation.h" />
     <ClInclude Include="TaskStoreMessageSqlite.h" />
+    <ClInclude Include="TaskStoreGitSqlite.h" />
     <ClInclude Include="TaskStoreResults.h" />
     <ClInclude Include="TaskStoreRunSqlite.h" />
     <ClInclude Include="TaskStoreRowSqlite.h" />
@@ -53,6 +54,7 @@
     <ClCompile Include="SqliteTaskStoreRunTransitions.cpp" />
     <ClCompile Include="SqliteTaskStoreAgentMutations.cpp" />
     <ClCompile Include="SqliteTaskStoreActivity.cpp" />
+    <ClCompile Include="SqliteTaskStoreGit.cpp" />
     <ClCompile Include="SqliteTaskStoreRuns.cpp" />
     <ClCompile Include="SqliteTaskStoreTasks.cpp" />
     <ClCompile Include="SqliteTaskStoreTerminals.cpp" />
@@ -61,6 +63,7 @@
     <ClCompile Include="TaskStatusPolicy.cpp" />
     <ClCompile Include="TaskStoreCommandValidation.cpp" />
     <ClCompile Include="TaskStoreMessageSqlite.cpp" />
+    <ClCompile Include="TaskStoreGitSqlite.cpp" />
     <ClCompile Include="TaskStoreCommandSqlite.cpp" />
     <ClCompile Include="TaskStoreReceiptSqlite.cpp" />
     <ClCompile Include="TaskStoreRowSqlite.cpp" />

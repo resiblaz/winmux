@@ -55,6 +55,49 @@ namespace Microsoft::Terminal::TaskCore
         int64_t CreatedAtUnixMilliseconds{};
     };
 
+    struct TaskGitWorktreeRecord
+    {
+        TaskId Task;
+        ExecutionContextId ExecutionContext;
+        uint64_t Revision{ 1 };
+        TaskGitWorktreeState State{ TaskGitWorktreeState::Planning };
+        std::string RepositoryRoot;
+        std::string RepositoryCommonDirectory;
+        std::string RepositoryIdentityDigest;
+        std::string WorktreePath;
+        std::string BranchRef;
+        std::string SourceHead;
+        std::string SourceReference;
+        std::string SnapshotDigest;
+        std::string BaselineCommit;
+        std::string OwnershipNonce;
+        bool HasUndeliveredWork{};
+        bool CleanupEligible{};
+        std::string PreservedPath;
+        std::string FailureReasonCode;
+        int64_t CreatedAtUnixMilliseconds{};
+        int64_t UpdatedAtUnixMilliseconds{};
+    };
+
+    struct TaskRunGitCheckpointRecord
+    {
+        GitCheckpointId Id;
+        TaskId Task;
+        TaskRunId Run;
+        uint64_t Revision{ 1 };
+        TaskGitCheckpointState State{ TaskGitCheckpointState::Pending };
+        std::string StartCommit;
+        std::string EndCommit;
+        std::string CheckpointCommit;
+        bool AutoCheckpointed{};
+        std::string ChangedPathsJson{ "[]" };
+        std::string DiffSummaryJson{ "{}" };
+        std::string PreservedPath;
+        std::string ReasonCode;
+        int64_t CreatedAtUnixMilliseconds{};
+        int64_t UpdatedAtUnixMilliseconds{};
+    };
+
     struct TaskTerminalRecord
     {
         TaskTerminalId Id;

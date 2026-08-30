@@ -126,6 +126,30 @@ LIMIT ?1;
             return result;
         }
 
+        constexpr auto gitWorktreesSql = R"SQL(
+SELECT task_id, execution_context_id, revision, state, repository_root,
+       repository_common_directory, repository_identity_digest, worktree_path,
+       branch_ref, source_head, source_reference, snapshot_digest, baseline_commit,
+       ownership_nonce, has_undelivered_work, cleanup_eligible, preserved_path,
+       failure_reason_code, created_at, updated_at
+FROM task_git_worktree
+WHERE state<>8
+ORDER BY updated_at, task_id
+LIMIT ?1;
+)SQL";
+        if (!_loadBoundedRows(
+                _impl->Database,
+                gitWorktreesSql,
+                boundedLimit,
+                result.Snapshot.RecoverableGitWorktrees,
+                result.Snapshot.HasMoreRecoverableGitWorktrees,
+                details::ReadTaskGitWorktreeRow,
+                error))
+        {
+            result.Error = std::move(error);
+            return result;
+        }
+
         constexpr auto messagesSql = R"SQL(
 SELECT id, task_id, author, state, revision, content, claimed_by_run_id, created_at, updated_at
 FROM task_message

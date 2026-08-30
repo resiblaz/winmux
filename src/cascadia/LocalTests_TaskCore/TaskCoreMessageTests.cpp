@@ -213,6 +213,7 @@ namespace TaskCoreLocalTests
 
         auto snapshot = store.LoadTask(task.Task.Id);
         VERIFY_IS_TRUE(snapshot.has_value());
+        VERIFY_IS_FALSE(snapshot->ExecutionContexts.front().IdentityFrozen);
         VERIFY_ARE_EQUAL(size_t{ 0 }, snapshot->Runs.size());
         VERIFY_ARE_EQUAL(size_t{ 0 }, snapshot->RunMessages.size());
         VERIFY_IS_TRUE(snapshot->Messages[0].State == TaskMessageState::Pending);
@@ -224,6 +225,7 @@ namespace TaskCoreLocalTests
         VERIFY_IS_TRUE(store.ClaimTaskMessagesAndCreateRun(claim).Succeeded());
         snapshot = store.LoadTask(task.Task.Id);
         VERIFY_IS_TRUE(snapshot.has_value());
+        VERIFY_IS_TRUE(snapshot->ExecutionContexts.front().IdentityFrozen);
         VERIFY_ARE_EQUAL(size_t{ 1 }, snapshot->Runs.size());
         VERIFY_ARE_EQUAL(size_t{ 2 }, snapshot->RunMessages.size());
         VERIFY_ARE_EQUAL(4ull, snapshot->Task.Version);

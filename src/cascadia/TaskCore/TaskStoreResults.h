@@ -55,6 +55,8 @@ namespace Microsoft::Terminal::TaskCore
     {
         TaskRecord Task;
         std::vector<ExecutionContextRecord> ExecutionContexts;
+        std::optional<TaskGitWorktreeRecord> GitWorktree;
+        std::vector<TaskRunGitCheckpointRecord> GitCheckpoints;
         TaskTerminalRecord Terminal;
         std::optional<TaskIntentRecord> Intent;
         std::vector<AgentSessionRecord> AgentSessions;
@@ -69,11 +71,13 @@ namespace Microsoft::Terminal::TaskCore
         std::vector<TaskRunRecord> ActiveRuns;
         std::vector<TaskIntentRecord> PendingIntents;
         std::vector<TaskTerminalRecord> RecoverableTerminals;
+        std::vector<TaskGitWorktreeRecord> RecoverableGitWorktrees;
         std::vector<TaskMessageRecord> UnclaimedMessages;
         std::vector<DeleteTombstoneRecord> Tombstones;
         bool HasMoreActiveRuns{};
         bool HasMorePendingIntents{};
         bool HasMoreRecoverableTerminals{};
+        bool HasMoreRecoverableGitWorktrees{};
         bool HasMoreUnclaimedMessages{};
         bool HasMoreTombstones{};
     };
@@ -91,11 +95,12 @@ namespace Microsoft::Terminal::TaskCore
         bool HasPendingIntents{};
         bool HasPendingMessages{};
         bool HasLiveTerminals{};
+        bool HasGitWork{};
 
         [[nodiscard]] bool Active() const noexcept
         {
             return HasActiveRuns || HasPendingIntents ||
-                   HasPendingMessages || HasLiveTerminals;
+                   HasPendingMessages || HasLiveTerminals || HasGitWork;
         }
     };
 

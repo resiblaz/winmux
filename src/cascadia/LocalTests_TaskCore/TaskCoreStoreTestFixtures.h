@@ -178,6 +178,32 @@ namespace TaskCoreLocalTests::TestFixtures
         return command;
     }
 
+    inline InitializeTaskGitWorktreeCommand MakeInitializeGitWorktreeCommand(
+        const CreateTaskCommand& task,
+        const uint64_t commandSeed,
+        const uint64_t expectedVersion,
+        const int64_t timestamp)
+    {
+        InitializeTaskGitWorktreeCommand command;
+        command.Metadata = MakeMetadata(commandSeed, expectedVersion, timestamp);
+        command.Worktree.Task = task.Task.Id;
+        command.Worktree.ExecutionContext = task.ExecutionContext.Id;
+        command.Worktree.Revision = 1;
+        command.Worktree.State = TaskGitWorktreeState::Planning;
+        command.Worktree.RepositoryRoot = task.ExecutionContext.SourceRoot;
+        command.Worktree.RepositoryCommonDirectory =
+            task.ExecutionContext.RepositoryCommonDirectory;
+        command.Worktree.RepositoryIdentityDigest = std::string(64, 'a');
+        command.Worktree.WorktreePath = task.ExecutionContext.WorktreePath;
+        command.Worktree.BranchRef = task.ExecutionContext.Branch;
+        command.Worktree.SourceHead = std::string(40, 'b');
+        command.Worktree.SourceReference = "refs/heads/main";
+        command.Worktree.OwnershipNonce = MakeId<CommandId>(9000 + commandSeed).Value();
+        command.Worktree.CreatedAtUnixMilliseconds = timestamp;
+        command.Worktree.UpdatedAtUnixMilliseconds = timestamp;
+        return command;
+    }
+
     inline ApplyTaskAgentMutationCommand MakeAgentMutationCommand(
         const CreateTaskRunCommand& run,
         const uint64_t commandSeed,

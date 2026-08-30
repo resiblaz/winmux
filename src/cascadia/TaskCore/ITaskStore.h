@@ -27,6 +27,7 @@ namespace Microsoft::Terminal::TaskCore
         [[nodiscard]] virtual TaskStoreCommandResult CreateTask(const CreateTaskCommand& command) = 0;
         [[nodiscard]] virtual TaskStoreCommandResult ChangeTaskStatus(const ChangeTaskStatusCommand& command) = 0;
         [[nodiscard]] virtual TaskStoreCommandResult CreateTaskRun(const CreateTaskRunCommand& command) = 0;
+        [[nodiscard]] virtual TaskStoreCommandResult InitializeTaskGitWorktree(const InitializeTaskGitWorktreeCommand& command) = 0;
         [[nodiscard]] virtual TaskStoreCommandResult ChangeTaskRunState(const ChangeTaskRunStateCommand& command) = 0;
         [[nodiscard]] virtual TaskStoreCommandResult ApplyTaskAgentMutation(const ApplyTaskAgentMutationCommand& command) = 0;
         [[nodiscard]] virtual TaskStoreCommandResult ChangeTaskTerminalState(const ChangeTaskTerminalStateCommand& command) = 0;

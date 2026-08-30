@@ -25,7 +25,8 @@ SELECT
     EXISTS(SELECT 1 FROM task_run WHERE state IN (0,1,2,3,4)),
     EXISTS(SELECT 1 FROM task_intent WHERE stage NOT IN (7,8)),
     EXISTS(SELECT 1 FROM task_message WHERE state IN (0,1)),
-    EXISTS(SELECT 1 FROM task_terminal WHERE state IN (1,2,3));
+    EXISTS(SELECT 1 FROM task_terminal WHERE state IN (1,2,3)),
+    EXISTS(SELECT 1 FROM task_git_worktree WHERE state IN (0,1,2,3,4,6));
 )SQL";
         details::SqliteStatement statement{ _impl->Database, sql, error };
         if (!statement)
@@ -47,6 +48,7 @@ SELECT
         result.Snapshot.HasPendingIntents = sqlite3_column_int(statement.Get(), 1) != 0;
         result.Snapshot.HasPendingMessages = sqlite3_column_int(statement.Get(), 2) != 0;
         result.Snapshot.HasLiveTerminals = sqlite3_column_int(statement.Get(), 3) != 0;
+        result.Snapshot.HasGitWork = sqlite3_column_int(statement.Get(), 4) != 0;
         if (sqlite3_step(statement.Get()) != SQLITE_DONE)
         {
             result.Error = "Runtime activity query returned unexpected rows";

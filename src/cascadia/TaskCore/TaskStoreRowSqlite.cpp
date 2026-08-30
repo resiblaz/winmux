@@ -65,6 +65,53 @@ namespace Microsoft::Terminal::TaskCore::details
         return context;
     }
 
+    TaskGitWorktreeRecord ReadTaskGitWorktreeRow(sqlite3_stmt* statement)
+    {
+        TaskGitWorktreeRecord worktree;
+        worktree.Task = TaskId{ ColumnText(statement, 0) };
+        worktree.ExecutionContext = ExecutionContextId{ ColumnText(statement, 1) };
+        worktree.Revision = static_cast<uint64_t>(sqlite3_column_int64(statement, 2));
+        worktree.State = static_cast<TaskGitWorktreeState>(sqlite3_column_int(statement, 3));
+        worktree.RepositoryRoot = ColumnText(statement, 4);
+        worktree.RepositoryCommonDirectory = ColumnText(statement, 5);
+        worktree.RepositoryIdentityDigest = ColumnText(statement, 6);
+        worktree.WorktreePath = ColumnText(statement, 7);
+        worktree.BranchRef = ColumnText(statement, 8);
+        worktree.SourceHead = ColumnText(statement, 9);
+        worktree.SourceReference = ColumnText(statement, 10);
+        worktree.SnapshotDigest = ColumnText(statement, 11);
+        worktree.BaselineCommit = ColumnText(statement, 12);
+        worktree.OwnershipNonce = ColumnText(statement, 13);
+        worktree.HasUndeliveredWork = sqlite3_column_int(statement, 14) != 0;
+        worktree.CleanupEligible = sqlite3_column_int(statement, 15) != 0;
+        worktree.PreservedPath = ColumnText(statement, 16);
+        worktree.FailureReasonCode = ColumnText(statement, 17);
+        worktree.CreatedAtUnixMilliseconds = sqlite3_column_int64(statement, 18);
+        worktree.UpdatedAtUnixMilliseconds = sqlite3_column_int64(statement, 19);
+        return worktree;
+    }
+
+    TaskRunGitCheckpointRecord ReadTaskRunGitCheckpointRow(sqlite3_stmt* statement)
+    {
+        TaskRunGitCheckpointRecord checkpoint;
+        checkpoint.Id = GitCheckpointId{ ColumnText(statement, 0) };
+        checkpoint.Task = TaskId{ ColumnText(statement, 1) };
+        checkpoint.Run = TaskRunId{ ColumnText(statement, 2) };
+        checkpoint.Revision = static_cast<uint64_t>(sqlite3_column_int64(statement, 3));
+        checkpoint.State = static_cast<TaskGitCheckpointState>(sqlite3_column_int(statement, 4));
+        checkpoint.StartCommit = ColumnText(statement, 5);
+        checkpoint.EndCommit = ColumnText(statement, 6);
+        checkpoint.CheckpointCommit = ColumnText(statement, 7);
+        checkpoint.AutoCheckpointed = sqlite3_column_int(statement, 8) != 0;
+        checkpoint.ChangedPathsJson = ColumnText(statement, 9);
+        checkpoint.DiffSummaryJson = ColumnText(statement, 10);
+        checkpoint.PreservedPath = ColumnText(statement, 11);
+        checkpoint.ReasonCode = ColumnText(statement, 12);
+        checkpoint.CreatedAtUnixMilliseconds = sqlite3_column_int64(statement, 13);
+        checkpoint.UpdatedAtUnixMilliseconds = sqlite3_column_int64(statement, 14);
+        return checkpoint;
+    }
+
     TaskTerminalRecord ReadTaskTerminalRow(sqlite3_stmt* statement)
     {
         TaskTerminalRecord terminal;

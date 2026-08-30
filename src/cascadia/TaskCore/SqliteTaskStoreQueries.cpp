@@ -77,6 +77,61 @@ FROM execution_context WHERE task_id=?1 ORDER BY revision;
             return _loadTaskRows(database, sql, task, contexts, details::ReadExecutionContextRow, error);
         }
 
+        bool _loadGitWorktree(
+            sqlite3* database,
+            const TaskId& task,
+            std::optional<TaskGitWorktreeRecord>& worktree,
+            std::string& error)
+        {
+            constexpr auto sql = R"SQL(
+SELECT task_id, execution_context_id, revision, state, repository_root,
+       repository_common_directory, repository_identity_digest, worktree_path,
+       branch_ref, source_head, source_reference, snapshot_digest, baseline_commit,
+       ownership_nonce, has_undelivered_work, cleanup_eligible, preserved_path,
+       failure_reason_code, created_at, updated_at
+FROM task_git_worktree WHERE task_id=?1;
+)SQL";
+            details::SqliteStatement statement{ database, sql, error };
+            if (!statement || !details::BindText(database, statement.Get(), 1, task.Value(), error))
+            {
+                return false;
+            }
+            const auto step = sqlite3_step(statement.Get());
+            if (step == SQLITE_DONE)
+            {
+                worktree.reset();
+                return true;
+            }
+            if (step != SQLITE_ROW)
+            {
+                error = details::SqliteError(database, step, "read Task Git Worktree");
+                return false;
+            }
+            worktree = details::ReadTaskGitWorktreeRow(statement.Get());
+            return true;
+        }
+
+        bool _loadGitCheckpoints(
+            sqlite3* database,
+            const TaskId& task,
+            std::vector<TaskRunGitCheckpointRecord>& checkpoints,
+            std::string& error)
+        {
+            constexpr auto sql = R"SQL(
+SELECT id, task_id, run_id, revision, state, start_commit, end_commit,
+       checkpoint_commit, auto_checkpointed, changed_paths_json,
+       diff_summary_json, preserved_path, reason_code, created_at, updated_at
+FROM git_checkpoint WHERE task_id=?1 ORDER BY created_at, run_id;
+)SQL";
+            return _loadTaskRows(
+                database,
+                sql,
+                task,
+                checkpoints,
+                details::ReadTaskRunGitCheckpointRow,
+                error);
+        }
+
         bool _loadAgentSessions(
             sqlite3* database,
             const TaskId& task,
@@ -219,6 +274,8 @@ FROM task_terminal WHERE task_id=?1;
         std::optional<TaskTerminalRecord> terminal;
         if (!_loadAcceptanceCriteria(_impl->Database, task, snapshot.Task.AcceptanceCriteria, error) ||
             !_loadExecutionContexts(_impl->Database, task, snapshot.ExecutionContexts, error) ||
+            !_loadGitWorktree(_impl->Database, task, snapshot.GitWorktree, error) ||
+            !_loadGitCheckpoints(_impl->Database, task, snapshot.GitCheckpoints, error) ||
             !_loadTerminal(_impl->Database, task, terminal, error) ||
             !terminal ||
             !details::LoadTaskIntent(_impl->Database, task, snapshot.Intent, error) ||

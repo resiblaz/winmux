@@ -85,8 +85,37 @@ namespace TaskCoreLocalTests
             return value;
         }
 
+        void _downgradeToVersionThree(sqlite3* database)
+        {
+            constexpr auto sql = R"SQL(
+PRAGMA foreign_keys=OFF;
+BEGIN IMMEDIATE;
+ALTER TABLE git_checkpoint RENAME TO git_checkpoint_v4;
+CREATE TABLE git_checkpoint (
+    id TEXT PRIMARY KEY NOT NULL,
+    task_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    state INTEGER NOT NULL,
+    commit_id TEXT NOT NULL,
+    metadata_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL CHECK(created_at >= 0),
+    FOREIGN KEY(task_id) REFERENCES task(id) ON DELETE CASCADE,
+    FOREIGN KEY(run_id) REFERENCES task_run(id) ON DELETE CASCADE
+);
+INSERT INTO git_checkpoint(id,task_id,run_id,state,commit_id,metadata_json,created_at)
+SELECT id,task_id,run_id,state,checkpoint_commit,diff_summary_json,created_at
+FROM git_checkpoint_v4;
+DROP TABLE git_checkpoint_v4;
+DROP TABLE task_git_worktree;
+PRAGMA user_version=3;
+COMMIT;
+)SQL";
+            VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_exec(database, sql, nullptr, nullptr, nullptr));
+        }
+
         void _downgradeToVersionTwo(sqlite3* database)
         {
+            _downgradeToVersionThree(database);
             constexpr auto sql = R"SQL(
 PRAGMA foreign_keys=OFF;
 BEGIN IMMEDIATE;
@@ -162,6 +191,8 @@ COMMIT;
         TEST_METHOD(FailedMigrationRollsBackWithoutVersionAdvance);
         TEST_METHOD(MigratesVersionTwoMessageSchema);
         TEST_METHOD(FailedVersionTwoMigrationRollsBack);
+        TEST_METHOD(MigratesVersionThreeGitSchemaAndPreservesCheckpoints);
+        TEST_METHOD(FailedVersionThreeMigrationRollsBack);
     };
 
     void TaskCoreSchemaTests::InitializesCompleteCurrentSchemaAndPragmas()
@@ -174,12 +205,14 @@ COMMIT;
 
         auto database = _openRaw(path.Path());
         VERIFY_ARE_EQUAL(int64_t{ details::TaskDatabaseApplicationId }, _queryInteger(database, "PRAGMA application_id;"));
-        VERIFY_ARE_EQUAL(int64_t{ 3 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(int64_t{ 4 }, _queryInteger(database, "PRAGMA user_version;"));
         VERIFY_ARE_EQUAL(std::string{ "wal" }, _queryText(database, "PRAGMA journal_mode;"));
-        VERIFY_ARE_EQUAL(int64_t{ 13 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('task','task_acceptance','execution_context','task_terminal','agent_session','task_run','task_message','task_run_message','task_event','git_checkpoint','command_receipt','delete_tombstone','task_intent');"));
+        VERIFY_ARE_EQUAL(int64_t{ 14 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('task','task_acceptance','execution_context','task_terminal','agent_session','task_run','task_message','task_run_message','task_event','git_checkpoint','command_receipt','delete_tombstone','task_intent','task_git_worktree');"));
         VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='task_run_one_active' AND sql LIKE '%WHERE state IN (0, 1, 2, 3, 4)%';"));
         VERIFY_ARE_EQUAL(int64_t{ 4 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('delete_tombstone') WHERE name IN ('command_id','expected_version','committed_version','last_event_sequence');"));
         VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='task_intent_recovery';"));
+        VERIFY_ARE_EQUAL(int64_t{ 20 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('task_git_worktree');"));
+        VERIFY_ARE_EQUAL(int64_t{ 15 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('git_checkpoint');"));
         VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
     }
 
@@ -194,7 +227,7 @@ COMMIT;
         {
             SqliteTaskStore reopened{ path.Path() };
             VERIFY_IS_TRUE(reopened.IsReady());
-            VERIFY_ARE_EQUAL(3, reopened.SchemaVersion());
+            VERIFY_ARE_EQUAL(4, reopened.SchemaVersion());
         }
         VERIFY_IS_TRUE(std::filesystem::file_size(path.Path()) >= sizeBefore);
     }
@@ -286,14 +319,14 @@ COMMIT;
 
         SqliteTaskStore migrated{ path.Path() };
         VERIFY_IS_TRUE(migrated.IsReady());
-        VERIFY_ARE_EQUAL(3, migrated.SchemaVersion());
+        VERIFY_ARE_EQUAL(4, migrated.SchemaVersion());
         const auto tombstone = migrated.LoadDeleteTombstone(TaskId{ taskId });
         VERIFY_IS_TRUE(tombstone.has_value());
         VERIFY_ARE_EQUAL(std::string{ "legacy" }, tombstone->ReplayDigest);
         VERIFY_IS_FALSE(tombstone->Command.has_value());
 
         database = _openRaw(path.Path());
-        VERIFY_ARE_EQUAL(int64_t{ 3 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(int64_t{ 4 }, _queryInteger(database, "PRAGMA user_version;"));
         VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='task_intent';"));
         VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
     }
@@ -347,10 +380,10 @@ COMMIT;
 
         SqliteTaskStore migrated{ path.Path() };
         VERIFY_IS_TRUE(migrated.IsReady());
-        VERIFY_ARE_EQUAL(3, migrated.SchemaVersion());
+        VERIFY_ARE_EQUAL(4, migrated.SchemaVersion());
 
         database = _openRaw(path.Path());
-        VERIFY_ARE_EQUAL(int64_t{ 3 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(int64_t{ 4 }, _queryInteger(database, "PRAGMA user_version;"));
         VERIFY_ARE_EQUAL(int64_t{ 0 }, _queryInteger(database, "SELECT author FROM task_message LIMIT 1;"));
         VERIFY_ARE_EQUAL(int64_t{ 20 }, _queryInteger(database, "SELECT updated_at FROM task_message LIMIT 1;"));
         VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('task_run_message') WHERE name='position';"));
@@ -381,6 +414,102 @@ COMMIT;
         VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('task_message') WHERE name='author';"));
         VERIFY_ARE_EQUAL(int64_t{ 0 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('task_message') WHERE name='updated_at';"));
         VERIFY_ARE_EQUAL(int64_t{ 0 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('task_run_message') WHERE name='position';"));
+        VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
+    }
+
+    void TaskCoreSchemaTests::MigratesVersionThreeGitSchemaAndPreservesCheckpoints()
+    {
+        TemporaryDatabasePath path;
+        constexpr auto taskId = "00000000-0000-4000-8000-000000000311";
+        constexpr auto contextId = "00000000-0000-4000-8000-000000000312";
+        constexpr auto runId = "00000000-0000-4000-8000-000000000313";
+        constexpr auto checkpointId = "00000000-0000-4000-8000-000000000314";
+        constexpr auto secondCheckpointId = "00000000-0000-4000-8000-000000000317";
+        const std::string commit(40, 'c');
+        const std::string secondCommit(40, 'd');
+        {
+            SqliteTaskStore store{ path.Path() };
+            VERIFY_IS_TRUE(store.IsReady());
+        }
+
+        auto database = _openRaw(path.Path());
+        _downgradeToVersionThree(database);
+        const auto seedSql =
+            "INSERT INTO task(id,workspace_id,title,description,status,priority,version,manual_hold,created_at,updated_at) VALUES('" +
+            std::string{ taskId } + "','00000000-0000-4000-8000-000000000315','legacy','',1,1,1,0,10,10);" +
+            "INSERT INTO execution_context(id,task_id,revision,mode,source_root,runtime_root,repository_common_directory,worktree_path,branch,relative_working_directory,provider,model,instructions,identity_frozen,created_at) VALUES('" +
+            contextId + "','" + taskId + "',1,0,'C:\\repo','C:\\repo','','','','','codex','','',1,10);" +
+            "INSERT INTO task_terminal(id,task_id,state,generation,updated_at) VALUES('00000000-0000-4000-8000-000000000316','" +
+            taskId + "',0,0,10);" +
+            "INSERT INTO task_run(id,task_id,execution_context_id,trigger,state,sequence,created_at,result,reason_code) VALUES('" +
+            runId + "','" + taskId + "','" + contextId + "',0,5,1,20,'','');" +
+            "INSERT INTO git_checkpoint(id,task_id,run_id,state,commit_id,metadata_json,created_at) VALUES('" +
+            checkpointId + "','" + taskId + "','" + runId + "',3,'" + commit + "','{\"legacy\":true}',30),('" +
+            secondCheckpointId + "','" + taskId + "','" + runId + "',4,'" + secondCommit + "','{\"legacy\":2}',31);";
+        VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_exec(database, seedSql.c_str(), nullptr, nullptr, nullptr));
+        VERIFY_ARE_EQUAL(int64_t{ 3 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
+
+        SqliteTaskStore migrated{ path.Path() };
+        VERIFY_IS_TRUE(migrated.IsReady());
+        VERIFY_ARE_EQUAL(4, migrated.SchemaVersion());
+        const auto snapshot = migrated.LoadTask(TaskId{ taskId });
+        VERIFY_IS_TRUE(snapshot.has_value());
+        VERIFY_ARE_EQUAL(size_t{ 2 }, snapshot->GitCheckpoints.size());
+        const auto& checkpoint = snapshot->GitCheckpoints.front();
+        VERIFY_IS_TRUE(checkpoint.Id == GitCheckpointId{ checkpointId });
+        VERIFY_IS_TRUE(checkpoint.Run == TaskRunId{ runId });
+        VERIFY_ARE_EQUAL(1ull, checkpoint.Revision);
+        VERIFY_IS_TRUE(checkpoint.State == TaskGitCheckpointState::Succeeded);
+        VERIFY_ARE_EQUAL(commit, checkpoint.EndCommit);
+        VERIFY_ARE_EQUAL(commit, checkpoint.CheckpointCommit);
+        VERIFY_ARE_EQUAL(std::string{ "{\"legacy\":true}" }, checkpoint.DiffSummaryJson);
+        VERIFY_ARE_EQUAL(std::string{ "legacy_v3" }, checkpoint.ReasonCode);
+        VERIFY_ARE_EQUAL(30ll, checkpoint.UpdatedAtUnixMilliseconds);
+        const auto& secondCheckpoint = snapshot->GitCheckpoints[1];
+        VERIFY_IS_TRUE(secondCheckpoint.Id == GitCheckpointId{ secondCheckpointId });
+        VERIFY_IS_TRUE(secondCheckpoint.Run == TaskRunId{ runId });
+        VERIFY_IS_TRUE(secondCheckpoint.State == TaskGitCheckpointState::NotNeeded);
+        VERIFY_ARE_EQUAL(secondCommit, secondCheckpoint.EndCommit);
+        VERIFY_ARE_EQUAL(std::string{ "{\"legacy\":2}" }, secondCheckpoint.DiffSummaryJson);
+
+        database = _openRaw(path.Path());
+        VERIFY_ARE_EQUAL(int64_t{ 4 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='task_git_worktree';"));
+        VERIFY_ARE_EQUAL(int64_t{ 0 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('git_checkpoint') WHERE name='commit_id';"));
+        VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
+    }
+
+    void TaskCoreSchemaTests::FailedVersionThreeMigrationRollsBack()
+    {
+        TemporaryDatabasePath path;
+        {
+            SqliteTaskStore store{ path.Path() };
+            VERIFY_IS_TRUE(store.IsReady());
+        }
+
+        auto database = _openRaw(path.Path());
+        _downgradeToVersionThree(database);
+        VERIFY_ARE_EQUAL(
+            SQLITE_OK,
+            sqlite3_exec(
+                database,
+                "CREATE INDEX task_git_worktree_recovery ON task(id);",
+                nullptr,
+                nullptr,
+                nullptr));
+        VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
+
+        SqliteTaskStore failed{ path.Path() };
+        VERIFY_IS_FALSE(failed.IsReady());
+        VERIFY_IS_TRUE(failed.OpenStatus() == TaskStoreOpenStatus::IOError);
+
+        database = _openRaw(path.Path());
+        VERIFY_ARE_EQUAL(int64_t{ 3 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(int64_t{ 0 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='task_git_worktree';"));
+        VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('git_checkpoint') WHERE name='commit_id';"));
+        VERIFY_ARE_EQUAL(int64_t{ 0 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('git_checkpoint') WHERE name='revision';"));
+        VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='task_git_worktree_recovery';"));
         VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
     }
 }

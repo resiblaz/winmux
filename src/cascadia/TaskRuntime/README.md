@@ -50,7 +50,7 @@ bounded queue budget; overflow disconnects only that client.
 
 `--bootstrap-check` creates and validates the identity, security, mutex, and
 first control-pipe instance, prints the protocol identity, and exits. It is not
-the long-running Runtime mode. M2C4 will add a reconnecting TaskRuntimeClient
-that consumes subscription cursors, detects gaps/generation drift, and performs
-clean resnapshot/catch-up decisions without changing the server transport or
-ownership contracts.
+the long-running Runtime mode. M2C4a now defines the client-side envelope,
+Snapshot DTO, and disconnect replay/outcome policy. M2C4b will split the shared
+named-pipe transport target and add a connector seam before the reconnecting
+client supervisor is introduced.

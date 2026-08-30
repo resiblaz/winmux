@@ -105,6 +105,103 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
                    !error.Message.empty() && error.Message.size() <= MaximumRpcErrorMessageBytes &&
                    IsValidUtf8(error.Message);
         }
+
+        bool _isUnsignedInteger(const Json::Value& value) noexcept
+        {
+            return value.type() == Json::uintValue ||
+                   (value.type() == Json::intValue && value.asInt64() >= 0);
+        }
+
+        ProtocolRpcJsonDecodeResult<ControlResponse> _decodeResponseRoot(const Json::Value& root)
+        {
+            if (!root.isObject() || !root["type"].isString() || root["type"].asString() != "response" ||
+                !root["requestId"].isString() || !root["ok"].isBool())
+            {
+                return _failure<ControlResponse>(ProtocolRpcJsonStatus::InvalidSchema, "Control response fields are invalid");
+            }
+
+            ControlResponse response;
+            response.RequestId = root["requestId"].asString();
+            response.Succeeded = root["ok"].asBool();
+            if (!IsCanonicalProtocolUuid(response.RequestId))
+            {
+                return _failure<ControlResponse>(ProtocolRpcJsonStatus::InvalidSchema, "Control response request ID is invalid");
+            }
+            if (response.Succeeded)
+            {
+                if (!_exact(root, { "type", "requestId", "ok", "result" }) || !root["result"].isObject())
+                {
+                    return _failure<ControlResponse>(ProtocolRpcJsonStatus::InvalidSchema, "Successful response result is invalid");
+                }
+                response.ResultJson = _write(root["result"]);
+            }
+            else
+            {
+                if (!_exact(root, { "type", "requestId", "ok", "error" }) ||
+                    !_exact(root["error"], { "code", "message", "data" }) ||
+                    !root["error"]["code"].isString() || !root["error"]["message"].isString() ||
+                    !root["error"]["data"].isObject())
+                {
+                    return _failure<ControlResponse>(ProtocolRpcJsonStatus::InvalidSchema, "Error response payload is invalid");
+                }
+                const auto code = ProtocolRpcErrorCodeFromName(root["error"]["code"].asString());
+                ProtocolRpcError rpcError;
+                rpcError.Code = code.value_or(ProtocolRpcErrorCode::InternalError);
+                rpcError.Message = root["error"]["message"].asString();
+                rpcError.DataJson = _write(root["error"]["data"]);
+                if (!code || !_validError(rpcError))
+                {
+                    return _failure<ControlResponse>(ProtocolRpcJsonStatus::InvalidSchema, "Error response code or message is invalid");
+                }
+                response.ResultJson = "{}";
+                response.Error = std::move(rpcError);
+            }
+
+            ProtocolRpcJsonDecodeResult<ControlResponse> result;
+            result.Status = ProtocolRpcJsonStatus::Succeeded;
+            result.Value = std::move(response);
+            return result;
+        }
+
+        ProtocolRpcJsonDecodeResult<ControlNotification> _decodeNotificationRoot(const Json::Value& root)
+        {
+            if (!_exact(root, { "type", "subscriptionId", "generation", "sequence", "event", "payload" }) ||
+                !root["type"].isString() || root["type"].asString() != "notification" ||
+                !root["subscriptionId"].isString() || !_isUnsignedInteger(root["generation"]) ||
+                !_isUnsignedInteger(root["sequence"]) || !root["event"].isString() || !root["payload"].isObject())
+            {
+                return _failure<ControlNotification>(ProtocolRpcJsonStatus::InvalidSchema, "Control notification fields are invalid");
+            }
+
+            ControlNotification notification;
+            notification.SubscriptionId = root["subscriptionId"].asString();
+            notification.Generation = root["generation"].asUInt64();
+            notification.Sequence = root["sequence"].asUInt64();
+            const auto eventName = root["event"].asString();
+            const auto kind = ControlNotificationKindFromName(eventName);
+            if (!IsCanonicalProtocolUuid(notification.SubscriptionId) ||
+                notification.Generation == 0 || notification.Sequence == 0 ||
+                eventName.empty() || eventName.size() > MaximumNotificationKindBytes)
+            {
+                return _failure<ControlNotification>(ProtocolRpcJsonStatus::InvalidSchema, "Control notification identity or cursor is invalid");
+            }
+            if (!kind)
+            {
+                notification.UnknownKind = eventName;
+                notification.PayloadJson = _write(root["payload"]);
+                ProtocolRpcJsonDecodeResult<ControlNotification> result;
+                result.Status = ProtocolRpcJsonStatus::UnknownNotification;
+                result.Value = std::move(notification);
+                result.Error = "Control notification kind is unknown";
+                return result;
+            }
+            notification.Kind = kind.value();
+            notification.PayloadJson = _write(root["payload"]);
+            ProtocolRpcJsonDecodeResult<ControlNotification> result;
+            result.Status = ProtocolRpcJsonStatus::Succeeded;
+            result.Value = std::move(notification);
+            return result;
+        }
     }
 
     ProtocolRpcJsonDecodeResult<ControlRequest> DecodeControlRequest(const std::string_view payload)
@@ -147,53 +244,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         {
             return _failure<ControlResponse>(status, std::move(error));
         }
-        if (!root.isObject() || !root["type"].isString() || root["type"].asString() != "response" ||
-            !root["requestId"].isString() || !root["ok"].isBool())
-        {
-            return _failure<ControlResponse>(ProtocolRpcJsonStatus::InvalidSchema, "Control response fields are invalid");
-        }
-
-        ControlResponse response;
-        response.RequestId = root["requestId"].asString();
-        response.Succeeded = root["ok"].asBool();
-        if (!IsCanonicalProtocolUuid(response.RequestId))
-        {
-            return _failure<ControlResponse>(ProtocolRpcJsonStatus::InvalidSchema, "Control response request ID is invalid");
-        }
-        if (response.Succeeded)
-        {
-            if (!_exact(root, { "type", "requestId", "ok", "result" }) || !root["result"].isObject())
-            {
-                return _failure<ControlResponse>(ProtocolRpcJsonStatus::InvalidSchema, "Successful response result is invalid");
-            }
-            response.ResultJson = _write(root["result"]);
-        }
-        else
-        {
-            if (!_exact(root, { "type", "requestId", "ok", "error" }) ||
-                !_exact(root["error"], { "code", "message", "data" }) ||
-                !root["error"]["code"].isString() || !root["error"]["message"].isString() ||
-                !root["error"]["data"].isObject())
-            {
-                return _failure<ControlResponse>(ProtocolRpcJsonStatus::InvalidSchema, "Error response payload is invalid");
-            }
-            const auto code = ProtocolRpcErrorCodeFromName(root["error"]["code"].asString());
-            ProtocolRpcError rpcError;
-            rpcError.Code = code.value_or(ProtocolRpcErrorCode::InternalError);
-            rpcError.Message = root["error"]["message"].asString();
-            rpcError.DataJson = _write(root["error"]["data"]);
-            if (!code || !_validError(rpcError))
-            {
-                return _failure<ControlResponse>(ProtocolRpcJsonStatus::InvalidSchema, "Error response code or message is invalid");
-            }
-            response.ResultJson = "{}";
-            response.Error = std::move(rpcError);
-        }
-
-        ProtocolRpcJsonDecodeResult<ControlResponse> result;
-        result.Status = ProtocolRpcJsonStatus::Succeeded;
-        result.Value = std::move(response);
-        return result;
+        return _decodeResponseRoot(root);
     }
 
     ProtocolRpcJsonDecodeResult<ControlNotification> DecodeControlNotification(const std::string_view payload)
@@ -205,42 +256,54 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         {
             return _failure<ControlNotification>(status, std::move(error));
         }
-        if (!_exact(root, { "type", "subscriptionId", "generation", "sequence", "event", "payload" }) ||
-            !root["type"].isString() || root["type"].asString() != "notification" ||
-            !root["subscriptionId"].isString() || !root["generation"].isUInt64() ||
-            !root["sequence"].isUInt64() || !root["event"].isString() || !root["payload"].isObject())
+        return _decodeNotificationRoot(root);
+    }
+
+    ProtocolRpcJsonDecodeResult<ClientControlEnvelope> DecodeClientControlEnvelope(
+        const std::string_view payload)
+    {
+        Json::Value root;
+        std::string error;
+        ProtocolRpcJsonStatus status{ ProtocolRpcJsonStatus::InvalidSchema };
+        if (!_decodeRoot(payload, root, status, error))
         {
-            return _failure<ControlNotification>(ProtocolRpcJsonStatus::InvalidSchema, "Control notification fields are invalid");
+            return _failure<ClientControlEnvelope>(status, std::move(error));
+        }
+        if (!root.isObject() || !root["type"].isString())
+        {
+            return _failure<ClientControlEnvelope>(
+                ProtocolRpcJsonStatus::InvalidSchema,
+                "Client control envelope type is invalid");
         }
 
-        ControlNotification notification;
-        notification.SubscriptionId = root["subscriptionId"].asString();
-        notification.Generation = root["generation"].asUInt64();
-        notification.Sequence = root["sequence"].asUInt64();
-        const auto eventName = root["event"].asString();
-        const auto kind = ControlNotificationKindFromName(eventName);
-        if (!IsCanonicalProtocolUuid(notification.SubscriptionId) ||
-            notification.Generation == 0 || notification.Sequence == 0 ||
-            eventName.empty() || eventName.size() > MaximumNotificationKindBytes)
+        ProtocolRpcJsonDecodeResult<ClientControlEnvelope> result;
+        const auto type = root["type"].asString();
+        if (type == "response")
         {
-            return _failure<ControlNotification>(ProtocolRpcJsonStatus::InvalidSchema, "Control notification identity or cursor is invalid");
-        }
-        if (!kind)
-        {
-            notification.UnknownKind = eventName;
-            notification.PayloadJson = _write(root["payload"]);
-            ProtocolRpcJsonDecodeResult<ControlNotification> result;
-            result.Status = ProtocolRpcJsonStatus::UnknownNotification;
-            result.Value = std::move(notification);
-            result.Error = "Control notification kind is unknown";
+            auto decoded = _decodeResponseRoot(root);
+            result.Status = decoded.Status;
+            result.Error = std::move(decoded.Error);
+            if (decoded.Succeeded())
+            {
+                result.Value = std::move(decoded.Value);
+            }
             return result;
         }
-        notification.Kind = kind.value();
-        notification.PayloadJson = _write(root["payload"]);
-        ProtocolRpcJsonDecodeResult<ControlNotification> result;
-        result.Status = ProtocolRpcJsonStatus::Succeeded;
-        result.Value = std::move(notification);
-        return result;
+        if (type == "notification")
+        {
+            auto decoded = _decodeNotificationRoot(root);
+            result.Status = decoded.Status;
+            result.Error = std::move(decoded.Error);
+            if (decoded.Status == ProtocolRpcJsonStatus::Succeeded ||
+                decoded.Status == ProtocolRpcJsonStatus::UnknownNotification)
+            {
+                result.Value = std::move(decoded.Value);
+            }
+            return result;
+        }
+        return _failure<ClientControlEnvelope>(
+            ProtocolRpcJsonStatus::InvalidSchema,
+            "Client control envelope type is unsupported");
     }
 
     ProtocolRpcJsonEncodeResult EncodeControlRequest(const ControlRequest& request)

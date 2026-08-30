@@ -26,6 +26,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         AcquireInputLease,
         ReleaseInputLease,
         RuntimeStatus,
+        Count,
     };
 
     enum class ControlNotificationKind : uint8_t

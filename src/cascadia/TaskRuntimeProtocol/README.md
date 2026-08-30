@@ -24,11 +24,31 @@ Methods declare required negotiated capabilities. A control-session state
 machine enforces Hello-first ordering, bounded in-flight requests, duplicate
 in-flight ID rejection, and close-state refusal before Runtime dispatch.
 
+Clients use one discriminated decoder for response/notification payloads so
+each JSON document is parsed once. Known notifications and responses return a
+typed variant. An unknown optional notification returns the same typed
+notification value with `UnknownNotification` status; clients must still feed
+it to their subscription cursor so the committed sequence advances.
+
 `SnapshotAndSubscribe` consumers seed a subscription ID, generation, and
 committed cursor atomically. Known next notifications advance exactly by one;
 duplicates are ignored and gaps or identity/generation drift require a clean
 resnapshot. Unknown optional notifications retain and advance their cursor but
 their payload is ignored.
+
+The typed SnapshotAndSubscribe result contains exactly `subscriptionId`,
+`generation`, `cursor`, and an object-valued `snapshot`. Unsubscribe parameters
+contain exactly the matching subscription ID and generation. Provider/domain
+snapshot fields remain inside the bounded snapshot object instead of leaking
+into transport ownership types. Generation, cursor, and notification sequence
+values use unsigned 64-bit integer-form JSON numbers; decimal and exponent
+spellings are rejected rather than normalized by the JSON library.
+
+Client disconnect policy is method- and transmission-aware. Ping, QueryTask,
+and RuntimeStatus may retry with a fresh request ID. SnapshotAndSubscribe
+resnapshots; Unsubscribe is never replayed across a connection. Mutating
+commands may retry only before writing starts—after that their result is
+`OutcomeUnknown` until a durable idempotency receipt can resolve it.
 
 ## Agent-terminal framing
 

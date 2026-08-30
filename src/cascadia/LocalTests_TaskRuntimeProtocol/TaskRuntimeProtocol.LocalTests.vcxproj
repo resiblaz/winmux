@@ -18,12 +18,15 @@
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="ClientControlEnvelopeTests.cpp" />
+    <ClCompile Include="ClientRequestPolicyTests.cpp" />
     <ClCompile Include="ControlFrameTests.cpp" />
     <ClCompile Include="ControlSessionTests.cpp" />
     <ClCompile Include="ProtocolHandshakeTests.cpp" />
     <ClCompile Include="ProtocolJsonTests.cpp" />
     <ClCompile Include="ProtocolRpcJsonTests.cpp" />
     <ClCompile Include="ProtocolValidationTests.cpp" />
+    <ClCompile Include="SnapshotAndSubscribeTests.cpp" />
     <ClCompile Include="SubscriptionCursorTests.cpp" />
     <ClCompile Include="TerminalFrameTests.cpp" />
   </ItemGroup>

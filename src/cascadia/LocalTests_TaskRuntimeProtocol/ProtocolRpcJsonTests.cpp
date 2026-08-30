@@ -5,6 +5,8 @@
 
 #include "ProtocolRpcJson.h"
 
+#include <limits>
+
 using namespace WEX::TestExecution;
 using namespace Microsoft::Terminal::TaskRuntimeProtocol;
 
@@ -31,6 +33,8 @@ namespace TaskRuntimeProtocolLocalTests
     {
         VERIFY_IS_TRUE(ControlMethodFromName("query_task") == std::optional{ ControlMethod::QueryTask });
         VERIFY_IS_FALSE(ControlMethodFromName("future_method").has_value());
+        VERIFY_IS_FALSE(ControlMethodFromName("count").has_value());
+        VERIFY_IS_TRUE(ControlMethodName(ControlMethod::Count).empty());
         VERIFY_IS_TRUE(
             RequiredCapabilities(ControlMethod::QueryTask) ==
             static_cast<uint64_t>(ProtocolCapability::TaskQueries));
@@ -61,6 +65,9 @@ namespace TaskRuntimeProtocolLocalTests
         request.PayloadJson = "[]";
         VERIFY_IS_FALSE(EncodeControlRequest(request).Succeeded);
         request.PayloadJson = "{\"duplicate\":1,\"duplicate\":2}";
+        VERIFY_IS_FALSE(EncodeControlRequest(request).Succeeded);
+        request.PayloadJson = "{}";
+        request.Method = ControlMethod::Count;
         VERIFY_IS_FALSE(EncodeControlRequest(request).Succeeded);
     }
 
@@ -118,6 +125,16 @@ namespace TaskRuntimeProtocolLocalTests
         VERIFY_IS_TRUE(decoded.Status == ProtocolRpcJsonStatus::UnknownNotification);
         VERIFY_ARE_EQUAL(std::string{ "future_optional_event" }, decoded.Value.UnknownKind);
         VERIFY_ARE_EQUAL(uint64_t{ 9 }, decoded.Value.Sequence);
+
+        constexpr auto maximum = std::numeric_limits<uint64_t>::max();
+        notification.Generation = maximum;
+        notification.Sequence = maximum;
+        const auto maximumEncoded = EncodeControlNotification(notification);
+        VERIFY_IS_TRUE(maximumEncoded.Succeeded);
+        decoded = DecodeControlNotification(maximumEncoded.Payload);
+        VERIFY_IS_TRUE(decoded.Succeeded());
+        VERIFY_ARE_EQUAL(maximum, decoded.Value.Generation);
+        VERIFY_ARE_EQUAL(maximum, decoded.Value.Sequence);
     }
 
     void ProtocolRpcJsonTests::RejectsInvalidIdsCursorsBodiesAndExtraFields()
@@ -127,6 +144,10 @@ namespace TaskRuntimeProtocolLocalTests
 
         constexpr std::string_view invalidNotification = R"JSON({"type":"notification","subscriptionId":"40000000-0000-4000-8000-000000000004","generation":0,"sequence":1,"event":"projection_changed","payload":{}})JSON";
         VERIFY_IS_TRUE(DecodeControlNotification(invalidNotification).Status == ProtocolRpcJsonStatus::InvalidSchema);
+        constexpr std::string_view decimalGeneration = R"JSON({"type":"notification","subscriptionId":"40000000-0000-4000-8000-000000000004","generation":1.0,"sequence":1,"event":"projection_changed","payload":{}})JSON";
+        VERIFY_IS_TRUE(DecodeControlNotification(decimalGeneration).Status == ProtocolRpcJsonStatus::InvalidSchema);
+        constexpr std::string_view exponentSequence = R"JSON({"type":"notification","subscriptionId":"40000000-0000-4000-8000-000000000004","generation":1,"sequence":1e0,"event":"projection_changed","payload":{}})JSON";
+        VERIFY_IS_TRUE(DecodeControlNotification(exponentSequence).Status == ProtocolRpcJsonStatus::InvalidSchema);
 
         ControlNotification notification;
         notification.SubscriptionId = SubscriptionId;

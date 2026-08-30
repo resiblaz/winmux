@@ -26,6 +26,8 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             return "release_input_lease";
         case ControlMethod::RuntimeStatus:
             return "runtime_status";
+        case ControlMethod::Count:
+            return {};
         default:
             return {};
         }
@@ -34,7 +36,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
     std::optional<ControlMethod> ControlMethodFromName(const std::string_view name) noexcept
     {
         for (uint8_t value = static_cast<uint8_t>(ControlMethod::Ping);
-             value <= static_cast<uint8_t>(ControlMethod::RuntimeStatus);
+             value < static_cast<uint8_t>(ControlMethod::Count);
              ++value)
         {
             const auto method = static_cast<ControlMethod>(value);
@@ -64,6 +66,8 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             return static_cast<uint64_t>(ProtocolCapability::InputControllerLease);
         case ControlMethod::RuntimeStatus:
             return static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle);
+        case ControlMethod::Count:
+            return AllProtocolCapabilities;
         default:
             return AllProtocolCapabilities;
         }

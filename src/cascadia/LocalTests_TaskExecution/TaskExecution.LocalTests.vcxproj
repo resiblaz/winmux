@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{1F110DD9-9835-4414-A828-C04FA29C7540}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>TaskExecutionLocalTests</RootNamespace>
+    <ProjectName>LocalTests_TaskExecution</ProjectName>
+    <TargetName>TaskExecution.LocalTests</TargetName>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <OpenConsoleUniversalApp>false</OpenConsoleUniversalApp>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\common.build.pre.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.props" />
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="TaskExecutionTestSupport.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="DirectoryIdentityTests.cpp" />
+    <ClCompile Include="TaskExecutionCrossProcessTests.cpp" />
+    <ClCompile Include="TaskExecutionLockTests.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TaskExecution\TaskExecution.vcxproj">
+      <Project>{C0BE2B61-09F6-4523-A7F1-77980CE41DC7}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskExecution;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>advapi32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\common.build.post.props" />
+  <Import Project="$(SolutionDir)src\common.build.tests.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.targets" />
+</Project>

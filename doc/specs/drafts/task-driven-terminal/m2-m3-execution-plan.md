@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-08-31
-status: active execution queue; M2 closure and M3A complete, M3B next
+status: active execution queue; M2 closure and M3A-M3B complete, M3C next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -113,7 +113,7 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
 | Stage | Deliverable | Required verification |
 |---|---|---|
 | M3A (complete) | Typed Git/worktree records, SQLite v4, identity freeze and delete gate | v3 migration, rollback, replay/conflict, first-run freeze, recovery, undelivered-work refusal |
-| M3B | Canonical directory identity, Direct FIFO lease, Git common-dir mutex | Unicode/alias/reparse, cancellation, abandoned owner, two Runtime identities/processes |
+| M3B (complete) | Canonical directory identity, Direct FIFO lease, Git common-dir mutex | Unicode/alias/reparse, cancellation, abandoned owner, two Runtime identities/processes |
 | M3C | Structured Windows Git runner and repository inspector | argv/env injection, timeout/cancel/tree kill, output/UTF-8 bounds, linked/detached/SHA-1/SHA-256 |
 | M3D | Read-only faithful source-state capture | clean/staged/unstaged/untracked/ignored, 2,000/200 MiB bounds, symlink/vanish, digest race, source unchanged |
 | M3E | Worktree provision, replay, verification, baseline and setup recovery | deterministic collisions, every crash phase, hook/sign/identity/lock/copy/persist failure, no fallback |
@@ -199,6 +199,44 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
   `237933253BB4E8EC38EC771D093D082E7729E5DAE5A7AE2B51E368A4323CBCB0`.
 - `git diff --check`, LF/final-newline inspection, and both modified MSBuild
   project XML parses passed without errors.
+
+### 4.3 M3B closure evidence
+
+- A separate `TaskExecution` static target now owns directory identity,
+  digest/security helpers, the Direct FIFO lease, and the Git common-directory
+  lock. `TaskRuntimeHost` references the target, while TaskCore remains free of
+  process, filesystem-handle, and Named Mutex ownership.
+- Existing directories are opened by handle, resolved with
+  `GetFinalPathNameByHandleW`, identified by volume serial plus 128-bit file ID,
+  and reopened to prove the resolved alias still names the same object. Unicode,
+  case and extended-path aliases converge; missing/file/relative/oversized/NUL,
+  drive root, Windows system subtree, device, and reparse attributes fail
+  closed. Worktree policy rejects UNC before filesystem access.
+- Direct leases use one process-wide FIFO registry in front of a mandatory
+  cross-process Mutex. Waiting has no timeout, cancellation removes any queued
+  waiter without reordering successors, reentrant owner acquisition is
+  rejected, and the RAII lease remains owner-thread affine.
+- Git common-directory locks use a cancellable, bounded deadline of at most 30
+  seconds. Different directory identities remain parallel. Direct and Git use
+  separate lock domains while both remain independent of product channel or
+  Runtime identity.
+- Mutex names are versioned SHA-256 identities over current-user SID, lock
+  domain, and canonical directory digest. Creation uses a protected
+  current-user/System DACL plus exact Medium/NoWriteUp label; every opened
+  object is revalidated. Broad-ACL precreation fails closed, and both Direct
+  and Git report abandoned owners while retaining safe acquisition semantics.
+- `TaskExecution.LocalTests` passes 13/13 tests, including two child-process
+  cases proving that distinct registered/portable Runtime labels serialize on
+  the same Direct or Git lock. The final suite passed 100/100 repeated rounds
+  (1,300/1,300 tests and approximately 400 child processes).
+- The unified Release/MSIX, complete native-test graph, and CLI smoke gate
+  passed with TaskCore 69/69, TaskExecution 13/13, TaskRuntimeProtocol 71/71,
+  TaskRuntimeActivation 66/66, TaskRuntimeClient 132/132, and TaskRuntime
+  182/182. Portable repackaging also passed.
+- The resulting MSIX is 8,112,513 bytes with SHA256
+  `B480F69134F1B0376ACD2ABC617B1CDFCE3DBAC8FF826CA69F5C43B8E283ACA8`;
+  the portable ZIP is 11,995,719 bytes with SHA256
+  `0EAFCD60D724899FDBF5059E274844FEB9619B15C0E7B3D517F3E596AB5C2547`.
 
 ## 5. Verification discipline
 

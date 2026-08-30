@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{28857AC9-A87D-44C2-B70D-788DB73F71F5}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>TaskExecutionLockChild</RootNamespace>
+    <ProjectName>TaskExecutionLockChild</ProjectName>
+    <TargetName>TaskExecutionLockChild</TargetName>
+    <ConfigurationType>Application</ConfigurationType>
+    <OpenConsoleUniversalApp>false</OpenConsoleUniversalApp>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\common.build.pre.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.props" />
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\TaskExecution\TaskExecution.vcxproj">
+      <Project>{C0BE2B61-09F6-4523-A7F1-77980CE41DC7}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskExecution;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>advapi32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\common.build.post.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.targets" />
+</Project>

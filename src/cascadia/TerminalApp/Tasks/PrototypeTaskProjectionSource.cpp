@@ -340,7 +340,14 @@ namespace winrt::TerminalApp::implementation::tasks
                 {
                     return key;
                 }
-                return _knownWorkspaceKey(workingDirectory);
+                if (auto key = _knownWorkspaceKey(workingDirectory); !key.empty())
+                {
+                    return key;
+                }
+
+                // Keep the prototype useful when the selected terminal starts outside a
+                // known repository. Runtime-backed sources resolve the real WorkspaceId.
+                return L"win_terminal";
             }
 
         private:

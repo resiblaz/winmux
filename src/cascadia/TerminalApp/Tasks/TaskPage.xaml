@@ -276,7 +276,8 @@
             <SplitView.Content>
                 <Grid>
                     <local:TaskDetailsPane x:Name="DetailsPane"
-                                           Task="{x:Bind ViewModel.SelectedTask, Mode=OneWay}" />
+                                           Task="{x:Bind ViewModel.SelectedTask, Mode=OneWay}"
+                                           Visibility="{x:Bind mtu:Converters.BooleanToVisibility(ViewModel.HasSelection), Mode=OneWay}" />
                     <StackPanel HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 Spacing="8"

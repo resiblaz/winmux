@@ -220,19 +220,23 @@ namespace TerminalAppLocalTests
             interactionResult = RunOnUIThread([&]() {
                 const auto list = page.FindName(L"TaskList").as<winrt::Windows::UI::Xaml::Controls::ListView>();
                 const auto search = page.FindName(L"TaskSearchBox").as<winrt::Windows::UI::Xaml::Controls::TextBox>();
+                const auto details = page.FindName(L"DetailsPane").as<winrt::TerminalApp::TaskDetailsPane>();
                 const auto pageImpl = winrt::get_self<winrt::TerminalApp::implementation::TaskPage>(page);
                 VERIFY_IS_TRUE(page.IsLoaded());
                 VERIFY_ARE_EQUAL(2u, list.Items().Size());
                 list.SelectedIndex(1);
                 VERIFY_IS_NOT_NULL(page.ViewModel().SelectedTask());
                 VERIFY_ARE_EQUAL(L"RWT-2", page.ViewModel().SelectedTask().Id());
+                VERIFY_ARE_EQUAL(winrt::Windows::UI::Xaml::Visibility::Visible, details.Visibility());
 
                 search.Text(L"no matches");
                 pageImpl->_Search_TextChanged(search, winrt::Windows::UI::Xaml::Controls::TextChangedEventArgs{ nullptr });
                 VERIFY_IS_NULL(page.ViewModel().SelectedTask());
+                VERIFY_ARE_EQUAL(winrt::Windows::UI::Xaml::Visibility::Collapsed, details.Visibility());
                 search.Text(L"");
                 pageImpl->_Search_TextChanged(search, winrt::Windows::UI::Xaml::Controls::TextChangedEventArgs{ nullptr });
                 VERIFY_ARE_EQUAL(L"RWT-2", page.ViewModel().SelectedTask().Id());
+                VERIFY_ARE_EQUAL(winrt::Windows::UI::Xaml::Visibility::Visible, details.Visibility());
             });
         }
 
@@ -265,7 +269,7 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(std::wstring{ L"win_terminal" }, source->ResolveWorkspaceKey(L"workspace-id", LR"(F:\RicherLife\codes\win_terminal)", LR"(F:\RicherLife\codes\win_terminal\src\cascadia)"));
             VERIFY_ARE_EQUAL(std::wstring{ L"richerlife-api" }, source->ResolveWorkspaceKey(L"workspace-id", L"", LR"(F:\RicherLife\codes\richerlife-api\src)"));
             VERIFY_ARE_EQUAL(std::wstring{ L"win_terminal" }, source->ResolveWorkspaceKey(L"workspace-id", LR"(F:\RicherLife\task-worktrees\rwt-42)", LR"(F:\RicherLife\task-worktrees\rwt-42\src)"));
-            VERIFY_IS_TRUE(source->ResolveWorkspaceKey(L"workspace-id", L"", LR"(F:\unrelated)").empty());
+            VERIFY_ARE_EQUAL(std::wstring{ L"win_terminal" }, source->ResolveWorkspaceKey(L"workspace-id", L"", LR"(C:\Users\u1s1)"));
         });
         VERIFY_SUCCEEDED(result);
     }

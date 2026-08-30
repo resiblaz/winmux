@@ -16,8 +16,17 @@
     <ClInclude Include="RuntimeActivationDeadline.h" />
     <ClInclude Include="RuntimeActivationServices.h" />
     <ClInclude Include="RuntimeActivationTypes.h" />
+    <ClInclude Include="RuntimeExecutablePathValidation.h" />
     <ClInclude Include="RuntimeLaunchLock.h" />
     <ClInclude Include="RuntimeLaunchLockSecurity.h" />
+    <ClInclude Include="RuntimeParentJob.h" />
+    <ClInclude Include="RuntimeProcessLauncher.h" />
+    <ClInclude Include="RuntimeProcessLaunchTypes.h" />
+    <ClInclude Include="RuntimeProcessObservation.h" />
+    <ClInclude Include="RuntimeProcessContainmentInternal.h" />
+    <ClInclude Include="RuntimeSuspendedProcessInternal.h" />
+    <ClInclude Include="RuntimeWindowsCommandLine.h" />
+    <ClInclude Include="RuntimeWindowsProcessApiInternal.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -25,8 +34,17 @@
     </ClCompile>
     <ClCompile Include="RuntimeActivationDeadline.cpp" />
     <ClCompile Include="RuntimeActivationWindowsServices.cpp" />
+    <ClCompile Include="RuntimeExecutablePathValidation.cpp" />
     <ClCompile Include="RuntimeLaunchLock.cpp" />
     <ClCompile Include="RuntimeLaunchLockSecurity.cpp" />
+    <ClCompile Include="RuntimeParentJob.cpp" />
+    <ClCompile Include="RuntimeProcessLauncher.cpp" />
+    <ClCompile Include="RuntimeProcessLaunchTypes.cpp" />
+    <ClCompile Include="RuntimeProcessObservation.cpp" />
+    <ClCompile Include="RuntimeProcessContainmentInternal.cpp" />
+    <ClCompile Include="RuntimeSuspendedProcess.cpp" />
+    <ClCompile Include="RuntimeWindowsCommandLine.cpp" />
+    <ClCompile Include="RuntimeWindowsProcessApi.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">

@@ -14,6 +14,8 @@
   <ItemGroup>
     <ClInclude Include="ActivationTestSupport.h" />
     <ClInclude Include="FakeRuntimeActivationServices.h" />
+    <ClInclude Include="FakeRuntimeWindowsProcessApi.h" />
+    <ClInclude Include="RuntimeProcessLauncherTestSupport.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>
@@ -26,6 +28,13 @@
     <ClCompile Include="RuntimeLaunchLockMandatoryLabelTests.cpp" />
     <ClCompile Include="RuntimeLaunchLockNamedMutexTests.cpp" />
     <ClCompile Include="RuntimeLaunchLockOwnershipTests.cpp" />
+    <ClCompile Include="RuntimeParentJobTests.cpp" />
+    <ClCompile Include="RuntimeProcessLauncherPathTests.cpp" />
+    <ClCompile Include="RuntimeProcessLauncherFailureTests.cpp" />
+    <ClCompile Include="RuntimeProcessLauncherSuccessTests.cpp" />
+    <ClCompile Include="RuntimeProcessLauncherValidationTests.cpp" />
+    <ClCompile Include="RuntimeProcessObservationTests.cpp" />
+    <ClCompile Include="RuntimeWindowsCommandLineTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskRuntimeActivation\TaskRuntimeActivation.vcxproj">
@@ -41,7 +50,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>advapi32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>advapi32.lib;bcrypt.lib;shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\common.build.post.props" />

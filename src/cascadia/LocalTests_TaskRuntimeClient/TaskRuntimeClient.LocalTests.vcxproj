@@ -15,6 +15,7 @@
     <ClInclude Include="FakeRuntimeClientConnection.h" />
     <ClInclude Include="FakeRuntimeClientConnector.h" />
     <ClInclude Include="FakeRuntimeClientServices.h" />
+    <ClInclude Include="FakeRuntimeClientScheduler.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="TaskRuntimeClientTestSupport.h" />
   </ItemGroup>
@@ -25,11 +26,13 @@
     <ClCompile Include="RuntimeClientEpochTests.cpp" />
     <ClCompile Include="RuntimeClientInterfaceTests.cpp" />
     <ClCompile Include="RuntimeClientRequestTests.cpp" />
+    <ClCompile Include="RuntimeClientSchedulerTests.cpp" />
     <ClCompile Include="RuntimeClientSubscriptionStreamTests.cpp" />
     <ClCompile Include="RuntimeClientSubscriptionBudgetTests.cpp" />
     <ClCompile Include="RuntimeClientSubscriptionTests.cpp" />
     <ClCompile Include="TaskRuntimeClientReconnectTests.cpp" />
     <ClCompile Include="TaskRuntimeClientRequestFlowTests.cpp" />
+    <ClCompile Include="TaskRuntimeClientSchedulerTests.cpp" />
     <ClCompile Include="TaskRuntimeClientStopTests.cpp" />
     <ClCompile Include="TaskRuntimeClientSubscriptionIntegrationTests.cpp" />
     <ClCompile Include="TaskRuntimeClientSubscriptionFailureTests.cpp" />

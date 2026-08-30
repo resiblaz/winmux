@@ -53,5 +53,11 @@ simultaneous retry ceiling by closing remaining streams with `ClientStopped`.
 An item that exceeds a negotiated epoch frame limit faults only that logical
 subscription; it does not fault unrelated requests or subscriptions.
 
-M2C4c3 next replaces real reconnect waits with the virtual scheduler and adds
-negotiated heartbeat liveness.
+Reconnect backoff now uses an injected monotonic scheduler with absolute
+deadlines and explicit wake-source results. Production uses bounded Win32
+waits; deterministic tests advance manual time. Stop wins an exact-deadline
+race, and invalid zero-delay policies, clock overflow, or wait failure fault
+the client instead of entering a reconnect loop. Transport I/O timeouts,
+epoch lifecycle waits, and public pull deadlines remain independently owned.
+
+M2C4c3b next uses the same scheduler for negotiated heartbeat liveness.

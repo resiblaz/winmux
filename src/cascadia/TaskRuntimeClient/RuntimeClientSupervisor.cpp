@@ -172,9 +172,13 @@ namespace Microsoft::Terminal::TaskRuntime::details
                         ClientState = TaskRuntimeClientState::Backoff;
                         failureCount = ConsecutiveFailures;
                     }
-                    const auto delay = Dependencies.Backoff->DelayForFailure(failureCount);
-                    if (WaitForSingleObject(StopEvent.Get(), delay) == WAIT_OBJECT_0)
+                    const auto backoff = WaitForReconnectBackoff(failureCount);
+                    if (backoff != RuntimeClientBackoffWaitResult::Elapsed)
                     {
+                        if (backoff == RuntimeClientBackoffWaitResult::Failed)
+                        {
+                            WaitForSingleObject(StopEvent.Get(), INFINITE);
+                        }
                         break;
                     }
                     continue;
@@ -204,9 +208,13 @@ namespace Microsoft::Terminal::TaskRuntime::details
                         ClientState = TaskRuntimeClientState::Backoff;
                         failureCount = ConsecutiveFailures;
                     }
-                    const auto delay = Dependencies.Backoff->DelayForFailure(failureCount);
-                    if (WaitForSingleObject(StopEvent.Get(), delay) == WAIT_OBJECT_0)
+                    const auto backoff = WaitForReconnectBackoff(failureCount);
+                    if (backoff != RuntimeClientBackoffWaitResult::Elapsed)
                     {
+                        if (backoff == RuntimeClientBackoffWaitResult::Failed)
+                        {
+                            WaitForSingleObject(StopEvent.Get(), INFINITE);
+                        }
                         break;
                     }
                     continue;
@@ -318,7 +326,6 @@ namespace Microsoft::Terminal::TaskRuntime::details
                 retired.clear();
                 bool stopping{};
                 bool protocolFault{};
-                uint32_t delay{};
                 uint32_t failureCount{};
                 {
                     std::scoped_lock lock{ Mutex };
@@ -389,11 +396,6 @@ namespace Microsoft::Terminal::TaskRuntime::details
                     }
                 }
 
-                if (failureCount != 0)
-                {
-                    delay = Dependencies.Backoff->DelayForFailure(failureCount);
-                }
-
                 if (!retries.empty())
                 {
                     QueueRetries(retries, completions);
@@ -409,8 +411,13 @@ namespace Microsoft::Terminal::TaskRuntime::details
                 {
                     break;
                 }
-                if (WaitForSingleObject(StopEvent.Get(), delay) == WAIT_OBJECT_0)
+                const auto backoff = WaitForReconnectBackoff(failureCount);
+                if (backoff != RuntimeClientBackoffWaitResult::Elapsed)
                 {
+                    if (backoff == RuntimeClientBackoffWaitResult::Failed)
+                    {
+                        WaitForSingleObject(StopEvent.Get(), INFINITE);
+                    }
                     break;
                 }
             }

@@ -141,6 +141,10 @@ namespace Microsoft::Terminal::TaskRuntime
             {
                 Dependencies.Backoff = MakeRuntimeClientBackoffPolicy();
             }
+            if (!Dependencies.Scheduler)
+            {
+                Dependencies.Scheduler = MakeRuntimeClientScheduler();
+            }
             try
             {
                 SubscriptionBudget = std::make_shared<RuntimeClientSubscriptionAggregateBudget>(
@@ -152,7 +156,7 @@ namespace Microsoft::Terminal::TaskRuntime
             }
             IsValid = StopEvent && Requests.Valid() && Subscriptions.Valid() && SubscriptionBudget &&
                       SubscriptionBudget->Valid() && Dependencies.Connector &&
-                      Dependencies.RequestIds && Dependencies.Backoff &&
+                      Dependencies.RequestIds && Dependencies.Backoff && Dependencies.Scheduler &&
                       _validConfiguration(Configuration);
         }
 

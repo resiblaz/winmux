@@ -3,6 +3,7 @@
 
 #include "pch.h"
 
+#include "FakeRuntimeClientScheduler.h"
 #include "TaskRuntimeClientTestSupport.h"
 
 #include <atomic>
@@ -58,6 +59,7 @@ namespace TaskRuntimeClientLocalTests
         RuntimeClientDependenciesFixture fixture;
         fixture.EnqueueRequestIds(0, 1);
         fixture.Backoff = std::make_shared<ScriptedRuntimeClientBackoffPolicy>(60000);
+        auto scheduler = std::make_shared<FakeRuntimeClientScheduler>(500);
         fixture.Connector->EnqueueFailure(
             RuntimeTransportStatus::Timeout,
             RuntimeControlConnectPhase::Connecting,
@@ -66,17 +68,23 @@ namespace TaskRuntimeClientLocalTests
             HandshakeError::None,
             WAIT_TIMEOUT);
 
-        TaskRuntimeClient client{ ValidConfiguration(), fixture.Dependencies() };
+        auto dependencies = fixture.Dependencies();
+        dependencies.Scheduler = scheduler;
+        TaskRuntimeClient client{ ValidConfiguration(), std::move(dependencies) };
         VERIFY_IS_TRUE(client.Start());
-        VERIFY_IS_TRUE(WaitUntil([&] {
-            return client.State() == TaskRuntimeClientState::Backoff &&
-                   !fixture.Backoff->ObservedFailures().empty();
-        }));
+        VERIFY_IS_TRUE(scheduler->WaitForWaitEntered(1));
         const auto request = client.Submit(ControlMethod::RuntimeStatus);
         VERIFY_IS_TRUE(request.Accepted);
-        const auto started = GetTickCount64();
-        VERIFY_IS_TRUE(StopAndWait(client));
-        VERIFY_IS_TRUE(GetTickCount64() - started < 1000);
+        client.RequestStop();
+        const auto stoppedWithoutClockAdvance = scheduler->WaitForCompletedWaits(1);
+        if (!stoppedWithoutClockAdvance)
+        {
+            (void)scheduler->AdvanceTo(60500);
+        }
+        VERIFY_IS_TRUE(client.WaitForStopped());
+        VERIFY_IS_TRUE(stoppedWithoutClockAdvance);
+        VERIFY_ARE_EQUAL(RuntimeClientMonotonicMilliseconds{ 500 }, scheduler->Now());
+        VERIFY_ARE_EQUAL(size_t{ 1 }, scheduler->SignalWakeCount());
         VERIFY_IS_TRUE(WaitReady(request));
         VERIFY_IS_TRUE(request.Completion.get().Outcome == RuntimeClientRequestOutcome::ClientStopped);
         VERIFY_ARE_EQUAL(size_t{ 1 }, fixture.Connector->Calls().size());

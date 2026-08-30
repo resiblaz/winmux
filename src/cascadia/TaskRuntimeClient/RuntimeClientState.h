@@ -144,6 +144,13 @@ namespace Microsoft::Terminal::TaskRuntime::details
         Stop,
     };
 
+    enum class RuntimeClientBackoffWaitResult
+    {
+        Elapsed,
+        StopRequested,
+        Failed,
+    };
+
     struct RuntimeClientPendingSubscriptionDelivery
     {
         std::shared_ptr<RuntimeClientSubscriptionStreamProducer> Producer;
@@ -246,6 +253,8 @@ namespace Microsoft::Terminal::TaskRuntime::details
             RuntimeTransportStatus transportStatus,
             DWORD systemError,
             std::string_view diagnostic) noexcept;
+        [[nodiscard]] RuntimeClientBackoffWaitResult WaitForReconnectBackoff(
+            uint32_t failureCount) noexcept;
         [[nodiscard]] bool HasSubscriptionWriterWorkLocked(RuntimeClientEpoch epoch) const noexcept;
         [[nodiscard]] RuntimeClientSubscriptionWriteResult RunSubscriptionWriter(
             const std::shared_ptr<RuntimeClientEpochContext>& epoch) noexcept;

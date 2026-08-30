@@ -66,7 +66,7 @@ namespace TaskRuntimeClientLocalTests
     class ScriptedRuntimeClientBackoffPolicy final : public IRuntimeClientBackoffPolicy
     {
     public:
-        explicit ScriptedRuntimeClientBackoffPolicy(const uint32_t fallbackDelay = 0) noexcept :
+        explicit ScriptedRuntimeClientBackoffPolicy(const uint32_t fallbackDelay = 1) noexcept :
             _fallbackDelay{ fallbackDelay }
         {
         }

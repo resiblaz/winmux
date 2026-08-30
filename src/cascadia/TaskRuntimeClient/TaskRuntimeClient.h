@@ -4,6 +4,7 @@
 #pragma once
 
 #include "RuntimeClientInterfaces.h"
+#include "RuntimeClientScheduler.h"
 #include "RuntimeClientSubscriptionStream.h"
 #include "TaskRuntimeClientTypes.h"
 
@@ -28,6 +29,7 @@ namespace Microsoft::Terminal::TaskRuntime
         std::shared_ptr<IRuntimeControlConnector> Connector;
         std::shared_ptr<IRuntimeClientRequestIdSource> RequestIds;
         std::shared_ptr<IRuntimeClientBackoffPolicy> Backoff;
+        std::shared_ptr<IRuntimeClientScheduler> Scheduler;
     };
 
     class TaskRuntimeClient final

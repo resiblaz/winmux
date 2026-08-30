@@ -641,6 +641,7 @@
       <Build Solution="Fuzzing|x86" Project="false" />
     </Project>
     <Project Path="src/cascadia/TaskRuntime/TaskRuntimeHost.vcxproj" Id="c87ce61d-7ee5-4cf8-8bcd-b5ee2817b4a9">
+      <BuildDependency Project="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" />
       <Platform Solution="*|Any CPU" Project="Win32" />
       <Build Solution="*|Any CPU" Project="false" />
       <Build Solution="AuditMode|ARM64" Project="false" />

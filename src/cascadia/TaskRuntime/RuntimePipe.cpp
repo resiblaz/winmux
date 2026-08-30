@@ -56,6 +56,12 @@ namespace Microsoft::Terminal::TaskRuntime
         return _handle;
     }
 
+    HANDLE RuntimeNamedPipe::Release() noexcept
+    {
+        _name.clear();
+        return std::exchange(_handle, INVALID_HANDLE_VALUE);
+    }
+
     const std::wstring& RuntimeNamedPipe::Name() const noexcept
     {
         return _name;

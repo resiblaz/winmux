@@ -50,6 +50,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
 
         [[nodiscard]] ControlFrameDecodeResult Feed(std::span<const uint8_t> bytes);
         [[nodiscard]] bool Failed() const noexcept;
+        [[nodiscard]] bool ReconfigureMaximumPayloadBytes(uint32_t maximumPayloadBytes) noexcept;
         void Reset() noexcept;
 
     private:

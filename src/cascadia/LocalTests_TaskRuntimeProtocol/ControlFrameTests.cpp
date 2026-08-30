@@ -26,6 +26,7 @@ namespace TaskRuntimeProtocolLocalTests
         TEST_METHOD(DecodesCoalescedFramesWithoutLosingRemainder);
         TEST_METHOD(RejectsEmptyOversizedAndMalformedUtf8Payloads);
         TEST_METHOD(BoundsTransportFeedAndFramesPerFeed);
+        TEST_METHOD(ReconfiguresLimitOnlyAtAFrameBoundary);
         TEST_METHOD(FailedDecoderRequiresExplicitReset);
     };
 
@@ -105,6 +106,27 @@ namespace TaskRuntimeProtocolLocalTests
         }
         ControlFrameDecoder bounded;
         VERIFY_IS_TRUE(bounded.Feed(frames).Status == FrameDecodeStatus::ResourceLimit);
+    }
+
+    void ControlFrameTests::ReconfiguresLimitOnlyAtAFrameBoundary()
+    {
+        ControlFrameDecoder decoder;
+        VERIFY_IS_FALSE(decoder.ReconfigureMaximumPayloadBytes(MinimumControlFrameBytes - 1));
+        VERIFY_IS_FALSE(decoder.ReconfigureMaximumPayloadBytes(MaximumControlFrameBytes + 1));
+        VERIFY_IS_TRUE(decoder.ReconfigureMaximumPayloadBytes(MinimumControlFrameBytes));
+
+        const std::string oversizedPayload(MinimumControlFrameBytes + 1, 'x');
+        const auto oversizedFrame = EncodeControlFrame(oversizedPayload);
+        VERIFY_IS_TRUE(oversizedFrame.Succeeded);
+        VERIFY_IS_TRUE(decoder.Feed(oversizedFrame.Bytes).Status == FrameDecodeStatus::Oversized);
+        VERIFY_IS_FALSE(decoder.ReconfigureMaximumPayloadBytes(MaximumControlFrameBytes));
+
+        decoder.Reset();
+        const auto validFrame = EncodeControlFrame("{}");
+        VERIFY_IS_TRUE(decoder.Feed(std::span{ validFrame.Bytes }.first(3)).Status == FrameDecodeStatus::NeedMoreData);
+        VERIFY_IS_FALSE(decoder.ReconfigureMaximumPayloadBytes(MaximumControlFrameBytes));
+        VERIFY_IS_TRUE(decoder.Feed(std::span{ validFrame.Bytes }.subspan(3)).Status == FrameDecodeStatus::ProducedFrames);
+        VERIFY_IS_TRUE(decoder.ReconfigureMaximumPayloadBytes(MaximumControlFrameBytes));
     }
 
     void ControlFrameTests::FailedDecoderRequiresExplicitReset()

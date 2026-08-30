@@ -35,6 +35,7 @@ namespace Microsoft::Terminal::TaskRuntime
 
         [[nodiscard]] explicit operator bool() const noexcept;
         [[nodiscard]] HANDLE Handle() const noexcept;
+        [[nodiscard]] HANDLE Release() noexcept;
         [[nodiscard]] const std::wstring& Name() const noexcept;
 
     private:

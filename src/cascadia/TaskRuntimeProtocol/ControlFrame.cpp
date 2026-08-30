@@ -117,6 +117,17 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         return _failed;
     }
 
+    bool ControlFrameDecoder::ReconfigureMaximumPayloadBytes(const uint32_t maximumPayloadBytes) noexcept
+    {
+        if (_failed || !_buffer.empty() || maximumPayloadBytes < MinimumControlFrameBytes ||
+            maximumPayloadBytes > MaximumControlFrameBytes)
+        {
+            return false;
+        }
+        _maximumPayloadBytes = maximumPayloadBytes;
+        return true;
+    }
+
     void ControlFrameDecoder::Reset() noexcept
     {
         _buffer.clear();

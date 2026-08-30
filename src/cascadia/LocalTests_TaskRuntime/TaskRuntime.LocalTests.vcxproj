@@ -20,6 +20,7 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RuntimeBootstrapTests.cpp" />
+    <ClCompile Include="RuntimeControlChannelTests.cpp" />
     <ClCompile Include="RuntimeIdentityTests.cpp" />
     <ClCompile Include="RuntimeSecurityTests.cpp" />
   </ItemGroup>
@@ -27,10 +28,13 @@
     <ProjectReference Include="..\TaskRuntime\TaskRuntimeHost.vcxproj">
       <Project>{C87CE61D-7EE5-4CF8-8BCD-B5EE2817B4A9}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj">
+      <Project>{6FC3F6B2-4AA9-4A8B-8784-3AFF0E4B90EF}</Project>
+    </ProjectReference>
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>

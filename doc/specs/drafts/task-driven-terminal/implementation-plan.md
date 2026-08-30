@@ -1,7 +1,7 @@
 ---
 author: RicherLife / Codex collaboration
 created on: 2026-08-29
-last updated: 2026-08-30
+last updated: 2026-08-31
 status: active staged implementation; M1 complete, M2 Runtime foundation active
 ---
 
@@ -69,8 +69,11 @@ foundational contracts required to avoid disposable data/process designs.
   Ping/RuntimeStatus contract, stable per-process instance identity, graceful
   console shutdown, callback-safe server termination, and real-child coverage
   for reconnect, malformed peers, second-instance refusal, and resource
-  release. On-demand activation is next. Real Codex, Git, and task-owned
-  Surface integration remain later milestones.
+  release. M2D2 adds strict connect-first on-demand activation, a current-user
+  cross-process launch mutex, a parent-independent suspended launch transaction,
+  `TaskRuntimeClient` product composition, crash restart, and real thread,
+  process, short-lived-parent, and Job-breakaway coverage. Real Codex, Git, and
+  task-owned Surface integration remain later milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
 - The executable M2/M3 commit queue and frozen technical defaults are tracked

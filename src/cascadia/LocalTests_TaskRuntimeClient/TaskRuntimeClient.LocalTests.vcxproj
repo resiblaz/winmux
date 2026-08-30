@@ -24,6 +24,7 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RuntimeClientEpochTests.cpp" />
+    <ClCompile Include="RuntimeClientConnectDispositionTests.cpp" />
     <ClCompile Include="RuntimeClientHeartbeatTests.cpp" />
     <ClCompile Include="RuntimeClientInterfaceTests.cpp" />
     <ClCompile Include="RuntimeClientRequestTests.cpp" />
@@ -37,6 +38,7 @@
     <ClCompile Include="TaskRuntimeClientHeartbeatIntegrationTests.cpp" />
     <ClCompile Include="TaskRuntimeClientHeartbeatLifecycleTests.cpp" />
     <ClCompile Include="TaskRuntimeClientHeartbeatFailureTests.cpp" />
+    <ClCompile Include="TaskRuntimeClientProductConnectorTests.cpp" />
     <ClCompile Include="TaskRuntimeClientStopTests.cpp" />
     <ClCompile Include="TaskRuntimeClientSubscriptionIntegrationTests.cpp" />
     <ClCompile Include="TaskRuntimeClientSubscriptionFailureTests.cpp" />

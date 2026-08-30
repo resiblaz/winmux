@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "RuntimeClientState.h"
+#include "RuntimeClientConnectDisposition.h"
 #include "RuntimeClientThreads.h"
 
 #include <limits>
@@ -11,38 +12,6 @@ namespace Microsoft::Terminal::TaskRuntime::details
 {
     namespace
     {
-        bool _fatalConnectFailure(
-            const RuntimeTransportStatus status,
-            const DWORD systemError) noexcept
-        {
-            switch (status)
-            {
-            case RuntimeTransportStatus::InvalidConfiguration:
-            case RuntimeTransportStatus::ProtocolRejected:
-            case RuntimeTransportStatus::MalformedFrame:
-                return true;
-            case RuntimeTransportStatus::Succeeded:
-            case RuntimeTransportStatus::Cancelled:
-            case RuntimeTransportStatus::Timeout:
-            case RuntimeTransportStatus::Disconnected:
-                return false;
-            case RuntimeTransportStatus::SystemError:
-                switch (systemError)
-                {
-                case ERROR_ACCESS_DENIED:
-                case ERROR_BAD_PATHNAME:
-                case ERROR_INVALID_HANDLE:
-                case ERROR_INVALID_NAME:
-                case ERROR_INVALID_PARAMETER:
-                    return true;
-                default:
-                    return false;
-                }
-            default:
-                return false;
-            }
-        }
-
         uint32_t _incrementFailure(const uint32_t value) noexcept
         {
             return value == std::numeric_limits<uint32_t>::max() ? value : value + 1;
@@ -148,7 +117,8 @@ namespace Microsoft::Terminal::TaskRuntime::details
 
                 if (!connected.Succeeded())
                 {
-                    if (_fatalConnectFailure(connected.Status, connected.SystemError))
+                    if (EvaluateRuntimeClientConnectDisposition(connected) ==
+                        RuntimeClientConnectDisposition::Fatal)
                     {
                         {
                             std::scoped_lock lock{ Mutex };

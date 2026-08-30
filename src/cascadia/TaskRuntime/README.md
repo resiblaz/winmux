@@ -61,5 +61,8 @@ first control-pipe instance, prints the protocol identity, and exits.
 lifetime, advertises only the implemented RuntimeLifecycle capability, and
 continues across client disconnects until an explicit process stop. M2C4
 provides the reconnecting request/subscription client, virtual monotonic
-scheduler, and negotiated heartbeat. M2D2 will add connect-first launch
-coordination while preserving Runtime independence from any Terminal parent.
+scheduler, and negotiated heartbeat. M2D2 adds connect-first, cross-process
+launch coordination while preserving Runtime independence from any Terminal
+parent. Real tests launch through a short-lived client process, reconnect after
+that process exits, restart after a forced Runtime crash, and prove the child
+is outside every parent Job before the launcher commits ownership.

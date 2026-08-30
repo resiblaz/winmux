@@ -15,6 +15,7 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="RuntimeControlNotificationTestFixtures.h" />
     <ClInclude Include="RuntimeControlTestFixtures.h" />
+    <ClInclude Include="RuntimeOnDemandActivationTestSupport.h" />
     <ClInclude Include="TaskRuntimeProcessTestFixtures.h" />
     <ClInclude Include="TaskRuntimeProcessWin32Support.h" />
     <ClInclude Include="TaskRuntimeTestFixtures.h" />
@@ -36,6 +37,9 @@
     <ClCompile Include="RuntimeFoundationRouterTests.cpp" />
     <ClCompile Include="RuntimeProductHostProcessTests.cpp" />
     <ClCompile Include="RuntimeIdentityTests.cpp" />
+    <ClCompile Include="RuntimeActivationJobTests.cpp" />
+    <ClCompile Include="RuntimeOnDemandActivationTests.cpp" />
+    <ClCompile Include="RuntimeOnDemandActivationTestSupport.cpp" />
     <ClCompile Include="RuntimeSecurityTests.cpp" />
     <ClCompile Include="TaskRuntimeProcessArgv.cpp" />
     <ClCompile Include="TaskRuntimeProcessLauncher.cpp" />
@@ -44,6 +48,12 @@
     <ClCompile Include="TaskRuntimeStderrCapture.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\TaskRuntimeActivation\TaskRuntimeActivation.vcxproj">
+      <Project>{A65B7A0A-46CB-4E3D-9D7F-90A31D8D7A21}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\TaskRuntimeClient\TaskRuntimeClient.vcxproj">
+      <Project>{7B6394DD-3816-4A08-86F2-242DAA6334E4}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">
       <Project>{C227632F-A428-48E3-AB9B-DB3D170DDAAC}</Project>
     </ProjectReference>
@@ -56,11 +66,11 @@
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskRuntimeActivation;$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>advapi32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;advapi32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\common.build.post.props" />

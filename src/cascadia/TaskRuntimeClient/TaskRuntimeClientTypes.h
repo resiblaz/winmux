@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <future>
 #include <optional>
 #include <string>
@@ -43,10 +44,17 @@ namespace Microsoft::Terminal::TaskRuntime
         InvalidRequest,
     };
 
+    struct TaskRuntimeClientActivationConfiguration
+    {
+        std::filesystem::path RuntimeExecutable;
+        std::filesystem::path TrustedRoot;
+    };
+
     struct TaskRuntimeClientConfiguration
     {
         RuntimeIdentity Identity;
         Microsoft::Terminal::TaskRuntimeProtocol::HelloRequest Hello;
+        std::optional<TaskRuntimeClientActivationConfiguration> Activation;
         uint32_t ConnectTimeoutMilliseconds{ 5000 };
         uint32_t SendTimeoutMilliseconds{ 5000 };
         uint32_t ReceiveTimeoutMilliseconds{ 1000 };

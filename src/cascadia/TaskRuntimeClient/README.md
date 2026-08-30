@@ -69,5 +69,10 @@ ignored by a client-namespaced monotonic ID high-water and cannot refresh
 liveness. Stop and epoch retirement remain higher priority than Ping or
 timeout, while a true silence timeout reconnects through the normal backoff.
 
-M2D next composes these client/runtime foundations into the long-running
-product helper and on-demand activation path.
+M2D now composes these client/runtime foundations into the long-running product
+helper and on-demand activation path. Product configuration supplies an exact
+`TaskRuntime.exe` path and trusted installation root. When no connector is
+injected, the client creates the connect-first launching connector; tests may
+still inject deterministic transports without activation paths. Permanent
+launch/activation-wait failures fault the supervisor, while launch-lock timeout
+and an unexpectedly exited launched process retain normal reconnect backoff.

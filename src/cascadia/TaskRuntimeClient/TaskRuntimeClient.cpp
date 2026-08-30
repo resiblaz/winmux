@@ -5,6 +5,7 @@
 #include "TaskRuntimeClient.h"
 
 #include "RuntimeClientState.h"
+#include "RuntimeClientProductConnector.h"
 #include "RuntimeClientThreads.h"
 
 #include "ProtocolJson.h"
@@ -140,7 +141,7 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             if (!Dependencies.Connector)
             {
-                Dependencies.Connector = std::make_shared<RuntimeNamedPipeControlConnector>();
+                Dependencies.Connector = MakeRuntimeClientProductConnector(Configuration);
             }
             if (!Dependencies.RequestIds)
             {

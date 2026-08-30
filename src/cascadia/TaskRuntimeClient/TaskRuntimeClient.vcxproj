@@ -14,6 +14,8 @@
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="RuntimeClientInterfaces.h" />
+    <ClInclude Include="RuntimeClientConnectDisposition.h" />
+    <ClInclude Include="RuntimeClientProductConnector.h" />
     <ClInclude Include="RuntimeClientEpoch.h" />
     <ClInclude Include="RuntimeClientHeartbeat.h" />
     <ClInclude Include="RuntimeClientRequests.h" />
@@ -34,9 +36,11 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RuntimeClientEpoch.cpp" />
+    <ClCompile Include="RuntimeClientConnectDisposition.cpp" />
     <ClCompile Include="RuntimeClientHeartbeat.cpp" />
     <ClCompile Include="RuntimeClientInterfaces.cpp" />
     <ClCompile Include="RuntimeClientOperations.cpp" />
+    <ClCompile Include="RuntimeClientProductConnector.cpp" />
     <ClCompile Include="RuntimeClientReader.cpp" />
     <ClCompile Include="RuntimeClientRequests.cpp" />
     <ClCompile Include="RuntimeClientScheduler.cpp" />
@@ -56,6 +60,9 @@
     <ClCompile Include="TaskRuntimeClientSubscriptions.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\TaskRuntimeActivation\TaskRuntimeActivation.vcxproj">
+      <Project>{A65B7A0A-46CB-4E3D-9D7F-90A31D8D7A21}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">
       <Project>{C227632F-A428-48E3-AB9B-DB3D170DDAAC}</Project>
     </ProjectReference>
@@ -65,7 +72,7 @@
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeActivation;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>

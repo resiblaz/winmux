@@ -19,6 +19,7 @@ namespace Microsoft::Terminal::TaskRuntime
         AlreadyRunning,
         BootstrapFailure,
         RuntimeInstanceIdFailure,
+        TaskStoreFailure,
         ServerStartFailure,
         ResourceFailure,
     };

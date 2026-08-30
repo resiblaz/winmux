@@ -15,6 +15,7 @@ namespace Microsoft::Terminal::TaskRuntime
     struct RuntimeRtaskCapabilityRegistry::Entry
     {
         std::string Capability;
+        std::string TaskId;
         std::string RunId;
         RtaskMethodSet Methods{};
         RuntimeRtaskMilliseconds IssuedAt{};
@@ -53,6 +54,7 @@ namespace Microsoft::Terminal::TaskRuntime
     }
 
     RuntimeRtaskCapabilityResult RuntimeRtaskCapabilityRegistry::IssueOrRenew(
+        const std::string_view taskId,
         const std::string_view runId,
         const RtaskMethodSet methods,
         const uint32_t lifetimeMilliseconds,
@@ -61,6 +63,11 @@ namespace Microsoft::Terminal::TaskRuntime
         RuntimeRtaskCapabilityResult result;
         if (!_valid)
         {
+            return result;
+        }
+        if (!IsCanonicalProtocolUuid(taskId))
+        {
+            result.Status = RuntimeRtaskCapabilityStatus::InvalidTask;
             return result;
         }
         if (!IsCanonicalProtocolUuid(runId))
@@ -98,7 +105,7 @@ namespace Microsoft::Terminal::TaskRuntime
         });
         if (existing != _entries.end())
         {
-            if (existing->Methods != methods)
+            if (existing->TaskId != taskId || existing->Methods != methods)
             {
                 result.Status = RuntimeRtaskCapabilityStatus::ScopeConflict;
                 return result;
@@ -161,6 +168,7 @@ namespace Microsoft::Terminal::TaskRuntime
             {
                 Entry entry;
                 entry.Capability = std::move(*token);
+                entry.TaskId = taskId;
                 entry.RunId = runId;
                 entry.Methods = methods;
                 entry.IssuedAt = now;
@@ -185,7 +193,7 @@ namespace Microsoft::Terminal::TaskRuntime
         const std::string_view capability,
         const std::string_view runId,
         const RtaskMethod method,
-        const RuntimeRtaskMilliseconds now) noexcept
+        const RuntimeRtaskMilliseconds now)
     {
         RuntimeRtaskCapabilityResult result;
         if (!_valid)
@@ -238,7 +246,20 @@ namespace Microsoft::Terminal::TaskRuntime
             result.Status = RuntimeRtaskCapabilityStatus::WrongMethod;
             return result;
         }
-        result.Status = RuntimeRtaskCapabilityStatus::Authorized;
+        try
+        {
+            result.Binding = RuntimeRtaskCapabilityBinding{
+                entry->TaskId,
+                entry->RunId,
+                entry->Methods,
+                entry->ExpiresAt,
+            };
+            result.Status = RuntimeRtaskCapabilityStatus::Authorized;
+        }
+        catch (...)
+        {
+            result.Status = RuntimeRtaskCapabilityStatus::ResourceFailure;
+        }
         return result;
     }
 
@@ -352,6 +373,7 @@ namespace Microsoft::Terminal::TaskRuntime
     {
         return {
             entry.Capability,
+            entry.TaskId,
             entry.RunId,
             entry.Methods,
             entry.IssuedAt,

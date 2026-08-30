@@ -18,6 +18,7 @@
     <ClInclude Include="RuntimeControlConnector.h" />
     <ClInclude Include="RuntimeControlHandshake.h" />
     <ClInclude Include="RuntimeControlTransport.h" />
+    <ClInclude Include="RuntimeCrypto.h" />
     <ClInclude Include="RuntimeIdentity.h" />
     <ClInclude Include="RuntimePipe.h" />
     <ClInclude Include="RuntimePipeIo.h" />
@@ -35,6 +36,7 @@
     <ClCompile Include="RuntimeControlConnect.cpp" />
     <ClCompile Include="RuntimeControlConnector.cpp" />
     <ClCompile Include="RuntimeControlHandshake.cpp" />
+    <ClCompile Include="RuntimeCrypto.cpp" />
     <ClCompile Include="RuntimePipeIo.cpp" />
     <ClCompile Include="RuntimeIdentity.cpp" />
     <ClCompile Include="RuntimePipe.cpp" />

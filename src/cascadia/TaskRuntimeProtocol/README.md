@@ -59,6 +59,10 @@ lowercase hexadecimal capability, and the method. Only blocked/result methods
 contain `text`; status methods reject it. There is deliberately no caller-
 supplied Task ID.
 
+The Runtime capability record, not the DTO, resolves the bound Task ID. A
+TaskCtl Hello must negotiate `task_commands`; TerminalUi peers cannot use this
+Agent-scoped SubmitCommand route even when connected to the same control pipe.
+
 Blocked reasons are limited to 16 KiB and 4,096 Unicode scalar values. Results
 are limited to 256 KiB and 65,536 scalar values. Both require nonempty strict
 UTF-8 without embedded NUL. Result DTOs return the original command ID,

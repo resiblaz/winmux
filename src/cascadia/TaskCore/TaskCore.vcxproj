@@ -51,6 +51,7 @@
     <ClCompile Include="SqliteTaskStoreQueries.cpp" />
     <ClCompile Include="SqliteTaskStoreRecovery.cpp" />
     <ClCompile Include="SqliteTaskStoreRunTransitions.cpp" />
+    <ClCompile Include="SqliteTaskStoreAgentMutations.cpp" />
     <ClCompile Include="SqliteTaskStoreRuns.cpp" />
     <ClCompile Include="SqliteTaskStoreTasks.cpp" />
     <ClCompile Include="SqliteTaskStoreTerminals.cpp" />

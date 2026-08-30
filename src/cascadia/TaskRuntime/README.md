@@ -1,11 +1,11 @@
 # Task Runtime host foundation
 
 This directory contains the Windows host boundary for the per-user Task
-Runtime. The completed M2F1 foundation accepts multiple control and terminal
+Runtime. The completed M2F2 foundation accepts multiple control and terminal
 clients, drives Hello-first control sessions, routes typed requests through an
 injected interface, delivers targeted subscription notifications, and owns a
-bounded Agent-terminal session state machine. It deliberately stops before
-the `rtask.exe` frontend, TaskCore command routing, or provider integration.
+bounded Agent-terminal session state machine. It now includes the scoped
+`rtask.exe` command path and deliberately stops before provider integration.
 
 Implemented foundations:
 
@@ -60,9 +60,18 @@ Implemented foundations:
   including per-method text bounds, canonical idempotency IDs, exact JSON, and
   bounded capability/text-redacted diagnostics;
 - a bounded single-owner capability registry using 256-bit system-random
-  tokens, exact TaskRun/method binding, idempotent same-scope renewal, a hard
-  ten-minute lifetime, constant-work token comparison, and immediate Run-wide
-  invalidation;
+  tokens, exact Task/TaskRun/method binding, idempotent same-scope renewal, a
+  hard ten-minute lifetime, constant-work token comparison, and immediate
+  Run-wide invalidation;
+- a product router that preserves Ping/RuntimeStatus while accepting rtask
+  SubmitCommand only from TaskCtl clients and mapping authorization/store
+  failures to typed RPC errors without echoing capability or long text;
+- one TaskCore Agent mutation transaction that atomically changes allowed
+  status or Run result, appends the Run-attributed event, and stores the durable
+  idempotency receipt; the Agent cannot set Done, cancel, delete, or close;
+- the process-neutral `RtaskLib` plus `rtask.exe`, which validates an exact
+  local endpoint, consumes only Runtime-injected Run/capability context, reads
+  long text from bounded stdin, and performs one Hello/SubmitCommand exchange;
 - `TaskRuntime.exe --serve` long-running composition with graceful console
   shutdown, plus the retained `--bootstrap-check` smoke entry point.
 
@@ -82,8 +91,9 @@ item before calling `RuntimeTerminalSession`.
 `--bootstrap-check` creates and validates the identity, security, mutex, and
 first control-pipe instance, prints the protocol identity, and exits.
 `--serve` retains single-instance ownership for the entire server/session
-lifetime, advertises only the implemented RuntimeLifecycle capability, and
-continues across client disconnects until an explicit process stop. M2C4
+lifetime, advertises the implemented RuntimeLifecycle and TaskCommands
+capabilities, and continues across client disconnects until an explicit
+process stop. M2C4
 provides the reconnecting request/subscription client, virtual monotonic
 scheduler, and negotiated heartbeat. M2D2 adds connect-first, cross-process
 launch coordination while preserving Runtime independence from any Terminal
@@ -93,4 +103,5 @@ is outside every parent Job before the launcher commits ownership. M2E1 adds
 the secure binary terminal transport, and M2E2 composes its output ring, client
 registry, input lease, and deterministic Backend into the serialized terminal
 session described above. M2F1 adds the scoped command DTO and capability
-authorization foundations; M2F2 will connect them to `rtask.exe` and TaskCore.
+authorization foundations. M2F2 connects them through the product router to a
+durable TaskCore transaction, builds `rtask.exe`, and packages both executables.

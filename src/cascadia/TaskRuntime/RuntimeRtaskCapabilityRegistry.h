@@ -44,6 +44,7 @@ namespace Microsoft::Terminal::TaskRuntime
         WrongMethod,
         ScopeConflict,
         CapacityExceeded,
+        InvalidTask,
         InvalidRun,
         InvalidMethod,
         InvalidMethodSet,
@@ -60,9 +61,18 @@ namespace Microsoft::Terminal::TaskRuntime
     struct RuntimeRtaskCapabilityGrant
     {
         std::string Capability;
+        std::string TaskId;
         std::string RunId;
         Microsoft::Terminal::TaskRuntimeProtocol::RtaskMethodSet Methods{};
         RuntimeRtaskMilliseconds IssuedAt{};
+        RuntimeRtaskMilliseconds ExpiresAt{};
+    };
+
+    struct RuntimeRtaskCapabilityBinding
+    {
+        std::string TaskId;
+        std::string RunId;
+        Microsoft::Terminal::TaskRuntimeProtocol::RtaskMethodSet Methods{};
         RuntimeRtaskMilliseconds ExpiresAt{};
     };
 
@@ -72,6 +82,7 @@ namespace Microsoft::Terminal::TaskRuntime
             RuntimeRtaskCapabilityStatus::InvalidConfiguration
         };
         std::optional<RuntimeRtaskCapabilityGrant> Grant;
+        std::optional<RuntimeRtaskCapabilityBinding> Binding;
         size_t InvalidatedCapabilities{};
     };
 
@@ -90,6 +101,7 @@ namespace Microsoft::Terminal::TaskRuntime
 
         [[nodiscard]] bool Valid() const noexcept;
         [[nodiscard]] RuntimeRtaskCapabilityResult IssueOrRenew(
+            std::string_view taskId,
             std::string_view runId,
             Microsoft::Terminal::TaskRuntimeProtocol::RtaskMethodSet methods,
             uint32_t lifetimeMilliseconds,
@@ -98,7 +110,7 @@ namespace Microsoft::Terminal::TaskRuntime
             std::string_view capability,
             std::string_view runId,
             Microsoft::Terminal::TaskRuntimeProtocol::RtaskMethod method,
-            RuntimeRtaskMilliseconds now) noexcept;
+            RuntimeRtaskMilliseconds now);
         [[nodiscard]] RuntimeRtaskCapabilityResult InvalidateRun(
             std::string_view runId) noexcept;
         [[nodiscard]] RuntimeRtaskCapabilityResult InvalidateCapability(

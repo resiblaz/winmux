@@ -14,10 +14,12 @@
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="FakeRuntimeTerminalBackend.h" />
+    <ClInclude Include="FakeRtaskTransport.h" />
     <ClInclude Include="FakeRuntimeRtaskCapabilityTokenSource.h" />
     <ClInclude Include="RuntimeControlNotificationTestFixtures.h" />
     <ClInclude Include="RuntimeControlTestFixtures.h" />
     <ClInclude Include="RuntimeOnDemandActivationTestSupport.h" />
+    <ClInclude Include="RuntimeRtaskCommandTestSupport.h" />
     <ClInclude Include="RuntimeTerminalSessionTestSupport.h" />
     <ClInclude Include="TaskRuntimeProcessTestFixtures.h" />
     <ClInclude Include="TaskRuntimeProcessWin32Support.h" />
@@ -28,6 +30,9 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RuntimeBootstrapTests.cpp" />
+    <ClCompile Include="RtaskCommandLineTests.cpp" />
+    <ClCompile Include="RtaskContextAndStdinTests.cpp" />
+    <ClCompile Include="RtaskClientTests.cpp" />
     <ClCompile Include="RuntimeCommandLineTests.cpp" />
     <ClCompile Include="RuntimeControlChannelTests.cpp" />
     <ClCompile Include="RuntimeControlConnectorTests.cpp" />
@@ -37,9 +42,13 @@
     <ClCompile Include="RuntimeControlQueueTests.cpp" />
     <ClCompile Include="RuntimeControlServerTests.cpp" />
     <ClCompile Include="RuntimeControlSubscriptionRecoveryTests.cpp" />
+    <ClCompile Include="RuntimeCryptoTests.cpp" />
     <ClCompile Include="RuntimeFoundationRouterTests.cpp" />
     <ClCompile Include="RuntimeProductHostProcessTests.cpp" />
+    <ClCompile Include="RuntimeProductRouterTests.cpp" />
     <ClCompile Include="RuntimeRtaskCapabilityRegistryTests.cpp" />
+    <ClCompile Include="RuntimeRtaskCommandServiceTests.cpp" />
+    <ClCompile Include="RuntimeRtaskEndToEndTests.cpp" />
     <ClCompile Include="RuntimeIdentityTests.cpp" />
     <ClCompile Include="RuntimeActivationJobTests.cpp" />
     <ClCompile Include="RuntimeOnDemandActivationTests.cpp" />
@@ -61,6 +70,9 @@
     <ClCompile Include="TaskRuntimeStderrCapture.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Rtask\RtaskLib.vcxproj">
+      <Project>{D5E60001-4F31-47AE-9B7A-12D437C20101}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\TaskRuntimeActivation\TaskRuntimeActivation.vcxproj">
       <Project>{A65B7A0A-46CB-4E3D-9D7F-90A31D8D7A21}</Project>
     </ProjectReference>
@@ -79,11 +91,11 @@
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskRuntimeActivation;$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\Rtask;$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\cascadia\LocalTests_TaskCore;$(SolutionDir)src\cascadia\TaskRuntimeActivation;$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ole32.lib;advapi32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;advapi32.lib;bcrypt.lib;winsqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\common.build.post.props" />

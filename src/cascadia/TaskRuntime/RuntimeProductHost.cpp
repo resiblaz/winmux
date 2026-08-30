@@ -4,14 +4,17 @@
 #include "pch.h"
 #include "RuntimeProductHost.h"
 
+#include "RuntimeCrypto.h"
 #include "RuntimeFoundationRouter.h"
+#include "RuntimeProductRouter.h"
+#include "RuntimeRtaskCapabilityRegistry.h"
+#include "RuntimeRtaskCapabilityToken.h"
+
+#include "SqliteTaskStore.h"
 
 #include "ProtocolCapabilities.h"
 #include "ProtocolValidation.h"
 
-#include <bcrypt.h>
-
-#include <array>
 #include <mutex>
 
 namespace Microsoft::Terminal::TaskRuntime
@@ -20,48 +23,6 @@ namespace Microsoft::Terminal::TaskRuntime
 
     namespace
     {
-        void _writeHexByte(char*& destination, const uint8_t value) noexcept
-        {
-            constexpr char alphabet[]{ "0123456789abcdef" };
-            *destination++ = alphabet[value >> 4];
-            *destination++ = alphabet[value & 0x0f];
-        }
-
-        std::optional<std::string> _newRuntimeInstanceId()
-        {
-            std::array<uint8_t, 16> bytes{};
-            if (BCryptGenRandom(
-                    nullptr,
-                    bytes.data(),
-                    static_cast<ULONG>(bytes.size()),
-                    BCRYPT_USE_SYSTEM_PREFERRED_RNG) < 0)
-            {
-                return std::nullopt;
-            }
-
-            // RFC 4122 variant, random (version 4) UUID.
-            bytes[6] = static_cast<uint8_t>((bytes[6] & 0x0f) | 0x40);
-            bytes[8] = static_cast<uint8_t>((bytes[8] & 0x3f) | 0x80);
-            std::array<char, 36> text{};
-            auto output = text.data();
-            for (size_t index = 0; index < bytes.size(); ++index)
-            {
-                if (index == 4 || index == 6 || index == 8 || index == 10)
-                {
-                    *output++ = '-';
-                }
-                _writeHexByte(output, bytes[index]);
-            }
-            if (output != text.data() + text.size())
-            {
-                return std::nullopt;
-            }
-            auto result = std::string{ text.data(), text.size() };
-            return IsCanonicalProtocolUuid(result) ?
-                       std::optional{ std::move(result) } :
-                       std::nullopt;
-        }
-
         RuntimeHandshakeConfiguration _foundationHandshake(
             const RuntimeIdentity& identity,
             const std::string& runtimeInstanceId)
@@ -69,7 +30,9 @@ namespace Microsoft::Terminal::TaskRuntime
             RuntimeHandshakeConfiguration handshake;
             handshake.RuntimeIdentity = identity.ProtocolIdentity;
             handshake.RuntimeInstanceId = runtimeInstanceId;
-            handshake.Capabilities = static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle);
+            handshake.Capabilities =
+                static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle) |
+                static_cast<uint64_t>(ProtocolCapability::TaskCommands);
             return handshake;
         }
     }
@@ -79,13 +42,13 @@ namespace Microsoft::Terminal::TaskRuntime
         mutable std::mutex LifecycleMutex;
         RuntimeBootstrapResult Bootstrap;
         std::string InstanceId;
-        std::shared_ptr<RuntimeFoundationRouter> Router;
+        std::shared_ptr<RuntimeProductRouter> Router;
         RuntimeControlServer Server;
 
         Impl(
             RuntimeBootstrapResult bootstrap,
             std::string instanceId,
-            std::shared_ptr<RuntimeFoundationRouter> router) :
+            std::shared_ptr<RuntimeProductRouter> router) :
             Bootstrap{ std::move(bootstrap) },
             InstanceId{ std::move(instanceId) },
             Router{ std::move(router) }
@@ -242,21 +205,46 @@ namespace Microsoft::Terminal::TaskRuntime
                 return result;
             }
 
-            auto instanceId = _newRuntimeInstanceId();
+            auto instanceId = NewRuntimeUuid();
             if (!instanceId)
             {
                 result.Status = RuntimeProductHostStartStatus::RuntimeInstanceIdFailure;
                 result.Error = "Runtime instance ID generation failed";
                 return result;
             }
-            auto router = std::make_shared<RuntimeFoundationRouter>(
+            auto foundation = std::make_shared<RuntimeFoundationRouter>(
                 bootstrap.Identity.ProtocolIdentity,
                 *instanceId,
                 GetCurrentProcessId());
-            if (!router->Valid())
+            if (!foundation->Valid())
             {
                 result.Status = RuntimeProductHostStartStatus::RuntimeInstanceIdFailure;
                 result.Error = "Runtime foundation identity is invalid";
+                return result;
+            }
+            auto store = std::make_shared<Microsoft::Terminal::TaskCore::SqliteTaskStore>(
+                bootstrap.Identity.SettingsRoot / L"workspace-tasks.db");
+            if (!store->IsReady())
+            {
+                result.Status = RuntimeProductHostStartStatus::TaskStoreFailure;
+                result.Error = store->LastError();
+                return result;
+            }
+            auto tokenSource =
+                std::make_shared<SystemRuntimeRtaskCapabilityTokenSource>();
+            auto capabilities = std::make_shared<RuntimeRtaskCapabilityRegistry>(
+                RuntimeRtaskCapabilityRegistryConfiguration{},
+                std::move(tokenSource));
+            auto rtask = std::make_shared<RuntimeRtaskCommandService>(
+                std::move(store),
+                std::move(capabilities));
+            auto router = std::make_shared<RuntimeProductRouter>(
+                std::move(foundation),
+                std::move(rtask));
+            if (!router->Valid())
+            {
+                result.Status = RuntimeProductHostStartStatus::TaskStoreFailure;
+                result.Error = "Runtime rtask command service is invalid";
                 return result;
             }
 

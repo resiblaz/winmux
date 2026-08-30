@@ -4,7 +4,8 @@
 #include "pch.h"
 #include "RuntimeIdentity.h"
 
-#include <bcrypt.h>
+#include "RuntimeCrypto.h"
+
 #include <sddl.h>
 
 #include <memory>
@@ -41,32 +42,6 @@ namespace Microsoft::Terminal::TaskRuntime
         };
 
         using unique_handle = std::unique_ptr<void, CloseHandleDeleter>;
-
-        struct BcryptAlgorithmOwner
-        {
-            BCRYPT_ALG_HANDLE Value{};
-
-            ~BcryptAlgorithmOwner()
-            {
-                if (Value)
-                {
-                    BCryptCloseAlgorithmProvider(Value, 0);
-                }
-            }
-        };
-
-        struct BcryptHashOwner
-        {
-            BCRYPT_HASH_HANDLE Value{};
-
-            ~BcryptHashOwner()
-            {
-                if (Value)
-                {
-                    BCryptDestroyHash(Value);
-                }
-            }
-        };
 
         std::wstring _lowerInvariant(const std::wstring_view value)
         {
@@ -160,55 +135,6 @@ namespace Microsoft::Terminal::TaskRuntime
             }
             value = _lowerInvariant(value);
             return value.empty() ? std::nullopt : std::optional<std::filesystem::path>{ value };
-        }
-
-        std::optional<std::array<uint8_t, 32>> _sha256(const std::span<const uint8_t> input)
-        {
-            BcryptAlgorithmOwner algorithm;
-            // BCrypt owns references into the caller-provided hash-object
-            // buffer until BCryptDestroyHash returns. Declare the buffer
-            // before the hash owner so reverse destruction keeps it alive.
-            std::vector<uint8_t> hashObject;
-            BcryptHashOwner hash;
-            std::array<uint8_t, 32> digest{};
-            DWORD objectBytes{};
-            DWORD copied{};
-            auto status = BCryptOpenAlgorithmProvider(&algorithm.Value, BCRYPT_SHA256_ALGORITHM, nullptr, 0);
-            if (status >= 0)
-            {
-                status = BCryptGetProperty(
-                    algorithm.Value,
-                    BCRYPT_OBJECT_LENGTH,
-                    reinterpret_cast<PUCHAR>(&objectBytes),
-                    sizeof(objectBytes),
-                    &copied,
-                    0);
-            }
-            if (status >= 0)
-            {
-                hashObject.resize(objectBytes);
-                status = BCryptCreateHash(
-                    algorithm.Value,
-                    &hash.Value,
-                    hashObject.data(),
-                    static_cast<ULONG>(hashObject.size()),
-                    nullptr,
-                    0,
-                    0);
-            }
-            if (status >= 0)
-            {
-                status = BCryptHashData(
-                    hash.Value,
-                    const_cast<PUCHAR>(input.data()),
-                    static_cast<ULONG>(input.size()),
-                    0);
-            }
-            if (status >= 0)
-            {
-                status = BCryptFinishHash(hash.Value, digest.data(), static_cast<ULONG>(digest.size()), 0);
-            }
-            return status >= 0 ? std::optional{ digest } : std::nullopt;
         }
 
         std::string _hex(const std::array<uint8_t, 32>& value)
@@ -319,7 +245,7 @@ namespace Microsoft::Terminal::TaskRuntime
             }
             const auto normalizedChannel = _lowerInvariant(channel);
             const auto input = _identityInput(normalizedChannel, root.value(), sid.value());
-            const auto digest = _sha256(input);
+            const auto digest = RuntimeSha256(input);
             if (!digest)
             {
                 return _failure(RuntimeIdentityStatus::HashFailure, "SHA-256 Runtime identity derivation failed");

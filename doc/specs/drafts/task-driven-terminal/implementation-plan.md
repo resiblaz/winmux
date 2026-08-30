@@ -82,8 +82,10 @@ foundational contracts required to avoid disposable data/process designs.
   their captured lease revision and fail closed after lease reuse. M2F1 adds
   exact DTOs for the four Agent-scoped commands plus a bounded, ten-minute,
   random Run/method capability registry with strict text limits and redacted
-  diagnostics. Real Codex, Git, and task-owned Surface integration remain later
-  milestones.
+  diagnostics. M2F2 adds the packaged `rtask.exe`, exact local endpoint/context
+  validation, bounded stdin and exit codes, TaskCtl product routing, and an
+  atomic TaskCore Agent mutation/event/receipt transaction. Real Codex, Git,
+  and task-owned Surface integration remain later milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
 - The executable M2/M3 commit queue and frozen technical defaults are tracked

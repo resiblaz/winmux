@@ -168,6 +168,58 @@ namespace Microsoft::Terminal::TaskCore::details
         return true;
     }
 
+    bool ValidateTaskAgentMutationCommand(
+        const ApplyTaskAgentMutationCommand& command,
+        std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error) ||
+            !IsCanonicalUuid(command.Task.Value()) ||
+            !IsCanonicalUuid(command.Run.Value()) ||
+            command.Metadata.ExpectedTaskVersion == 0 ||
+            !_enumInRange(command.Kind, TaskAgentMutationKind::Result))
+        {
+            if (error.empty())
+            {
+                error = "Agent Task mutation identity or kind is invalid";
+            }
+            return false;
+        }
+        if (command.Text.find('\0') != std::string::npos)
+        {
+            error = "Agent Task mutation text contains an embedded NUL";
+            return false;
+        }
+        switch (command.Kind)
+        {
+        case TaskAgentMutationKind::StatusInProgress:
+        case TaskAgentMutationKind::StatusInReview:
+            if (!command.Text.empty())
+            {
+                error = "Agent Task status mutation does not accept text";
+                return false;
+            }
+            return true;
+        case TaskAgentMutationKind::StatusBlocked:
+            if (command.Text.empty() ||
+                command.Text.size() > MaximumTaskBlockedReasonBytes)
+            {
+                error = "Agent Task blocked reason is empty or oversized";
+                return false;
+            }
+            return true;
+        case TaskAgentMutationKind::Result:
+            if (command.Text.empty() || command.Text.size() > MaximumTaskRunResultBytes)
+            {
+                error = "Agent Task result is empty or oversized";
+                return false;
+            }
+            return true;
+        default:
+            error = "Agent Task mutation kind is invalid";
+            return false;
+        }
+    }
+
     bool ValidateTerminalStateCommand(const ChangeTaskTerminalStateCommand& command, std::string& error)
     {
         if (!ValidateCommandMetadata(command.Metadata, error))

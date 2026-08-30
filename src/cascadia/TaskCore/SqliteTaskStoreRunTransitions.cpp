@@ -35,7 +35,10 @@ namespace Microsoft::Terminal::TaskCore
             if (IsTaskRunTerminal(command.RequestedState))
             {
                 finishedAt = command.Metadata.TimestampUnixMilliseconds;
-                result = command.Result;
+                if (!command.Result.empty())
+                {
+                    result = command.Result;
+                }
                 reasonCode = command.ReasonCode;
             }
 

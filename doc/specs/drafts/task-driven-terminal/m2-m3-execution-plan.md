@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-08-31
-status: active execution queue; M2F1 complete, rtask product routing next
+status: active execution queue; M2F2 complete, idle suspension next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -40,7 +40,7 @@ untouched until the feature branch has passed both milestone closure gates.
 | M2E1 (complete) | Secure binary terminal transport | framing fragmentation/coalescing, ACL/identity/generation, payload bounds, cancellation, control/data HOL |
 | M2E2 (complete) | Terminal session, input lease, bounded VT ring, deterministic Fake VT | observers/controller, stale input, resize, ack/reset/catch-up, slow peer, Esc/Stop convergence |
 | M2F1 (complete) | Scoped `rtask` DTOs and capability registry | missing/expired/wrong-run/wrong-method, method bounds, redaction, idempotency |
-| M2F2 | `rtask.exe`, TaskCore command router, package integration | four ADR commands, stdin/UTF-8/exit codes, duplicate command, cross-task refusal, CLI/package smoke |
+| M2F2 (complete) | `rtask.exe`, TaskCore command router, package integration | four ADR commands, stdin/UTF-8/exit codes, duplicate command, cross-task refusal, CLI/package smoke |
 | M2G1 | Five-minute terminal idle suspend and idempotent wake | active-run exclusion, attach race, new generation, Closed never auto-wakes |
 | M2G2 | Helper idle exit and final parent-exit recovery | active work survives all UI clients, reconnect catch-up, idle-exit cancellation, eventual exit |
 | M2 closure | Product composition and milestone evidence | subscriptions, heartbeat, real host, terminal, `rtask`, HOL, lease, parent-exit, full Release/portable gates |
@@ -82,6 +82,13 @@ untouched until the feature branch has passed both milestone closure gates.
 - Blocked reasons are bounded to 16 KiB / 4,096 Unicode scalars and results to
   256 KiB / 65,536 scalars. Both are strict nonempty UTF-8 with no embedded
   NUL, and neither capability nor text is included in diagnostics.
+- Capability authorization resolves both Task and TaskRun; the wire DTO never
+  accepts Task identity. Runtime issues only for Starting/Running Runs and the
+  TaskCore transaction rechecks the binding and active state before mutation.
+- Agent status/result, event append, Task version, and command receipt commit in
+  one SQLite transaction. Receipt replay compares Task and semantic request
+  digest but ignores the server-selected CAS version, so a duplicate command
+  remains replayable after the first commit or Runtime restart.
 - Update/drain across executable versions remains an M8 concern; M2 fails a
   mismatched protocol closed and supports clean restart.
 

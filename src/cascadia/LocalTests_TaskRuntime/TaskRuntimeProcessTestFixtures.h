@@ -31,6 +31,7 @@ namespace TaskRuntimeLocalTests::ProcessFixtures
     {
     public:
         ProductRuntimeTestIdentity();
+        ~ProductRuntimeTestIdentity();
 
         ProductRuntimeTestIdentity(const ProductRuntimeTestIdentity&) = delete;
         ProductRuntimeTestIdentity& operator=(const ProductRuntimeTestIdentity&) = delete;

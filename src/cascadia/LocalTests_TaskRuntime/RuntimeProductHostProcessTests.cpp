@@ -82,7 +82,8 @@ namespace TaskRuntimeLocalTests
         VERIFY_ARE_EQUAL(CurrentProtocolMajor, client.Handshake.ProtocolMajor);
         VERIFY_ARE_EQUAL(CurrentProtocolMinor, client.Handshake.ProtocolMinor);
         VERIFY_ARE_EQUAL(
-            static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle),
+            static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle) |
+                static_cast<uint64_t>(ProtocolCapability::TaskCommands),
             client.Handshake.Capabilities);
         VERIFY_IS_TRUE(client.Handshake.MaximumControlFrameBytes >= MinimumControlFrameBytes);
         VERIFY_IS_TRUE(client.Handshake.MaximumTerminalFrameBytes != 0);

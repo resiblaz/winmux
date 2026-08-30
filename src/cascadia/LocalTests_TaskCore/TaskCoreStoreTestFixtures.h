@@ -178,6 +178,23 @@ namespace TaskCoreLocalTests::TestFixtures
         return command;
     }
 
+    inline ApplyTaskAgentMutationCommand MakeAgentMutationCommand(
+        const CreateTaskRunCommand& run,
+        const uint64_t commandSeed,
+        const uint64_t expectedVersion,
+        const int64_t timestamp,
+        const TaskAgentMutationKind kind,
+        std::string text = {})
+    {
+        ApplyTaskAgentMutationCommand command;
+        command.Metadata = MakeMetadata(commandSeed, expectedVersion, timestamp);
+        command.Task = run.Run.Task;
+        command.Run = run.Run.Id;
+        command.Kind = kind;
+        command.Text = std::move(text);
+        return command;
+    }
+
     inline ChangeTaskTerminalStateCommand MakeTerminalStateCommand(
         const CreateTaskCommand& task,
         const uint64_t commandSeed,

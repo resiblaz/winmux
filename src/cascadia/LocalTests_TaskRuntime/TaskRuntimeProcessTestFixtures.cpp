@@ -39,6 +39,12 @@ namespace TaskRuntimeLocalTests::ProcessFixtures
         _identity = TestFixtures::RequireIdentity(_settingsRoot, _channel);
     }
 
+    ProductRuntimeTestIdentity::~ProductRuntimeTestIdentity()
+    {
+        std::error_code ignored;
+        std::filesystem::remove_all(_settingsRoot, ignored);
+    }
+
     const std::wstring& ProductRuntimeTestIdentity::Channel() const noexcept
     {
         return _channel;

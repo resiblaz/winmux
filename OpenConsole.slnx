@@ -676,6 +676,7 @@
       <Build Solution="Fuzzing|x86" Project="false" />
     </Project>
     <Project Path="src/cascadia/TaskRuntime/TaskRuntimeHost.vcxproj" Id="c87ce61d-7ee5-4cf8-8bcd-b5ee2817b4a9">
+      <BuildDependency Project="src/cascadia/TaskCore/TaskCore.vcxproj" />
       <BuildDependency Project="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" />
       <BuildDependency Project="src/cascadia/TaskRuntimeTransport/TaskRuntimeTransport.vcxproj" />
       <Platform Solution="*|Any CPU" Project="Win32" />
@@ -689,6 +690,31 @@
     </Project>
     <Project Path="src/cascadia/TaskRuntime/TaskRuntime.vcxproj" Id="187861d6-d4f5-42ff-8b00-b322884b1446">
       <BuildDependency Project="src/cascadia/TaskRuntime/TaskRuntimeHost.vcxproj" />
+      <BuildDependency Project="src/cascadia/TaskRuntimeTransport/TaskRuntimeTransport.vcxproj" />
+      <Platform Solution="*|Any CPU" Project="Win32" />
+      <Build Solution="*|Any CPU" Project="false" />
+      <Build Solution="AuditMode|ARM64" Project="false" />
+      <Build Solution="AuditMode|x64" Project="false" />
+      <Build Solution="AuditMode|x86" Project="false" />
+      <Build Solution="Fuzzing|ARM64" Project="false" />
+      <Build Solution="Fuzzing|x64" Project="false" />
+      <Build Solution="Fuzzing|x86" Project="false" />
+    </Project>
+    <Project Path="src/cascadia/Rtask/RtaskLib.vcxproj" Id="d5e60001-4f31-47ae-9b7a-12d437c20101">
+      <BuildDependency Project="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" />
+      <BuildDependency Project="src/cascadia/TaskRuntimeTransport/TaskRuntimeTransport.vcxproj" />
+      <Platform Solution="*|Any CPU" Project="Win32" />
+      <Build Solution="*|Any CPU" Project="false" />
+      <Build Solution="AuditMode|ARM64" Project="false" />
+      <Build Solution="AuditMode|x64" Project="false" />
+      <Build Solution="AuditMode|x86" Project="false" />
+      <Build Solution="Fuzzing|ARM64" Project="false" />
+      <Build Solution="Fuzzing|x64" Project="false" />
+      <Build Solution="Fuzzing|x86" Project="false" />
+    </Project>
+    <Project Path="src/cascadia/Rtask/Rtask.vcxproj" Id="d5e60002-4f31-47ae-9b7a-12d437c20102">
+      <BuildDependency Project="src/cascadia/Rtask/RtaskLib.vcxproj" />
+      <BuildDependency Project="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" />
       <BuildDependency Project="src/cascadia/TaskRuntimeTransport/TaskRuntimeTransport.vcxproj" />
       <Platform Solution="*|Any CPU" Project="Win32" />
       <Build Solution="*|Any CPU" Project="false" />
@@ -749,6 +775,7 @@
       <Build Solution="Fuzzing|x86" Project="false" />
     </Project>
     <Project Path="src/cascadia/LocalTests_TaskRuntime/TaskRuntime.LocalTests.vcxproj" Id="5731db40-3f74-4966-a423-e2363bce1631">
+      <BuildDependency Project="src/cascadia/Rtask/RtaskLib.vcxproj" />
       <BuildDependency Project="src/cascadia/TaskRuntimeActivation/TaskRuntimeActivation.vcxproj" />
       <BuildDependency Project="src/cascadia/TaskRuntimeClient/TaskRuntimeClient.vcxproj" />
       <BuildDependency Project="src/cascadia/TaskRuntime/TaskRuntimeHost.vcxproj" />

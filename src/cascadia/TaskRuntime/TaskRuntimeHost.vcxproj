@@ -27,6 +27,8 @@
     <ClInclude Include="RuntimeControlThreadContext.h" />
     <ClInclude Include="RuntimeFoundationRouter.h" />
     <ClInclude Include="RuntimeProductHost.h" />
+    <ClInclude Include="RuntimeProductRouter.h" />
+    <ClInclude Include="RuntimeRtaskCommandService.h" />
     <ClInclude Include="RuntimeRtaskCapabilityRegistry.h" />
     <ClInclude Include="RuntimeRtaskCapabilityToken.h" />
     <ClInclude Include="RuntimeSingleInstance.h" />
@@ -53,6 +55,8 @@
     <ClCompile Include="RuntimeControlThreadContext.cpp" />
     <ClCompile Include="RuntimeFoundationRouter.cpp" />
     <ClCompile Include="RuntimeProductHost.cpp" />
+    <ClCompile Include="RuntimeProductRouter.cpp" />
+    <ClCompile Include="RuntimeRtaskCommandService.cpp" />
     <ClCompile Include="RuntimeRtaskCapabilityRegistry.cpp" />
     <ClCompile Include="RuntimeRtaskCapabilityToken.cpp" />
     <ClCompile Include="RuntimeSingleInstance.cpp" />
@@ -63,6 +67,9 @@
     <ClCompile Include="RuntimeTerminalSessionFrames.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\TaskCore\TaskCore.vcxproj">
+      <Project>{DCB2201E-7AE1-4221-95F5-FA24A8254243}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">
       <Project>{C227632F-A428-48E3-AB9B-DB3D170DDAAC}</Project>
     </ProjectReference>
@@ -72,11 +79,11 @@
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>advapi32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>advapi32.lib;bcrypt.lib;winsqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(SolutionDir)src\common.build.post.props" />

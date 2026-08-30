@@ -60,6 +60,7 @@ namespace
                 return _exit(RuntimeProcessExitCode::AlreadyRunning);
             case RuntimeProductHostStartStatus::RuntimeInstanceIdFailure:
                 return _exit(RuntimeProcessExitCode::RuntimeInstanceIdFailure);
+            case RuntimeProductHostStartStatus::TaskStoreFailure:
             case RuntimeProductHostStartStatus::ServerStartFailure:
             case RuntimeProductHostStartStatus::ResourceFailure:
                 return _exit(RuntimeProcessExitCode::ServerStartFailure);

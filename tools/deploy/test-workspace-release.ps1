@@ -38,6 +38,7 @@ $workspaceTestTargets = @(
     'Terminal\Tests\TaskRuntimeActivationParent',
     'Terminal\Tests\TaskRuntime_LocalTests',
     'Terminal\Task\TaskRuntime',
+    'Terminal\Task\Rtask',
     'Terminal\Tests\TerminalApp_LocalTests',
     'Terminal\Tests\TestHostApp',
     'Terminal\Tests\SettingsModel_UnitTests')
@@ -132,6 +133,75 @@ function Invoke-TaefSelection
     Invoke-CheckedCommand -Executable $Taef -Arguments @($TestDll, "/name:$Pattern")
 }
 
+function Invoke-RtaskExpectedExitCode
+{
+    param(
+        [Parameter(Mandatory)]
+        [string]$Executable,
+
+        [Parameter(Mandatory)]
+        [string[]]$Arguments,
+
+        [Parameter(Mandatory)]
+        [int]$ExpectedExitCode,
+
+        [hashtable]$Environment = @{},
+
+        [byte[]]$StandardInput = @()
+    )
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $Executable
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardInput = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in $Arguments)
+    {
+        $null = $startInfo.ArgumentList.Add($argument)
+    }
+    foreach ($name in @('RICHER_TASK_ENDPOINT', 'RICHER_TASK_RUN_ID', 'RICHER_TASK_CAPABILITY'))
+    {
+        $null = $startInfo.Environment.Remove($name)
+    }
+    foreach ($entry in $Environment.GetEnumerator())
+    {
+        $startInfo.Environment[$entry.Key] = [string]$entry.Value
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try
+    {
+        if (-not $process.Start())
+        {
+            throw 'rtask process did not start'
+        }
+        if ($StandardInput.Length -ne 0)
+        {
+            $process.StandardInput.BaseStream.Write($StandardInput, 0, $StandardInput.Length)
+            $process.StandardInput.BaseStream.Flush()
+        }
+        $process.StandardInput.Close()
+        if (-not $process.WaitForExit(10000))
+        {
+            $process.Kill($true)
+            throw 'rtask process did not exit before the smoke timeout'
+        }
+        $standardOutput = $process.StandardOutput.ReadToEnd()
+        $standardError = $process.StandardError.ReadToEnd()
+        if ($process.ExitCode -ne $ExpectedExitCode)
+        {
+            throw "Expected rtask exit code $ExpectedExitCode but got $($process.ExitCode); stdout=$standardOutput; stderr=$standardError"
+        }
+    }
+    finally
+    {
+        $process.Dispose()
+    }
+}
+
 Push-Location $repoRoot
 try
 {
@@ -167,6 +237,8 @@ try
             'src\cascadia\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj',
             'src\cascadia\TaskRuntime\TaskRuntimeHost.vcxproj',
             'src\cascadia\TaskRuntime\TaskRuntime.vcxproj',
+            'src\cascadia\Rtask\RtaskLib.vcxproj',
+            'src\cascadia\Rtask\Rtask.vcxproj',
             'src\cascadia\LocalTests_TaskRuntime\TaskRuntime.LocalTests.vcxproj',
             'src\cascadia\TerminalApp\TerminalAppLib.vcxproj',
             'src\cascadia\LocalTests_TerminalApp\TerminalApp.LocalTests.vcxproj',
@@ -251,6 +323,7 @@ try
         $taskClientTests = Join-Path $taskClientTestDirectory 'TaskRuntimeClient.LocalTests.dll'
         $taskRuntimeTests = Join-Path $taskRuntimeTestDirectory 'TaskRuntime.LocalTests.dll'
         $taskRuntimeExecutable = Join-Path $taskRuntimeTestDirectory 'TaskRuntime.exe'
+        $rtaskExecutable = Join-Path $taskRuntimeTestDirectory 'rtask.exe'
         $terminalAppTests = Join-Path $testHostDirectory 'TerminalApp.LocalTests.dll'
         $settingsTests = Join-Path $settingsTestDirectory 'SettingsModel.Unit.Tests.dll'
         $taef = @(
@@ -268,6 +341,7 @@ try
             -not (Test-Path -LiteralPath $taskClientTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskRuntimeTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskRuntimeExecutable -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $rtaskExecutable -PathType Leaf) -or
             -not (Test-Path -LiteralPath $terminalAppTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $settingsTests -PathType Leaf))
         {
@@ -325,6 +399,17 @@ try
                 '--settings-root',
                 $taskRuntimeTestDirectory) -ExpectedExitCode 0
             Invoke-ExpectedExitCode -Executable $taskRuntimeExecutable -Arguments @('--bad') -ExpectedExitCode 2
+            Invoke-ExpectedExitCode -Executable $rtaskExecutable -Arguments @('--help') -ExpectedExitCode 0
+            Invoke-ExpectedExitCode -Executable $rtaskExecutable -Arguments @('--bad') -ExpectedExitCode 2
+            Invoke-RtaskExpectedExitCode -Executable $rtaskExecutable -Arguments @('status', 'in-progress') -ExpectedExitCode 3
+            $rtaskEnvironment = @{
+                RICHER_TASK_ENDPOINT = '\\.\pipe\WT.TaskRuntime.dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd.control'
+                RICHER_TASK_RUN_ID = 'dd000000-0000-4000-8000-000000000001'
+                RICHER_TASK_CAPABILITY = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+            }
+            Invoke-RtaskExpectedExitCode -Executable $rtaskExecutable -Arguments @('result', '--stdin') -ExpectedExitCode 4 -Environment $rtaskEnvironment
+            Invoke-RtaskExpectedExitCode -Executable $rtaskExecutable -Arguments @('result', '--stdin') -ExpectedExitCode 4 -Environment $rtaskEnvironment -StandardInput ([byte[]](0xc0, 0x80))
+            Invoke-RtaskExpectedExitCode -Executable $rtaskExecutable -Arguments @('result', '--stdin') -ExpectedExitCode 5 -Environment $rtaskEnvironment -StandardInput ([byte[]](0x78))
         }
         finally
         {

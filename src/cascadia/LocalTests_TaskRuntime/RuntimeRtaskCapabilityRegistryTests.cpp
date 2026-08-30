@@ -17,6 +17,12 @@ namespace TaskRuntimeLocalTests
 {
     namespace
     {
+        constexpr std::string_view TaskA{
+            "ab000000-0000-4000-8000-000000000001"
+        };
+        constexpr std::string_view TaskB{
+            "ab000000-0000-4000-8000-000000000002"
+        };
         constexpr std::string_view RunA{
             "aa000000-0000-4000-8000-000000000001"
         };
@@ -95,6 +101,7 @@ namespace TaskRuntimeLocalTests
             VERIFY_IS_FALSE(registry.Valid());
             VERIFY_IS_TRUE(
                 registry.IssueOrRenew(
+                    TaskA,
                     RunA,
                     RtaskMethodBit(RtaskMethod::StatusInProgress),
                     10,
@@ -109,24 +116,34 @@ namespace TaskRuntimeLocalTests
         VERIFY_IS_TRUE(registry.Valid());
         VERIFY_IS_TRUE(
             registry.IssueOrRenew(
+                "not-a-task",
+                RunA,
+                RtaskMethodBit(RtaskMethod::StatusInProgress),
+                100,
+                1).Status == RuntimeRtaskCapabilityStatus::InvalidTask);
+        VERIFY_IS_TRUE(
+            registry.IssueOrRenew(
+                TaskA,
                 "not-a-run",
                 RtaskMethodBit(RtaskMethod::StatusInProgress),
                 100,
                 1).Status == RuntimeRtaskCapabilityStatus::InvalidRun);
         VERIFY_IS_TRUE(
-            registry.IssueOrRenew(RunA, 0, 100, 1).Status ==
+            registry.IssueOrRenew(TaskA, RunA, 0, 100, 1).Status ==
             RuntimeRtaskCapabilityStatus::InvalidMethodSet);
         VERIFY_IS_TRUE(
-            registry.IssueOrRenew(RunA, AllRtaskMethods | (1u << 8), 100, 1).Status ==
+            registry.IssueOrRenew(TaskA, RunA, AllRtaskMethods | (1u << 8), 100, 1).Status ==
             RuntimeRtaskCapabilityStatus::InvalidMethodSet);
         VERIFY_IS_TRUE(
             registry.IssueOrRenew(
+                TaskA,
                 RunA,
                 RtaskMethodBit(RtaskMethod::StatusInProgress),
                 0,
                 1).Status == RuntimeRtaskCapabilityStatus::InvalidLifetime);
         VERIFY_IS_TRUE(
             registry.IssueOrRenew(
+                TaskA,
                 RunA,
                 RtaskMethodBit(RtaskMethod::StatusInProgress),
                 1001,
@@ -142,7 +159,7 @@ namespace TaskRuntimeLocalTests
         const auto methods = _methods(
             RtaskMethod::StatusInProgress,
             RtaskMethod::Result);
-        const auto issued = registry.IssueOrRenew(RunA, methods, 100, 10);
+        const auto issued = registry.IssueOrRenew(TaskA, RunA, methods, 100, 10);
         VERIFY_IS_TRUE(issued.Status == RuntimeRtaskCapabilityStatus::Issued);
         VERIFY_IS_TRUE(issued.Grant.has_value());
         if (!issued.Grant)
@@ -150,18 +167,26 @@ namespace TaskRuntimeLocalTests
             return;
         }
         const auto capability = issued.Grant->Capability;
+        VERIFY_ARE_EQUAL(std::string{ TaskA }, issued.Grant->TaskId);
         VERIFY_IS_TRUE(
             registry.Authorize(
                 capability,
                 RunA,
                 RtaskMethod::StatusInProgress,
                 10).Status == RuntimeRtaskCapabilityStatus::Authorized);
-        VERIFY_IS_TRUE(
-            registry.Authorize(
-                capability,
-                RunA,
-                RtaskMethod::Result,
-                11).Status == RuntimeRtaskCapabilityStatus::Authorized);
+        const auto authorized = registry.Authorize(
+            capability,
+            RunA,
+            RtaskMethod::Result,
+            11);
+        VERIFY_IS_TRUE(authorized.Status == RuntimeRtaskCapabilityStatus::Authorized);
+        VERIFY_IS_TRUE(authorized.Binding.has_value());
+        if (!authorized.Binding)
+        {
+            return;
+        }
+        VERIFY_ARE_EQUAL(std::string{ TaskA }, authorized.Binding->TaskId);
+        VERIFY_ARE_EQUAL(std::string{ RunA }, authorized.Binding->RunId);
         VERIFY_IS_TRUE(
             registry.Authorize(
                 capability,
@@ -200,7 +225,7 @@ namespace TaskRuntimeLocalTests
         auto source = _source({ _token('a'), _token('b') });
         RuntimeRtaskCapabilityRegistry registry{ _configuration(), source };
         const auto methods = _methods(RtaskMethod::StatusBlocked);
-        const auto issued = registry.IssueOrRenew(RunA, methods, 100, 100);
+        const auto issued = registry.IssueOrRenew(TaskA, RunA, methods, 100, 100);
         VERIFY_IS_TRUE(issued.Grant.has_value());
         if (!issued.Grant)
         {
@@ -209,22 +234,30 @@ namespace TaskRuntimeLocalTests
         const auto capability = issued.Grant->Capability;
         VERIFY_ARE_EQUAL(RuntimeRtaskMilliseconds{ 200 }, issued.Grant->ExpiresAt);
 
-        const auto replayed = registry.IssueOrRenew(RunA, methods, 100, 100);
+        const auto replayed = registry.IssueOrRenew(TaskA, RunA, methods, 100, 100);
         VERIFY_IS_TRUE(replayed.Status == RuntimeRtaskCapabilityStatus::Replayed);
         VERIFY_IS_TRUE(replayed.Grant.has_value());
         VERIFY_ARE_EQUAL(capability, replayed.Grant->Capability);
         VERIFY_ARE_EQUAL(RuntimeRtaskMilliseconds{ 200 }, replayed.Grant->ExpiresAt);
         VERIFY_ARE_EQUAL(size_t{ 1 }, source->Calls);
 
-        const auto renewed = registry.IssueOrRenew(RunA, methods, 100, 150);
+        const auto renewed = registry.IssueOrRenew(TaskA, RunA, methods, 100, 150);
         VERIFY_IS_TRUE(renewed.Status == RuntimeRtaskCapabilityStatus::Renewed);
         VERIFY_ARE_EQUAL(capability, renewed.Grant->Capability);
         VERIFY_ARE_EQUAL(RuntimeRtaskMilliseconds{ 250 }, renewed.Grant->ExpiresAt);
         VERIFY_ARE_EQUAL(size_t{ 1 }, source->Calls);
         VERIFY_IS_TRUE(
             registry.IssueOrRenew(
+                TaskA,
                 RunA,
                 _methods(RtaskMethod::Result),
+                100,
+                150).Status == RuntimeRtaskCapabilityStatus::ScopeConflict);
+        VERIFY_IS_TRUE(
+            registry.IssueOrRenew(
+                TaskB,
+                RunA,
+                methods,
                 100,
                 150).Status == RuntimeRtaskCapabilityStatus::ScopeConflict);
         VERIFY_IS_TRUE(
@@ -241,7 +274,7 @@ namespace TaskRuntimeLocalTests
                 250).Status == RuntimeRtaskCapabilityStatus::Expired);
         VERIFY_ARE_EQUAL(size_t{ 0 }, registry.Size());
 
-        const auto replacement = registry.IssueOrRenew(RunA, methods, 100, 250);
+        const auto replacement = registry.IssueOrRenew(TaskA, RunA, methods, 100, 250);
         VERIFY_IS_TRUE(replacement.Status == RuntimeRtaskCapabilityStatus::Issued);
         VERIFY_IS_TRUE(replacement.Grant.has_value());
         VERIFY_ARE_EQUAL(_token('b'), replacement.Grant->Capability);
@@ -253,12 +286,12 @@ namespace TaskRuntimeLocalTests
         auto source = _source({ _token('a'), _token('b'), _token('c'), _token('d') });
         RuntimeRtaskCapabilityRegistry registry{ _configuration(2, 100), source };
         const auto methods = _methods(RtaskMethod::StatusInReview);
-        const auto first = registry.IssueOrRenew(RunA, methods, 50, 0);
-        const auto second = registry.IssueOrRenew(RunB, methods, 100, 0);
+        const auto first = registry.IssueOrRenew(TaskA, RunA, methods, 50, 0);
+        const auto second = registry.IssueOrRenew(TaskA, RunB, methods, 100, 0);
         VERIFY_IS_TRUE(first.Grant.has_value());
         VERIFY_IS_TRUE(second.Grant.has_value());
         VERIFY_IS_TRUE(
-            registry.IssueOrRenew(RunC, methods, 100, 0).Status ==
+            registry.IssueOrRenew(TaskA, RunC, methods, 100, 0).Status ==
             RuntimeRtaskCapabilityStatus::CapacityExceeded);
 
         const auto invalidated = registry.InvalidateRun(RunA);
@@ -277,7 +310,7 @@ namespace TaskRuntimeLocalTests
                 RtaskMethod::StatusInReview,
                 1).Status == RuntimeRtaskCapabilityStatus::Authorized);
 
-        const auto third = registry.IssueOrRenew(RunC, methods, 50, 1);
+        const auto third = registry.IssueOrRenew(TaskA, RunC, methods, 50, 1);
         VERIFY_IS_TRUE(third.Status == RuntimeRtaskCapabilityStatus::Issued);
         VERIFY_ARE_EQUAL(size_t{ 2 }, registry.Size());
         VERIFY_IS_TRUE(
@@ -285,7 +318,7 @@ namespace TaskRuntimeLocalTests
             RuntimeRtaskCapabilityStatus::Invalidated);
         VERIFY_ARE_EQUAL(size_t{ 1 }, registry.Size());
 
-        const auto purgedReplacement = registry.IssueOrRenew(RunA, methods, 50, 100);
+        const auto purgedReplacement = registry.IssueOrRenew(TaskA, RunA, methods, 50, 100);
         VERIFY_IS_TRUE(
             purgedReplacement.Status == RuntimeRtaskCapabilityStatus::Issued);
         VERIFY_ARE_EQUAL(size_t{ 1 }, registry.Size());
@@ -298,6 +331,7 @@ namespace TaskRuntimeLocalTests
         auto clockSource = _source({ _token('a') });
         RuntimeRtaskCapabilityRegistry clockRegistry{ _configuration(), clockSource };
         const auto issued = clockRegistry.IssueOrRenew(
+            TaskA,
             RunA,
             _methods(RtaskMethod::Result),
             100,
@@ -314,6 +348,7 @@ namespace TaskRuntimeLocalTests
         RuntimeRtaskCapabilityRegistry exhausted{ _configuration(), exhaustedSource };
         VERIFY_IS_TRUE(
             exhausted.IssueOrRenew(
+                TaskA,
                 RunA,
                 _methods(RtaskMethod::Result),
                 1,
@@ -328,12 +363,14 @@ namespace TaskRuntimeLocalTests
         RuntimeRtaskCapabilityRegistry collisions{ _configuration(), collisionSource };
         VERIFY_IS_TRUE(
             collisions.IssueOrRenew(
+                TaskA,
                 RunA,
                 _methods(RtaskMethod::Result),
                 100,
                 1).Status == RuntimeRtaskCapabilityStatus::Issued);
         VERIFY_IS_TRUE(
             collisions.IssueOrRenew(
+                TaskA,
                 RunB,
                 _methods(RtaskMethod::Result),
                 100,
@@ -345,6 +382,7 @@ namespace TaskRuntimeLocalTests
         RuntimeRtaskCapabilityRegistry invalid{ _configuration(), invalidSource };
         VERIFY_IS_TRUE(
             invalid.IssueOrRenew(
+                TaskA,
                 RunA,
                 _methods(RtaskMethod::Result),
                 100,
@@ -354,6 +392,7 @@ namespace TaskRuntimeLocalTests
         RuntimeRtaskCapabilityRegistry throwing{ _configuration(), throwingSource };
         VERIFY_IS_TRUE(
             throwing.IssueOrRenew(
+                TaskA,
                 RunA,
                 _methods(RtaskMethod::Result),
                 100,

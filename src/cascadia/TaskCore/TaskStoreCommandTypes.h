@@ -14,6 +14,7 @@ namespace Microsoft::Terminal::TaskCore
     inline constexpr size_t TaskStoreDigestCharacters{ 64 };
     inline constexpr size_t MaximumTaskStoreJsonBytes{ 64 * 1024 };
     inline constexpr size_t MaximumTaskRunResultBytes{ 256 * 1024 };
+    inline constexpr size_t MaximumTaskBlockedReasonBytes{ 16 * 1024 };
     inline constexpr size_t MaximumTaskReasonCodeBytes{ 256 };
     inline constexpr size_t MaximumTaskMessageBytes{ 64 * 1024 };
     inline constexpr size_t MaximumUnclaimedTaskMessages{ 256 };
@@ -60,6 +61,24 @@ namespace Microsoft::Terminal::TaskCore
         TaskRunState RequestedState{ TaskRunState::Queued };
         std::string Result;
         std::string ReasonCode;
+    };
+
+    enum class TaskAgentMutationKind : uint8_t
+    {
+        StatusInProgress,
+        StatusInReview,
+        StatusBlocked,
+        Result,
+        Count,
+    };
+
+    struct ApplyTaskAgentMutationCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskId Task;
+        TaskRunId Run;
+        TaskAgentMutationKind Kind{ TaskAgentMutationKind::StatusInProgress };
+        std::string Text;
     };
 
     struct ChangeTaskTerminalStateCommand

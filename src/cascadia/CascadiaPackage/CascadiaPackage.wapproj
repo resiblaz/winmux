@@ -83,6 +83,12 @@
     <ProjectReference Include="$(OpenConsoleDir)src\cascadia\wt\wt.vcxproj">
       <Project>{506fd703-baa7-4f6e-9361-64f550ec8fca}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(OpenConsoleDir)src\cascadia\TaskRuntime\TaskRuntime.vcxproj">
+      <Project>{187861D6-D4F5-42FF-8B00-B322884B1446}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(OpenConsoleDir)src\cascadia\Rtask\Rtask.vcxproj">
+      <Project>{D5E60002-4F31-47AE-9B7A-12D437C20102}</Project>
+    </ProjectReference>
     <ProjectReference Include="$(OpenConsoleDir)src\host\exe\Host.EXE.vcxproj">
       <Project>{9CBD7DFA-1754-4A9D-93D7-857A9D17CB1B}</Project>
     </ProjectReference>

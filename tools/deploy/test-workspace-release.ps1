@@ -24,6 +24,7 @@ $packageBuild = Join-Path $repoRoot 'tools\Deploy-LocalRelease.ps1'
 $hookTests = Join-Path $repoRoot '.codex\hooks\test-workspace-history.ps1'
 $taskCoreTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
 $taskProtocolTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
+$taskActivationTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
 $taskClientTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
 $taskRuntimeTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
 $testHostDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\TestHostApp"
@@ -32,6 +33,7 @@ $wt = Join-Path $repoRoot "src\cascadia\CascadiaPackage\bin\$Platform\$configura
 $workspaceTestTargets = @(
     'Terminal\Tests\TaskCore_LocalTests',
     'Terminal\Tests\TaskRuntimeProtocol_LocalTests',
+    'Terminal\Tests\TaskRuntimeActivation_LocalTests',
     'Terminal\Tests\TaskRuntimeClient_LocalTests',
     'Terminal\Tests\TaskRuntime_LocalTests',
     'Terminal\Task\TaskRuntime',
@@ -156,6 +158,8 @@ try
             'src\cascadia\LocalTests_TaskCore\TaskCore.LocalTests.vcxproj',
             'src\cascadia\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj',
             'src\cascadia\LocalTests_TaskRuntimeProtocol\TaskRuntimeProtocol.LocalTests.vcxproj',
+            'src\cascadia\TaskRuntimeActivation\TaskRuntimeActivation.vcxproj',
+            'src\cascadia\LocalTests_TaskRuntimeActivation\TaskRuntimeActivation.LocalTests.vcxproj',
             'src\cascadia\TaskRuntimeClient\TaskRuntimeClient.vcxproj',
             'src\cascadia\LocalTests_TaskRuntimeClient\TaskRuntimeClient.LocalTests.vcxproj',
             'src\cascadia\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj',
@@ -241,6 +245,7 @@ try
     {
         $taskCoreTests = Join-Path $taskCoreTestDirectory 'TaskCore.LocalTests.dll'
         $taskProtocolTests = Join-Path $taskProtocolTestDirectory 'TaskRuntimeProtocol.LocalTests.dll'
+        $taskActivationTests = Join-Path $taskActivationTestDirectory 'TaskRuntimeActivation.LocalTests.dll'
         $taskClientTests = Join-Path $taskClientTestDirectory 'TaskRuntimeClient.LocalTests.dll'
         $taskRuntimeTests = Join-Path $taskRuntimeTestDirectory 'TaskRuntime.LocalTests.dll'
         $taskRuntimeExecutable = Join-Path $taskRuntimeTestDirectory 'TaskRuntime.exe'
@@ -257,6 +262,7 @@ try
         if (-not $taef -or
             -not (Test-Path -LiteralPath $taskCoreTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskProtocolTests -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $taskActivationTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskClientTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskRuntimeTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskRuntimeExecutable -PathType Leaf) -or
@@ -280,6 +286,16 @@ try
         try
         {
             Invoke-TaefSelection -Taef $taef -TestDll $taskProtocolTests -Pattern '*TaskRuntimeProtocol*'
+        }
+        finally
+        {
+            Pop-Location
+        }
+
+        Push-Location $taskActivationTestDirectory
+        try
+        {
+            Invoke-TaefSelection -Taef $taef -TestDll $taskActivationTests -Pattern '*TaskRuntimeActivationLocalTests*'
         }
         finally
         {

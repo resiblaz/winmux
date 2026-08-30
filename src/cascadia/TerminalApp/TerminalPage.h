@@ -20,6 +20,7 @@
 #include "WorkspaceItemViewModel.h"
 #include "WorkspaceSidebar.h"
 #include "ConclusionSidebar.h"
+#include "Tasks/TaskPage.h"
 #include "AgentHistoryInbox.h"
 #include "WorkspaceAgentResume.h"
 
@@ -77,6 +78,13 @@ namespace winrt::TerminalApp::implementation
         MultipleTabs,
         Window,
         CloseAll
+    };
+
+    enum class WorkspaceToolPage : uint8_t
+    {
+        None,
+        Tasks,
+        Summary,
     };
 
     struct RenameWindowRequestedArgs : RenameWindowRequestedArgsT<RenameWindowRequestedArgs>
@@ -314,13 +322,16 @@ namespace winrt::TerminalApp::implementation
         TerminalApp::TabRowControl _tabRow{ nullptr };
         Windows::UI::Xaml::Controls::Grid _tabContent{ nullptr };
         TerminalApp::WorkspaceSidebar _workspaceSidebar{ nullptr };
+        TerminalApp::TaskPage _taskPage{ nullptr };
         TerminalApp::ConclusionSidebar _conclusionSidebar{ nullptr };
         Windows::UI::Xaml::Controls::ListView _workspaceList{ nullptr };
         Windows::UI::Xaml::Controls::Border _workspaceSurfaceTabBar{ nullptr };
         Windows::UI::Xaml::Controls::ListView _workspaceSurfaceTabs{ nullptr };
         Windows::UI::Xaml::Controls::Button _workspaceSurfaceNewTabButton{ nullptr };
         Windows::UI::Xaml::Controls::ListView _workspaceToolTabs{ nullptr };
-        bool _workspaceToolTabSelected{};
+        Windows::UI::Xaml::Controls::ListViewItem _workspaceTasksToolTab{ nullptr };
+        Windows::UI::Xaml::Controls::ListViewItem _workspaceSummaryToolTab{ nullptr };
+        WorkspaceToolPage _activeWorkspaceToolPage{ WorkspaceToolPage::None };
         Microsoft::UI::Xaml::Controls::SplitButton _newTabButton{ nullptr };
         Microsoft::UI::Xaml::Controls::SplitButton _workspaceNewTabButton{ nullptr };
         Windows::UI::Xaml::Controls::Button _workspaceNotificationButton{ nullptr };
@@ -478,7 +489,7 @@ namespace winrt::TerminalApp::implementation
         void _UpdateWorkspaceSidebarForWindowWidth(double width);
         void _Root_SizeChanged(const IInspectable& sender, const Windows::UI::Xaml::SizeChangedEventArgs& args);
         void _SyncWorkspaceSelection(const winrt::TerminalApp::Tab& tab);
-        void _SetWorkspaceToolTabSelected(bool selected);
+        void _SetWorkspaceToolPage(WorkspaceToolPage page);
         void _ApplyRestoredWorkspaceActiveSurfaces();
         bool _SelectWorkspace(const TerminalApp::WorkspaceItemViewModel& item);
         void _SynchronizeFlatTabOrder();

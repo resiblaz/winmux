@@ -517,8 +517,8 @@ namespace winrt::TerminalApp::implementation
                 item && realArgs.SurfaceIndex() < item.Surfaces().Size())
             {
                 const auto target = item.Surfaces().GetAt(realArgs.SurfaceIndex());
-                const auto restoreFocus = _workspaceToolTabSelected && target == _GetFocusedTab();
-                _SetWorkspaceToolTabSelected(false);
+                const auto restoreFocus = _activeWorkspaceToolPage != WorkspaceToolPage::None && target == _GetFocusedTab();
+                _SetWorkspaceToolPage(WorkspaceToolPage::None);
                 if (const auto tabIndex = _GetTabIndex(target))
                 {
                     _SelectTab(tabIndex.value());
@@ -545,7 +545,7 @@ namespace winrt::TerminalApp::implementation
             return;
         }
 
-        _SetWorkspaceToolTabSelected(true);
+        _SetWorkspaceToolPage(WorkspaceToolPage::Summary);
         args.Handled(true);
     }
 

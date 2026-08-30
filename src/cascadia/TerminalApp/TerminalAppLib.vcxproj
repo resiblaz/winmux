@@ -64,6 +64,12 @@
     <Page Include="ConclusionSidebar.xaml">
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Tasks\TaskPage.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Tasks\TaskDetailsPane.xaml">
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="TabHeaderControl.xaml">
       <SubType>Designer</SubType>
     </Page>
@@ -132,6 +138,20 @@
     <ClInclude Include="ConclusionSidebar.h">
       <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
     </ClInclude>
+    <ClInclude Include="Tasks\TaskPage.h">
+      <DependentUpon>TaskPage.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="Tasks\TaskDetailsPane.h">
+      <DependentUpon>TaskDetailsPane.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="Tasks\TaskPageViewModel.h">
+      <DependentUpon>TaskPageViewModel.idl</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="Tasks\TaskItemViewModel.h">
+      <DependentUpon>TaskItemViewModel.idl</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="Tasks\TaskProjection.h" />
+    <ClInclude Include="Tasks\ITaskProjectionSource.h" />
     <ClInclude Include="ConclusionMarkdownView.h">
       <DependentUpon>ConclusionMarkdownView.idl</DependentUpon>
     </ClInclude>
@@ -322,6 +342,19 @@
     <ClCompile Include="ConclusionSidebar.cpp">
       <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
     </ClCompile>
+    <ClCompile Include="Tasks\TaskPage.cpp">
+      <DependentUpon>TaskPage.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="Tasks\TaskDetailsPane.cpp">
+      <DependentUpon>TaskDetailsPane.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="Tasks\TaskPageViewModel.cpp">
+      <DependentUpon>TaskPageViewModel.idl</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="Tasks\TaskItemViewModel.cpp">
+      <DependentUpon>TaskItemViewModel.idl</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="Tasks\PrototypeTaskProjectionSource.cpp" />
     <ClCompile Include="ConclusionMarkdownView.cpp">
       <DependentUpon>ConclusionMarkdownView.idl</DependentUpon>
     </ClCompile>
@@ -458,6 +491,20 @@
     </Midl>
     <Midl Include="ConclusionSidebar.idl">
       <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="Tasks\TaskPage.idl">
+      <DependentUpon>TaskPage.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="Tasks\TaskDetailsPane.idl">
+      <DependentUpon>TaskDetailsPane.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="Tasks\TaskPageViewModel.idl">
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="Tasks\TaskItemViewModel.idl">
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="ConclusionMarkdownView.idl">
@@ -619,7 +666,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>..;%(AdditionalIncludeDirectories);</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(GeneratedFilesDir)Tasks;..;%(AdditionalIncludeDirectories);</AdditionalIncludeDirectories>
       <!-- Manually disable unreachable code warning, because jconcpp has a ton of that. -->
       <DisableSpecificWarnings>4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>

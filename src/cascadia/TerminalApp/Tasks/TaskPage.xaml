@@ -1,0 +1,377 @@
+<!--
+    Copyright (c) Microsoft Corporation. All rights reserved. Licensed under
+    the MIT License. See LICENSE in the project root for license information.
+-->
+<UserControl x:Class="TerminalApp.TaskPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="using:TerminalApp"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:mtu="using:Microsoft.Terminal.UI"
+             xmlns:mux="using:Microsoft.UI.Xaml.Controls"
+             d:DesignHeight="720"
+             d:DesignWidth="1280"
+             RequestedTheme="Dark"
+             mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="TaskListItemTemplate"
+                      x:DataType="local:TaskItemViewModel">
+            <Grid MinHeight="88"
+                  Padding="12,10"
+                  AutomationProperties.Name="{x:Bind AutomationName, Mode=OneTime}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="24" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Margin="0,2,0,0"
+                           Foreground="{ThemeResource WorkspaceChromeAccentBrush}"
+                           FontSize="14"
+                           Text="{x:Bind StatusGlyph, Mode=OneTime}" />
+                <StackPanel Grid.Column="1"
+                            Spacing="4">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="8">
+                        <TextBlock Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                                   FontFamily="Consolas"
+                                   FontSize="11"
+                                   Text="{x:Bind Id, Mode=OneTime}" />
+                        <Border Padding="6,1"
+                                Background="{ThemeResource WorkspaceChromeStatusFillBrush}"
+                                CornerRadius="8">
+                            <TextBlock Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}"
+                                       FontSize="11"
+                                       Text="{x:Bind StatusLabel, Mode=OneTime}" />
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               MaxLines="2"
+                               Text="{x:Bind Title, Mode=OneTime}"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="6">
+                        <TextBlock Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                                   FontSize="11"
+                                   Text="{x:Bind Workspace, Mode=OneTime}" />
+                        <TextBlock Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                                   FontSize="11"
+                                   Text="·" />
+                        <TextBlock Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                                   FontSize="11"
+                                   Text="{x:Bind UpdatedLabel, Mode=OneTime}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="7"
+                                Visibility="{x:Bind mtu:Converters.BooleanToVisibility(HasActiveRun), Mode=OneTime}">
+                        <ProgressRing Width="12"
+                                      Height="12"
+                                      IsActive="True" />
+                        <TextBlock Foreground="{ThemeResource WorkspaceChromeAccentBrush}"
+                                   FontSize="11"
+                                   Text="{x:Bind ActiveRunSummary, Mode=OneTime}" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid x:Name="Root"
+          Background="{ThemeResource WorkspaceChromeSurfaceBrush}"
+          KeyDown="_Root_KeyDown">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState x:Name="NarrowLayout">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="TasksSplitView.DisplayMode" Value="Overlay" />
+                        <Setter Target="TasksSplitView.IsPaneOpen" Value="False" />
+                        <Setter Target="PaneToggle.Visibility" Value="Visible" />
+                        <Setter Target="PageDescription.Visibility" Value="Collapsed" />
+                        <Setter Target="CurrentWorkspaceScope.(Grid.Row)" Value="0" />
+                        <Setter Target="CurrentWorkspaceScope.(Grid.Column)" Value="0" />
+                        <Setter Target="AllWorkspacesScope.(Grid.Row)" Value="0" />
+                        <Setter Target="AllWorkspacesScope.(Grid.Column)" Value="1" />
+                        <Setter Target="TaskSearchBox.(Grid.Row)" Value="1" />
+                        <Setter Target="TaskSearchBox.(Grid.Column)" Value="0" />
+                        <Setter Target="TaskSearchBox.(Grid.ColumnSpan)" Value="4" />
+                        <Setter Target="StatusFilter.(Grid.Row)" Value="2" />
+                        <Setter Target="StatusFilter.(Grid.Column)" Value="0" />
+                        <Setter Target="StatusFilter.(Grid.ColumnSpan)" Value="4" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="WideLayout">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="900" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="TasksSplitView.DisplayMode" Value="Inline" />
+                        <Setter Target="TasksSplitView.IsPaneOpen" Value="True" />
+                        <Setter Target="PaneToggle.Visibility" Value="Collapsed" />
+                        <Setter Target="PageDescription.Visibility" Value="Visible" />
+                        <Setter Target="CurrentWorkspaceScope.(Grid.Row)" Value="0" />
+                        <Setter Target="CurrentWorkspaceScope.(Grid.Column)" Value="0" />
+                        <Setter Target="AllWorkspacesScope.(Grid.Row)" Value="0" />
+                        <Setter Target="AllWorkspacesScope.(Grid.Column)" Value="1" />
+                        <Setter Target="TaskSearchBox.(Grid.Row)" Value="0" />
+                        <Setter Target="TaskSearchBox.(Grid.Column)" Value="2" />
+                        <Setter Target="TaskSearchBox.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="StatusFilter.(Grid.Row)" Value="0" />
+                        <Setter Target="StatusFilter.(Grid.Column)" Value="3" />
+                        <Setter Target="StatusFilter.(Grid.ColumnSpan)" Value="1" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Padding="20,14,20,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Button x:Name="PaneToggle"
+                    x:Uid="TaskPagePaneToggle"
+                    Width="36"
+                    Height="36"
+                    Margin="0,0,10,0"
+                    Padding="0"
+                    Click="_PaneToggle_Click"
+                    Content="&#xE700;"
+                    FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                    Visibility="Collapsed" />
+            <StackPanel Grid.Column="1">
+                <TextBlock x:Uid="TaskPageTitle"
+                           Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
+                           FontSize="24"
+                           FontWeight="SemiBold" />
+                <TextBlock x:Name="PageDescription"
+                           x:Uid="TaskPageDescription"
+                           Margin="0,3,0,0"
+                           Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                           FontSize="12" />
+            </StackPanel>
+            <Button x:Name="NewTaskButton"
+                    x:Uid="TaskPageNewTaskButton"
+                    Grid.Column="2"
+                    Click="_NewTask_Click"
+                    IsEnabled="{x:Bind ViewModel.IsSourceAttached, Mode=OneWay}" />
+        </Grid>
+
+        <Grid x:Name="FilterGrid"
+              Grid.Row="1"
+              Padding="20,0,20,12"
+              ColumnSpacing="8"
+              RowSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="180" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <RadioButton x:Name="CurrentWorkspaceScope"
+                         x:Uid="TaskPageCurrentWorkspaceScope"
+                         GroupName="TaskScope"
+                         IsChecked="True"
+                         Click="_CurrentWorkspaceScope_Click" />
+            <RadioButton x:Name="AllWorkspacesScope"
+                         x:Uid="TaskPageAllWorkspacesScope"
+                         Grid.Column="1"
+                         GroupName="TaskScope"
+                         Click="_AllWorkspacesScope_Click" />
+            <TextBox x:Name="TaskSearchBox"
+                     x:Uid="TaskPageSearchBox"
+                     Grid.Column="2"
+                     TextChanged="_Search_TextChanged" />
+            <ComboBox x:Name="StatusFilter"
+                      x:Uid="TaskPageStatusFilter"
+                      Grid.Column="3"
+                      SelectedIndex="0"
+                      SelectionChanged="_StatusFilter_SelectionChanged">
+                <ComboBoxItem x:Uid="TaskPageStatusOpen" />
+                <ComboBoxItem x:Uid="TaskPageStatusAll" />
+                <ComboBoxItem x:Uid="TaskPageStatusTodo" />
+                <ComboBoxItem x:Uid="TaskPageStatusInProgress" />
+                <ComboBoxItem x:Uid="TaskPageStatusInReview" />
+                <ComboBoxItem x:Uid="TaskPageStatusBlocked" />
+                <ComboBoxItem x:Uid="TaskPageStatusDone" />
+            </ComboBox>
+        </Grid>
+
+        <mux:InfoBar x:Uid="TaskPageSourceUnavailableInfo"
+                     Grid.Row="2"
+                     Margin="20,0,20,12"
+                     IsClosable="False"
+                     IsOpen="True"
+                     Severity="Informational"
+                     Visibility="{x:Bind mtu:Converters.InvertedBooleanToVisibility(ViewModel.IsSourceAttached), Mode=OneWay}" />
+
+        <mux:InfoBar x:Name="PrototypeSourceInfo"
+                     x:Uid="TaskPagePrototypeSourceInfo"
+                     Grid.Row="2"
+                     Margin="20,0,20,12"
+                     IsClosable="False"
+                     IsOpen="True"
+                     Severity="Informational"
+                     Visibility="Collapsed" />
+
+        <SplitView x:Name="TasksSplitView"
+                   Grid.Row="3"
+                   CompactPaneLength="0"
+                   DisplayMode="Inline"
+                   IsPaneOpen="True"
+                   OpenPaneLength="320"
+                   PaneBackground="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}"
+                   Visibility="{x:Bind mtu:Converters.BooleanToVisibility(ViewModel.IsSourceAttached), Mode=OneWay}">
+            <SplitView.Pane>
+                <Border BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
+                        BorderThickness="0,0,1,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Padding="14,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Uid="TaskPageListTitle"
+                                       Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
+                                       FontSize="14"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1"
+                                       Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                                       FontSize="11"
+                                       Text="{x:Bind ViewModel.TaskCountText, Mode=OneWay}" />
+                        </Grid>
+                        <ListView x:Name="TaskList"
+                                  x:Uid="TaskPageTaskList"
+                                  Grid.Row="1"
+                                  IsItemClickEnabled="False"
+                                  ItemTemplate="{StaticResource TaskListItemTemplate}"
+                                  ItemsSource="{x:Bind ViewModel.Tasks, Mode=OneWay}"
+                                  SelectionChanged="_TaskList_SelectionChanged"
+                                  SelectionMode="Single" />
+                    </Grid>
+                </Border>
+            </SplitView.Pane>
+            <SplitView.Content>
+                <Grid>
+                    <local:TaskDetailsPane x:Name="DetailsPane"
+                                           Task="{x:Bind ViewModel.SelectedTask, Mode=OneWay}" />
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="8"
+                                Visibility="{x:Bind mtu:Converters.BooleanToVisibility(ViewModel.IsEmpty), Mode=OneWay}">
+                        <FontIcon HorizontalAlignment="Center"
+                                  Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                                  FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                  FontSize="30"
+                                  Glyph="&#xE721;" />
+                        <TextBlock x:Uid="TaskPageEmptyTitle"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
+                                   FontSize="16"
+                                   FontWeight="SemiBold" />
+                        <TextBlock x:Uid="TaskPageEmptyBody"
+                                   Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </SplitView.Content>
+        </SplitView>
+
+        <Grid x:Name="DraftLayer"
+              Grid.RowSpan="4"
+              Padding="24"
+              Background="{ThemeResource WorkspaceChromeSurfaceBrush}"
+              Visibility="Collapsed">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel MaxWidth="760"
+                            HorizontalAlignment="Center"
+                            Spacing="16">
+                    <TextBlock x:Uid="TaskPageDraftTitle"
+                               Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
+                               FontSize="24"
+                               FontWeight="SemiBold" />
+                    <TextBlock x:Uid="TaskPageDraftDescription"
+                               Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                               TextWrapping="Wrap" />
+                    <TextBox x:Name="DraftTitle"
+                             x:Uid="TaskPageDraftTaskTitle" />
+                    <TextBox x:Name="DraftDescription"
+                             x:Uid="TaskPageDraftGoal"
+                             AcceptsReturn="True"
+                             MinHeight="120"
+                             TextWrapping="Wrap" />
+                    <TextBox x:Name="DraftAcceptance"
+                             x:Uid="TaskPageDraftAcceptance"
+                             AcceptsReturn="True"
+                             MinHeight="100"
+                             TextWrapping="Wrap" />
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="DraftWorkspace"
+                                  x:Uid="TaskPageDraftWorkspace"
+                                  HorizontalAlignment="Stretch"
+                                  SelectedIndex="0">
+                            <ComboBoxItem Content="win_terminal" />
+                            <ComboBoxItem Content="richerlife-api" />
+                            <ComboBoxItem Content="website" />
+                        </ComboBox>
+                        <ComboBox x:Name="DraftExecutionMode"
+                                  x:Uid="TaskPageDraftExecutionMode"
+                                  Grid.Column="1"
+                                  HorizontalAlignment="Stretch"
+                                  SelectedIndex="0">
+                            <ComboBoxItem x:Uid="TaskPageDraftWorktreeMode" />
+                            <ComboBoxItem x:Uid="TaskPageDraftDirectMode" />
+                        </ComboBox>
+                    </Grid>
+                    <Border Padding="14"
+                            Background="{ThemeResource WorkspaceChromeStatusFillBrush}"
+                            CornerRadius="8">
+                        <TextBlock x:Uid="TaskPageDraftConsent"
+                                   Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </Border>
+                    <StackPanel HorizontalAlignment="Right"
+                                Orientation="Horizontal"
+                                Spacing="8">
+                        <Button x:Uid="TaskPageDraftCancelButton"
+                                Click="_CancelDraft_Click" />
+                        <Button x:Uid="TaskPageDraftSaveButton"
+                                Click="_SaveDraft_Click"
+                                IsEnabled="{x:Bind ViewModel.IsSourceAttached, Mode=OneWay}" />
+                        <Button x:Uid="TaskPageDraftSaveRunButton"
+                                Click="_SaveAndRunDraft_Click"
+                                IsEnabled="{x:Bind ViewModel.IsSourceAttached, Mode=OneWay}" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

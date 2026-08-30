@@ -37,6 +37,10 @@
     <ClInclude Include="../TitlebarControl.h" />
     <ClInclude Include="../TabRowControl.h" />
     <ClInclude Include="../WorkspaceSidebar.h" />
+    <ClInclude Include="../Tasks/TaskPage.h" />
+    <ClInclude Include="../Tasks/TaskDetailsPane.h" />
+    <ClInclude Include="../Tasks/TaskPageViewModel.h" />
+    <ClInclude Include="../Tasks/TaskItemViewModel.h" />
     <ClInclude Include="../ConclusionMarkdownView.h" />
     <ClInclude Include="../AgentHistoryItem.h" />
     <ClInclude Include="../WorkspaceItemViewModel.h" />

@@ -84,7 +84,7 @@ namespace winrt::TerminalApp::implementation
 
         _SidebarController().Enabled = enabled;
         _SidebarController().LayoutInitialized = true;
-        _SetWorkspaceToolTabSelected(enabled && _workspaceToolTabSelected);
+        _SetWorkspaceToolPage(enabled ? _activeWorkspaceToolPage : WorkspaceToolPage::None);
         _workspaceFeatures->History().UpdateView();
         _UpdateWorkspaceTitleBar();
         _UpdateWorkspaceListeningPortsTimer();
@@ -323,22 +323,34 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void TerminalPage::_SetWorkspaceToolTabSelected(const bool selected)
+    void TerminalPage::_SetWorkspaceToolPage(const WorkspaceToolPage requestedPage)
     {
-        if (!_tabContent || !_conclusionSidebar)
+        if (!_tabContent || !_taskPage || !_conclusionSidebar)
         {
             return;
         }
 
-        _workspaceToolTabSelected = selected && _SidebarController().Enabled;
+        const auto page = _SidebarController().Enabled ? requestedPage : WorkspaceToolPage::None;
+        _activeWorkspaceToolPage = page;
         const auto wasSyncingSelection = std::exchange(_SidebarController().SyncingSelection, true);
         auto restoreSyncingSelection = wil::scope_exit([&]() noexcept { _SidebarController().SyncingSelection = wasSyncingSelection; });
 
         if (_workspaceToolTabs)
         {
-            _workspaceToolTabs.SelectedIndex(_workspaceToolTabSelected ? 0 : -1);
+            switch (page)
+            {
+            case WorkspaceToolPage::Tasks:
+                _workspaceToolTabs.SelectedItem(_workspaceTasksToolTab);
+                break;
+            case WorkspaceToolPage::Summary:
+                _workspaceToolTabs.SelectedItem(_workspaceSummaryToolTab);
+                break;
+            default:
+                _workspaceToolTabs.SelectedIndex(-1);
+                break;
+            }
         }
-        if (_workspaceToolTabSelected && _workspaceSurfaceTabs)
+        if (page != WorkspaceToolPage::None && _workspaceSurfaceTabs)
         {
             _workspaceSurfaceTabs.SelectedIndex(-1);
         }
@@ -350,16 +362,38 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
-        _tabContent.Visibility(_workspaceToolTabSelected ? Visibility::Collapsed : Visibility::Visible);
-        _conclusionSidebar.Visibility(_workspaceToolTabSelected ? Visibility::Visible : Visibility::Collapsed);
+        _tabContent.Visibility(page == WorkspaceToolPage::None ? Visibility::Visible : Visibility::Collapsed);
+        _taskPage.Visibility(page == WorkspaceToolPage::Tasks ? Visibility::Visible : Visibility::Collapsed);
+        _conclusionSidebar.Visibility(page == WorkspaceToolPage::Summary ? Visibility::Visible : Visibility::Collapsed);
 
-        if (_workspaceToolTabSelected)
+        if (page != WorkspaceToolPage::None)
         {
             for (const auto& tab : _tabs)
             {
                 tab.Focus(FocusState::Unfocused);
             }
+        }
+
+        if (page == WorkspaceToolPage::Tasks)
+        {
+            const auto taskPage = winrt::get_self<implementation::TaskPage>(_taskPage);
+            if (const auto workspace = _WorkspaceItemForTab(_GetFocusedTab()))
+            {
+                taskPage->SetCurrentWorkspace(workspace.WorkspaceId(), workspace.GitRepositoryRoot(), workspace.WorkingDirectory());
+            }
+            taskPage->Refresh();
+            if (_workspaceTasksToolTab)
+            {
+                _workspaceTasksToolTab.Focus(FocusState::Programmatic);
+            }
+        }
+        else if (page == WorkspaceToolPage::Summary)
+        {
             _workspaceFeatures->History().UpdateView();
+            if (_workspaceSummaryToolTab)
+            {
+                _workspaceSummaryToolTab.Focus(FocusState::Programmatic);
+            }
         }
     }
 
@@ -639,10 +673,15 @@ namespace winrt::TerminalApp::implementation
         {
             if (const auto tab = list.SelectedItem().try_as<TerminalApp::Tab>())
             {
-                _SetWorkspaceToolTabSelected(false);
+                const auto restoreFocus = _activeWorkspaceToolPage != WorkspaceToolPage::None && tab == _GetFocusedTab();
+                _SetWorkspaceToolPage(WorkspaceToolPage::None);
                 if (const auto tabIndex = _GetTabIndex(tab))
                 {
                     _SelectTab(tabIndex.value());
+                    if (restoreFocus)
+                    {
+                        tab.Focus(FocusState::Programmatic);
+                    }
                 }
             }
         }
@@ -674,9 +713,17 @@ namespace winrt::TerminalApp::implementation
             return;
         }
 
-        if (const auto list = sender.try_as<ListView>(); list && list.SelectedIndex() >= 0)
+        if (const auto list = sender.try_as<ListView>())
         {
-            _SetWorkspaceToolTabSelected(true);
+            const auto selected = list.SelectedItem();
+            if (selected == _workspaceTasksToolTab)
+            {
+                _SetWorkspaceToolPage(WorkspaceToolPage::Tasks);
+            }
+            else if (selected == _workspaceSummaryToolTab)
+            {
+                _SetWorkspaceToolPage(WorkspaceToolPage::Summary);
+            }
         }
     }
 

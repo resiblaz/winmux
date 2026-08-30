@@ -198,7 +198,21 @@
                                 <ItemsStackPanel Orientation="Horizontal" />
                             </ItemsPanelTemplate>
                         </ListView.ItemsPanel>
-                        <ListViewItem x:Uid="WorkspaceConclusionTab"
+                        <ListViewItem x:Name="WorkspaceTasksToolTab"
+                                      x:Uid="WorkspaceTasksTab"
+                                      Width="36"
+                                      MinWidth="36"
+                                      Style="{StaticResource WorkspaceSurfaceTabItemStyle}">
+                            <Grid Width="36"
+                                  Height="30">
+                                <FontIcon VerticalAlignment="Center"
+                                          FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                          FontSize="12"
+                                          Glyph="&#xE9D5;" />
+                            </Grid>
+                        </ListViewItem>
+                        <ListViewItem x:Name="WorkspaceSummaryToolTab"
+                                      x:Uid="WorkspaceConclusionTab"
                                       Width="36"
                                       MinWidth="36"
                                       Style="{StaticResource WorkspaceSurfaceTabItemStyle}">
@@ -222,6 +236,12 @@
                     <ImageBrush />
                 </Grid.Background>
             </Grid>
+
+            <local:TaskPage x:Name="TasksPage"
+                            Grid.Row="1"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            Visibility="Collapsed" />
 
             <local:ConclusionSidebar x:Name="ConclusionSidebar"
                                      Grid.Row="1"

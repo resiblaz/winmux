@@ -218,6 +218,8 @@ namespace winrt::TerminalApp::implementation
         _tabRow = this->TabRow();
         _tabView = _tabRow.TabView();
         _workspaceSidebar = this->WorkspaceSidebar();
+        _taskPage = this->TasksPage();
+        winrt::get_self<implementation::TaskPage>(_taskPage)->AttachProjectionSource(tasks::MakePrototypeTaskProjectionSource());
         _conclusionSidebar = this->ConclusionSidebar();
         winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->SetTabContentMode(true);
         _workspaceFeatures->History().Attach(_conclusionSidebar);
@@ -226,6 +228,8 @@ namespace winrt::TerminalApp::implementation
         _workspaceSurfaceTabs = this->WorkspaceSurfaceTabs();
         _workspaceSurfaceNewTabButton = this->WorkspaceSurfaceNewTabButton();
         _workspaceToolTabs = this->WorkspaceToolTabs();
+        _workspaceTasksToolTab = this->WorkspaceTasksToolTab();
+        _workspaceSummaryToolTab = this->WorkspaceSummaryToolTab();
         _workspaceList.ItemsSource(_WorkspaceItems());
         _workspaceItemsChangedRevoker = _WorkspaceItems().VectorChanged(winrt::auto_revoke, [weakThis{ get_weak() }](auto&&, auto&&) {
             if (const auto page = weakThis.get())

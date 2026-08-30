@@ -1360,4 +1360,134 @@
   <data name="ConclusionSidebar_UntitledSession" xml:space="preserve">
     <value>未命名会话</value>
   </data>
+  <data name="WorkspaceTasksTab.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>任务</value></data>
+  <data name="WorkspaceTasksTab.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>任务</value></data>
+  <data name="TaskPageTitle.Text" xml:space="preserve"><value>Tasks</value></data>
+  <data name="TaskPageDescription.Text" xml:space="preserve"><value>把目标、执行过程与验收结果留在当前工作区。</value></data>
+  <data name="TaskPageNewTaskButton.Content" xml:space="preserve"><value>新建任务</value></data>
+  <data name="TaskPagePaneToggle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>显示任务列表</value></data>
+  <data name="TaskPageCurrentWorkspaceScope.Content" xml:space="preserve"><value>当前 Workspace</value></data>
+  <data name="TaskPageAllWorkspacesScope.Content" xml:space="preserve"><value>全部 Workspace</value></data>
+  <data name="TaskPageSearchBox.PlaceholderText" xml:space="preserve"><value>搜索任务、编号或工作区</value></data>
+  <data name="TaskPageSearchBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>搜索任务</value></data>
+  <data name="TaskPageStatusFilter.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>任务状态筛选</value></data>
+  <data name="TaskPageStatusOpen.Content" xml:space="preserve"><value>未完成</value></data>
+  <data name="TaskPageStatusAll.Content" xml:space="preserve"><value>全部状态</value></data>
+  <data name="TaskPageStatusTodo.Content" xml:space="preserve"><value>待处理</value></data>
+  <data name="TaskPageStatusInProgress.Content" xml:space="preserve"><value>进行中</value></data>
+  <data name="TaskPageStatusInReview.Content" xml:space="preserve"><value>待验收</value></data>
+  <data name="TaskPageStatusBlocked.Content" xml:space="preserve"><value>受阻</value></data>
+  <data name="TaskPageStatusDone.Content" xml:space="preserve"><value>已完成</value></data>
+  <data name="TaskPageSourceUnavailableInfo.Title" xml:space="preserve"><value>Task Runtime 尚未连接</value></data>
+  <data name="TaskPageSourceUnavailableInfo.Message" xml:space="preserve"><value>页面骨架已就绪，连接任务投影源后会显示任务。</value></data>
+  <data name="TaskPagePrototypeSourceInfo.Title" xml:space="preserve"><value>UI 骨架 · 示例数据</value></data>
+  <data name="TaskPagePrototypeSourceInfo.Message" xml:space="preserve"><value>Task Runtime 尚未接入；当前页面操作只影响内存中的示例投影。</value></data>
+  <data name="TaskPageListTitle.Text" xml:space="preserve"><value>任务</value></data>
+  <data name="TaskPageTaskList.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>任务列表</value></data>
+  <data name="TaskPageEmptyTitle.Text" xml:space="preserve"><value>没有符合条件的任务</value></data>
+  <data name="TaskPageEmptyBody.Text" xml:space="preserve"><value>调整筛选条件或新建任务。</value></data>
+  <data name="TaskPageStartTaskButton.Content" xml:space="preserve"><value>交给 Codex</value></data>
+  <data name="TaskPageStopTaskButton.Content" xml:space="preserve"><value>停止（Esc）</value></data>
+  <data name="TaskPageOpenTerminalButton.Content" xml:space="preserve"><value>打开终端</value></data>
+  <data name="TaskPageCloseTaskButton.Content" xml:space="preserve"><value>关闭任务终端</value></data>
+  <data name="TaskPageMarkDoneButton.Content" xml:space="preserve"><value>确认完成</value></data>
+  <data name="TaskPageReopenTaskButton.Content" xml:space="preserve"><value>重新打开</value></data>
+  <data name="TaskPageActiveRunTitle.Text" xml:space="preserve"><value>活动 TaskRun</value></data>
+  <data name="TaskPageGoalTitle.Text" xml:space="preserve"><value>目标与背景</value></data>
+  <data name="TaskPageAcceptanceTitle.Text" xml:space="preserve"><value>验收条件</value></data>
+  <data name="TaskPageResultTitle.Text" xml:space="preserve"><value>结果</value></data>
+  <data name="TaskPageExecutionLogTitle.Text" xml:space="preserve"><value>执行记录</value></data>
+  <data name="TaskPageFollowupInput.PlaceholderText" xml:space="preserve"><value>补充要求，或告诉 Codex 下一步……</value></data>
+  <data name="TaskPageQueueFollowupButton.Content" xml:space="preserve"><value>发送给 Codex</value></data>
+  <data name="TaskPageQueueFollowupButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>连接 Task Runtime 后启用跟进消息。</value></data>
+  <data name="TaskPagePropertiesTitle.Text" xml:space="preserve"><value>属性</value></data>
+  <data name="TaskPageWorkspaceProperty.Text" xml:space="preserve"><value>Workspace</value></data>
+  <data name="TaskPageExecutionModeProperty.Text" xml:space="preserve"><value>执行方式</value></data>
+  <data name="TaskPageTerminalProperty.Text" xml:space="preserve"><value>终端</value></data>
+  <data name="TaskPageWorktreeProperty.Text" xml:space="preserve"><value>Worktree</value></data>
+  <data name="TaskPageBranchProperty.Text" xml:space="preserve"><value>分支</value></data>
+  <data name="TaskPageDirectoryProperty.Text" xml:space="preserve"><value>工作目录</value></data>
+  <data name="TaskPageDraftTitle.Text" xml:space="preserve"><value>新建任务</value></data>
+  <data name="TaskPageDraftDescription.Text" xml:space="preserve"><value>保存只创建任务记录；保存并运行会在持久化后准备执行环境。</value></data>
+  <data name="TaskPageDraftTaskTitle.Header" xml:space="preserve"><value>标题</value></data>
+  <data name="TaskPageDraftTaskTitle.PlaceholderText" xml:space="preserve"><value>要完成什么？</value></data>
+  <data name="TaskPageDraftGoal.Header" xml:space="preserve"><value>目标与背景</value></data>
+  <data name="TaskPageDraftGoal.PlaceholderText" xml:space="preserve"><value>描述目标、上下文和边界……</value></data>
+  <data name="TaskPageDraftAcceptance.Header" xml:space="preserve"><value>验收条件</value></data>
+  <data name="TaskPageDraftAcceptance.PlaceholderText" xml:space="preserve"><value>每行一项验收条件</value></data>
+  <data name="TaskPageDraftWorkspace.Header" xml:space="preserve"><value>Workspace</value></data>
+  <data name="TaskPageDraftExecutionMode.Header" xml:space="preserve"><value>执行方式</value></data>
+  <data name="TaskPageDraftWorktreeMode.Content" xml:space="preserve"><value>Task 专属 Worktree（Git 默认）</value></data>
+  <data name="TaskPageDraftDirectMode.Content" xml:space="preserve"><value>Direct（托管串行执行）</value></data>
+  <data name="TaskPageDraftConsent.Text" xml:space="preserve"><value>Agent 将读取并修改所选目录。Worktree 模式会在执行前快照当前仓库状态。</value></data>
+  <data name="TaskPageDraftCancelButton.Content" xml:space="preserve"><value>取消</value></data>
+  <data name="TaskPageDraftSaveButton.Content" xml:space="preserve"><value>仅保存</value></data>
+  <data name="TaskPageDraftSaveRunButton.Content" xml:space="preserve"><value>保存并运行</value></data>
+  <data name="TaskPage_StatusBacklog" xml:space="preserve"><value>待规划</value></data>
+  <data name="TaskPage_StatusTodo" xml:space="preserve"><value>待处理</value></data>
+  <data name="TaskPage_StatusInProgress" xml:space="preserve"><value>进行中</value></data>
+  <data name="TaskPage_StatusInReview" xml:space="preserve"><value>待验收</value></data>
+  <data name="TaskPage_StatusBlocked" xml:space="preserve"><value>受阻</value></data>
+  <data name="TaskPage_StatusDone" xml:space="preserve"><value>已完成</value></data>
+  <data name="TaskPage_StatusCancelled" xml:space="preserve"><value>已取消</value></data>
+  <data name="TaskPage_PriorityLow" xml:space="preserve"><value>低优先级</value></data>
+  <data name="TaskPage_PriorityMedium" xml:space="preserve"><value>中优先级</value></data>
+  <data name="TaskPage_PriorityHigh" xml:space="preserve"><value>高优先级</value></data>
+  <data name="TaskPage_TerminalNotCreated" xml:space="preserve"><value>尚未创建</value></data>
+  <data name="TaskPage_TerminalStarting" xml:space="preserve"><value>正在创建</value></data>
+  <data name="TaskPage_TerminalReady" xml:space="preserve"><value>已就绪</value></data>
+  <data name="TaskPage_TerminalBusy" xml:space="preserve"><value>执行中</value></data>
+  <data name="TaskPage_TerminalSuspended" xml:space="preserve"><value>已挂起</value></data>
+  <data name="TaskPage_TerminalClosed" xml:space="preserve"><value>已关闭</value></data>
+  <data name="TaskPage_TerminalError" xml:space="preserve"><value>错误</value></data>
+  <data name="TaskPage_TaskCountFormat" xml:space="preserve"><value>{} 项</value></data>
+  <data name="TaskPage_AcceptanceSummaryFormat" xml:space="preserve"><value>{}/{} 项验收条件</value></data>
+  <data name="TaskPage_TaskAutomationNameFormat" xml:space="preserve"><value>{}，{}，{}，工作区 {}</value></data>
+  <data name="TaskPage_WorktreeExecutionMode" xml:space="preserve"><value>Worktree · Task 专属</value></data>
+  <data name="TaskPage_DirectExecutionMode" xml:space="preserve"><value>Direct · 托管串行</value></data>
+  <data name="TaskPage_NotApplicable" xml:space="preserve"><value>不适用</value></data>
+  <data name="TaskPage_CurrentBranch" xml:space="preserve"><value>当前分支</value></data>
+  <data name="TaskPage_UpdatedJustNow" xml:space="preserve"><value>刚刚</value></data>
+  <data name="TaskPage_UpdatedThirtyFourMinutes" xml:space="preserve"><value>34 分钟前</value></data>
+  <data name="TaskPage_UpdatedFourHours" xml:space="preserve"><value>4 小时前</value></data>
+  <data name="TaskPage_UpdatedEightHours" xml:space="preserve"><value>8 小时前</value></data>
+  <data name="TaskPage_UpdatedYesterday" xml:space="preserve"><value>昨天</value></data>
+  <data name="TaskPage_NewTaskStarting" xml:space="preserve"><value>正在准备执行环境</value></data>
+  <data name="TaskPage_NewTaskRunQueued" xml:space="preserve"><value>TaskRun 已排队 · 等待原型 Runtime 适配器</value></data>
+  <data name="TaskPage_RunStopped" xml:space="preserve"><value>TaskRun 已通过语义 Esc 停止 · 终端保留</value></data>
+  <data name="TaskPage_RunStoppedForClose" xml:space="preserve"><value>TaskRun 已停止且任务终端已关闭 · 历史保留</value></data>
+  <data name="TaskPage_CloseActiveTitle" xml:space="preserve"><value>关闭任务终端？</value></data>
+  <data name="TaskPage_CloseActiveBody" xml:space="preserve"><value>活动 TaskRun 将被停止；Task、Worktree、检查点、排队消息与历史都会保留。</value></data>
+  <data name="TaskPage_CloseActiveConfirm" xml:space="preserve"><value>停止并关闭</value></data>
+  <data name="TaskPage_CloseActiveCancel" xml:space="preserve"><value>继续运行</value></data>
+  <data name="TaskPage_SampleActiveTitle" xml:space="preserve"><value>实现 Tasks 固定页骨架与任务流转</value></data>
+  <data name="TaskPage_SampleActiveDescription" xml:space="preserve"><value>在 Summary 旁增加固定 Tasks 页面，同时保持终端 Surface 独立。目标、验收条件、运行和复核都集中在同一个详情视图。</value></data>
+  <data name="TaskPage_SampleActiveRun" xml:space="preserve"><value>正在构建原生 Tasks 页面骨架</value></data>
+  <data name="TaskPage_SampleAcceptanceFixedPages" xml:space="preserve"><value>Tasks 与 Summary 是平级固定页</value></data>
+  <data name="TaskPage_SampleAcceptanceSeparateState" xml:space="preserve"><value>Task 与 TaskRun 状态分别展示</value></data>
+  <data name="TaskPage_SampleAcceptanceRetry" xml:space="preserve"><value>重试创建新的不可变运行记录</value></data>
+  <data name="TaskPage_SampleAcceptanceReview" xml:space="preserve"><value>验收后仅由用户确认 Done</value></data>
+  <data name="TaskPage_SampleRunActive" xml:space="preserve"><value>运行 #2 · 进行中 · 原生页面实现</value></data>
+  <data name="TaskPage_SampleRunFailed" xml:space="preserve"><value>运行 #1 · 失败 · 预览端口不可用</value></data>
+  <data name="TaskPage_SampleReviewTitle" xml:space="preserve"><value>修复 Ctrl+N 新建 Workspace 的快捷键行为</value></data>
+  <data name="TaskPage_SampleReviewDescription" xml:space="preserve"><value>确保 Ctrl+N 创建 Workspace，而不是打开终端 Surface。</value></data>
+  <data name="TaskPage_SampleReviewResult" xml:space="preserve"><value>快捷键路由已修复，测试通过，等待用户验收。</value></data>
+  <data name="TaskPage_SampleReviewAcceptanceShortcut" xml:space="preserve"><value>Ctrl+N 创建 Workspace</value></data>
+  <data name="TaskPage_SampleReviewAcceptanceTests" xml:space="preserve"><value>快捷键自动化测试通过</value></data>
+  <data name="TaskPage_SampleRunCompleted" xml:space="preserve"><value>运行 #1 · 已完成 · 等待验收</value></data>
+  <data name="TaskPage_SampleTodoTitle" xml:space="preserve"><value>同步 Microsoft Terminal 上游更新</value></data>
+  <data name="TaskPage_SampleTodoDescription" xml:space="preserve"><value>通过受控同步流程把渲染、稳定性与 Bug 修复带入当前 fork。</value></data>
+  <data name="TaskPage_SampleTodoAcceptanceReport" xml:space="preserve"><value>生成上游漂移报告</value></data>
+  <data name="TaskPage_SampleTodoAcceptanceConflicts" xml:space="preserve"><value>逐项解决 Workspace 与 Surface 热点冲突</value></data>
+  <data name="TaskPage_SampleTodoAcceptanceGate" xml:space="preserve"><value>通过统一 Release 门禁</value></data>
+  <data name="TaskPage_SampleRunNeedsReview" xml:space="preserve"><value>运行 #1 · 失败 · 合并策略需要复核</value></data>
+  <data name="TaskPage_SampleBlockedTitle" xml:space="preserve"><value>凭据恢复后执行发布验证</value></data>
+  <data name="TaskPage_SampleBlockedDescription" xml:space="preserve"><value>测试环境当前不可用，保留上下文，等待访问恢复。</value></data>
+  <data name="TaskPage_SampleBlockedAcceptanceAccess" xml:space="preserve"><value>恢复测试环境访问</value></data>
+  <data name="TaskPage_SampleBlockedAcceptanceSmoke" xml:space="preserve"><value>部署冒烟测试通过</value></data>
+  <data name="TaskPage_SampleDoneTitle" xml:space="preserve"><value>Workspace Sidebar 不显示终端数量</value></data>
+  <data name="TaskPage_SampleDoneDescription" xml:space="preserve"><value>Sidebar 只表示 Workspace 层级，不强调终端 Surface 数量。</value></data>
+  <data name="TaskPage_SampleDoneResult" xml:space="preserve"><value>Workspace Sidebar 已保持 Workspace-only。</value></data>
+  <data name="TaskPage_SampleDoneAcceptanceWorkspaceOnly" xml:space="preserve"><value>Sidebar 保持 Workspace-only</value></data>
+  <data name="TaskPage_SampleDoneAcceptanceNoCount" xml:space="preserve"><value>不显示 Surface 数量</value></data>
 </root>

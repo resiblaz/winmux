@@ -1,0 +1,38 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+namespace TerminalApp
+{
+    runtimeclass TaskItemViewModel
+    {
+        TaskItemViewModel();
+
+        String Id { get; };
+        String Workspace { get; };
+        String Title { get; };
+        String Description { get; };
+        String StatusLabel { get; };
+        String StatusGlyph { get; };
+        String PriorityLabel { get; };
+        String UpdatedLabel { get; };
+        String AcceptanceSummary { get; };
+        String ExecutionMode { get; };
+        String TerminalLabel { get; };
+        String WorkingDirectory { get; };
+        String Worktree { get; };
+        String Branch { get; };
+        String Result { get; };
+        String ActiveRunSummary { get; };
+        String AutomationName { get; };
+        Boolean HasActiveRun { get; };
+        Boolean HasResult { get; };
+        Boolean CanStart { get; };
+        Boolean CanStop { get; };
+        Boolean CanOpenTerminal { get; };
+        Boolean CanCloseTerminal { get; };
+        Boolean CanMarkDone { get; };
+        Boolean CanReopen { get; };
+        Windows.Foundation.Collections.IObservableVector<String> AcceptanceItems { get; };
+        Windows.Foundation.Collections.IObservableVector<String> RunItems { get; };
+    }
+}

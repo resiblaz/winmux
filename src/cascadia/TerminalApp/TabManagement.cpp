@@ -1230,7 +1230,7 @@ namespace winrt::TerminalApp::implementation
 
         try
         {
-            _SetWorkspaceToolTabSelected(false);
+            _SetWorkspaceToolPage(WorkspaceToolPage::None);
             _tabContent.Children().Clear();
             _tabContent.Children().Append(tab.Content());
             _SyncWorkspaceSelection(tab);
@@ -1483,6 +1483,11 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_FocusCurrentTab(const bool focusAlways)
     {
+        if (_activeWorkspaceToolPage != WorkspaceToolPage::None)
+        {
+            return;
+        }
+
         // We don't want to set focus on the tab if fly-out is open as it will
         // be closed TODO GH#5400: consider checking we are not in the opening
         // state, by hooking both Opening and Open events

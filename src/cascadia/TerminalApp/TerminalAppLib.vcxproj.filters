@@ -50,6 +50,21 @@
     <ClCompile Include="ConclusionSidebar.cpp">
       <Filter>controls</Filter>
     </ClCompile>
+    <ClCompile Include="Tasks\TaskPage.cpp">
+      <Filter>tasks</Filter>
+    </ClCompile>
+    <ClCompile Include="Tasks\TaskDetailsPane.cpp">
+      <Filter>tasks</Filter>
+    </ClCompile>
+    <ClCompile Include="Tasks\TaskPageViewModel.cpp">
+      <Filter>tasks</Filter>
+    </ClCompile>
+    <ClCompile Include="Tasks\TaskItemViewModel.cpp">
+      <Filter>tasks</Filter>
+    </ClCompile>
+    <ClCompile Include="Tasks\PrototypeTaskProjectionSource.cpp">
+      <Filter>tasks</Filter>
+    </ClCompile>
     <ClCompile Include="ConclusionMarkdownView.cpp">
       <Filter>controls</Filter>
     </ClCompile>
@@ -129,6 +144,24 @@
     </ClInclude>
     <ClInclude Include="ConclusionSidebar.h">
       <Filter>controls</Filter>
+    </ClInclude>
+    <ClInclude Include="Tasks\TaskPage.h">
+      <Filter>tasks</Filter>
+    </ClInclude>
+    <ClInclude Include="Tasks\TaskDetailsPane.h">
+      <Filter>tasks</Filter>
+    </ClInclude>
+    <ClInclude Include="Tasks\TaskPageViewModel.h">
+      <Filter>tasks</Filter>
+    </ClInclude>
+    <ClInclude Include="Tasks\TaskItemViewModel.h">
+      <Filter>tasks</Filter>
+    </ClInclude>
+    <ClInclude Include="Tasks\TaskProjection.h">
+      <Filter>tasks</Filter>
+    </ClInclude>
+    <ClInclude Include="Tasks\ITaskProjectionSource.h">
+      <Filter>tasks</Filter>
     </ClInclude>
     <ClInclude Include="ConclusionMarkdownView.h">
       <Filter>controls</Filter>
@@ -214,6 +247,18 @@
     <Midl Include="ConclusionSidebar.idl">
       <Filter>controls</Filter>
     </Midl>
+    <Midl Include="Tasks\TaskPage.idl">
+      <Filter>tasks</Filter>
+    </Midl>
+    <Midl Include="Tasks\TaskDetailsPane.idl">
+      <Filter>tasks</Filter>
+    </Midl>
+    <Midl Include="Tasks\TaskPageViewModel.idl">
+      <Filter>tasks</Filter>
+    </Midl>
+    <Midl Include="Tasks\TaskItemViewModel.idl">
+      <Filter>tasks</Filter>
+    </Midl>
     <Midl Include="ConclusionMarkdownView.idl">
       <Filter>controls</Filter>
     </Midl>
@@ -245,6 +290,12 @@
     </Page>
     <Page Include="ConclusionSidebar.xaml">
       <Filter>controls</Filter>
+    </Page>
+    <Page Include="Tasks\TaskPage.xaml">
+      <Filter>tasks</Filter>
+    </Page>
+    <Page Include="Tasks\TaskDetailsPane.xaml">
+      <Filter>tasks</Filter>
     </Page>
     <Page Include="TitlebarControl.xaml">
       <Filter>controls</Filter>
@@ -293,6 +344,9 @@
     </Filter>
     <Filter Include="workspace">
       <UniqueIdentifier>{ad450625-38da-48c5-9021-94986140d481}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tasks">
+      <UniqueIdentifier>{7b3d76aa-0e9f-4b08-9fb1-1d53e25b50b9}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

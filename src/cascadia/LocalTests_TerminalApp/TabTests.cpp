@@ -471,25 +471,38 @@ namespace TerminalAppLocalTests
             const auto newTerminalGlyph = winrt::unbox_value<winrt::hstring>(page->_workspaceSurfaceNewTabButton.Content());
             VERIFY_IS_TRUE(std::wstring_view{ newTerminalGlyph } == L"\uE756");
             VERIFY_IS_NOT_NULL(page->_workspaceToolTabs);
-            VERIFY_ARE_EQUAL(1u, page->_workspaceToolTabs.Items().Size());
-            const auto conclusionItem = page->_workspaceToolTabs.Items().GetAt(0).as<ListViewItem>();
+            VERIFY_ARE_EQUAL(2u, page->_workspaceToolTabs.Items().Size());
+            const auto tasksItem = page->_workspaceToolTabs.Items().GetAt(0).as<ListViewItem>();
+            const auto tasksContent = tasksItem.Content().as<Grid>();
+            VERIFY_ARE_EQUAL(36.0, tasksItem.Width());
+            VERIFY_ARE_EQUAL(1u, tasksContent.Children().Size());
+            VERIFY_IS_NOT_NULL(tasksContent.Children().GetAt(0).try_as<FontIcon>());
+            const auto conclusionItem = page->_workspaceToolTabs.Items().GetAt(1).as<ListViewItem>();
             const auto conclusionContent = conclusionItem.Content().as<Grid>();
             VERIFY_ARE_EQUAL(36.0, conclusionItem.Width());
             VERIFY_ARE_EQUAL(1u, conclusionContent.Children().Size());
             VERIFY_IS_NOT_NULL(conclusionContent.Children().GetAt(0).try_as<FontIcon>());
             VERIFY_ARE_EQUAL(-1, page->_workspaceToolTabs.SelectedIndex());
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_tabContent.Visibility());
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_taskPage.Visibility());
             VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_conclusionSidebar.Visibility());
 
             page->_workspaceToolTabs.SelectedIndex(0);
-            VERIFY_IS_TRUE(page->_workspaceToolTabSelected);
+            VERIFY_IS_TRUE(page->_activeWorkspaceToolPage == winrt::TerminalApp::implementation::WorkspaceToolPage::Tasks);
             VERIFY_ARE_EQUAL(-1, page->_workspaceSurfaceTabs.SelectedIndex());
             VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_tabContent.Visibility());
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_taskPage.Visibility());
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_conclusionSidebar.Visibility());
+
+            page->_workspaceToolTabs.SelectedIndex(1);
+            VERIFY_IS_TRUE(page->_activeWorkspaceToolPage == winrt::TerminalApp::implementation::WorkspaceToolPage::Summary);
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_taskPage.Visibility());
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_conclusionSidebar.Visibility());
 
             page->_workspaceSurfaceTabs.SelectedItem(workspaceItem.SourceTab());
-            VERIFY_IS_FALSE(page->_workspaceToolTabSelected);
+            VERIFY_IS_TRUE(page->_activeWorkspaceToolPage == winrt::TerminalApp::implementation::WorkspaceToolPage::None);
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_tabContent.Visibility());
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_taskPage.Visibility());
             VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_conclusionSidebar.Visibility());
             sidebar->ShowSwitchHints(true);
             const std::wstring_view shortcut{ workspaceItem.SwitchShortcutText() };
@@ -634,19 +647,19 @@ namespace TerminalAppLocalTests
             };
 
             VERIFY_IS_TRUE(switchConclusion());
-            VERIFY_IS_TRUE(page->_workspaceToolTabSelected);
+            VERIFY_IS_TRUE(page->_activeWorkspaceToolPage == winrt::TerminalApp::implementation::WorkspaceToolPage::Summary);
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_conclusionSidebar.Visibility());
 
             VERIFY_IS_TRUE(switchSurface(0));
-            VERIFY_IS_FALSE(page->_workspaceToolTabSelected);
+            VERIFY_IS_TRUE(page->_activeWorkspaceToolPage == winrt::TerminalApp::implementation::WorkspaceToolPage::None);
             VERIFY_ARE_EQUAL(workspace.Surfaces().GetAt(0), page->_GetFocusedTab());
             VERIFY_IS_TRUE(switchSurface(1));
             VERIFY_ARE_EQUAL(workspace.Surfaces().GetAt(1), page->_GetFocusedTab());
 
             VERIFY_IS_TRUE(switchConclusion());
-            VERIFY_IS_TRUE(page->_workspaceToolTabSelected);
+            VERIFY_IS_TRUE(page->_activeWorkspaceToolPage == winrt::TerminalApp::implementation::WorkspaceToolPage::Summary);
             VERIFY_IS_TRUE(switchSurface(1));
-            VERIFY_IS_FALSE(page->_workspaceToolTabSelected);
+            VERIFY_IS_TRUE(page->_activeWorkspaceToolPage == winrt::TerminalApp::implementation::WorkspaceToolPage::None);
             VERIFY_ARE_EQUAL(workspace.Surfaces().GetAt(1), page->_GetFocusedTab());
 
             const auto selectedTab = page->_GetFocusedTab();

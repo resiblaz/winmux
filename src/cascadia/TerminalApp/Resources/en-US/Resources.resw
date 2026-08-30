@@ -1471,4 +1471,156 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="ConclusionSidebar_UntitledSession" xml:space="preserve">
     <value>Untitled session</value>
   </data>
+  <data name="WorkspaceTasksTab.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Tasks</value>
+  </data>
+  <data name="WorkspaceTasksTab.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Tasks</value>
+  </data>
+  <data name="TaskPageTitle.Text" xml:space="preserve">
+    <value>Tasks</value>
+  </data>
+  <data name="TaskPageDescription.Text" xml:space="preserve">
+    <value>Keep goals, execution, and review in the current workspace.</value>
+  </data>
+  <data name="TaskPageNewTaskButton.Content" xml:space="preserve">
+    <value>New task</value>
+  </data>
+  <data name="TaskPagePaneToggle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Show task list</value>
+  </data>
+  <data name="TaskPageCurrentWorkspaceScope.Content" xml:space="preserve">
+    <value>Current workspace</value>
+  </data>
+  <data name="TaskPageAllWorkspacesScope.Content" xml:space="preserve">
+    <value>All workspaces</value>
+  </data>
+  <data name="TaskPageSearchBox.PlaceholderText" xml:space="preserve">
+    <value>Search tasks, IDs, or workspaces</value>
+  </data>
+  <data name="TaskPageSearchBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Search tasks</value>
+  </data>
+  <data name="TaskPageStatusFilter.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Task status filter</value>
+  </data>
+  <data name="TaskPageStatusOpen.Content" xml:space="preserve"><value>Open</value></data>
+  <data name="TaskPageStatusAll.Content" xml:space="preserve"><value>All statuses</value></data>
+  <data name="TaskPageStatusTodo.Content" xml:space="preserve"><value>To do</value></data>
+  <data name="TaskPageStatusInProgress.Content" xml:space="preserve"><value>In progress</value></data>
+  <data name="TaskPageStatusInReview.Content" xml:space="preserve"><value>In review</value></data>
+  <data name="TaskPageStatusBlocked.Content" xml:space="preserve"><value>Blocked</value></data>
+  <data name="TaskPageStatusDone.Content" xml:space="preserve"><value>Done</value></data>
+  <data name="TaskPageSourceUnavailableInfo.Title" xml:space="preserve"><value>Task Runtime is not connected</value></data>
+  <data name="TaskPageSourceUnavailableInfo.Message" xml:space="preserve"><value>The page is ready and will show tasks after a projection source is attached.</value></data>
+  <data name="TaskPagePrototypeSourceInfo.Title" xml:space="preserve"><value>UI skeleton · sample data</value></data>
+  <data name="TaskPagePrototypeSourceInfo.Message" xml:space="preserve"><value>Task Runtime is not connected yet. Actions on this page affect only the in-memory sample projection.</value></data>
+  <data name="TaskPageListTitle.Text" xml:space="preserve"><value>Tasks</value></data>
+  <data name="TaskPageTaskList.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Task list</value></data>
+  <data name="TaskPageEmptyTitle.Text" xml:space="preserve"><value>No matching tasks</value></data>
+  <data name="TaskPageEmptyBody.Text" xml:space="preserve"><value>Change the filters or create a task.</value></data>
+  <data name="TaskPageStartTaskButton.Content" xml:space="preserve"><value>Run with Codex</value></data>
+  <data name="TaskPageStopTaskButton.Content" xml:space="preserve"><value>Stop (Esc)</value></data>
+  <data name="TaskPageOpenTerminalButton.Content" xml:space="preserve"><value>Open terminal</value></data>
+  <data name="TaskPageCloseTaskButton.Content" xml:space="preserve"><value>Close task terminal</value></data>
+  <data name="TaskPageMarkDoneButton.Content" xml:space="preserve"><value>Confirm done</value></data>
+  <data name="TaskPageReopenTaskButton.Content" xml:space="preserve"><value>Reopen</value></data>
+  <data name="TaskPageActiveRunTitle.Text" xml:space="preserve"><value>Active TaskRun</value></data>
+  <data name="TaskPageGoalTitle.Text" xml:space="preserve"><value>Goal and context</value></data>
+  <data name="TaskPageAcceptanceTitle.Text" xml:space="preserve"><value>Acceptance criteria</value></data>
+  <data name="TaskPageResultTitle.Text" xml:space="preserve"><value>Result</value></data>
+  <data name="TaskPageExecutionLogTitle.Text" xml:space="preserve"><value>Execution log</value></data>
+  <data name="TaskPageFollowupInput.PlaceholderText" xml:space="preserve"><value>Add a requirement or tell Codex what to do next…</value></data>
+  <data name="TaskPageQueueFollowupButton.Content" xml:space="preserve"><value>Send to Codex</value></data>
+  <data name="TaskPageQueueFollowupButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Follow-up delivery is enabled when Task Runtime is connected.</value></data>
+  <data name="TaskPagePropertiesTitle.Text" xml:space="preserve"><value>Properties</value></data>
+  <data name="TaskPageWorkspaceProperty.Text" xml:space="preserve"><value>Workspace</value></data>
+  <data name="TaskPageExecutionModeProperty.Text" xml:space="preserve"><value>Execution mode</value></data>
+  <data name="TaskPageTerminalProperty.Text" xml:space="preserve"><value>Terminal</value></data>
+  <data name="TaskPageWorktreeProperty.Text" xml:space="preserve"><value>Worktree</value></data>
+  <data name="TaskPageBranchProperty.Text" xml:space="preserve"><value>Branch</value></data>
+  <data name="TaskPageDirectoryProperty.Text" xml:space="preserve"><value>Working directory</value></data>
+  <data name="TaskPageDraftTitle.Text" xml:space="preserve"><value>New task</value></data>
+  <data name="TaskPageDraftDescription.Text" xml:space="preserve"><value>Save creates only the task record. Save and run prepares its execution context after persistence.</value></data>
+  <data name="TaskPageDraftTaskTitle.Header" xml:space="preserve"><value>Title</value></data>
+  <data name="TaskPageDraftTaskTitle.PlaceholderText" xml:space="preserve"><value>What should be completed?</value></data>
+  <data name="TaskPageDraftGoal.Header" xml:space="preserve"><value>Goal and context</value></data>
+  <data name="TaskPageDraftGoal.PlaceholderText" xml:space="preserve"><value>Describe the goal, context, and boundaries…</value></data>
+  <data name="TaskPageDraftAcceptance.Header" xml:space="preserve"><value>Acceptance criteria</value></data>
+  <data name="TaskPageDraftAcceptance.PlaceholderText" xml:space="preserve"><value>One criterion per line</value></data>
+  <data name="TaskPageDraftWorkspace.Header" xml:space="preserve"><value>Workspace</value></data>
+  <data name="TaskPageDraftExecutionMode.Header" xml:space="preserve"><value>Execution mode</value></data>
+  <data name="TaskPageDraftWorktreeMode.Content" xml:space="preserve"><value>Task worktree (Git default)</value></data>
+  <data name="TaskPageDraftDirectMode.Content" xml:space="preserve"><value>Direct (managed serial execution)</value></data>
+  <data name="TaskPageDraftConsent.Text" xml:space="preserve"><value>The agent will read and modify the selected directory. Worktree mode snapshots the current repository state before execution.</value></data>
+  <data name="TaskPageDraftCancelButton.Content" xml:space="preserve"><value>Cancel</value></data>
+  <data name="TaskPageDraftSaveButton.Content" xml:space="preserve"><value>Save</value></data>
+  <data name="TaskPageDraftSaveRunButton.Content" xml:space="preserve"><value>Save and run</value></data>
+  <data name="TaskPage_StatusBacklog" xml:space="preserve"><value>Backlog</value></data>
+  <data name="TaskPage_StatusTodo" xml:space="preserve"><value>To do</value></data>
+  <data name="TaskPage_StatusInProgress" xml:space="preserve"><value>In progress</value></data>
+  <data name="TaskPage_StatusInReview" xml:space="preserve"><value>In review</value></data>
+  <data name="TaskPage_StatusBlocked" xml:space="preserve"><value>Blocked</value></data>
+  <data name="TaskPage_StatusDone" xml:space="preserve"><value>Done</value></data>
+  <data name="TaskPage_StatusCancelled" xml:space="preserve"><value>Cancelled</value></data>
+  <data name="TaskPage_PriorityLow" xml:space="preserve"><value>Low priority</value></data>
+  <data name="TaskPage_PriorityMedium" xml:space="preserve"><value>Medium priority</value></data>
+  <data name="TaskPage_PriorityHigh" xml:space="preserve"><value>High priority</value></data>
+  <data name="TaskPage_TerminalNotCreated" xml:space="preserve"><value>Not created</value></data>
+  <data name="TaskPage_TerminalStarting" xml:space="preserve"><value>Starting</value></data>
+  <data name="TaskPage_TerminalReady" xml:space="preserve"><value>Ready</value></data>
+  <data name="TaskPage_TerminalBusy" xml:space="preserve"><value>Busy</value></data>
+  <data name="TaskPage_TerminalSuspended" xml:space="preserve"><value>Suspended</value></data>
+  <data name="TaskPage_TerminalClosed" xml:space="preserve"><value>Closed</value></data>
+  <data name="TaskPage_TerminalError" xml:space="preserve"><value>Error</value></data>
+  <data name="TaskPage_TaskCountFormat" xml:space="preserve"><value>{} tasks</value></data>
+  <data name="TaskPage_AcceptanceSummaryFormat" xml:space="preserve"><value>{} of {} acceptance criteria</value></data>
+  <data name="TaskPage_TaskAutomationNameFormat" xml:space="preserve"><value>{}, {}, {}, workspace {}</value></data>
+  <data name="TaskPage_WorktreeExecutionMode" xml:space="preserve"><value>Worktree · task owned</value></data>
+  <data name="TaskPage_DirectExecutionMode" xml:space="preserve"><value>Direct · managed serial</value></data>
+  <data name="TaskPage_NotApplicable" xml:space="preserve"><value>Not applicable</value></data>
+  <data name="TaskPage_CurrentBranch" xml:space="preserve"><value>Current branch</value></data>
+  <data name="TaskPage_UpdatedJustNow" xml:space="preserve"><value>just now</value></data>
+  <data name="TaskPage_UpdatedThirtyFourMinutes" xml:space="preserve"><value>34 minutes ago</value></data>
+  <data name="TaskPage_UpdatedFourHours" xml:space="preserve"><value>4 hours ago</value></data>
+  <data name="TaskPage_UpdatedEightHours" xml:space="preserve"><value>8 hours ago</value></data>
+  <data name="TaskPage_UpdatedYesterday" xml:space="preserve"><value>yesterday</value></data>
+  <data name="TaskPage_NewTaskStarting" xml:space="preserve"><value>Preparing execution context</value></data>
+  <data name="TaskPage_NewTaskRunQueued" xml:space="preserve"><value>TaskRun queued · waiting for the prototype Runtime adapter</value></data>
+  <data name="TaskPage_RunStopped" xml:space="preserve"><value>TaskRun stopped with semantic Esc · terminal retained</value></data>
+  <data name="TaskPage_RunStoppedForClose" xml:space="preserve"><value>TaskRun stopped and task terminal closed · history retained</value></data>
+  <data name="TaskPage_CloseActiveTitle" xml:space="preserve"><value>Close the task terminal?</value></data>
+  <data name="TaskPage_CloseActiveBody" xml:space="preserve"><value>The active TaskRun will stop. The task, worktree, checkpoints, queued messages, and history will be preserved.</value></data>
+  <data name="TaskPage_CloseActiveConfirm" xml:space="preserve"><value>Stop and close</value></data>
+  <data name="TaskPage_CloseActiveCancel" xml:space="preserve"><value>Keep running</value></data>
+  <data name="TaskPage_SampleActiveTitle" xml:space="preserve"><value>Implement the Tasks fixed page and task flow</value></data>
+  <data name="TaskPage_SampleActiveDescription" xml:space="preserve"><value>Add a fixed Tasks page beside Summary while keeping terminal surfaces independent. Keep goals, acceptance criteria, runs, and review in one detail view.</value></data>
+  <data name="TaskPage_SampleActiveRun" xml:space="preserve"><value>Building the native Tasks page skeleton</value></data>
+  <data name="TaskPage_SampleAcceptanceFixedPages" xml:space="preserve"><value>Tasks and Summary are peer fixed pages</value></data>
+  <data name="TaskPage_SampleAcceptanceSeparateState" xml:space="preserve"><value>Task and TaskRun states are shown separately</value></data>
+  <data name="TaskPage_SampleAcceptanceRetry" xml:space="preserve"><value>Retries create new immutable run records</value></data>
+  <data name="TaskPage_SampleAcceptanceReview" xml:space="preserve"><value>Only the user confirms Done after review</value></data>
+  <data name="TaskPage_SampleRunActive" xml:space="preserve"><value>Run #2 · In progress · native page implementation</value></data>
+  <data name="TaskPage_SampleRunFailed" xml:space="preserve"><value>Run #1 · Failed · preview port was unavailable</value></data>
+  <data name="TaskPage_SampleReviewTitle" xml:space="preserve"><value>Fix Ctrl+N workspace creation behavior</value></data>
+  <data name="TaskPage_SampleReviewDescription" xml:space="preserve"><value>Ensure Ctrl+N creates a workspace instead of opening a terminal surface.</value></data>
+  <data name="TaskPage_SampleReviewResult" xml:space="preserve"><value>The shortcut route is fixed and tests pass. Waiting for user review.</value></data>
+  <data name="TaskPage_SampleReviewAcceptanceShortcut" xml:space="preserve"><value>Ctrl+N creates a workspace</value></data>
+  <data name="TaskPage_SampleReviewAcceptanceTests" xml:space="preserve"><value>Shortcut automation tests pass</value></data>
+  <data name="TaskPage_SampleRunCompleted" xml:space="preserve"><value>Run #1 · Completed · waiting for review</value></data>
+  <data name="TaskPage_SampleTodoTitle" xml:space="preserve"><value>Synchronize Microsoft Terminal upstream updates</value></data>
+  <data name="TaskPage_SampleTodoDescription" xml:space="preserve"><value>Use the guarded synchronization workflow to bring renderer, stability, and bug fixes into this fork.</value></data>
+  <data name="TaskPage_SampleTodoAcceptanceReport" xml:space="preserve"><value>Generate the upstream drift report</value></data>
+  <data name="TaskPage_SampleTodoAcceptanceConflicts" xml:space="preserve"><value>Resolve Workspace and Surface hotspots individually</value></data>
+  <data name="TaskPage_SampleTodoAcceptanceGate" xml:space="preserve"><value>Pass the unified Release gate</value></data>
+  <data name="TaskPage_SampleRunNeedsReview" xml:space="preserve"><value>Run #1 · Failed · merge strategy needs review</value></data>
+  <data name="TaskPage_SampleBlockedTitle" xml:space="preserve"><value>Run deployment validation after credentials recover</value></data>
+  <data name="TaskPage_SampleBlockedDescription" xml:space="preserve"><value>The test environment is unavailable. Preserve context until access is restored.</value></data>
+  <data name="TaskPage_SampleBlockedAcceptanceAccess" xml:space="preserve"><value>Restore test environment access</value></data>
+  <data name="TaskPage_SampleBlockedAcceptanceSmoke" xml:space="preserve"><value>Pass deployment smoke tests</value></data>
+  <data name="TaskPage_SampleDoneTitle" xml:space="preserve"><value>Keep terminal counts out of Workspace Sidebar</value></data>
+  <data name="TaskPage_SampleDoneDescription" xml:space="preserve"><value>The sidebar represents only workspace hierarchy and does not emphasize terminal surface counts.</value></data>
+  <data name="TaskPage_SampleDoneResult" xml:space="preserve"><value>Workspace Sidebar remains workspace-only.</value></data>
+  <data name="TaskPage_SampleDoneAcceptanceWorkspaceOnly" xml:space="preserve"><value>Sidebar remains workspace-only</value></data>
+  <data name="TaskPage_SampleDoneAcceptanceNoCount" xml:space="preserve"><value>Surface counts are not shown</value></data>
 </root>

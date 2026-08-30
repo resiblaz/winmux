@@ -244,6 +244,7 @@ try
                     '*AgentHistoryStoreTests*',
                     '*CodexAppServerTests*',
                     '*WorkspaceGitMetadataTests*',
+                    '*TaskPageViewModelTests*',
                     '*WorkspaceSidebarAdaptsToWindowModes*',
                     '*WorkspaceSurfaceShortcutActions*',
                     '*TabTests*WorkspaceSnapshot*',

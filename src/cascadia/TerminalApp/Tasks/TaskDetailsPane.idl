@@ -1,0 +1,14 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+import "Tasks\\TaskItemViewModel.idl";
+
+namespace TerminalApp
+{
+    [default_interface] runtimeclass TaskDetailsPane : Windows.UI.Xaml.Controls.UserControl, Windows.UI.Xaml.Data.INotifyPropertyChanged
+    {
+        TaskDetailsPane();
+
+        TaskItemViewModel Task;
+    }
+}

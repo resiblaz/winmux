@@ -1,0 +1,19 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+import "Tasks\\TaskItemViewModel.idl";
+
+namespace TerminalApp
+{
+    runtimeclass TaskPageViewModel : Windows.UI.Xaml.Data.INotifyPropertyChanged
+    {
+        TaskPageViewModel();
+
+        Windows.Foundation.Collections.IObservableVector<TaskItemViewModel> Tasks { get; };
+        TaskItemViewModel SelectedTask { get; };
+        String TaskCountText { get; };
+        Boolean IsEmpty { get; };
+        Boolean HasSelection { get; };
+        Boolean IsSourceAttached { get; };
+    }
+}

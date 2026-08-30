@@ -165,8 +165,11 @@ namespace Microsoft::Terminal::TaskRuntime
         std::optional<std::array<uint8_t, 32>> _sha256(const std::span<const uint8_t> input)
         {
             BcryptAlgorithmOwner algorithm;
-            BcryptHashOwner hash;
+            // BCrypt owns references into the caller-provided hash-object
+            // buffer until BCryptDestroyHash returns. Declare the buffer
+            // before the hash owner so reverse destruction keeps it alive.
             std::vector<uint8_t> hashObject;
+            BcryptHashOwner hash;
             std::array<uint8_t, 32> digest{};
             DWORD objectBytes{};
             DWORD copied{};

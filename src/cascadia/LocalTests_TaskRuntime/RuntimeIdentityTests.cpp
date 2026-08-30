@@ -5,6 +5,9 @@
 
 #include "TaskRuntimeTestFixtures.h"
 
+#include <atomic>
+#include <thread>
+
 using namespace WEX::TestExecution;
 using namespace Microsoft::Terminal::TaskRuntime;
 using namespace TaskRuntimeLocalTests::TestFixtures;
@@ -20,6 +23,7 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(DerivedNamesAreBoundedAndProtocolSafe);
         TEST_METHOD(RejectsRelativeRootsInvalidChannelsAndInvalidSids);
         TEST_METHOD(CurrentUserIdentityMatchesExplicitSid);
+        TEST_METHOD(ConcurrentCurrentUserIdentityDerivationIsStable);
     };
 
     void RuntimeIdentityTests::IdentityIsStableAcrossCaseAndLexicalPathAliases()
@@ -90,5 +94,48 @@ namespace TaskRuntimeLocalTests
         VERIFY_IS_TRUE(currentIdentity.Succeeded());
         VERIFY_ARE_EQUAL(explicitIdentity.Identity.ProtocolIdentity, currentIdentity.Identity.ProtocolIdentity);
         VERIFY_ARE_EQUAL(sid, currentIdentity.Identity.UserSid);
+    }
+
+    void RuntimeIdentityTests::ConcurrentCurrentUserIdentityDerivationIsStable()
+    {
+        constexpr size_t threadCount{ 12 };
+        constexpr size_t derivationsPerThread{ 100 };
+        UniqueRuntimeRoot root;
+        const auto expected = BuildCurrentUserRuntimeIdentity(L"dev", root.Path());
+        VERIFY_IS_TRUE(expected.Succeeded());
+
+        std::atomic_bool stable{ true };
+        std::vector<std::thread> workers;
+        workers.reserve(threadCount);
+        for (size_t thread = 0; thread < threadCount; ++thread)
+        {
+            workers.emplace_back([&] {
+                for (size_t iteration = 0; iteration < derivationsPerThread; ++iteration)
+                {
+                    const auto actual = BuildCurrentUserRuntimeIdentity(
+                        L"dev",
+                        root.Path());
+                    if (!actual.Succeeded() ||
+                        actual.Identity.ProtocolIdentity !=
+                            expected.Identity.ProtocolIdentity ||
+                        actual.Identity.InstanceMutexName !=
+                            expected.Identity.InstanceMutexName ||
+                        actual.Identity.LaunchMutexName !=
+                            expected.Identity.LaunchMutexName ||
+                        actual.Identity.ControlPipeName !=
+                            expected.Identity.ControlPipeName)
+                    {
+                        stable.store(false, std::memory_order_release);
+                        return;
+                    }
+                }
+            });
+        }
+        for (auto& worker : workers)
+        {
+            worker.join();
+        }
+
+        VERIFY_IS_TRUE(stable.load(std::memory_order_acquire));
     }
 }

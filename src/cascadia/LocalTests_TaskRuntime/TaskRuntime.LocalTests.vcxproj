@@ -42,6 +42,9 @@
     <ClCompile Include="RuntimeOnDemandActivationTestSupport.cpp" />
     <ClCompile Include="RuntimeSecurityTests.cpp" />
     <ClCompile Include="RuntimeTerminalEndpointTests.cpp" />
+    <ClCompile Include="RuntimeTerminalChannelTests.cpp" />
+    <ClCompile Include="RuntimeTerminalHandshakeTests.cpp" />
+    <ClCompile Include="RuntimeTerminalResourceTests.cpp" />
     <ClCompile Include="TaskRuntimeProcessArgv.cpp" />
     <ClCompile Include="TaskRuntimeProcessLauncher.cpp" />
     <ClCompile Include="TaskRuntimeProcessTestFixtures.cpp" />

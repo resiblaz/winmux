@@ -2,7 +2,9 @@
 // Licensed under the MIT license.
 
 #include "pch.h"
-#include "RuntimeControlIo.h"
+#include "RuntimePipeIo.h"
+
+// Shared overlapped byte-stream I/O for both control and terminal pipes.
 
 namespace Microsoft::Terminal::TaskRuntime::details
 {
@@ -141,7 +143,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
         return result;
     }
 
-    RuntimeTransportResult WriteRuntimeControl(
+    RuntimeTransportResult WriteRuntimePipe(
         const HANDLE handle,
         const std::span<const uint8_t> bytes,
         const uint32_t timeoutMilliseconds,
@@ -243,7 +245,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
         return result;
     }
 
-    RuntimeTransportResult ReadRuntimeControl(
+    RuntimeTransportResult ReadRuntimePipe(
         const HANDLE handle,
         const std::span<uint8_t> buffer,
         const uint32_t timeoutMilliseconds,

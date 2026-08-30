@@ -75,3 +75,12 @@ The framing layer validates sizes, kinds, flags, generation shape, dimensions,
 acknowledgements, and monotonic sequence. Runtime session code remains
 responsible for capability authorization, current-generation/input-lease
 ownership, catch-up/reset decisions, queue budgets, and slow-client policy.
+
+The transport handshake places the existing strict control Hello request and
+response JSON inside the first terminal `Hello` frame in each direction. Both
+frames use sequence `1` and generation `0`; the request requires
+`TerminalStream`, its Runtime identity must match the session-specific pipe
+endpoint, its Runtime process-instance ID must match the active control epoch,
+and the response's terminal payload limit must match the channel's
+pre-negotiated bound. Session frames begin after sequence `1` and must carry
+the endpoint's exact TaskTerminal generation.

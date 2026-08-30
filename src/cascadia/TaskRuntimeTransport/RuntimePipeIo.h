@@ -19,16 +19,17 @@ namespace Microsoft::Terminal::TaskRuntime::details
     [[nodiscard]] RuntimeTransportStatus ClassifyRuntimeIoError(DWORD error) noexcept;
     [[nodiscard]] std::optional<RuntimeTransportResult> RuntimeCancellationFailure(
         HANDLE cancellationEvent);
-    [[nodiscard]] std::optional<RuntimeTransportResult> RuntimeGenerationCancellationFailure(
-        const std::atomic_uint64_t& cancellationGeneration,
-        uint64_t expectedGeneration);
+    [[nodiscard]] std::optional<RuntimeTransportResult>
+        RuntimeGenerationCancellationFailure(
+            const std::atomic_uint64_t& cancellationGeneration,
+            uint64_t expectedGeneration);
     [[nodiscard]] RuntimeTransportResult WaitRuntimeOverlapped(
         HANDLE handle,
         OVERLAPPED& operation,
         uint32_t timeoutMilliseconds,
         DWORD& transferred,
         HANDLE cancellationEvent);
-    [[nodiscard]] RuntimeTransportResult WriteRuntimeControl(
+    [[nodiscard]] RuntimeTransportResult WriteRuntimePipe(
         HANDLE handle,
         std::span<const uint8_t> bytes,
         uint32_t timeoutMilliseconds,
@@ -36,7 +37,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
         std::mutex& ioStartMutex,
         const std::atomic_uint64_t& cancellationGeneration,
         uint64_t expectedGeneration);
-    [[nodiscard]] RuntimeTransportResult ReadRuntimeControl(
+    [[nodiscard]] RuntimeTransportResult ReadRuntimePipe(
         HANDLE handle,
         std::span<uint8_t> buffer,
         uint32_t timeoutMilliseconds,

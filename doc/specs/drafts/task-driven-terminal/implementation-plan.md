@@ -73,7 +73,11 @@ foundational contracts required to avoid disposable data/process designs.
   cross-process launch mutex, a parent-independent suspended launch transaction,
   `TaskRuntimeClient` product composition, crash restart, and real thread,
   process, short-lived-parent, and Job-breakaway coverage. Real Codex, Git, and
-  task-owned Surface integration remain later milestones.
+  M2E1 adds session/generation-bound terminal endpoints, current-user-secured
+  binary terminal pipes, sequence/generation/payload enforcement, terminal
+  Hello capability negotiation, cancellation, and executable control/data
+  head-of-line isolation evidence. Real Codex, Git, and task-owned Surface
+  integration remain later milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
 - The executable M2/M3 commit queue and frozen technical defaults are tracked

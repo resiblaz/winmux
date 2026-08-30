@@ -17,13 +17,15 @@
     <ClInclude Include="RuntimeControlConnectPolicy.h" />
     <ClInclude Include="RuntimeControlConnector.h" />
     <ClInclude Include="RuntimeControlHandshake.h" />
-    <ClInclude Include="RuntimeControlIo.h" />
     <ClInclude Include="RuntimeControlTransport.h" />
     <ClInclude Include="RuntimeIdentity.h" />
     <ClInclude Include="RuntimePipe.h" />
+    <ClInclude Include="RuntimePipeIo.h" />
     <ClInclude Include="RuntimeProcessExitCode.h" />
     <ClInclude Include="RuntimeSecurity.h" />
     <ClInclude Include="RuntimeTerminalEndpoint.h" />
+    <ClInclude Include="RuntimeTerminalChannel.h" />
+    <ClInclude Include="RuntimeTerminalHandshake.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -33,11 +35,15 @@
     <ClCompile Include="RuntimeControlConnect.cpp" />
     <ClCompile Include="RuntimeControlConnector.cpp" />
     <ClCompile Include="RuntimeControlHandshake.cpp" />
-    <ClCompile Include="RuntimeControlIo.cpp" />
+    <ClCompile Include="RuntimePipeIo.cpp" />
     <ClCompile Include="RuntimeIdentity.cpp" />
     <ClCompile Include="RuntimePipe.cpp" />
     <ClCompile Include="RuntimeSecurity.cpp" />
     <ClCompile Include="RuntimeTerminalEndpoint.cpp" />
+    <ClCompile Include="RuntimeTerminalChannel.cpp" />
+    <ClCompile Include="RuntimeTerminalAccept.cpp" />
+    <ClCompile Include="RuntimeTerminalConnect.cpp" />
+    <ClCompile Include="RuntimeTerminalHandshake.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj">

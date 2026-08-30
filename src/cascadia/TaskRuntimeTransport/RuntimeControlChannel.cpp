@@ -3,7 +3,7 @@
 
 #include "pch.h"
 #include "RuntimeControlChannel.h"
-#include "RuntimeControlIo.h"
+#include "RuntimePipeIo.h"
 
 #include "ControlFrame.h"
 
@@ -123,7 +123,7 @@ namespace Microsoft::Terminal::TaskRuntime
                 frame.Error);
         }
         std::scoped_lock lock{ _impl->WriteMutex };
-        auto sent = details::WriteRuntimeControl(
+        auto sent = details::WriteRuntimePipe(
             _impl->Pipe.Value,
             frame.Bytes,
             timeoutMilliseconds,
@@ -202,7 +202,7 @@ namespace Microsoft::Terminal::TaskRuntime
                 return result;
             }
             DWORD transferred{};
-            const auto read = details::ReadRuntimeControl(
+            const auto read = details::ReadRuntimePipe(
                 _impl->Pipe.Value,
                 buffer,
                 static_cast<uint32_t>(deadline - now),

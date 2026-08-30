@@ -32,8 +32,15 @@ namespace Microsoft::Terminal::TaskRuntime
         bool _validConfiguration(const TaskRuntimeClientConfiguration& configuration)
         {
             const auto hello = EncodeHelloRequest(configuration.Hello);
-            const auto totalOperations = configuration.MaximumOperations +
-                                         configuration.MaximumSubscriptions;
+            const auto maximumSize = (std::numeric_limits<size_t>::max)();
+            const auto operationCapacityValid =
+                configuration.MaximumSubscriptions < maximumSize &&
+                configuration.MaximumOperations <=
+                    maximumSize - configuration.MaximumSubscriptions - 1;
+            const auto totalOperations = operationCapacityValid ?
+                                             configuration.MaximumOperations +
+                                                 configuration.MaximumSubscriptions + 1 :
+                                             maximumSize;
             const auto subscriptionReservationRequired =
                 configuration.MaximumRequestBytes != 0 &&
                         configuration.MaximumConcurrentSubscriptionOperations <=
@@ -54,15 +61,17 @@ namespace Microsoft::Terminal::TaskRuntime
                    configuration.MaximumSubscriptions <= AbsoluteMaximumRuntimeClientSubscriptions &&
                    configuration.MaximumConcurrentSubscriptionOperations != 0 &&
                    configuration.MaximumConcurrentSubscriptionOperations <= configuration.MaximumSubscriptions &&
-                   totalOperations >= configuration.MaximumOperations && totalOperations <= 4096 &&
+                   totalOperations > configuration.MaximumOperations && totalOperations <= 4096 &&
                    configuration.MaximumQueuedBytes != 0 &&
                    configuration.ReservedSubscriptionRequestBytes != 0 &&
-                   configuration.ReservedSubscriptionRequestBytes < configuration.MaximumQueuedBytes &&
+                   configuration.MaximumRequestBytes <= configuration.MaximumQueuedBytes &&
+                   configuration.ReservedSubscriptionRequestBytes <
+                       configuration.MaximumQueuedBytes - configuration.MaximumRequestBytes &&
                    configuration.ReservedSubscriptionRequestBytes >= subscriptionReservationRequired &&
                    configuration.MaximumRequestBytes >= MinimumControlFrameBytes &&
                    configuration.MaximumRequestBytes <= MaximumControlFrameBytes &&
-                   configuration.MaximumQueuedBytes >= configuration.MaximumRequestBytes &&
-                   configuration.MaximumQueuedBytes - configuration.ReservedSubscriptionRequestBytes >=
+                   configuration.MaximumQueuedBytes - configuration.MaximumRequestBytes -
+                           configuration.ReservedSubscriptionRequestBytes >=
                        configuration.MaximumRequestBytes &&
                    configuration.MaximumAggregateSubscriptionEventBytes >=
                        DefaultMaximumSubscriptionStreamBytes &&
@@ -82,12 +91,12 @@ namespace Microsoft::Terminal::TaskRuntime
 
         size_t _requestRegistryCapacity(const TaskRuntimeClientConfiguration& configuration) noexcept
         {
-            if (configuration.MaximumSubscriptions >
+            if (configuration.MaximumSubscriptions >=
                 (std::numeric_limits<size_t>::max)() - configuration.MaximumOperations)
             {
                 return 0;
             }
-            return configuration.MaximumOperations + configuration.MaximumSubscriptions;
+            return configuration.MaximumOperations + configuration.MaximumSubscriptions + 1;
         }
 
         RuntimeClientRequestHandle _readyHandle(RuntimeClientRequestResult result)
@@ -145,6 +154,8 @@ namespace Microsoft::Terminal::TaskRuntime
             {
                 Dependencies.Scheduler = MakeRuntimeClientScheduler();
             }
+            HeartbeatRequestNamespace =
+                RuntimeClientHeartbeatNamespace(Configuration.Hello.ClientInstanceId);
             try
             {
                 SubscriptionBudget = std::make_shared<RuntimeClientSubscriptionAggregateBudget>(
@@ -157,6 +168,7 @@ namespace Microsoft::Terminal::TaskRuntime
             IsValid = StopEvent && Requests.Valid() && Subscriptions.Valid() && SubscriptionBudget &&
                       SubscriptionBudget->Valid() && Dependencies.Connector &&
                       Dependencies.RequestIds && Dependencies.Backoff && Dependencies.Scheduler &&
+                      HeartbeatRequestNamespace.has_value() &&
                       _validConfiguration(Configuration);
         }
 
@@ -257,7 +269,8 @@ namespace Microsoft::Terminal::TaskRuntime
             }
 
             const auto generatedId = Dependencies.RequestIds->Next();
-            if (!generatedId || !IsCanonicalProtocolUuid(*generatedId))
+            if (!generatedId || !IsCanonicalProtocolUuid(*generatedId) ||
+                IsReservedHeartbeatRequestId(*generatedId))
             {
                 rejected.Outcome = RuntimeClientRequestOutcome::ProtocolError;
                 rejected.Diagnostic = "Request ID source returned an invalid identifier";
@@ -281,10 +294,11 @@ namespace Microsoft::Terminal::TaskRuntime
                 }
                 else if (UserOperationCount >= Configuration.MaximumOperations ||
                          encoded.Payload.size() >
-                                 Configuration.MaximumQueuedBytes - Configuration.ReservedSubscriptionRequestBytes -
+                                 Configuration.MaximumQueuedBytes - Configuration.MaximumRequestBytes -
+                                     Configuration.ReservedSubscriptionRequestBytes -
                                  std::min(
                                      UserQueuedBytes,
-                                     Configuration.MaximumQueuedBytes -
+                                     Configuration.MaximumQueuedBytes - Configuration.MaximumRequestBytes -
                                          Configuration.ReservedSubscriptionRequestBytes))
                 {
                     rejectedOutcome = RuntimeClientRequestOutcome::CapacityExceeded;

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "RuntimeClientEpoch.h"
+#include "RuntimeClientHeartbeat.h"
 #include "RuntimeClientInterfaces.h"
 #include "RuntimeClientRequests.h"
 #include "RuntimeClientSubscriptionStreamInternal.h"
@@ -17,6 +18,7 @@
 #include <future>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string_view>
 #include <thread>
 #include <type_traits>
@@ -51,6 +53,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
         std::shared_ptr<IRuntimeControlConnection> Connection;
         RuntimeClientEvent Cancellation{ true, false };
         RuntimeClientEvent RetireRequested{ true, false };
+        RuntimeClientEvent InboundActivity{ false, false };
         RuntimeClientEvent WorkersFinished{ true, true };
         RuntimeClientEvent CancelFinished{ true, true };
         RuntimeClientRetireCause RetireCause{ RuntimeClientRetireCause::None };
@@ -109,6 +112,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
         UserRequest,
         SubscriptionSnapshot,
         SubscriptionUnsubscribe,
+        HeartbeatPing,
     };
 
     struct RuntimeClientLogicalOperation
@@ -142,6 +146,21 @@ namespace Microsoft::Terminal::TaskRuntime::details
         Sent,
         RetireEpoch,
         Stop,
+    };
+
+    enum class RuntimeClientHeartbeatWriteResult
+    {
+        NoWork,
+        Sent,
+        RetireEpoch,
+        Stop,
+    };
+
+    enum class RuntimeClientHeartbeatMonitorResult
+    {
+        EpochRetired,
+        StopRequested,
+        Failed,
     };
 
     enum class RuntimeClientBackoffWaitResult
@@ -201,6 +220,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
         std::thread::id WriterThreadId;
 
         RuntimeClientEpochState Epochs;
+        RuntimeClientHeartbeatState Heartbeat;
         std::shared_ptr<RuntimeClientEpochContext> Active;
         RuntimeClientRequestRegistry Requests;
         RuntimeClientSubscriptionRegistry Subscriptions;
@@ -216,9 +236,12 @@ namespace Microsoft::Terminal::TaskRuntime::details
         std::vector<RuntimeClientPendingSubscriptionDelivery> SubscriptionDeliveryBuffer;
         size_t QueuedBytes{};
         size_t UserQueuedBytes{};
+        size_t HeartbeatQueuedBytes{};
         size_t UserOperationCount{};
         size_t SubscriptionOperationCount{};
         RuntimeClientOperationId NextOperationId{ 1 };
+        uint64_t LastHeartbeatSequence{};
+        std::optional<uint32_t> HeartbeatRequestNamespace;
         RuntimeClientLogicalSubscriptionId NextSubscriptionId{ 1 };
         uint32_t ConsecutiveFailures{};
         std::string CurrentRuntimeInstanceId;
@@ -255,6 +278,22 @@ namespace Microsoft::Terminal::TaskRuntime::details
             std::string_view diagnostic) noexcept;
         [[nodiscard]] RuntimeClientBackoffWaitResult WaitForReconnectBackoff(
             uint32_t failureCount) noexcept;
+        [[nodiscard]] RuntimeClientHeartbeatMonitorResult MonitorHeartbeat(
+            const std::shared_ptr<RuntimeClientEpochContext>& epoch) noexcept;
+        [[nodiscard]] bool HasHeartbeatWriterWorkLocked(RuntimeClientEpoch epoch) const noexcept;
+        [[nodiscard]] RuntimeClientHeartbeatWriteResult RunHeartbeatWriter(
+            const std::shared_ptr<RuntimeClientEpochContext>& epoch) noexcept;
+        [[nodiscard]] RuntimeClientHeartbeatStatus ObserveInboundLocked(
+            const std::shared_ptr<RuntimeClientEpochContext>& epoch,
+            RuntimeClientMonotonicMilliseconds now) noexcept;
+        [[nodiscard]] bool RetireForHeartbeatObservation(
+            const std::shared_ptr<RuntimeClientEpochContext>& epoch,
+            RuntimeClientHeartbeatStatus status,
+            std::string_view diagnostic) noexcept;
+        [[nodiscard]] bool HandleHeartbeatResponse(
+            const std::shared_ptr<RuntimeClientEpochContext>& epoch,
+            Microsoft::Terminal::TaskRuntimeProtocol::ControlResponse& response,
+            RuntimeClientMonotonicMilliseconds now) noexcept;
         [[nodiscard]] bool HasSubscriptionWriterWorkLocked(RuntimeClientEpoch epoch) const noexcept;
         [[nodiscard]] RuntimeClientSubscriptionWriteResult RunSubscriptionWriter(
             const std::shared_ptr<RuntimeClientEpochContext>& epoch) noexcept;
@@ -263,15 +302,18 @@ namespace Microsoft::Terminal::TaskRuntime::details
             RuntimeClientSubscriptionTarget target) noexcept;
         [[nodiscard]] bool HandleSubscriptionResponse(
             const std::shared_ptr<RuntimeClientEpochContext>& epoch,
-            Microsoft::Terminal::TaskRuntimeProtocol::ControlResponse& response) noexcept;
+            Microsoft::Terminal::TaskRuntimeProtocol::ControlResponse& response,
+            RuntimeClientMonotonicMilliseconds now) noexcept;
         [[nodiscard]] bool HandleSubscriptionNotification(
             const std::shared_ptr<RuntimeClientEpochContext>& epoch,
-            Microsoft::Terminal::TaskRuntimeProtocol::ControlNotification notification) noexcept;
+            Microsoft::Terminal::TaskRuntimeProtocol::ControlNotification notification,
+            RuntimeClientMonotonicMilliseconds now) noexcept;
 
         [[nodiscard]] std::optional<RuntimeClientPendingCompletion> CompleteOperationLocked(
             RuntimeClientOperationId operationId,
             RuntimeClientRequestResult result);
         void EraseSubscriptionOperationLocked(RuntimeClientOperationId operationId) noexcept;
+        void EraseHeartbeatOperationLocked(RuntimeClientOperationId operationId) noexcept;
         void RetireSubscriptionsLocked(
             RuntimeClientEpoch epoch,
             bool stopping,

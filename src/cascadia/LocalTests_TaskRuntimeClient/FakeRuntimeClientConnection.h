@@ -66,11 +66,13 @@ namespace TaskRuntimeClientLocalTests
             _releaseSend{ CreateEventW(nullptr, FALSE, FALSE, nullptr) },
             _sendExited{ CreateEventW(nullptr, TRUE, FALSE, nullptr) },
             _receiveExited{ CreateEventW(nullptr, TRUE, FALSE, nullptr) },
+            _inboundDequeued{ CreateEventW(nullptr, FALSE, FALSE, nullptr) },
             _cancelEntered{ CreateEventW(nullptr, FALSE, FALSE, nullptr) },
             _releaseCancel{ CreateEventW(nullptr, FALSE, FALSE, nullptr) }
         {
             if (!_changed || !_terminal || !_sendEntered || !_receiveEntered || !_responseQueued ||
-                !_releaseSend || !_sendExited || !_receiveExited || !_cancelEntered || !_releaseCancel)
+                !_releaseSend || !_sendExited || !_receiveExited || !_inboundDequeued ||
+                !_cancelEntered || !_releaseCancel)
             {
                 _closeHandles();
                 throw std::runtime_error{ "Failed to create fake connection events" };
@@ -170,6 +172,11 @@ namespace TaskRuntimeClientLocalTests
         [[nodiscard]] HANDLE ResponseQueuedEvent() const noexcept { return _responseQueued; }
         [[nodiscard]] HANDLE SendExitedEvent() const noexcept { return _sendExited; }
         [[nodiscard]] HANDLE ReceiveExitedEvent() const noexcept { return _receiveExited; }
+        [[nodiscard]] HANDLE InboundDequeuedEvent() const noexcept { return _inboundDequeued; }
+        [[nodiscard]] size_t InboundDequeuedCount() const noexcept
+        {
+            return _inboundDequeuedCount.load(std::memory_order_acquire);
+        }
         [[nodiscard]] HANDLE CancelEnteredEvent() const noexcept { return _cancelEntered; }
         [[nodiscard]] std::vector<std::string> OutboundPayloads() const
         {
@@ -243,13 +250,15 @@ namespace TaskRuntimeClientLocalTests
                      _releaseSend,
                      _sendExited,
                      _receiveExited,
+                     _inboundDequeued,
                      _cancelEntered,
                      _releaseCancel })
             {
                 if (handle) { CloseHandle(handle); }
             }
             _changed = _terminal = _sendEntered = _receiveEntered = _responseQueued =
-                _releaseSend = _sendExited = _receiveExited = _cancelEntered = _releaseCancel = nullptr;
+            _releaseSend = _sendExited = _receiveExited = _inboundDequeued =
+                _cancelEntered = _releaseCancel = nullptr;
         }
 
         mutable std::mutex _mutex;
@@ -267,11 +276,12 @@ namespace TaskRuntimeClientLocalTests
         std::atomic<RuntimeTransportStatus> _terminalStatus{ RuntimeTransportStatus::Succeeded };
         std::atomic_size_t _activeSends{};
         std::atomic_size_t _activeReceives{};
+        std::atomic_size_t _inboundDequeuedCount{};
         std::atomic_size_t _maximumConcurrentSends{};
         std::atomic_bool _closeWhileIoActive{};
         bool _autoResponse{}, _blockNextSend{}, _blockNextCancel{}, _cancelRecorded{}, _closeRecorded{};
         HANDLE _changed{}, _terminal{}, _sendEntered{}, _receiveEntered{}, _responseQueued{}, _releaseSend{};
-        HANDLE _sendExited{}, _receiveExited{};
+        HANDLE _sendExited{}, _receiveExited{}, _inboundDequeued{};
         HANDLE _cancelEntered{}, _releaseCancel{};
     };
 
@@ -464,6 +474,8 @@ namespace TaskRuntimeClientLocalTests
                 {
                     auto result = std::move(_state->_inbound.front());
                     _state->_inbound.pop_front();
+                    _state->_inboundDequeuedCount.fetch_add(1, std::memory_order_acq_rel);
+                    SetEvent(_state->_inboundDequeued);
                     if (_state->_inbound.empty()) { ResetEvent(_state->_changed); }
                     return result;
                 }

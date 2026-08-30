@@ -24,15 +24,20 @@ namespace TaskRuntimeClientLocalTests
         explicit FakeRuntimeClientScheduler(
             const RuntimeClientMonotonicMilliseconds initialNow = 0) noexcept :
             _now{ initialNow },
-            _stateChanged{ CreateEventW(nullptr, TRUE, FALSE, nullptr) }
+            _stateChanged{ CreateEventW(nullptr, TRUE, FALSE, nullptr) },
+            _deadlineBlocked{ CreateEventW(nullptr, TRUE, FALSE, nullptr) },
+            _releaseDeadline{ CreateEventW(nullptr, TRUE, FALSE, nullptr) }
         {
         }
 
         ~FakeRuntimeClientScheduler() override
         {
-            if (_stateChanged)
+            for (const auto handle : std::array{ _stateChanged, _deadlineBlocked, _releaseDeadline })
             {
-                CloseHandle(_stateChanged);
+                if (handle)
+                {
+                    CloseHandle(handle);
+                }
             }
         }
 
@@ -41,7 +46,7 @@ namespace TaskRuntimeClientLocalTests
 
         [[nodiscard]] bool Valid() const noexcept
         {
-            return _stateChanged != nullptr;
+            return _stateChanged && _deadlineBlocked && _releaseDeadline;
         }
 
         [[nodiscard]] RuntimeClientMonotonicMilliseconds Now() noexcept override
@@ -152,6 +157,21 @@ namespace TaskRuntimeClientLocalTests
                 }
                 if (due)
                 {
+                    bool blockDeadline{};
+                    {
+                        std::scoped_lock lock{ _mutex };
+                        blockDeadline = std::exchange(_blockNextDeadline, false);
+                    }
+                    if (blockDeadline)
+                    {
+                        SetEvent(_deadlineBlocked);
+                        const auto released = WaitForSingleObject(_releaseDeadline, INFINITE);
+                        if (released != WAIT_OBJECT_0)
+                        {
+                            return finish(_failed(
+                                released == WAIT_FAILED ? GetLastError() : ERROR_INVALID_HANDLE));
+                        }
+                    }
                     // Match production semantics: a lifecycle wake racing the
                     // exact deadline wins over DeadlineReached.
                     if (const auto wake = _pollWake(wakeEvents))
@@ -217,6 +237,29 @@ namespace TaskRuntimeClientLocalTests
         {
             std::scoped_lock lock{ _mutex };
             _signalWaitersLocked();
+        }
+
+        [[nodiscard]] bool BlockNextDeadlineReturn() noexcept
+        {
+            std::scoped_lock lock{ _mutex };
+            if (_blockNextDeadline)
+            {
+                return false;
+            }
+            ResetEvent(_deadlineBlocked);
+            ResetEvent(_releaseDeadline);
+            _blockNextDeadline = true;
+            return true;
+        }
+
+        [[nodiscard]] DWORD WaitForDeadlineBlocked(const DWORD timeoutMilliseconds = 2000) const noexcept
+        {
+            return WaitForSingleObject(_deadlineBlocked, timeoutMilliseconds);
+        }
+
+        void ReleaseDeadline() const noexcept
+        {
+            SetEvent(_releaseDeadline);
         }
 
         [[nodiscard]] bool FailNextWait(const DWORD systemError = ERROR_GEN_FAILURE) noexcept
@@ -434,6 +477,8 @@ namespace TaskRuntimeClientLocalTests
         mutable std::mutex _mutex;
         RuntimeClientMonotonicMilliseconds _now{};
         HANDLE _stateChanged{};
+        HANDLE _deadlineBlocked{};
+        HANDLE _releaseDeadline{};
         std::vector<std::shared_ptr<WaitRegistration>> _waiters;
         std::vector<RuntimeClientMonotonicMilliseconds> _observedDeadlines;
         std::optional<DWORD> _nextFailure;
@@ -443,5 +488,6 @@ namespace TaskRuntimeClientLocalTests
         size_t _deadlineWakes{};
         size_t _signalWakes{};
         size_t _failedWaits{};
+        bool _blockNextDeadline{};
     };
 }

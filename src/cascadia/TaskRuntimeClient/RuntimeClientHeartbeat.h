@@ -113,6 +113,9 @@ namespace Microsoft::Terminal::TaskRuntime
     [[nodiscard]] std::optional<std::string> MakeRuntimeClientHeartbeatRequestId(
         std::string_view clientInstanceId,
         uint64_t sequence) noexcept;
+    [[nodiscard]] std::optional<std::string> MakeRuntimeClientHeartbeatRequestId(
+        uint32_t requestNamespace,
+        uint64_t sequence) noexcept;
     [[nodiscard]] std::optional<RuntimeClientHeartbeatRequestIdentity>
         ParseRuntimeClientHeartbeatRequestId(std::string_view requestId) noexcept;
     [[nodiscard]] bool IsReservedHeartbeatRequestId(std::string_view requestId) noexcept;

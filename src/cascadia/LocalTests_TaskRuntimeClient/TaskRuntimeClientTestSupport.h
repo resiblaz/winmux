@@ -188,7 +188,7 @@ namespace TaskRuntimeClientLocalTests::TestSupport
         response.Capabilities = AllProtocolCapabilities;
         response.MaximumControlFrameBytes = 256 * 1024;
         response.MaximumTerminalFrameBytes = 64 * 1024;
-        response.HeartbeatMilliseconds = 1000;
+        response.HeartbeatMilliseconds = 60000;
         return response;
     }
 

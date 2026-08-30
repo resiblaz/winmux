@@ -57,12 +57,14 @@ namespace Microsoft::Terminal::TaskRuntime::details
 
     bool RuntimeClientSharedState::HandleSubscriptionNotification(
         const std::shared_ptr<RuntimeClientEpochContext>& epoch,
-        ControlNotification notification) noexcept
+        ControlNotification notification,
+        const RuntimeClientMonotonicMilliseconds now) noexcept
     {
         try
         {
             std::optional<RuntimeClientPendingSubscriptionDelivery> delivery;
             bool retireForResnapshot{};
+            RuntimeClientHeartbeatStatus heartbeatStatus{ RuntimeClientHeartbeatStatus::Stale };
             {
                 std::scoped_lock lock{ Mutex };
                 if (!_activeLocked(*this, epoch))
@@ -81,14 +83,24 @@ namespace Microsoft::Terminal::TaskRuntime::details
                     return false;
                 }
 
-                ConsecutiveFailures = 0;
                 const auto target = RuntimeClientSubscriptionTarget{
                     observed.LogicalId,
                     observed.Revision,
                 };
+                const auto isSubscriptionClosed =
+                    notification.Kind == ControlNotificationKind::SubscriptionClosed;
                 const auto closed = observed.Disposition == NotificationDisposition::Apply &&
-                                    notification.Kind == ControlNotificationKind::SubscriptionClosed;
+                                    isSubscriptionClosed;
                 const auto resnapshot = observed.Disposition == NotificationDisposition::Resnapshot || closed;
+                const auto refreshHeartbeat =
+                    !isSubscriptionClosed &&
+                    (observed.Disposition == NotificationDisposition::IgnoreDuplicate ||
+                     observed.Disposition == NotificationDisposition::IgnoreUnknown ||
+                     observed.Disposition == NotificationDisposition::Apply);
+                if (refreshHeartbeat)
+                {
+                    heartbeatStatus = ObserveInboundLocked(epoch, now);
+                }
                 if (observed.Finalized)
                 {
                     delivery.emplace(_delivery(
@@ -128,6 +140,11 @@ namespace Microsoft::Terminal::TaskRuntime::details
                     return false;
                 }
             }
+
+            (void)RetireForHeartbeatObservation(
+                epoch,
+                heartbeatStatus,
+                "Valid subscription notification arrived at or after the heartbeat silence deadline");
 
             if (delivery)
             {

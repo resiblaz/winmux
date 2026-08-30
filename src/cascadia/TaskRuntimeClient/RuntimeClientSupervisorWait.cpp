@@ -6,6 +6,8 @@
 
 #include "RuntimeControlTransport.h"
 
+#include <algorithm>
+
 namespace Microsoft::Terminal::TaskRuntime::details
 {
     namespace
@@ -169,5 +171,171 @@ namespace Microsoft::Terminal::TaskRuntime::details
                    "Runtime client scheduler wait failed") ?
                    RuntimeClientBackoffWaitResult::Failed :
                    RuntimeClientBackoffWaitResult::StopRequested;
+    }
+
+    RuntimeClientHeartbeatMonitorResult RuntimeClientSharedState::MonitorHeartbeat(
+        const std::shared_ptr<RuntimeClientEpochContext>& epoch) noexcept
+    {
+        if (!epoch)
+        {
+            return RuntimeClientHeartbeatMonitorResult::Failed;
+        }
+
+        const auto retire = [&](const RuntimeClientRetireCause cause,
+                                const RuntimeTransportStatus transportStatus,
+                                const DWORD systemError,
+                                const std::string_view diagnostic,
+                                const RuntimeClientHeartbeatMonitorResult result) noexcept {
+            RequestEpochRetire(epoch, cause, transportStatus, systemError, diagnostic);
+            return result;
+        };
+        const std::array wakeEvents{
+            StopEvent.Get(),
+            epoch->RetireRequested.Get(),
+            epoch->InboundActivity.Get(),
+        };
+
+        for (;;)
+        {
+            if (_stopRequested(*this))
+            {
+                return retire(
+                    RuntimeClientRetireCause::StopRequested,
+                    RuntimeTransportStatus::Cancelled,
+                    ERROR_OPERATION_ABORTED,
+                    "Task Runtime client is stopping",
+                    RuntimeClientHeartbeatMonitorResult::StopRequested);
+            }
+            if (WaitForSingleObject(epoch->RetireRequested.Get(), 0) == WAIT_OBJECT_0)
+            {
+                return RuntimeClientHeartbeatMonitorResult::EpochRetired;
+            }
+            // Consume an already-signalled auto-reset activity wake before
+            // taking the next decision. The heartbeat window was updated first.
+            (void)WaitForSingleObject(epoch->InboundActivity.Get(), 0);
+
+            RuntimeClientHeartbeatDecision decision;
+            try
+            {
+                const auto now = Dependencies.Scheduler->Now();
+                std::scoped_lock lock{ Mutex };
+                if (!Active || Active.get() != epoch.get() ||
+                    !Epochs.IsActive(epoch->Epoch))
+                {
+                    return RuntimeClientHeartbeatMonitorResult::EpochRetired;
+                }
+                const auto view = Heartbeat.ActiveView();
+                const auto decisionNow = view ? (std::max)(now, view->LastInbound) : now;
+                decision = Heartbeat.Decide(decisionNow);
+            }
+            catch (...)
+            {
+                decision.Action = RuntimeClientHeartbeatAction::Failed;
+            }
+
+            if (decision.Action == RuntimeClientHeartbeatAction::QueuePing)
+            {
+                WriterWake.notify_all();
+                continue;
+            }
+            if (decision.Action == RuntimeClientHeartbeatAction::Timeout)
+            {
+                if (_stopRequested(*this))
+                {
+                    return retire(
+                        RuntimeClientRetireCause::StopRequested,
+                        RuntimeTransportStatus::Cancelled,
+                        ERROR_OPERATION_ABORTED,
+                        "Task Runtime client is stopping",
+                        RuntimeClientHeartbeatMonitorResult::StopRequested);
+                }
+                if (WaitForSingleObject(epoch->RetireRequested.Get(), 0) == WAIT_OBJECT_0)
+                {
+                    return RuntimeClientHeartbeatMonitorResult::EpochRetired;
+                }
+                return retire(
+                    RuntimeClientRetireCause::HeartbeatTimeout,
+                    RuntimeTransportStatus::Timeout,
+                    ERROR_TIMEOUT,
+                    "Task Runtime heartbeat silence deadline expired",
+                    RuntimeClientHeartbeatMonitorResult::EpochRetired);
+            }
+            if (decision.Action == RuntimeClientHeartbeatAction::Failed)
+            {
+                if (_stopRequested(*this))
+                {
+                    return retire(
+                        RuntimeClientRetireCause::StopRequested,
+                        RuntimeTransportStatus::Cancelled,
+                        ERROR_OPERATION_ABORTED,
+                        "Task Runtime client is stopping",
+                        RuntimeClientHeartbeatMonitorResult::StopRequested);
+                }
+                if (WaitForSingleObject(epoch->RetireRequested.Get(), 0) == WAIT_OBJECT_0)
+                {
+                    return RuntimeClientHeartbeatMonitorResult::EpochRetired;
+                }
+                return retire(
+                    RuntimeClientRetireCause::ProtocolError,
+                    RuntimeTransportStatus::SystemError,
+                    ERROR_INVALID_STATE,
+                    "Task Runtime heartbeat state is invalid",
+                    RuntimeClientHeartbeatMonitorResult::Failed);
+            }
+
+            RuntimeClientScheduledWaitResult waited;
+            try
+            {
+                waited = Dependencies.Scheduler->WaitUntil(decision.Deadline, wakeEvents);
+            }
+            catch (...)
+            {
+                waited.Status = RuntimeClientScheduledWaitStatus::Failed;
+                waited.SystemError = ERROR_UNHANDLED_EXCEPTION;
+            }
+            if (waited.Status == RuntimeClientScheduledWaitStatus::DeadlineReached)
+            {
+                continue;
+            }
+            if (waited.Status == RuntimeClientScheduledWaitStatus::WakeSignaled)
+            {
+                if (waited.WakeIndex == 0)
+                {
+                    return retire(
+                        RuntimeClientRetireCause::StopRequested,
+                        RuntimeTransportStatus::Cancelled,
+                        ERROR_OPERATION_ABORTED,
+                        "Task Runtime client is stopping",
+                        RuntimeClientHeartbeatMonitorResult::StopRequested);
+                }
+                if (waited.WakeIndex == 1)
+                {
+                    return RuntimeClientHeartbeatMonitorResult::EpochRetired;
+                }
+                if (waited.WakeIndex == 2)
+                {
+                    continue;
+                }
+            }
+            if (_stopRequested(*this))
+            {
+                return retire(
+                    RuntimeClientRetireCause::StopRequested,
+                    RuntimeTransportStatus::Cancelled,
+                    ERROR_OPERATION_ABORTED,
+                    "Task Runtime client is stopping",
+                    RuntimeClientHeartbeatMonitorResult::StopRequested);
+            }
+            if (WaitForSingleObject(epoch->RetireRequested.Get(), 0) == WAIT_OBJECT_0)
+            {
+                return RuntimeClientHeartbeatMonitorResult::EpochRetired;
+            }
+            return retire(
+                RuntimeClientRetireCause::ProtocolError,
+                RuntimeTransportStatus::SystemError,
+                waited.SystemError == ERROR_SUCCESS ? ERROR_GEN_FAILURE : waited.SystemError,
+                "Task Runtime heartbeat scheduler wait failed",
+                RuntimeClientHeartbeatMonitorResult::Failed);
+        }
     }
 }

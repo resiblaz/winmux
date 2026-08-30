@@ -62,8 +62,11 @@ foundational contracts required to avoid disposable data/process designs.
   removal, and deterministic Stop/destruction terminal delivery. The virtual
   scheduler then replaces reconnect wall-clock waits with absolute monotonic
   deadlines, deterministic manual-time tests, Stop-priority wakeup, and
-  fail-closed invalid policy/scheduler handling. Negotiated heartbeat is next.
-  Real Codex, Git, and task-owned Surface integration remain later milestones.
+  fail-closed invalid policy/scheduler handling. M2C4c3b adds negotiated
+  half-interval Ping, a strict full-silence deadline, valid-inbound rearming,
+  superseded ACK handling, reserved capacity, and reconnect-health reset.
+  The long-running Runtime product host is next. Real Codex, Git, and
+  task-owned Surface integration remain later milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
 - The executable M2/M3 commit queue and frozen technical defaults are tracked
@@ -271,8 +274,8 @@ along with M2C4a client protocol policy and M2C4b shared transport/connector
 foundation, plus M2C4c1a client epoch/request state and M2C4c1b reconnecting
 request client, followed by M2C4c2a pure client subscription state,
 M2C4c2b1 bounded subscription delivery foundations, M2C4c2b2 threaded
-subscription integration, and M2C4c3a virtual reconnect scheduling
-(2026-08-30)**.
+subscription integration, M2C4c3a virtual reconnect scheduling, and M2C4c3b
+negotiated heartbeat/liveness (2026-08-30)**.
 
 Deliverables:
 

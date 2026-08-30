@@ -34,6 +34,9 @@
     <ClCompile Include="TaskRuntimeClientReconnectTests.cpp" />
     <ClCompile Include="TaskRuntimeClientRequestFlowTests.cpp" />
     <ClCompile Include="TaskRuntimeClientSchedulerTests.cpp" />
+    <ClCompile Include="TaskRuntimeClientHeartbeatIntegrationTests.cpp" />
+    <ClCompile Include="TaskRuntimeClientHeartbeatLifecycleTests.cpp" />
+    <ClCompile Include="TaskRuntimeClientHeartbeatFailureTests.cpp" />
     <ClCompile Include="TaskRuntimeClientStopTests.cpp" />
     <ClCompile Include="TaskRuntimeClientSubscriptionIntegrationTests.cpp" />
     <ClCompile Include="TaskRuntimeClientSubscriptionFailureTests.cpp" />

@@ -60,4 +60,14 @@ race, and invalid zero-delay policies, clock overflow, or wait failure fault
 the client instead of entering a reconnect loop. Transport I/O timeouts,
 epoch lifecycle waits, and public pull deadlines remain independently owned.
 
-M2C4c3b next uses the same scheduler for negotiated heartbeat liveness.
+The negotiated heartbeat uses the same scheduler without adding a timer
+thread. Supervisor owns half-interval and full-silence deadlines, Reader only
+rearms after current-epoch correlation or valid subscription delivery, and the
+single Writer sends reserved-capacity Ping work ahead of ordinary requests.
+Other valid inbound traffic supersedes an outstanding Ping; its late ACK is
+ignored by a client-namespaced monotonic ID high-water and cannot refresh
+liveness. Stop and epoch retirement remain higher priority than Ping or
+timeout, while a true silence timeout reconnects through the normal backoff.
+
+M2D next composes these client/runtime foundations into the long-running
+product helper and on-demand activation path.

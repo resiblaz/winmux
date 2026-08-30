@@ -211,7 +211,7 @@ namespace TaskRuntimeClientLocalTests
 
         TaskRuntimeClient client{ ValidConfiguration(), fixture.Dependencies() };
         VERIFY_IS_TRUE(client.Start());
-        VERIFY_IS_TRUE(WaitReady(client));
+        VERIFY_IS_TRUE(WaitReady(client, *healthy));
         const auto probe = client.Submit(ControlMethod::Ping);
         VERIFY_IS_TRUE(WaitReady(probe));
         VERIFY_IS_TRUE(probe.Completion.get().Outcome == RuntimeClientRequestOutcome::Succeeded);

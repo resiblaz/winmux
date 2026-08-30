@@ -64,7 +64,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
     bool RuntimeClientEpochContext::Valid() const noexcept
     {
         return Connection && Connection->Connected() && Cancellation && RetireRequested &&
-               WorkersFinished && CancelFinished;
+               InboundActivity && WorkersFinished && CancelFinished;
     }
 
     void RuntimeClientEpochContext::WorkerStarted() noexcept

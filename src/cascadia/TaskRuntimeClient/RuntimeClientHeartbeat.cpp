@@ -250,7 +250,16 @@ namespace Microsoft::Terminal::TaskRuntime
         const uint64_t sequence) noexcept
     {
         const auto requestNamespace = RuntimeClientHeartbeatNamespace(clientInstanceId);
-        if (!requestNamespace || sequence == 0)
+        return requestNamespace ?
+                   MakeRuntimeClientHeartbeatRequestId(*requestNamespace, sequence) :
+                   std::nullopt;
+    }
+
+    std::optional<std::string> MakeRuntimeClientHeartbeatRequestId(
+        const uint32_t requestNamespace,
+        const uint64_t sequence) noexcept
+    {
+        if (sequence == 0)
         {
             return std::nullopt;
         }
@@ -260,9 +269,9 @@ namespace Microsoft::Terminal::TaskRuntime
             auto output = text;
             _writeHex(output, 0xf17e0001u, 8);
             *output++ = '-';
-            _writeHex(output, *requestNamespace >> 16, 4);
+            _writeHex(output, requestNamespace >> 16, 4);
             *output++ = '-';
-            _writeHex(output, *requestNamespace & 0xffffu, 4);
+            _writeHex(output, requestNamespace & 0xffffu, 4);
             *output++ = '-';
             _writeHex(output, sequence >> 48, 4);
             *output++ = '-';

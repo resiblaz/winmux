@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-08-30
-status: active execution queue; M2C4c3a complete, heartbeat next
+status: active execution queue; M2C4c3 complete, Runtime product host next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -30,7 +30,7 @@ untouched until the feature branch has passed both milestone closure gates.
 | M2C4c2b1 (complete) | Bounded pull streams and request-failure transitions | FIFO/bounds, terminal under pressure, cancellation, callback reentry, RPC failure, overflow reset |
 | M2C4c2b2 (complete) | `TaskRuntimeClient` threaded subscription integration | buffered first event, reconnect/resnapshot, multi-subscription, stale epoch, bounded slow consumer, Stop/destruction |
 | M2C4c3a (complete) | Virtual client scheduler replacing real backoff waits | exact virtual deadlines, Stop wake, no busy loop, request regression |
-| M2C4c3b | Negotiated heartbeat/liveness | due/ack/miss, old ACK, full user queue, Stop race, backoff health reset |
+| M2C4c3b (complete) | Negotiated heartbeat/liveness | due/ack/miss, old ACK, full user queue, Stop race, backoff health reset |
 | M2D1 | Long-running Runtime foundation host and concrete Ping/RuntimeStatus router | real child process, Hello, reconnect, second instance, malformed peer isolation, graceful stop |
 | M2D2 | On-demand launch coordination and parent independence | connect-first, one launch under concurrent clients, launch failure/cancel, crash restart, short-lived parent test |
 | M2E1 | Secure binary terminal transport | framing fragmentation/coalescing, ACL/identity/generation, payload bounds, cancellation, control/data HOL |

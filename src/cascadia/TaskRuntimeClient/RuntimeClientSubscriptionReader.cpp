@@ -273,7 +273,8 @@ namespace Microsoft::Terminal::TaskRuntime::details
 
     bool RuntimeClientSharedState::HandleSubscriptionResponse(
         const std::shared_ptr<RuntimeClientEpochContext>& epoch,
-        ControlResponse& response) noexcept
+        ControlResponse& response,
+        const RuntimeClientMonotonicMilliseconds now) noexcept
     {
         std::optional<RuntimeClientSubscriptionRequestBinding> binding;
         try
@@ -303,6 +304,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
             bool protocolFault{};
             bool retireForResnapshot{};
             bool wakeWriter{};
+            RuntimeClientHeartbeatStatus heartbeatStatus{ RuntimeClientHeartbeatStatus::Stale };
             {
                 std::scoped_lock lock{ Mutex };
                 if (!_activeLocked(*this, epoch))
@@ -438,8 +440,11 @@ namespace Microsoft::Terminal::TaskRuntime::details
                             retireForResnapshot = true;
                         }
 
+                        if (!protocolFault)
+                        {
+                            heartbeatStatus = ObserveInboundLocked(epoch, now);
+                        }
                         EraseSubscriptionOperationLocked(operationId);
-                        ConsecutiveFailures = 0;
                     }
                 }
             }
@@ -462,6 +467,13 @@ namespace Microsoft::Terminal::TaskRuntime::details
             if (protocolFault)
             {
                 _protocolRetire(*this, epoch, "Subscription response correlation or state was invalid");
+            }
+            else if (RetireForHeartbeatObservation(
+                         epoch,
+                         heartbeatStatus,
+                         "Valid subscription response arrived at or after the heartbeat silence deadline"))
+            {
+                return true;
             }
             else if (retireForResnapshot)
             {

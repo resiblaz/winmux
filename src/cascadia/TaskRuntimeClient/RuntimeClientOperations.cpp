@@ -96,6 +96,11 @@ namespace Microsoft::Terminal::TaskRuntime::details
                 continue;
             }
 
+            if (operation->second.Kind == RuntimeClientLogicalOperationKind::HeartbeatPing)
+            {
+                EraseHeartbeatOperationLocked(operation->first);
+                continue;
+            }
             if (operation->second.Kind != RuntimeClientLogicalOperationKind::UserRequest)
             {
                 EraseSubscriptionOperationLocked(operation->first);
@@ -194,7 +199,8 @@ namespace Microsoft::Terminal::TaskRuntime::details
                     }
                     continue;
                 }
-                if (!requestId || !writerItem || !IsCanonicalProtocolUuid(*requestId))
+                if (!requestId || !writerItem || !IsCanonicalProtocolUuid(*requestId) ||
+                    IsReservedHeartbeatRequestId(*requestId))
                 {
                     RuntimeClientRequestResult result;
                     result.Outcome = RuntimeClientRequestOutcome::ProtocolError;
@@ -311,7 +317,12 @@ namespace Microsoft::Terminal::TaskRuntime::details
                 result.Outcome = RuntimeClientRequestOutcome::ClientStopped;
                 const auto operation = Operations.find(operationId);
                 if (operation != Operations.end() &&
-                    operation->second.Kind != RuntimeClientLogicalOperationKind::UserRequest)
+                    operation->second.Kind == RuntimeClientLogicalOperationKind::HeartbeatPing)
+                {
+                    EraseHeartbeatOperationLocked(operationId);
+                }
+                else if (operation != Operations.end() &&
+                         operation->second.Kind != RuntimeClientLogicalOperationKind::UserRequest)
                 {
                     EraseSubscriptionOperationLocked(operationId);
                 }
@@ -327,6 +338,8 @@ namespace Microsoft::Terminal::TaskRuntime::details
                 "Task Runtime client stopped",
                 SubscriptionDeliveryBuffer);
             WriterQueue.clear();
+            Heartbeat.Retire();
+            HeartbeatQueuedBytes = 0;
             active = std::move(Active);
             AdmissionOpen = false;
             ClientState = TaskRuntimeClientState::Stopped;
@@ -372,7 +385,12 @@ namespace Microsoft::Terminal::TaskRuntime::details
             }
             const auto operation = Operations.find(operationId);
             if (operation != Operations.end() &&
-                operation->second.Kind != RuntimeClientLogicalOperationKind::UserRequest)
+                operation->second.Kind == RuntimeClientLogicalOperationKind::HeartbeatPing)
+            {
+                EraseHeartbeatOperationLocked(operationId);
+            }
+            else if (operation != Operations.end() &&
+                     operation->second.Kind != RuntimeClientLogicalOperationKind::UserRequest)
             {
                 EraseSubscriptionOperationLocked(operationId);
             }

@@ -349,7 +349,7 @@ namespace Microsoft::Terminal::TaskRuntime
             return std::nullopt;
         }
 
-        auto cancelled = request->second;
+        auto cancelled = std::move(request->second);
         _impl->AddTombstone(
             cancelled,
             RuntimeClientRequestTombstoneKind::CancelledBeforeWrite);

@@ -188,7 +188,8 @@ namespace Microsoft::Terminal::TaskRuntime::details
             {
                 requestId.reset();
             }
-            if (!requestId || !IsCanonicalProtocolUuid(*requestId))
+            if (!requestId || !IsCanonicalProtocolUuid(*requestId) ||
+                IsReservedHeartbeatRequestId(*requestId))
             {
                 return retireProtocol(
                     ERROR_INVALID_DATA,
@@ -288,6 +289,10 @@ namespace Microsoft::Terminal::TaskRuntime::details
                     {
                         return RuntimeClientSubscriptionWriteResult::Stop;
                     }
+                    if (HasHeartbeatWriterWorkLocked(epoch->Epoch))
+                    {
+                        return RuntimeClientSubscriptionWriteResult::NoWork;
+                    }
                     if (SubscriptionOperationCount >=
                         Configuration.MaximumConcurrentSubscriptionOperations)
                     {
@@ -323,8 +328,11 @@ namespace Microsoft::Terminal::TaskRuntime::details
                     if (!benignRace &&
                         (NextOperationId == 0 ||
                          IssuedRequestIds.size() >= Configuration.MaximumRememberedRequestIds ||
-                         QueuedBytes > Configuration.MaximumQueuedBytes ||
-                         encoded.Payload.size() > Configuration.MaximumQueuedBytes - QueuedBytes))
+                         QueuedBytes >
+                             Configuration.MaximumQueuedBytes - Configuration.MaximumRequestBytes ||
+                         encoded.Payload.size() >
+                             Configuration.MaximumQueuedBytes - Configuration.MaximumRequestBytes -
+                                 QueuedBytes))
                     {
                         rollbackFailed = true;
                     }

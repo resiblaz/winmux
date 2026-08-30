@@ -69,15 +69,23 @@ namespace Microsoft::Terminal::TaskRuntime::details
             {
                 return;
             }
-            const auto retired = Epochs.BeginRetire(epoch->Epoch, cause);
+            const auto stopping = ClientState == TaskRuntimeClientState::Stopping ||
+                                  WaitForSingleObject(StopEvent.Get(), 0) == WAIT_OBJECT_0;
+            const auto effectiveCause = stopping ? RuntimeClientRetireCause::StopRequested : cause;
+            const auto effectiveStatus = stopping ? RuntimeTransportStatus::Cancelled : transportStatus;
+            const auto effectiveSystemError = stopping ? ERROR_OPERATION_ABORTED : systemError;
+            const auto effectiveDiagnostic = stopping ?
+                                                 std::string_view{ "Task Runtime client is stopping" } :
+                                                 diagnostic;
+            const auto retired = Epochs.BeginRetire(epoch->Epoch, effectiveCause);
             if (retired.Status == RuntimeClientEpochRetireStatus::Started)
             {
                 epoch->RetireCause = retired.Cause;
-                epoch->FailureStatus = transportStatus;
-                epoch->SystemError = systemError;
+                epoch->FailureStatus = effectiveStatus;
+                epoch->SystemError = effectiveSystemError;
                 try
                 {
-                    epoch->Diagnostic.assign(diagnostic);
+                    epoch->Diagnostic.assign(effectiveDiagnostic);
                 }
                 catch (...)
                 {
@@ -220,8 +228,20 @@ namespace Microsoft::Terminal::TaskRuntime::details
                     continue;
                 }
 
+                RuntimeClientMonotonicMilliseconds heartbeatNow{};
+                bool heartbeatClockReady{};
+                try
+                {
+                    heartbeatNow = Dependencies.Scheduler->Now();
+                    heartbeatClockReady = true;
+                }
+                catch (...)
+                {
+                }
+
                 bool published{};
                 bool exhausted{};
+                bool heartbeatFailed{};
                 {
                     std::scoped_lock lock{ Mutex };
                     if (ClientState != TaskRuntimeClientState::Stopping &&
@@ -231,10 +251,28 @@ namespace Microsoft::Terminal::TaskRuntime::details
                         if (activated.Status == RuntimeClientEpochActivationStatus::Activated)
                         {
                             epoch->Epoch = activated.Epoch;
-                            Active = epoch;
-                            CurrentRuntimeInstanceId = epoch->Hello.RuntimeInstanceId;
-                            ClientState = TaskRuntimeClientState::Ready;
-                            published = true;
+                            if (heartbeatClockReady &&
+                                Heartbeat.Initialize(
+                                    epoch->Epoch,
+                                    heartbeatNow,
+                                    epoch->Hello.HeartbeatMilliseconds))
+                            {
+                                Active = epoch;
+                                CurrentRuntimeInstanceId = epoch->Hello.RuntimeInstanceId;
+                                ClientState = TaskRuntimeClientState::Ready;
+                                published = true;
+                            }
+                            else
+                            {
+                                (void)Epochs.BeginRetire(
+                                    epoch->Epoch,
+                                    RuntimeClientRetireCause::ProtocolError);
+                                (void)Epochs.CompleteRetire(epoch->Epoch);
+                                Heartbeat.Retire();
+                                heartbeatFailed = true;
+                                AdmissionOpen = false;
+                                ClientState = TaskRuntimeClientState::Faulted;
+                            }
                         }
                         else if (activated.Status == RuntimeClientEpochActivationStatus::Exhausted)
                         {
@@ -248,21 +286,27 @@ namespace Microsoft::Terminal::TaskRuntime::details
                 {
                     epoch->Cancel();
                     epoch->Close();
-                    if (exhausted)
+                    if (exhausted || heartbeatFailed)
                     {
+                        const auto systemError = exhausted ?
+                                                     ERROR_ARITHMETIC_OVERFLOW :
+                                                     ERROR_INVALID_STATE;
+                        const auto diagnostic = exhausted ?
+                                                    "Client epoch identifier space is exhausted" :
+                                                    "Client heartbeat could not initialize";
                         {
                             std::scoped_lock lock{ Mutex };
                             FailAllLocked(
                                 RuntimeClientRequestOutcome::ProtocolError,
                                 RuntimeTransportStatus::SystemError,
-                                ERROR_ARITHMETIC_OVERFLOW,
-                                "Client epoch identifier space is exhausted",
+                                systemError,
+                                diagnostic,
                                 completions);
                             FailSubscriptionsLocked(
                                 RuntimeClientSubscriptionEventKind::Faulted,
                                 RuntimeTransportStatus::SystemError,
-                                ERROR_ARITHMETIC_OVERFLOW,
-                                "Client epoch identifier space is exhausted",
+                                systemError,
+                                diagnostic,
                                 SubscriptionDeliveryBuffer);
                         }
                         Deliver(completions);
@@ -293,30 +337,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
                         "Client IO worker could not start");
                 }
 
-                const std::array waits{ StopEvent.Get(), epoch->RetireRequested.Get() };
-                const auto wait = WaitForMultipleObjects(
-                    static_cast<DWORD>(waits.size()),
-                    waits.data(),
-                    FALSE,
-                    INFINITE);
-                if (wait == WAIT_OBJECT_0)
-                {
-                    RequestEpochRetire(
-                        epoch,
-                        RuntimeClientRetireCause::StopRequested,
-                        RuntimeTransportStatus::Cancelled,
-                        ERROR_OPERATION_ABORTED,
-                        "Task Runtime client is stopping");
-                }
-                else if (wait != WAIT_OBJECT_0 + 1)
-                {
-                    RequestEpochRetire(
-                        epoch,
-                        RuntimeClientRetireCause::ProtocolError,
-                        RuntimeTransportStatus::SystemError,
-                        GetLastError(),
-                        "Client supervisor wait failed");
-                }
+                (void)MonitorHeartbeat(epoch);
 
                 workers.JoinAndClose();
 
@@ -356,6 +377,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
                             completions);
                     }
                     RetireSubscriptionsLocked(epoch->Epoch, stopping, SubscriptionDeliveryBuffer);
+                    Heartbeat.Retire();
                     retired.clear();
                     Requests.ClearRetiredEpochTombstones(epoch->Epoch);
                     (void)Epochs.CompleteRetire(epoch->Epoch);
@@ -475,6 +497,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
                     retries.clear();
                     (void)Epochs.BeginRetire(active->Epoch, RuntimeClientRetireCause::ProtocolError);
                     (void)Epochs.CompleteRetire(active->Epoch);
+                    Heartbeat.Retire();
                     Active.reset();
                     CurrentRuntimeInstanceId.clear();
                 }

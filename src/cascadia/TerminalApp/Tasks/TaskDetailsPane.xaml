@@ -33,9 +33,12 @@
 
         <DataTemplate x:Key="TaskDetailsTemplate"
                       x:DataType="local:TaskItemViewModel">
-            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+            <ScrollViewer HorizontalContentAlignment="Stretch"
+                          HorizontalScrollBarVisibility="Disabled"
+                          HorizontalScrollMode="Disabled"
                           VerticalScrollBarVisibility="Auto">
                 <Grid MaxWidth="1280"
+                      HorizontalAlignment="Stretch"
                       Padding="28,24,28,48">
                     <VisualStateManager.VisualStateGroups>
                         <VisualStateGroup>
@@ -225,6 +228,9 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <ContentControl Content="{x:Bind Task, Mode=OneWay}"
+    <ContentControl x:Name="DetailsContentHost"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch"
+                    Content="{x:Bind Task, Mode=OneWay}"
                     ContentTemplate="{StaticResource TaskDetailsTemplate}" />
 </UserControl>

@@ -175,6 +175,9 @@ namespace TerminalAppLocalTests
             VERIFY_IS_NOT_NULL(page);
             VERIFY_IS_NOT_NULL(details);
             VERIFY_IS_NOT_NULL(page.ViewModel());
+            const auto detailsHost = details.FindName(L"DetailsContentHost").as<winrt::Windows::UI::Xaml::Controls::ContentControl>();
+            VERIFY_ARE_EQUAL(winrt::Windows::UI::Xaml::HorizontalAlignment::Stretch, detailsHost.HorizontalContentAlignment());
+            VERIFY_ARE_EQUAL(winrt::Windows::UI::Xaml::VerticalAlignment::Stretch, detailsHost.VerticalContentAlignment());
         });
         VERIFY_SUCCEEDED(result);
     }

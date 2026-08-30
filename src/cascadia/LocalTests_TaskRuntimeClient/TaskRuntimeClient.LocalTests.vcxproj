@@ -24,6 +24,7 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RuntimeClientEpochTests.cpp" />
+    <ClCompile Include="RuntimeClientHeartbeatTests.cpp" />
     <ClCompile Include="RuntimeClientInterfaceTests.cpp" />
     <ClCompile Include="RuntimeClientRequestTests.cpp" />
     <ClCompile Include="RuntimeClientSchedulerTests.cpp" />

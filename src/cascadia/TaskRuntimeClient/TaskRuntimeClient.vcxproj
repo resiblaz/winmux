@@ -15,6 +15,7 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="RuntimeClientInterfaces.h" />
     <ClInclude Include="RuntimeClientEpoch.h" />
+    <ClInclude Include="RuntimeClientHeartbeat.h" />
     <ClInclude Include="RuntimeClientRequests.h" />
     <ClInclude Include="RuntimeClientScheduler.h" />
     <ClInclude Include="RuntimeClientState.h" />
@@ -33,6 +34,7 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RuntimeClientEpoch.cpp" />
+    <ClCompile Include="RuntimeClientHeartbeat.cpp" />
     <ClCompile Include="RuntimeClientInterfaces.cpp" />
     <ClCompile Include="RuntimeClientOperations.cpp" />
     <ClCompile Include="RuntimeClientReader.cpp" />

@@ -5,6 +5,8 @@
 
 #include "RuntimeControlTestFixtures.h"
 
+#include <thread>
+
 using namespace WEX::TestExecution;
 using namespace Microsoft::Terminal::TaskRuntime;
 using namespace Microsoft::Terminal::TaskRuntimeProtocol;
@@ -24,6 +26,7 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(SlowClientDoesNotBlockAnotherClient);
         TEST_METHOD(ClientLimitRejectsOnlyTheNewConnection);
         TEST_METHOD(LastClientDisconnectLeavesServerAvailableForReconnect);
+        TEST_METHOD(StopDuringSubscriptionPlanningCancelsBeforeRoute);
         TEST_METHOD(InvalidServerConfigurationFailsClosed);
         TEST_METHOD(StopCancelsIdleAcceptorAndClientReads);
     };
@@ -224,6 +227,69 @@ namespace TaskRuntimeLocalTests
             ControlMethod::Ping);
         VERIFY_IS_TRUE(response.Succeeded);
         VERIFY_ARE_EQUAL(uint64_t{ 2 }, server.Server.Statistics().AcceptedConnections);
+    }
+
+    void RuntimeControlServerTests::StopDuringSubscriptionPlanningCancelsBeforeRoute()
+    {
+        RuntimeControlServerConfiguration configuration;
+        configuration.AcceptTimeoutMilliseconds = 60000;
+        configuration.ReadTimeoutMilliseconds = 60000;
+        RunningControlServer server{ configuration };
+        const auto plannerEntered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        const auto stopCompleted = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        VERIFY_IS_NOT_NULL(plannerEntered);
+        VERIFY_IS_NOT_NULL(stopCompleted);
+        std::atomic_bool plannerObservedCancellation{};
+        server.Router->SetSubscriptionPlanner(
+            [plannerEntered, &plannerObservedCancellation](
+                const RuntimeControlClientContext&,
+                const ControlRequest&,
+                const RuntimeControlCancellationToken& cancellation) {
+                SetEvent(plannerEntered);
+                const auto deadline = GetTickCount64() + 2000;
+                while (!cancellation.IsCancellationRequested() && GetTickCount64() < deadline)
+                {
+                    SwitchToThread();
+                }
+                plannerObservedCancellation.store(
+                    cancellation.IsCancellationRequested(),
+                    std::memory_order_release);
+                return std::optional{ RuntimeControlSubscriptionPlan{
+                    "40000000-0000-4000-8000-000000000061",
+                    1,
+                } };
+            });
+
+        auto client = ConnectAndHello(server, ClientOneId);
+        ControlRequest request;
+        request.RequestId = "30000000-0000-4000-8000-000000000061";
+        request.Method = ControlMethod::SnapshotAndSubscribe;
+        const auto encoded = EncodeControlRequest(request);
+        VERIFY_IS_TRUE(encoded.Succeeded);
+        VERIFY_IS_TRUE(client.Send(encoded.Payload, 2000).Succeeded());
+        VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, WaitForSingleObject(plannerEntered, 2000));
+
+        uint64_t stopElapsed{};
+        std::thread stopThread{ [&] {
+            const auto started = GetTickCount64();
+            server.Server.Stop();
+            stopElapsed = GetTickCount64() - started;
+            SetEvent(stopCompleted);
+        } };
+        const auto stopWait = WaitForSingleObject(stopCompleted, 2000);
+        if (stopWait != WAIT_OBJECT_0)
+        {
+            client.Close();
+        }
+        stopThread.join();
+
+        VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, stopWait);
+        VERIFY_IS_TRUE(stopElapsed < 2000);
+        VERIFY_IS_TRUE(plannerObservedCancellation.load(std::memory_order_acquire));
+        VERIFY_ARE_EQUAL(size_t{ 0 }, server.Router->Calls.load(std::memory_order_relaxed));
+        VERIFY_ARE_EQUAL(size_t{ 1 }, server.Router->CancelledPlans.load(std::memory_order_relaxed));
+        CloseHandle(plannerEntered);
+        CloseHandle(stopCompleted);
     }
 
     void RuntimeControlServerTests::InvalidServerConfigurationFailsClosed()

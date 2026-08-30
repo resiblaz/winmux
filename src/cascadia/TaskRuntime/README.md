@@ -51,6 +51,7 @@ bounded queue budget; overflow disconnects only that client.
 `--bootstrap-check` creates and validates the identity, security, mutex, and
 first control-pipe instance, prints the protocol identity, and exits. It is not
 the long-running Runtime mode. M2C4a now defines the client-side envelope,
-Snapshot DTO, and disconnect replay/outcome policy. M2C4b will split the shared
-named-pipe transport target and add a connector seam before the reconnecting
-client supervisor is introduced.
+Snapshot DTO, and disconnect replay/outcome policy. M2C4b now provides the
+shared `TaskRuntimeTransport` library and a cancellable, single-deadline
+connect-plus-Hello seam. M2C4c will add the reconnecting client supervisor,
+request correlation, and subscription resnapshot policy execution.

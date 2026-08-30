@@ -154,6 +154,7 @@ try
             'src\cascadia\LocalTests_TaskCore\TaskCore.LocalTests.vcxproj',
             'src\cascadia\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj',
             'src\cascadia\LocalTests_TaskRuntimeProtocol\TaskRuntimeProtocol.LocalTests.vcxproj',
+            'src\cascadia\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj',
             'src\cascadia\TaskRuntime\TaskRuntimeHost.vcxproj',
             'src\cascadia\TaskRuntime\TaskRuntime.vcxproj',
             'src\cascadia\LocalTests_TaskRuntime\TaskRuntime.LocalTests.vcxproj',

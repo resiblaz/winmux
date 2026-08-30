@@ -707,6 +707,7 @@ Component boundary:
 
 ```text
 TaskRuntimeProtocol
+TaskRuntimeTransport          shared named-pipe IO / Hello / cancellation
 TaskRuntimeClient             background pipe IO / parsing / reconnect
 TaskProjectionCoordinator     immutable per-window projection and sequencing
 TaskPageViewModel

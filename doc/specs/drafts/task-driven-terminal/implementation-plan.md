@@ -46,9 +46,10 @@ foundational contracts required to avoid disposable data/process designs.
   planning, bounded Pending event buffering, targeted notification delivery,
   strict ownership/sequence enforcement, and reconnect rebind paths. M2C4a
   adds a single-parse client envelope variant, strict Snapshot/Unsubscribe
-  DTOs, and explicit disconnect replay/OutcomeUnknown policy. M2C4b is next:
-  a shared named-pipe transport target and connector seam, followed by the
-  reconnecting client supervisor. Real Codex, Git, and task-owned Surface
+  DTOs, and explicit disconnect replay/OutcomeUnknown policy. M2C4b adds a
+  shared `TaskRuntimeTransport` target, single-deadline Hello connector seam,
+  typed cancellation, and race-free accept/session shutdown. M2C4c is next:
+  the reconnecting client supervisor. Real Codex, Git, and task-owned Surface
   integration remain later milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
@@ -251,7 +252,8 @@ Tests:
 Status: **in progress; M2A protocol, M2B host/bootstrap, M2C1 control-session
 foundations, M2C2a single-channel transport integration, and M2C2b
 multi-client request serving, and M2C3 atomic notification delivery complete
-along with M2C4a client protocol policy (2026-08-30)**.
+along with M2C4a client protocol policy and M2C4b shared transport/connector
+foundation (2026-08-30)**.
 
 Deliverables:
 

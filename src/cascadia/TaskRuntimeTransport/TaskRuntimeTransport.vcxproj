@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{C227632F-A428-48E3-AB9B-DB3D170DDAAC}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>Microsoft.Terminal.TaskRuntime</RootNamespace>
+    <ProjectName>TaskRuntimeTransport</ProjectName>
+    <TargetName>TaskRuntimeTransport</TargetName>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <OpenConsoleUniversalApp>false</OpenConsoleUniversalApp>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\common.build.pre.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.props" />
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="RuntimeControlChannel.h" />
+    <ClInclude Include="RuntimeControlConnector.h" />
+    <ClInclude Include="RuntimeControlHandshake.h" />
+    <ClInclude Include="RuntimeControlIo.h" />
+    <ClInclude Include="RuntimeControlTransport.h" />
+    <ClInclude Include="RuntimeIdentity.h" />
+    <ClInclude Include="RuntimePipe.h" />
+    <ClInclude Include="RuntimeSecurity.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="RuntimeControlChannel.cpp" />
+    <ClCompile Include="RuntimeControlConnect.cpp" />
+    <ClCompile Include="RuntimeControlConnector.cpp" />
+    <ClCompile Include="RuntimeControlHandshake.cpp" />
+    <ClCompile Include="RuntimeControlIo.cpp" />
+    <ClCompile Include="RuntimeIdentity.cpp" />
+    <ClCompile Include="RuntimePipe.cpp" />
+    <ClCompile Include="RuntimeSecurity.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj">
+      <Project>{6FC3F6B2-4AA9-4A8B-8784-3AFF0E4B90EF}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>advapi32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\common.build.post.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.targets" />
+</Project>

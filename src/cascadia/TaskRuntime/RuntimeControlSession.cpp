@@ -50,12 +50,25 @@ namespace Microsoft::Terminal::TaskRuntime
     {
     }
 
+    RuntimeControlSession::Impl::~Impl()
+    {
+        if (CancellationEvent)
+        {
+            CloseHandle(CancellationEvent);
+        }
+    }
+
     void RuntimeControlSession::Impl::RequestStop(
         const RuntimeControlSessionCloseReason reason) noexcept
     {
         auto expected = RuntimeControlSessionCloseReason::None;
         Reason.compare_exchange_strong(expected, reason, std::memory_order_acq_rel);
         CancellationState->store(true, std::memory_order_release);
+        if (CancellationEvent)
+        {
+            SetEvent(CancellationEvent);
+        }
+        Channel.CancelPendingIo();
         if (SubscriptionOwnershipMutex)
         {
             std::scoped_lock ownershipLock{ *SubscriptionOwnershipMutex };
@@ -78,11 +91,6 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             Router->ClientDisconnected(*disconnectedClient);
         }
-        const auto handle = Channel.Handle();
-        if (handle != INVALID_HANDLE_VALUE)
-        {
-            CancelIoEx(handle, nullptr);
-        }
     }
 
     void RuntimeControlSession::Impl::RunWriter() noexcept
@@ -93,7 +101,8 @@ namespace Microsoft::Terminal::TaskRuntime
             {
                 const auto sent = Channel.Send(
                     payload->Payload,
-                    Configuration.WriteTimeoutMilliseconds);
+                    Configuration.WriteTimeoutMilliseconds,
+                    CancellationEvent);
                 Outbound.Complete(*payload);
                 if (payload->CompletionRequestId)
                 {
@@ -158,7 +167,7 @@ namespace Microsoft::Terminal::TaskRuntime
     bool RuntimeControlSession::Start()
     {
         if (_impl->Started.exchange(true, std::memory_order_acq_rel) ||
-            !_impl->Channel || !_impl->Router || !_impl->Outbound.Valid() ||
+            !_impl->Channel || !_impl->Router || !_impl->CancellationEvent || !_impl->Outbound.Valid() ||
             !_impl->Subscriptions.Valid() || !_impl->SubscriptionOwnershipMutex)
         {
             return false;

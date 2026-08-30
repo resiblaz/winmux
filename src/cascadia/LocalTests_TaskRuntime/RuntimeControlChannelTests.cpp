@@ -4,6 +4,7 @@
 #include "pch.h"
 
 #include "RuntimeControlChannel.h"
+#include "RuntimeControlHandshake.h"
 #include "TaskRuntimeTestFixtures.h"
 
 #include "ProtocolJson.h"

@@ -83,6 +83,7 @@ namespace Microsoft::Terminal::TaskRuntime
         std::shared_ptr<IRuntimeControlRequestRouter> Router;
         std::atomic_bool StopRequested{};
         std::atomic_bool IsRunning{};
+        HANDLE StopEvent{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
         std::thread Acceptor;
         mutable std::mutex StopMutex;
         mutable std::mutex ListenerMutex;
@@ -110,6 +111,14 @@ namespace Microsoft::Terminal::TaskRuntime
             Configuration{ std::move(configuration) },
             Router{ std::move(router) }
         {
+        }
+
+        ~Impl()
+        {
+            if (StopEvent)
+            {
+                CloseHandle(StopEvent);
+            }
         }
 
         RuntimeControlSessionConfiguration SessionConfiguration() const
@@ -228,7 +237,8 @@ namespace Microsoft::Terminal::TaskRuntime
                 }
                 auto accepted = AcceptRuntimeControlChannel(
                     listener,
-                    Configuration.AcceptTimeoutMilliseconds);
+                    Configuration.AcceptTimeoutMilliseconds,
+                    StopEvent);
                 {
                     std::scoped_lock lock{ ListenerMutex };
                     ActiveListener = INVALID_HANDLE_VALUE;
@@ -306,6 +316,10 @@ namespace Microsoft::Terminal::TaskRuntime
 
         bool Start() noexcept
         {
+            if (!StopEvent)
+            {
+                return false;
+            }
             IsRunning.store(true, std::memory_order_release);
             try
             {
@@ -325,6 +339,10 @@ namespace Microsoft::Terminal::TaskRuntime
             {
                 std::scoped_lock sessionsLock{ SessionsMutex };
                 StopRequested.store(true, std::memory_order_release);
+            }
+            if (StopEvent)
+            {
+                SetEvent(StopEvent);
             }
             CancelListener();
             if (Acceptor.joinable())

@@ -2,7 +2,7 @@
 // Licensed under the MIT license.
 
 #include "pch.h"
-#include "RuntimeControlChannel.h"
+#include "RuntimeControlHandshake.h"
 
 #include "ControlSession.h"
 #include "ProtocolJson.h"
@@ -35,7 +35,8 @@ namespace Microsoft::Terminal::TaskRuntime
     RuntimeClientHandshakeResult PerformRuntimeClientHandshake(
         RuntimeControlChannel& channel,
         const HelloRequest& request,
-        const uint32_t timeoutMilliseconds)
+        const uint32_t timeoutMilliseconds,
+        const HANDLE cancellationEvent)
     {
         RuntimeClientHandshakeResult result;
         const auto deadline = GetTickCount64() + timeoutMilliseconds;
@@ -50,7 +51,7 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             return result;
         }
-        const auto sent = channel.Send(encoded.Payload, _remaining(deadline));
+        const auto sent = channel.Send(encoded.Payload, _remaining(deadline), cancellationEvent);
         if (!sent.Succeeded())
         {
             static_cast<RuntimeTransportResult&>(result) = sent;
@@ -60,7 +61,7 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             return result;
         }
-        const auto received = channel.Receive(_remaining(deadline));
+        const auto received = channel.Receive(_remaining(deadline), cancellationEvent);
         if (!received.Succeeded())
         {
             static_cast<RuntimeTransportResult&>(result) = received;
@@ -95,16 +96,18 @@ namespace Microsoft::Terminal::TaskRuntime
     RuntimeServerHandshakeResult PerformRuntimeServerHandshake(
         RuntimeControlChannel& channel,
         const RuntimeHandshakeConfiguration& runtime,
-        const uint32_t timeoutMilliseconds)
+        const uint32_t timeoutMilliseconds,
+        const HANDLE cancellationEvent)
     {
         ControlSession session{ runtime };
-        return PerformRuntimeServerHandshake(channel, session, timeoutMilliseconds);
+        return PerformRuntimeServerHandshake(channel, session, timeoutMilliseconds, cancellationEvent);
     }
 
     RuntimeServerHandshakeResult PerformRuntimeServerHandshake(
         RuntimeControlChannel& channel,
         ControlSession& session,
-        const uint32_t timeoutMilliseconds)
+        const uint32_t timeoutMilliseconds,
+        const HANDLE cancellationEvent)
     {
         RuntimeServerHandshakeResult result;
         const auto deadline = GetTickCount64() + timeoutMilliseconds;
@@ -112,7 +115,7 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             return result;
         }
-        const auto received = channel.Receive(_remaining(deadline));
+        const auto received = channel.Receive(_remaining(deadline), cancellationEvent);
         if (!received.Succeeded())
         {
             static_cast<RuntimeTransportResult&>(result) = received;
@@ -144,7 +147,7 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             return result;
         }
-        const auto sent = channel.Send(encoded.Payload, _remaining(deadline));
+        const auto sent = channel.Send(encoded.Payload, _remaining(deadline), cancellationEvent);
         if (!sent.Succeeded())
         {
             static_cast<RuntimeTransportResult&>(result) = sent;

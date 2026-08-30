@@ -4,6 +4,7 @@
 #pragma once
 
 #include "RuntimeControlChannel.h"
+#include "RuntimeControlHandshake.h"
 #include "RuntimeControlServer.h"
 #include "TaskRuntimeTestFixtures.h"
 

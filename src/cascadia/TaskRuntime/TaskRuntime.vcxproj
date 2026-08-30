@@ -24,10 +24,13 @@
     <ProjectReference Include="TaskRuntimeHost.vcxproj">
       <Project>{C87CE61D-7EE5-4CF8-8BCD-B5EE2817B4A9}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">
+      <Project>{C227632F-A428-48E3-AB9B-DB3D170DDAAC}</Project>
+    </ProjectReference>
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(OpenConsoleDir)src\cascadia\TaskRuntime;$(OpenConsoleDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PreprocessorDefinitions>_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>

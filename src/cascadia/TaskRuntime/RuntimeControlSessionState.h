@@ -25,6 +25,7 @@ namespace Microsoft::Terminal::TaskRuntime
         std::atomic_uint32_t MaximumPayloadBytes{};
         mutable std::mutex ProtocolMutex;
         RuntimeControlSubscriptions Subscriptions;
+        HANDLE CancellationEvent{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
         std::thread Reader;
         std::thread Writer;
         std::atomic_bool ReaderDone{};
@@ -38,8 +39,12 @@ namespace Microsoft::Terminal::TaskRuntime
             std::shared_ptr<IRuntimeControlRequestRouter> router,
             RuntimeControlSessionConfiguration configuration,
             std::shared_ptr<std::mutex> subscriptionOwnershipMutex);
+        ~Impl();
 
         void RequestStop(RuntimeControlSessionCloseReason reason) noexcept;
+        void CancelPlannedSubscription(
+            std::optional<RuntimeControlSubscriptionPlan>& plannedSubscription,
+            bool transportReservationInstalled) noexcept;
         [[nodiscard]] bool EnqueueResponse(
             const Microsoft::Terminal::TaskRuntimeProtocol::ControlResponse& response,
             bool completeRequest,

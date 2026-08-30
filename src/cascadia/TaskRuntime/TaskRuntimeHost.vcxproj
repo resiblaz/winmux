@@ -14,7 +14,6 @@
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="RuntimeBootstrap.h" />
-    <ClInclude Include="RuntimeControlChannel.h" />
     <ClInclude Include="RuntimeControlQueue.h" />
     <ClInclude Include="RuntimeControlPublisher.h" />
     <ClInclude Include="RuntimeControlRouter.h" />
@@ -22,9 +21,6 @@
     <ClInclude Include="RuntimeControlSession.h" />
     <ClInclude Include="RuntimeControlSessionState.h" />
     <ClInclude Include="RuntimeControlSubscriptions.h" />
-    <ClInclude Include="RuntimeIdentity.h" />
-    <ClInclude Include="RuntimePipe.h" />
-    <ClInclude Include="RuntimeSecurity.h" />
     <ClInclude Include="RuntimeSingleInstance.h" />
   </ItemGroup>
   <ItemGroup>
@@ -32,27 +28,25 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RuntimeBootstrap.cpp" />
-    <ClCompile Include="RuntimeControlChannel.cpp" />
-    <ClCompile Include="RuntimeControlHandshake.cpp" />
     <ClCompile Include="RuntimeControlQueue.cpp" />
     <ClCompile Include="RuntimeControlPublisher.cpp" />
     <ClCompile Include="RuntimeControlServer.cpp" />
     <ClCompile Include="RuntimeControlSession.cpp" />
     <ClCompile Include="RuntimeControlSessionReader.cpp" />
     <ClCompile Include="RuntimeControlSubscriptions.cpp" />
-    <ClCompile Include="RuntimeIdentity.cpp" />
-    <ClCompile Include="RuntimePipe.cpp" />
-    <ClCompile Include="RuntimeSecurity.cpp" />
     <ClCompile Include="RuntimeSingleInstance.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">
+      <Project>{C227632F-A428-48E3-AB9B-DB3D170DDAAC}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj">
       <Project>{6FC3F6B2-4AA9-4A8B-8784-3AFF0E4B90EF}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>

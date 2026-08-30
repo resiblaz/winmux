@@ -159,6 +159,12 @@ namespace Microsoft::Terminal::TaskRuntime
         [[nodiscard]] RuntimeClientSubscriptionRemovalResult BeginRemove(
             RuntimeClientLogicalSubscriptionId logicalId,
             RuntimeClientSubscriptionRevision revision);
+        // Integration does not need a copied Unsubscribe DTO: its writer
+        // reads the synchronized wire identity from Find(). Keeping this
+        // transition allocation-free makes one-shot stream removal reliable.
+        [[nodiscard]] RuntimeClientSubscriptionRemovalResult BeginRemoveForIntegration(
+            RuntimeClientLogicalSubscriptionId logicalId,
+            RuntimeClientSubscriptionRevision revision) noexcept;
         [[nodiscard]] RuntimeClientSubscriptionStatus BeginUnsubscribe(
             RuntimeClientLogicalSubscriptionId logicalId,
             RuntimeClientSubscriptionRevision revision,

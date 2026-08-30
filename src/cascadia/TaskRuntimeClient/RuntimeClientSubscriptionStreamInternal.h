@@ -5,6 +5,7 @@
 
 #include "RuntimeClientSubscriptionStream.h"
 
+#include <atomic>
 #include <deque>
 #include <functional>
 #include <mutex>
@@ -18,6 +19,7 @@ namespace Microsoft::Terminal::TaskRuntime::details
         EventTooLarge,
         CountLimitReached,
         ByteLimitReached,
+        AggregateLimitReached,
         Closed,
         AllocationFailure,
     };
@@ -34,6 +36,38 @@ namespace Microsoft::Terminal::TaskRuntime::details
         RuntimeClientLogicalSubscriptionId,
         RuntimeClientSubscriptionRevision)>;
 
+    [[nodiscard]] bool NormalizeRuntimeClientSubscribeOptions(
+        RuntimeClientSubscribeOptions& options) noexcept;
+    [[nodiscard]] bool IsTerminalRuntimeClientSubscriptionEvent(
+        RuntimeClientSubscriptionEventKind kind) noexcept;
+    [[nodiscard]] bool ValidateRuntimeClientSubscriptionEvent(
+        const RuntimeClientSubscriptionEvent& event,
+        RuntimeClientLogicalSubscriptionId logicalId,
+        RuntimeClientSubscriptionRevision revision) noexcept;
+    [[nodiscard]] bool CanonicalizeRuntimeClientSubscriptionEvent(
+        RuntimeClientSubscriptionEvent& event) noexcept;
+    [[nodiscard]] std::optional<size_t> MeasureRuntimeClientSubscriptionEventBytes(
+        const RuntimeClientSubscriptionEvent& event) noexcept;
+
+    // Shared by every stream owned by one client. Reservation is atomic, so
+    // stream code has one lock order: stream mutex, then lock-free budget.
+    class RuntimeClientSubscriptionAggregateBudget final
+    {
+    public:
+        explicit RuntimeClientSubscriptionAggregateBudget(
+            size_t maximumBytes = DefaultMaximumClientSubscriptionAggregateBytes) noexcept;
+
+        [[nodiscard]] bool Valid() const noexcept;
+        [[nodiscard]] bool TryReserve(size_t bytes) noexcept;
+        void Release(size_t bytes) noexcept;
+        [[nodiscard]] size_t UsedBytes() const noexcept;
+        [[nodiscard]] size_t MaximumBytes() const noexcept;
+
+    private:
+        size_t _maximumBytes{};
+        std::atomic_size_t _usedBytes{};
+    };
+
     struct RuntimeClientQueuedSubscriptionEvent
     {
         RuntimeClientSubscriptionEvent Value;
@@ -47,7 +81,9 @@ namespace Microsoft::Terminal::TaskRuntime::details
         size_t MaximumQueuedEvents{};
         size_t MaximumQueuedBytes{};
         size_t MaximumEventBytes{};
+        std::shared_ptr<RuntimeClientSubscriptionAggregateBudget> AggregateBudget;
         HANDLE Changed{};
+        HANDLE PullWaitEnteredEvent{}; // Non-owning deterministic test seam.
 
         mutable std::mutex Mutex;
         std::deque<RuntimeClientQueuedSubscriptionEvent> Queue;
@@ -65,7 +101,9 @@ namespace Microsoft::Terminal::TaskRuntime::details
             size_t maximumQueuedEvents,
             size_t maximumQueuedBytes,
             size_t maximumEventBytes,
-            RuntimeClientSubscriptionRemoveCallback removeCallback);
+            std::shared_ptr<RuntimeClientSubscriptionAggregateBudget> aggregateBudget,
+            RuntimeClientSubscriptionRemoveCallback removeCallback,
+            HANDLE pullWaitEnteredEvent);
         ~RuntimeClientSubscriptionStreamState();
 
         RuntimeClientSubscriptionStreamState(const RuntimeClientSubscriptionStreamState&) = delete;
@@ -112,6 +150,8 @@ namespace Microsoft::Terminal::TaskRuntime::details
             RuntimeClientLogicalSubscriptionId logicalId,
             RuntimeClientSubscriptionRevision revision,
             RuntimeClientSubscribeOptions options,
-            RuntimeClientSubscriptionRemoveCallback removeCallback = {});
+            RuntimeClientSubscriptionRemoveCallback removeCallback = {},
+            std::shared_ptr<RuntimeClientSubscriptionAggregateBudget> aggregateBudget = {},
+            HANDLE pullWaitEnteredEvent = nullptr);
     };
 }

@@ -18,12 +18,13 @@ namespace Microsoft::Terminal::TaskRuntime
     inline constexpr size_t AbsoluteMaximumSubscriptionStreamEvents{ 4096 };
     inline constexpr size_t DefaultMaximumSubscriptionStreamBytes{ 4 * 1024 * 1024 };
     inline constexpr size_t AbsoluteMaximumSubscriptionStreamBytes{ 64 * 1024 * 1024 };
+    inline constexpr size_t DefaultMaximumClientSubscriptionAggregateBytes{ 32 * 1024 * 1024 };
+    inline constexpr size_t AbsoluteMaximumClientSubscriptionAggregateBytes{ 512 * 1024 * 1024 };
     inline constexpr size_t DefaultMaximumSubscriptionEventBytes{ 1024 * 1024 + 8 * 1024 };
     inline constexpr size_t AbsoluteMaximumSubscriptionEventBytes{
         DefaultMaximumSubscriptionEventBytes
     };
     inline constexpr size_t MaximumSubscriptionEventDiagnosticBytes{ 4096 };
-    inline constexpr size_t RuntimeClientSubscriptionEventOverheadBytes{ 128 };
 
     struct RuntimeClientSubscribeOptions
     {
@@ -58,6 +59,10 @@ namespace Microsoft::Terminal::TaskRuntime
         RuntimeTransportStatus TransportStatus{ RuntimeTransportStatus::Succeeded };
         DWORD SystemError{};
         std::string Diagnostic;
+    };
+
+    inline constexpr size_t RuntimeClientSubscriptionEventOverheadBytes{
+        sizeof(RuntimeClientSubscriptionEvent) + sizeof(size_t)
     };
 
     enum class RuntimeClientSubscriptionPullStatus

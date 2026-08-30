@@ -205,6 +205,18 @@ namespace TaskRuntimeClientLocalTests
         VERIFY_IS_FALSE(registry.Find(2).has_value());
         VERIFY_IS_TRUE(registry.CompleteUnsubscribe(6, RequestIds[1]) ==
                        RuntimeClientSubscriptionStatus::Stale);
+
+        MakeLive(registry, 1, 4, 6, RequestIds[2], WireIds[1], 5, 10);
+        const auto integrationRemoval = registry.BeginRemoveForIntegration(1, 4);
+        VERIFY_IS_TRUE(integrationRemoval.Status == RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_TRUE(integrationRemoval.Action ==
+                       RuntimeClientSubscriptionRemovalAction::SendUnsubscribe);
+        VERIFY_IS_FALSE(integrationRemoval.Request.has_value());
+        VERIFY_IS_TRUE(registry.Find(1)->Phase == RuntimeClientSubscriptionPhase::Removing);
+        VERIFY_IS_TRUE(registry.BeginUnsubscribe(1, 4, 6, RequestIds[3]) ==
+                       RuntimeClientSubscriptionStatus::Succeeded);
+        VERIFY_IS_TRUE(registry.CompleteUnsubscribe(6, RequestIds[3]) ==
+                       RuntimeClientSubscriptionStatus::Finalized);
     }
 
     void RuntimeClientSubscriptionTests::RemoveDuringSnapshotWaitsThenCleansWireSubscription()

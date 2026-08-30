@@ -77,13 +77,9 @@ namespace Microsoft::Terminal::TaskRuntime
             result.Action = RuntimeClientSubscriptionRemovalAction::UnsubscribeInFlight;
             return result;
         }
-        if (record.Phase != RuntimeClientSubscriptionPhase::Live &&
-            record.Phase != RuntimeClientSubscriptionPhase::Removing)
-        {
-            result.Status = RuntimeClientSubscriptionStatus::WrongPhase;
-            return result;
-        }
-        if (record.Cursor.State() != SubscriptionCursorState::Synchronized)
+        if ((record.Phase != RuntimeClientSubscriptionPhase::Live &&
+             record.Phase != RuntimeClientSubscriptionPhase::Removing) ||
+            record.Cursor.State() != SubscriptionCursorState::Synchronized)
         {
             result.Status = RuntimeClientSubscriptionStatus::WrongPhase;
             return result;
@@ -98,6 +94,69 @@ namespace Microsoft::Terminal::TaskRuntime
         catch (...)
         {
             result.Status = RuntimeClientSubscriptionStatus::AllocationFailure;
+            return result;
+        }
+        record.Phase = RuntimeClientSubscriptionPhase::Removing;
+        result.Status = RuntimeClientSubscriptionStatus::Succeeded;
+        result.Action = RuntimeClientSubscriptionRemovalAction::SendUnsubscribe;
+        return result;
+    }
+
+    RuntimeClientSubscriptionRemovalResult RuntimeClientSubscriptionRegistry::BeginRemoveForIntegration(
+        const RuntimeClientLogicalSubscriptionId logicalId,
+        const RuntimeClientSubscriptionRevision revision) noexcept
+    {
+        RuntimeClientSubscriptionRemovalResult result;
+        if (!Valid() || !_validIdentity(logicalId, revision))
+        {
+            return result;
+        }
+        const auto found = _impl->Records.find(logicalId);
+        if (found == _impl->Records.end())
+        {
+            result.Status = RuntimeClientSubscriptionStatus::NotFound;
+            return result;
+        }
+        auto& record = found->second;
+        if (record.Revision != revision)
+        {
+            result.Status = RuntimeClientSubscriptionStatus::Stale;
+            return result;
+        }
+        if (record.Phase == RuntimeClientSubscriptionPhase::Desired ||
+            record.Phase == RuntimeClientSubscriptionPhase::NeedsSnapshot)
+        {
+            _impl->Records.erase(found);
+            result.Status = RuntimeClientSubscriptionStatus::Finalized;
+            result.Action = RuntimeClientSubscriptionRemovalAction::Finalized;
+            return result;
+        }
+        if (record.Phase == RuntimeClientSubscriptionPhase::SnapshotInFlight)
+        {
+            record.Phase = RuntimeClientSubscriptionPhase::Removing;
+            result.Status = RuntimeClientSubscriptionStatus::Succeeded;
+            result.Action = RuntimeClientSubscriptionRemovalAction::AwaitSnapshot;
+            return result;
+        }
+        if (record.Phase == RuntimeClientSubscriptionPhase::Removing &&
+            record.Cursor.State() == SubscriptionCursorState::Empty &&
+            !record.RequestId.empty())
+        {
+            result.Status = RuntimeClientSubscriptionStatus::Succeeded;
+            result.Action = RuntimeClientSubscriptionRemovalAction::AwaitSnapshot;
+            return result;
+        }
+        if (record.Phase == RuntimeClientSubscriptionPhase::UnsubscribeInFlight)
+        {
+            result.Status = RuntimeClientSubscriptionStatus::Succeeded;
+            result.Action = RuntimeClientSubscriptionRemovalAction::UnsubscribeInFlight;
+            return result;
+        }
+        if ((record.Phase != RuntimeClientSubscriptionPhase::Live &&
+             record.Phase != RuntimeClientSubscriptionPhase::Removing) ||
+            record.Cursor.State() != SubscriptionCursorState::Synchronized)
+        {
+            result.Status = RuntimeClientSubscriptionStatus::WrongPhase;
             return result;
         }
         record.Phase = RuntimeClientSubscriptionPhase::Removing;

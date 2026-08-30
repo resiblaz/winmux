@@ -37,6 +37,7 @@
     <ClCompile Include="RuntimeClientReader.cpp" />
     <ClCompile Include="RuntimeClientRequests.cpp" />
     <ClCompile Include="RuntimeClientState.cpp" />
+    <ClCompile Include="RuntimeClientSubscriptionBudget.cpp" />
     <ClCompile Include="RuntimeClientSubscriptionStream.cpp" />
     <ClCompile Include="RuntimeClientSubscriptions.cpp" />
     <ClCompile Include="RuntimeClientSubscriptionTransitions.cpp" />

@@ -70,17 +70,31 @@ namespace TaskRuntimeClientLocalTests
 
         RuntimeClientSubscriptionStreamEndpoints Create(
             RuntimeClientSubscribeOptions options = {},
-            RuntimeClientSubscriptionRemoveCallback callback = {})
+            RuntimeClientSubscriptionRemoveCallback callback = {},
+            std::shared_ptr<RuntimeClientSubscriptionAggregateBudget> aggregateBudget = {},
+            const RuntimeClientLogicalSubscriptionId logicalId = LogicalId,
+            const RuntimeClientSubscriptionRevision revision = Revision,
+            const HANDLE pullWaitEnteredEvent = nullptr)
         {
             auto endpoints = RuntimeClientSubscriptionStreamFactory::Create(
-                LogicalId,
-                Revision,
+                logicalId,
+                revision,
                 std::move(options),
-                std::move(callback));
+                std::move(callback),
+                std::move(aggregateBudget),
+                pullWaitEnteredEvent);
             VERIFY_IS_TRUE(endpoints.Status == RuntimeClientSubscriptionStreamCreateStatus::Succeeded);
             VERIFY_IS_NOT_NULL(endpoints.Stream.get());
             VERIFY_IS_NOT_NULL(endpoints.Producer.get());
             return endpoints;
+        }
+
+        size_t CanonicalBytes(RuntimeClientSubscriptionEvent event)
+        {
+            VERIFY_IS_TRUE(CanonicalizeRuntimeClientSubscriptionEvent(event));
+            const auto bytes = MeasureRuntimeClientSubscriptionEventBytes(event);
+            VERIFY_IS_TRUE(bytes.has_value());
+            return bytes.value_or(0);
         }
     }
 
@@ -95,6 +109,7 @@ namespace TaskRuntimeClientLocalTests
         TEST_METHOD(NotificationCursorMustMatchWireSequence);
         TEST_METHOD(EnforcesEventCountAndAggregateByteBounds);
         TEST_METHOD(PullReportsTimeoutCancellationAndClosed);
+        TEST_METHOD(CloseWakesPullAtWaitBoundary);
         TEST_METHOD(TerminalEventSurvivesAFullQueueAndDrainsLast);
         TEST_METHOD(ConcurrentProducerAndConsumerPreserveOrder);
         TEST_METHOD(UnsubscribeAndDestructorInvokeRemoveExactlyOnce);
@@ -104,6 +119,8 @@ namespace TaskRuntimeClientLocalTests
     {
         VERIFY_ARE_EQUAL(size_t{ 512 }, DefaultMaximumSubscriptionStreamEvents);
         VERIFY_ARE_EQUAL(size_t{ 4 * 1024 * 1024 }, DefaultMaximumSubscriptionStreamBytes);
+        VERIFY_ARE_EQUAL(size_t{ 32 * 1024 * 1024 }, DefaultMaximumClientSubscriptionAggregateBytes);
+        VERIFY_IS_TRUE(AbsoluteMaximumSubscriptionStreamEvents >= DefaultMaximumSubscriptionStreamEvents);
         auto defaults = Create();
         VERIFY_ARE_EQUAL(uint64_t{ LogicalId }, defaults.Stream->LogicalId());
         VERIFY_ARE_EQUAL(uint64_t{ Revision }, defaults.Stream->Revision());
@@ -196,8 +213,8 @@ namespace TaskRuntimeClientLocalTests
 
         RuntimeClientSubscribeOptions byteOptions;
         byteOptions.MaximumQueuedEvents = 4;
-        byteOptions.MaximumEventBytes = 256;
-        byteOptions.MaximumQueuedBytes = 300;
+        byteOptions.MaximumEventBytes = CanonicalBytes(SnapshotEvent(1));
+        byteOptions.MaximumQueuedBytes = byteOptions.MaximumEventBytes * 2;
         auto bytes = Create(byteOptions);
         VERIFY_IS_TRUE(bytes.Producer->Publish(SnapshotEvent(1)) ==
                        RuntimeClientSubscriptionPublishStatus::Accepted);
@@ -269,12 +286,33 @@ namespace TaskRuntimeClientLocalTests
         VERIFY_IS_TRUE(endpoints.Stream->Pull(0).Status == RuntimeClientSubscriptionPullStatus::Closed);
     }
 
+    void RuntimeClientSubscriptionStreamTests::CloseWakesPullAtWaitBoundary()
+    {
+        const auto waitEntered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        VERIFY_IS_NOT_NULL(waitEntered);
+        auto endpoints = Create({}, {}, {}, LogicalId, Revision, waitEntered);
+        RuntimeClientSubscriptionPullResult result;
+        std::thread consumer{ [&] {
+            result = endpoints.Stream->Pull(INFINITE);
+        } };
+        VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, WaitForSingleObject(waitEntered, 2000));
+        VERIFY_IS_TRUE(endpoints.Producer->Close(
+                           TerminalEvent(RuntimeClientSubscriptionEventKind::ClientStopped)) ==
+                       RuntimeClientSubscriptionPublishStatus::Accepted);
+        consumer.join();
+        VERIFY_IS_TRUE(result.Status == RuntimeClientSubscriptionPullStatus::Event);
+        VERIFY_IS_TRUE(result.Value &&
+                       result.Value->Kind == RuntimeClientSubscriptionEventKind::ClientStopped);
+        CloseHandle(waitEntered);
+    }
+
     void RuntimeClientSubscriptionStreamTests::TerminalEventSurvivesAFullQueueAndDrainsLast()
     {
+        const auto eventBytes = CanonicalBytes(SnapshotEvent(1));
         RuntimeClientSubscribeOptions options;
         options.MaximumQueuedEvents = 1;
-        options.MaximumQueuedBytes = 512;
-        options.MaximumEventBytes = 256;
+        options.MaximumQueuedBytes = eventBytes;
+        options.MaximumEventBytes = eventBytes;
         auto endpoints = Create(options);
         VERIFY_IS_TRUE(endpoints.Producer->Publish(SnapshotEvent(1)) ==
                        RuntimeClientSubscriptionPublishStatus::Accepted);
@@ -294,6 +332,19 @@ namespace TaskRuntimeClientLocalTests
         VERIFY_IS_TRUE(terminal.Value->Kind == RuntimeClientSubscriptionEventKind::Faulted);
         VERIFY_IS_TRUE(terminal.Value->TransportStatus == RuntimeTransportStatus::Disconnected);
         VERIFY_IS_TRUE(endpoints.Stream->Pull(0).Status == RuntimeClientSubscriptionPullStatus::Closed);
+
+        auto fallback = Create();
+        auto oversized = TerminalEvent(RuntimeClientSubscriptionEventKind::Faulted);
+        oversized.SnapshotJson = "must be discarded";
+        oversized.Notification = NotificationEvent(99).Notification;
+        oversized.Diagnostic.assign(MaximumSubscriptionEventDiagnosticBytes + 1, 'x');
+        VERIFY_IS_TRUE(fallback.Producer->Close(std::move(oversized)) ==
+                       RuntimeClientSubscriptionPublishStatus::Accepted);
+        const auto minimal = fallback.Stream->Pull(0);
+        VERIFY_IS_TRUE(minimal.Value->Kind == RuntimeClientSubscriptionEventKind::Faulted);
+        VERIFY_IS_TRUE(minimal.Value->SnapshotJson.empty());
+        VERIFY_IS_FALSE(minimal.Value->Notification.has_value());
+        VERIFY_IS_TRUE(minimal.Value->Diagnostic.empty());
     }
 
     void RuntimeClientSubscriptionStreamTests::ConcurrentProducerAndConsumerPreserveOrder()

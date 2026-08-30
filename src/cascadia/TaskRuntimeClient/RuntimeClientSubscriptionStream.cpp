@@ -15,139 +15,6 @@ namespace Microsoft::Terminal::TaskRuntime
 
     namespace
     {
-        bool _checkedAdd(size_t& total, const size_t value) noexcept
-        {
-            if (value > (std::numeric_limits<size_t>::max)() - total)
-            {
-                return false;
-            }
-            total += value;
-            return true;
-        }
-
-        std::optional<size_t> _eventBytes(const RuntimeClientSubscriptionEvent& event) noexcept
-        {
-            size_t total{ RuntimeClientSubscriptionEventOverheadBytes };
-            if ((!event.SnapshotJson.empty() && !_checkedAdd(total, event.SnapshotJson.capacity())) ||
-                (!event.Diagnostic.empty() && !_checkedAdd(total, event.Diagnostic.capacity())))
-            {
-                return std::nullopt;
-            }
-            if (event.Notification &&
-                ((!event.Notification->SubscriptionId.empty() &&
-                  !_checkedAdd(total, event.Notification->SubscriptionId.capacity())) ||
-                 (!event.Notification->UnknownKind.empty() &&
-                  !_checkedAdd(total, event.Notification->UnknownKind.capacity())) ||
-                 (!event.Notification->PayloadJson.empty() &&
-                  !_checkedAdd(total, event.Notification->PayloadJson.capacity()))))
-            {
-                return std::nullopt;
-            }
-            return total;
-        }
-
-        bool _compact(std::string& value) noexcept
-        {
-            try
-            {
-                std::string compact{ value.data(), value.size() };
-                value.swap(compact);
-                return true;
-            }
-            catch (...)
-            {
-                return false;
-            }
-        }
-
-        bool _compact(RuntimeClientSubscriptionEvent& event) noexcept
-        {
-            if (!_compact(event.SnapshotJson) || !_compact(event.Diagnostic))
-            {
-                return false;
-            }
-            return !event.Notification ||
-                   (_compact(event.Notification->SubscriptionId) &&
-                    _compact(event.Notification->UnknownKind) &&
-                    _compact(event.Notification->PayloadJson));
-        }
-
-        bool _validNotification(const ControlNotification& notification) noexcept
-        {
-            const auto knownKind = !ControlNotificationKindName(notification.Kind).empty();
-            return IsCanonicalProtocolUuid(notification.SubscriptionId) &&
-                   notification.Generation != 0 && notification.Sequence != 0 &&
-                   !notification.PayloadJson.empty() &&
-                   notification.PayloadJson.size() <= MaximumControlFrameBytes &&
-                   IsValidUtf8(notification.PayloadJson) &&
-                   notification.UnknownKind.size() <= MaximumNotificationKindBytes &&
-                   IsValidUtf8(notification.UnknownKind) &&
-                   (knownKind || !notification.UnknownKind.empty());
-        }
-
-        bool _validEvent(
-            const RuntimeClientSubscriptionEvent& event,
-            const RuntimeClientLogicalSubscriptionId logicalId,
-            const RuntimeClientSubscriptionRevision revision) noexcept
-        {
-            if (event.LogicalId != logicalId || event.Revision != revision ||
-                !IsValidUtf8(event.SnapshotJson) || !IsValidUtf8(event.Diagnostic) ||
-                event.SnapshotJson.size() > MaximumControlFrameBytes ||
-                event.Diagnostic.size() > MaximumSubscriptionEventDiagnosticBytes ||
-                (event.Notification && !_validNotification(*event.Notification)))
-            {
-                return false;
-            }
-            switch (event.Kind)
-            {
-            case RuntimeClientSubscriptionEventKind::Snapshot:
-                return event.Epoch != 0 && !event.SnapshotJson.empty() && !event.Notification;
-            case RuntimeClientSubscriptionEventKind::Notification:
-                return event.Epoch != 0 && event.SnapshotJson.empty() && event.Notification.has_value() &&
-                       event.Cursor == event.Notification->Sequence;
-            case RuntimeClientSubscriptionEventKind::ResnapshotRequired:
-                return event.Epoch != 0 && event.SnapshotJson.empty();
-            case RuntimeClientSubscriptionEventKind::Removed:
-            case RuntimeClientSubscriptionEventKind::Faulted:
-            case RuntimeClientSubscriptionEventKind::ClientStopped:
-                return event.SnapshotJson.empty() && !event.Notification;
-            }
-            return false;
-        }
-
-        bool _terminalKind(const RuntimeClientSubscriptionEventKind kind) noexcept
-        {
-            return kind == RuntimeClientSubscriptionEventKind::Removed ||
-                   kind == RuntimeClientSubscriptionEventKind::Faulted ||
-                   kind == RuntimeClientSubscriptionEventKind::ClientStopped;
-        }
-
-        size_t _defaulted(const size_t value, const size_t fallback) noexcept
-        {
-            return value == 0 ? fallback : value;
-        }
-
-        bool _normalize(RuntimeClientSubscribeOptions& options) noexcept
-        {
-            options.MaximumQueuedEvents = _defaulted(
-                options.MaximumQueuedEvents,
-                DefaultMaximumSubscriptionStreamEvents);
-            options.MaximumQueuedBytes = _defaulted(
-                options.MaximumQueuedBytes,
-                DefaultMaximumSubscriptionStreamBytes);
-            options.MaximumEventBytes = _defaulted(
-                options.MaximumEventBytes,
-                DefaultMaximumSubscriptionEventBytes);
-            return options.MaximumQueuedEvents <= AbsoluteMaximumSubscriptionStreamEvents &&
-                   options.MaximumQueuedBytes >= RuntimeClientSubscriptionEventOverheadBytes &&
-                   options.MaximumQueuedBytes <= AbsoluteMaximumSubscriptionStreamBytes &&
-                   options.MaximumEventBytes >= RuntimeClientSubscriptionEventOverheadBytes &&
-                   options.MaximumEventBytes <= AbsoluteMaximumSubscriptionEventBytes &&
-                   options.MaximumEventBytes <= options.MaximumQueuedBytes &&
-                   !options.ParamsJson.empty() && options.ParamsJson.size() <= MaximumControlFrameBytes &&
-                   IsValidUtf8(options.ParamsJson);
-        }
-
         void _updateSignalLocked(details::RuntimeClientSubscriptionStreamState& state) noexcept
         {
             if (!state.Queue.empty() || (state.TerminalSet && !state.TerminalDelivered))
@@ -171,19 +38,28 @@ namespace Microsoft::Terminal::TaskRuntime
             const size_t maximumQueuedEvents,
             const size_t maximumQueuedBytes,
             const size_t maximumEventBytes,
-            RuntimeClientSubscriptionRemoveCallback removeCallback) :
+            std::shared_ptr<RuntimeClientSubscriptionAggregateBudget> aggregateBudget,
+            RuntimeClientSubscriptionRemoveCallback removeCallback,
+            const HANDLE pullWaitEnteredEvent) :
             LogicalId{ logicalId },
             Revision{ revision },
             MaximumQueuedEvents{ maximumQueuedEvents },
             MaximumQueuedBytes{ maximumQueuedBytes },
             MaximumEventBytes{ maximumEventBytes },
+            AggregateBudget{ std::move(aggregateBudget) },
             Changed{ CreateEventW(nullptr, TRUE, FALSE, nullptr) },
+            PullWaitEnteredEvent{ pullWaitEnteredEvent },
             RemoveCallback{ std::move(removeCallback) }
         {
         }
 
         RuntimeClientSubscriptionStreamState::~RuntimeClientSubscriptionStreamState()
         {
+            if (AggregateBudget && QueuedBytes != 0)
+            {
+                AggregateBudget->Release(QueuedBytes);
+                QueuedBytes = 0;
+            }
             if (Changed)
             {
                 CloseHandle(Changed);
@@ -193,21 +69,22 @@ namespace Microsoft::Terminal::TaskRuntime
         bool RuntimeClientSubscriptionStreamState::Valid() const noexcept
         {
             return LogicalId != 0 && Revision != 0 && Changed && MaximumQueuedEvents != 0 &&
-                   MaximumQueuedBytes >= MaximumEventBytes;
+                   MaximumQueuedBytes >= MaximumEventBytes && AggregateBudget && AggregateBudget->Valid();
         }
 
         RuntimeClientSubscriptionPublishStatus RuntimeClientSubscriptionStreamState::Publish(
             RuntimeClientSubscriptionEvent event) noexcept
         {
-            if (!Valid() || !_validEvent(event, LogicalId, Revision) || _terminalKind(event.Kind))
+            if (!Valid() || !ValidateRuntimeClientSubscriptionEvent(event, LogicalId, Revision) ||
+                IsTerminalRuntimeClientSubscriptionEvent(event.Kind))
             {
                 return RuntimeClientSubscriptionPublishStatus::InvalidEvent;
             }
-            if (!_compact(event))
+            if (!CanonicalizeRuntimeClientSubscriptionEvent(event))
             {
                 return RuntimeClientSubscriptionPublishStatus::AllocationFailure;
             }
-            const auto eventBytes = _eventBytes(event);
+            const auto eventBytes = MeasureRuntimeClientSubscriptionEventBytes(event);
             if (!eventBytes)
             {
                 return RuntimeClientSubscriptionPublishStatus::InvalidEvent;
@@ -217,6 +94,7 @@ namespace Microsoft::Terminal::TaskRuntime
                 return RuntimeClientSubscriptionPublishStatus::EventTooLarge;
             }
 
+            bool aggregateReserved{};
             try
             {
                 std::scoped_lock lock{ Mutex };
@@ -232,6 +110,11 @@ namespace Microsoft::Terminal::TaskRuntime
                 {
                     return RuntimeClientSubscriptionPublishStatus::ByteLimitReached;
                 }
+                if (!AggregateBudget->TryReserve(*eventBytes))
+                {
+                    return RuntimeClientSubscriptionPublishStatus::AggregateLimitReached;
+                }
+                aggregateReserved = true;
                 Queue.emplace_back(RuntimeClientQueuedSubscriptionEvent{ std::move(event), *eventBytes });
                 QueuedBytes += *eventBytes;
                 SetEvent(Changed);
@@ -239,6 +122,10 @@ namespace Microsoft::Terminal::TaskRuntime
             }
             catch (...)
             {
+                if (aggregateReserved)
+                {
+                    AggregateBudget->Release(*eventBytes);
+                }
                 return RuntimeClientSubscriptionPublishStatus::AllocationFailure;
             }
         }
@@ -246,21 +133,17 @@ namespace Microsoft::Terminal::TaskRuntime
         RuntimeClientSubscriptionPublishStatus RuntimeClientSubscriptionStreamState::Close(
             RuntimeClientSubscriptionEvent terminal) noexcept
         {
-            if (!Valid() || !_terminalKind(terminal.Kind) ||
-                !_validEvent(terminal, LogicalId, Revision))
+            if (!Valid() || !IsTerminalRuntimeClientSubscriptionEvent(terminal.Kind) ||
+                terminal.LogicalId != LogicalId || terminal.Revision != Revision)
             {
                 return RuntimeClientSubscriptionPublishStatus::InvalidEvent;
             }
-            if (!_compact(terminal))
-            {
-                return RuntimeClientSubscriptionPublishStatus::AllocationFailure;
-            }
-            const auto bytes = _eventBytes(terminal);
-            if (!bytes)
-            {
-                return RuntimeClientSubscriptionPublishStatus::InvalidEvent;
-            }
-            if (*bytes > MaximumEventBytes)
+
+            terminal.SnapshotJson.clear();
+            terminal.Notification.reset();
+            if (terminal.Diagnostic.size() > MaximumSubscriptionEventDiagnosticBytes ||
+                !IsValidUtf8(terminal.Diagnostic) ||
+                !CanonicalizeRuntimeClientSubscriptionEvent(terminal))
             {
                 std::string{}.swap(terminal.Diagnostic);
             }
@@ -300,6 +183,7 @@ namespace Microsoft::Terminal::TaskRuntime
                         result.Status = RuntimeClientSubscriptionPullStatus::Event;
                         result.Value = std::move(Queue.front().Value);
                         QueuedBytes -= Queue.front().Bytes;
+                        AggregateBudget->Release(Queue.front().Bytes);
                         Queue.pop_front();
                         _updateSignalLocked(*this);
                         return result;
@@ -324,6 +208,10 @@ namespace Microsoft::Terminal::TaskRuntime
                 const auto now = GetTickCount64();
                 const auto remaining = infinite ? INFINITE :
                     now >= deadline ? 0 : static_cast<DWORD>(deadline - now);
+                if (PullWaitEnteredEvent)
+                {
+                    SetEvent(PullWaitEnteredEvent);
+                }
                 DWORD waited{};
                 if (cancellationEvent)
                 {
@@ -409,22 +297,31 @@ namespace Microsoft::Terminal::TaskRuntime
             const RuntimeClientLogicalSubscriptionId logicalId,
             const RuntimeClientSubscriptionRevision revision,
             RuntimeClientSubscribeOptions options,
-            RuntimeClientSubscriptionRemoveCallback removeCallback)
+            RuntimeClientSubscriptionRemoveCallback removeCallback,
+            std::shared_ptr<RuntimeClientSubscriptionAggregateBudget> aggregateBudget,
+            const HANDLE pullWaitEnteredEvent)
         {
             RuntimeClientSubscriptionStreamEndpoints result;
-            if (logicalId == 0 || revision == 0 || !_normalize(options))
+            if (logicalId == 0 || revision == 0 || !NormalizeRuntimeClientSubscribeOptions(options) ||
+                (aggregateBudget && !aggregateBudget->Valid()))
             {
                 return result;
             }
             try
             {
+                if (!aggregateBudget)
+                {
+                    aggregateBudget = std::make_shared<RuntimeClientSubscriptionAggregateBudget>();
+                }
                 auto state = std::make_shared<RuntimeClientSubscriptionStreamState>(
                     logicalId,
                     revision,
                     options.MaximumQueuedEvents,
                     options.MaximumQueuedBytes,
                     options.MaximumEventBytes,
-                    std::move(removeCallback));
+                    std::move(aggregateBudget),
+                    std::move(removeCallback),
+                    pullWaitEnteredEvent);
                 if (!state->Valid())
                 {
                     result.Status = RuntimeClientSubscriptionStreamCreateStatus::SystemError;

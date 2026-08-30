@@ -1,7 +1,7 @@
 # Task-driven terminal design
 
-Status: product and architecture baseline accepted; native implementation is
-gated by an updated prototype review and is not authorized yet.
+Status: product and architecture baseline accepted; staged native
+implementation authorized and active since 2026-08-30.
 
 This directory is the design source of truth for the task-driven terminal
 feature:
@@ -17,17 +17,19 @@ feature:
   supported in the local reference checkout, and which adaptation still needs
   user confirmation.
 - [Implementation plan](implementation-plan.md) defines the accepted first
-  native slice, component placement, milestone order, and verification gates.
-  It remains non-authorizing until the updated prototype is reviewed.
+  native slice, component placement, milestone order, current progress, and
+  verification gates.
 - The browser prototype under
   [`doc/prototypes/task-page`](../../../prototypes/task-page/README.md) is a
   non-normative interaction aid. When it disagrees with the specification, the
   specification wins.
 
-## Development gate
+## Development gate status
 
-Do not begin native XAML/C++ implementation until all of the following are
-true:
+The development gate was satisfied on 2026-08-30: all product decisions and
+blocking ADRs are accepted, the browser prototype was reviewed, the native
+Tasks fixed-page skeleton was reviewed, and upstream hotspots remain bounded.
+The following conditions remain mandatory for every later milestone:
 
 1. Every product decision marked `OPEN` in the product specification is either
    accepted or explicitly deferred.
@@ -41,6 +43,13 @@ true:
    minimizes edits to them.
 6. Component/dependency boundaries in ADR-TASK-031 are reflected in the change
    plan; no milestone introduces a catch-all Task/Runtime/UI file.
+
+Current implementation position:
+
+- M0 design baseline: complete;
+- M5 native UI skeleton: complete as a projection-only shell;
+- M1 TaskCore state and persistence: current milestone;
+- real Runtime, Git, Codex, task Surface, and orchestration: not implemented.
 
 ## Reference-first rule
 

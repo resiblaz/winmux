@@ -1,17 +1,17 @@
 ---
 author: RicherLife / Codex collaboration
 created on: 2026-08-29
-last updated: 2026-08-29
-status: draft requirements baseline
+last updated: 2026-08-30
+status: accepted product and interaction baseline
 ---
 
 # Task-driven Terminal: Product and Interaction Specification
 
 ## 1. Document status
 
-This document records the product and interaction contract for a local-first,
-task-driven workflow inside this Windows Terminal fork. It does not authorize
-native implementation.
+This document records the accepted product and interaction contract for a
+local-first, task-driven workflow inside this Windows Terminal fork. Staged
+implementation is authorized through `implementation-plan.md`.
 
 Requirement labels have the following meaning:
 

@@ -1,10 +1,14 @@
 # Tasks fixed-page prototype
 
-This browser-only prototype is used to review the Tasks information architecture
-and state transitions before the native XAML/C++ implementation begins.
+This browser-only prototype records the accepted Tasks information architecture
+and remains a lightweight interaction regression aid for the native XAML/C++
+implementation.
 
-It intentionally contains no production runtime integration. The simulated
+It intentionally contains no production Runtime integration. The simulated
 actions operate only on in-memory sample data and reset when the page reloads.
+The native fixed-page skeleton is implemented on the Task feature branch; when
+the prototype and native code disagree, the product specification remains the
+source of truth.
 
 Preview from the repository root:
 

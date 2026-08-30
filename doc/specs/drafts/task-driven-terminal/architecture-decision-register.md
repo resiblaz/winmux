@@ -1,17 +1,16 @@
 ---
 author: RicherLife / Codex collaboration
 created on: 2026-08-29
-last updated: 2026-08-29
-status: architecture discussion register
+last updated: 2026-08-30
+status: accepted architecture baseline
 ---
 
 # Task-driven Terminal: Architecture Decision Register
 
 ## 1. Purpose
 
-This register defines the technical questions that must be answered before
-native development. It intentionally does not treat preliminary recommendations
-as accepted architecture.
+This register records the technical decisions accepted before native
+development and the contracts that each implementation milestone must keep.
 
 Decision status:
 

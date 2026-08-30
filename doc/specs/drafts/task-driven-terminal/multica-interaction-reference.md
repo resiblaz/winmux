@@ -1,9 +1,9 @@
 ---
 author: RicherLife / Codex collaboration
 created on: 2026-08-29
-last updated: 2026-08-29
+last updated: 2026-08-30
 multica commit: 64ec7f54163d918d5d7fd4dcae857f241b7842d0
-status: reference evidence and confirmation queue
+status: accepted reference evidence; confirmation queue complete
 ---
 
 # Multica Interaction Reference for the Task-driven Terminal

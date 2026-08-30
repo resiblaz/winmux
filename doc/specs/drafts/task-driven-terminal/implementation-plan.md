@@ -1,16 +1,16 @@
 ---
 author: RicherLife / Codex collaboration
 created on: 2026-08-29
-last updated: 2026-08-29
-status: accepted architecture baseline; native implementation gated by prototype review
+last updated: 2026-08-30
+status: active staged implementation; M1 TaskCore is current
 ---
 
 # Task-driven Terminal: Proposed Implementation Plan
 
 ## 1. Gate and scope
 
-This plan is the accepted architecture baseline but contains no native
-implementation authorization. Native development begins only after:
+This plan is the accepted architecture baseline and staged implementation is
+authorized. The original gate was satisfied on 2026-08-30 after:
 
 - the browser prototype is updated to the accepted product interactions and
   reviewed;
@@ -20,6 +20,18 @@ implementation authorization. Native development begins only after:
 
 The first release is local-first and Codex-only. It includes all accepted
 foundational contracts required to avoid disposable data/process designs.
+
+### 1.1 Current progress
+
+- M0 is complete: accepted specification, ADRs, Multica evidence, and reviewed
+  browser prototype are committed.
+- The M5 native fixed-page skeleton is implemented early as an isolated
+  projection-only shell. It contains no Runtime, SQLite, Git, or Codex business
+  logic and does not make M5 complete.
+- M1 is the active milestone. Implementation returns to the dependency root:
+  TaskCore state, persistence, recovery, and deterministic tests.
+- Microsoft upstream synchronization work is isolated from Task milestones and
+  is not merged into this branch.
 
 ## 2. First-slice capabilities
 

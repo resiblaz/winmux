@@ -292,15 +292,9 @@ Tests:
 
 ### M2: Runtime process and protocol
 
-Status: **in progress; M2A protocol, M2B host/bootstrap, M2C1 control-session
-foundations, M2C2a single-channel transport integration, and M2C2b
-multi-client request serving, and M2C3 atomic notification delivery complete
-along with M2C4a client protocol policy and M2C4b shared transport/connector
-foundation, plus M2C4c1a client epoch/request state and M2C4c1b reconnecting
-request client, followed by M2C4c2a pure client subscription state,
-M2C4c2b1 bounded subscription delivery foundations, M2C4c2b2 threaded
-subscription integration, M2C4c3a virtual reconnect scheduling, and M2C4c3b
-negotiated heartbeat/liveness (2026-08-30)**.
+Status: **implementation and closure gates complete on the feature branch
+(2026-08-31)**. Detailed component, test, MSIX, and portable evidence is in
+[`m2-closure-report.md`](./m2-closure-report.md).
 
 Deliverables:
 

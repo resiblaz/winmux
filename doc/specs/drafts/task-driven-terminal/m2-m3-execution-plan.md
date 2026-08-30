@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-08-31
-status: active execution queue; M2G2 complete, M2 closure next
+status: active execution queue; M2 closure complete, M3 next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -43,9 +43,12 @@ untouched until the feature branch has passed both milestone closure gates.
 | M2F2 (complete) | `rtask.exe`, TaskCore command router, package integration | four ADR commands, stdin/UTF-8/exit codes, duplicate command, cross-task refusal, CLI/package smoke |
 | M2G1 (complete) | Five-minute terminal idle suspend and idempotent wake | active-run exclusion, attach race, new generation, Closed never auto-wakes |
 | M2G2 (complete) | Helper idle exit and final parent-exit recovery | active work survives all UI clients, reconnect catch-up, idle-exit cancellation, eventual exit |
-| M2 closure | Product composition and milestone evidence | subscriptions, heartbeat, real host, terminal, `rtask`, HOL, lease, parent-exit, full Release/portable gates |
+| M2 closure (complete) | Product composition and milestone evidence | subscriptions, heartbeat, real host, terminal, `rtask`, HOL, lease, parent-exit, full Release/portable gates |
 
 ### 2.1 Frozen M2 decisions
+
+Closure evidence is recorded in
+[`m2-closure-report.md`](./m2-closure-report.md).
 
 - Subscription delivery is a bounded serialized pull stream. Reader/Writer
   threads never invoke arbitrary user callbacks.

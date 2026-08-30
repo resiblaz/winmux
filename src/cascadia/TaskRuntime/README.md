@@ -1,7 +1,7 @@
 # Task Runtime host foundation
 
 This directory contains the Windows host boundary for the per-user Task
-Runtime. The completed M2G2 foundation accepts multiple control and terminal
+Runtime. The completed M2 foundation accepts multiple control and terminal
 clients, drives Hello-first control sessions, routes typed requests through an
 injected interface, delivers targeted subscription notifications, and owns a
 bounded Agent-terminal session state machine. It now includes the scoped

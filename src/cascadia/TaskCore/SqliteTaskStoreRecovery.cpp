@@ -127,7 +127,7 @@ LIMIT ?1;
         }
 
         constexpr auto messagesSql = R"SQL(
-SELECT id, task_id, state, revision, content, claimed_by_run_id, created_at
+SELECT id, task_id, author, state, revision, content, claimed_by_run_id, created_at, updated_at
 FROM task_message
 WHERE state IN (0,1)
 ORDER BY created_at, task_id, id

@@ -32,6 +32,7 @@ namespace Microsoft::Terminal::TaskCore
         ActiveRunExists,
         ActiveIntentExists,
         Tombstoned,
+        CapacityExceeded,
         StorageError,
     };
 
@@ -59,6 +60,7 @@ namespace Microsoft::Terminal::TaskCore
         std::vector<AgentSessionRecord> AgentSessions;
         std::vector<TaskRunRecord> Runs;
         std::vector<TaskMessageRecord> Messages;
+        std::vector<TaskRunMessageRecord> RunMessages;
         uint64_t LastEventSequence{};
     };
 

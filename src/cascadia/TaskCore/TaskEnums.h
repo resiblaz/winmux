@@ -80,6 +80,13 @@ namespace Microsoft::Terminal::TaskCore
         Removed = 3,
     };
 
+    enum class TaskMessageAuthor : uint8_t
+    {
+        User = 0,
+        Agent = 1,
+        System = 2,
+    };
+
     enum class TaskIntentKind : uint8_t
     {
         Stop = 0,

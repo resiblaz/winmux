@@ -15,6 +15,9 @@ namespace Microsoft::Terminal::TaskCore
     inline constexpr size_t MaximumTaskStoreJsonBytes{ 64 * 1024 };
     inline constexpr size_t MaximumTaskRunResultBytes{ 256 * 1024 };
     inline constexpr size_t MaximumTaskReasonCodeBytes{ 256 };
+    inline constexpr size_t MaximumTaskMessageBytes{ 64 * 1024 };
+    inline constexpr size_t MaximumUnclaimedTaskMessages{ 256 };
+    inline constexpr size_t MaximumTaskMessagesPerRun{ 256 };
 
     struct TaskCommandMetadata
     {
@@ -99,5 +102,27 @@ namespace Microsoft::Terminal::TaskCore
         TaskId Task;
         TaskIntentId Intent;
         uint64_t ExpectedIntentRevision{};
+    };
+
+    struct EnqueueTaskMessageCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskMessageRecord Message;
+    };
+
+    struct ReviseTaskMessageCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskId Task;
+        TaskMessageId Message;
+        uint64_t ExpectedMessageRevision{};
+        std::optional<std::string> ReplacementContent;
+        bool Remove{};
+    };
+
+    struct ClaimTaskMessagesAndCreateRunCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskRunRecord Run;
     };
 }

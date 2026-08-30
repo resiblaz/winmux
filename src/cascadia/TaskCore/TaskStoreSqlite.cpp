@@ -118,7 +118,7 @@ namespace Microsoft::Terminal::TaskCore::details
         const auto result = sqlite3_bind_text64(
             statement,
             index,
-            value.data(),
+            value.empty() ? "" : value.data(),
             static_cast<sqlite3_uint64>(value.size()),
             SQLITE_TRANSIENT,
             SQLITE_UTF8);

@@ -111,10 +111,26 @@ FROM task_run WHERE task_id=?1 ORDER BY sequence;
             std::string& error)
         {
             constexpr auto sql = R"SQL(
-SELECT id, task_id, state, revision, content, claimed_by_run_id, created_at
+SELECT id, task_id, author, state, revision, content, claimed_by_run_id, created_at, updated_at
 FROM task_message WHERE task_id=?1 ORDER BY created_at, id;
 )SQL";
             return _loadTaskRows(database, sql, task, messages, details::ReadTaskMessageRow, error);
+        }
+
+        bool _loadRunMessages(
+            sqlite3* database,
+            const TaskId& task,
+            std::vector<TaskRunMessageRecord>& messages,
+            std::string& error)
+        {
+            constexpr auto sql = R"SQL(
+SELECT rm.run_id, rm.message_id, rm.position, rm.message_revision, rm.canonical_content
+FROM task_run_message AS rm
+JOIN task_run AS r ON r.id=rm.run_id
+WHERE r.task_id=?1
+ORDER BY r.sequence, rm.position, rm.message_id;
+)SQL";
+            return _loadTaskRows(database, sql, task, messages, details::ReadTaskRunMessageRow, error);
         }
 
         bool _loadTerminal(
@@ -209,6 +225,7 @@ FROM task_terminal WHERE task_id=?1;
             !_loadAgentSessions(_impl->Database, task, snapshot.AgentSessions, error) ||
             !_loadRuns(_impl->Database, task, snapshot.Runs, error) ||
             !_loadMessages(_impl->Database, task, snapshot.Messages, error) ||
+            !_loadRunMessages(_impl->Database, task, snapshot.RunMessages, error) ||
             !_loadLastEventSequence(_impl->Database, task, snapshot.LastEventSequence, error))
         {
             return std::nullopt;

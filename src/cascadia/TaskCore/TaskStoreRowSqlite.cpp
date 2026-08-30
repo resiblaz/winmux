@@ -115,11 +115,26 @@ namespace Microsoft::Terminal::TaskCore::details
         TaskMessageRecord message;
         message.Id = TaskMessageId{ ColumnText(statement, 0) };
         message.Task = TaskId{ ColumnText(statement, 1) };
-        message.State = static_cast<TaskMessageState>(sqlite3_column_int(statement, 2));
-        message.Revision = static_cast<uint64_t>(sqlite3_column_int64(statement, 3));
-        message.Content = ColumnText(statement, 4);
-        message.ClaimedByRunId = _optionalId<TaskRunId>(statement, 5);
-        message.CreatedAtUnixMilliseconds = sqlite3_column_int64(statement, 6);
+        message.Author = static_cast<TaskMessageAuthor>(sqlite3_column_int(statement, 2));
+        message.State = static_cast<TaskMessageState>(sqlite3_column_int(statement, 3));
+        message.Revision = static_cast<uint64_t>(sqlite3_column_int64(statement, 4));
+        message.Content = ColumnText(statement, 5);
+        message.ClaimedByRunId = _optionalId<TaskRunId>(statement, 6);
+        message.CreatedAtUnixMilliseconds = sqlite3_column_int64(statement, 7);
+        message.UpdatedAtUnixMilliseconds = sqlite3_column_type(statement, 8) == SQLITE_NULL ?
+                                                        message.CreatedAtUnixMilliseconds :
+                                                        sqlite3_column_int64(statement, 8);
+        return message;
+    }
+
+    TaskRunMessageRecord ReadTaskRunMessageRow(sqlite3_stmt* statement)
+    {
+        TaskRunMessageRecord message;
+        message.Run = TaskRunId{ ColumnText(statement, 0) };
+        message.Message = TaskMessageId{ ColumnText(statement, 1) };
+        message.Position = static_cast<uint32_t>(sqlite3_column_int64(statement, 2));
+        message.MessageRevision = static_cast<uint64_t>(sqlite3_column_int64(statement, 3));
+        message.CanonicalContent = ColumnText(statement, 4);
         return message;
     }
 

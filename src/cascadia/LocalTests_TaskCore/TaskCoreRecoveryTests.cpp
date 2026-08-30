@@ -116,9 +116,9 @@ namespace TaskCoreLocalTests
         const auto firstMessage = MakeId<TaskMessageId>(5001);
         const auto secondMessage = MakeId<TaskMessageId>(5002);
         const auto messageSql =
-            "INSERT INTO task_message(id,task_id,state,revision,content,claimed_by_run_id,created_at) VALUES('" +
-            firstMessage.Value() + "','" + firstTask.Task.Id.Value() + "',0,1,'first',NULL,1160),('" +
-            secondMessage.Value() + "','" + secondTask.Task.Id.Value() + "',1,1,'second',NULL,2110);";
+            "INSERT INTO task_message(id,task_id,state,revision,content,claimed_by_run_id,created_at,author,updated_at) VALUES('" +
+            firstMessage.Value() + "','" + firstTask.Task.Id.Value() + "',0,1,'first',NULL,1160,0,1160),('" +
+            secondMessage.Value() + "','" + secondTask.Task.Id.Value() + "',1,1,'second',NULL,2110,0,2110);";
         VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_exec(database, messageSql.c_str(), nullptr, nullptr, nullptr));
         VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
 

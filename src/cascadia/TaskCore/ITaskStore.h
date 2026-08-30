@@ -33,6 +33,9 @@ namespace Microsoft::Terminal::TaskCore
         [[nodiscard]] virtual TaskStoreCommandResult AdvanceTaskIntent(const AdvanceTaskIntentCommand& command) = 0;
         [[nodiscard]] virtual TaskStoreCommandResult ChangeTaskManualHold(const ChangeTaskManualHoldCommand& command) = 0;
         [[nodiscard]] virtual TaskStoreCommandResult DeleteTask(const DeleteTaskCommand& command) = 0;
+        [[nodiscard]] virtual TaskStoreCommandResult EnqueueTaskMessage(const EnqueueTaskMessageCommand& command) = 0;
+        [[nodiscard]] virtual TaskStoreCommandResult ReviseTaskMessage(const ReviseTaskMessageCommand& command) = 0;
+        [[nodiscard]] virtual TaskStoreCommandResult ClaimTaskMessagesAndCreateRun(const ClaimTaskMessagesAndCreateRunCommand& command) = 0;
 
         [[nodiscard]] virtual std::optional<TaskAggregateSnapshot> LoadTask(const TaskId& task) const = 0;
         [[nodiscard]] virtual std::vector<TaskRecord> ListTasks(const std::optional<WorkspaceId>& workspace) const = 0;

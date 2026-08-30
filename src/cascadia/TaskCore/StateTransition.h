@@ -18,6 +18,7 @@ namespace Microsoft::Terminal::TaskCore
         ManualHoldActive,
         ActiveIntentConflict,
         IntentRevisionMismatch,
+        MessageRevisionMismatch,
     };
 
     template<typename TState>

@@ -264,4 +264,62 @@ namespace Microsoft::Terminal::TaskCore::details
         }
         return true;
     }
+
+    bool ValidateEnqueueTaskMessageCommand(const EnqueueTaskMessageCommand& command, std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error))
+        {
+            return false;
+        }
+        const auto& message = command.Message;
+        if (command.Metadata.ExpectedTaskVersion == 0 ||
+            !IsCanonicalUuid(message.Id.Value()) || !IsCanonicalUuid(message.Task.Value()) ||
+            message.Author != TaskMessageAuthor::User || message.State != TaskMessageState::Pending ||
+            message.Revision != 1 || message.Content.empty() || message.Content.size() > MaximumTaskMessageBytes ||
+            message.ClaimedByRunId || message.CreatedAtUnixMilliseconds < 0 ||
+            message.UpdatedAtUnixMilliseconds < message.CreatedAtUnixMilliseconds ||
+            message.UpdatedAtUnixMilliseconds > command.Metadata.TimestampUnixMilliseconds)
+        {
+            error = "New Task message is not in its canonical pending state";
+            return false;
+        }
+        return true;
+    }
+
+    bool ValidateReviseTaskMessageCommand(const ReviseTaskMessageCommand& command, std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error))
+        {
+            return false;
+        }
+        if (command.Metadata.ExpectedTaskVersion == 0 || command.ExpectedMessageRevision == 0 ||
+            !IsCanonicalUuid(command.Task.Value()) || !IsCanonicalUuid(command.Message.Value()) ||
+            command.Remove == command.ReplacementContent.has_value())
+        {
+            error = "Task message revision command is invalid";
+            return false;
+        }
+        if (command.ReplacementContent &&
+            (command.ReplacementContent->empty() || command.ReplacementContent->size() > MaximumTaskMessageBytes))
+        {
+            error = "Replacement Task message content is invalid";
+            return false;
+        }
+        return true;
+    }
+
+    bool ValidateClaimTaskMessagesCommand(const ClaimTaskMessagesAndCreateRunCommand& command, std::string& error)
+    {
+        const CreateTaskRunCommand runCommand{ command.Metadata, command.Run };
+        if (!ValidateCreateTaskRunCommand(runCommand, error))
+        {
+            return false;
+        }
+        if (command.Run.Trigger != TaskRunTrigger::FollowUp || command.Run.RetryOfRunId)
+        {
+            error = "Message claim must create a canonical follow-up TaskRun";
+            return false;
+        }
+        return true;
+    }
 }

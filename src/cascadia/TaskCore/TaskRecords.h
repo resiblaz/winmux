@@ -98,11 +98,22 @@ namespace Microsoft::Terminal::TaskCore
     {
         TaskMessageId Id;
         TaskId Task;
+        TaskMessageAuthor Author{ TaskMessageAuthor::User };
         TaskMessageState State{ TaskMessageState::Pending };
         uint64_t Revision{ 1 };
         std::string Content;
         std::optional<TaskRunId> ClaimedByRunId;
         int64_t CreatedAtUnixMilliseconds{};
+        int64_t UpdatedAtUnixMilliseconds{};
+    };
+
+    struct TaskRunMessageRecord
+    {
+        TaskRunId Run;
+        TaskMessageId Message;
+        uint32_t Position{};
+        uint64_t MessageRevision{};
+        std::string CanonicalContent;
     };
 
     struct TaskEventRecord

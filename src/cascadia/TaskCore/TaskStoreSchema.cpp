@@ -211,6 +211,28 @@ CREATE UNIQUE INDEX delete_tombstone_command
 CREATE INDEX delete_tombstone_expires ON delete_tombstone(expires_at, task_id);
 )SQL";
 
+        constexpr const char* SchemaV3 = R"SQL(
+ALTER TABLE task_message ADD COLUMN author INTEGER NOT NULL DEFAULT 0
+    CHECK(author BETWEEN 0 AND 2);
+ALTER TABLE task_message ADD COLUMN updated_at INTEGER
+    CHECK(updated_at IS NULL OR updated_at >= created_at);
+UPDATE task_message SET updated_at=created_at WHERE updated_at IS NULL;
+
+ALTER TABLE task_run_message ADD COLUMN position INTEGER
+    CHECK(position IS NULL OR position >= 0);
+WITH ranked AS (
+    SELECT rowid, ROW_NUMBER() OVER (PARTITION BY run_id ORDER BY message_id) - 1 AS assigned_position
+    FROM task_run_message
+)
+UPDATE task_run_message
+SET position=(SELECT assigned_position FROM ranked WHERE ranked.rowid=task_run_message.rowid)
+WHERE position IS NULL;
+CREATE UNIQUE INDEX task_run_message_position
+    ON task_run_message(run_id, position) WHERE position IS NOT NULL;
+CREATE INDEX task_message_schedule
+    ON task_message(task_id, state, created_at, id);
+)SQL";
+
         bool _hasRequiredTables(sqlite3* database, const int32_t version, std::string& error) noexcept
         {
             constexpr auto query = R"SQL(
@@ -242,6 +264,28 @@ WHERE type = 'table'
                    ExecuteSql(database, SchemaV2, error) &&
                    _setSchemaVersion(database, 2, error) &&
                    transaction.Commit(error);
+        }
+
+        bool _migrateVersionTwoToThree(sqlite3* database, std::string& error)
+        {
+            SqliteTransaction transaction{ database, error };
+            return transaction &&
+                   ExecuteSql(database, SchemaV3, error) &&
+                   _setSchemaVersion(database, 3, error) &&
+                   transaction.Commit(error);
+        }
+
+        bool _hasVersionThreeColumns(sqlite3* database, std::string& error)
+        {
+            constexpr auto sql = R"SQL(
+SELECT
+    (SELECT count(*) FROM pragma_table_info('task_message')
+     WHERE name IN ('author','updated_at')) +
+    (SELECT count(*) FROM pragma_table_info('task_run_message')
+     WHERE name='position');
+)SQL";
+            const auto count = QueryInt64(database, sql, error);
+            return count && count.value() == 3;
         }
     }
 
@@ -350,11 +394,27 @@ WHERE type = 'table'
             }
             observedVersion = 2;
         }
+        if (observedVersion == 2)
+        {
+            if (!_migrateVersionTwoToThree(database, error))
+            {
+                return TaskStoreOpenStatus::IOError;
+            }
+            observedVersion = 3;
+        }
         if (!_hasRequiredTables(database, observedVersion, error))
         {
             if (error.empty())
             {
                 error = "Migrated Task database schema is incomplete";
+            }
+            return TaskStoreOpenStatus::RecoveryRequired;
+        }
+        if (observedVersion >= 3 && !_hasVersionThreeColumns(database, error))
+        {
+            if (error.empty())
+            {
+                error = "Task database message schema is incomplete";
             }
             return TaskStoreOpenStatus::RecoveryRequired;
         }

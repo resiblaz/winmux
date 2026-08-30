@@ -265,4 +265,65 @@ namespace TaskCoreLocalTests::TestFixtures
         command.ExpectedIntentRevision = expectedIntentRevision;
         return command;
     }
+
+    inline EnqueueTaskMessageCommand MakeEnqueueMessageCommand(
+        const CreateTaskCommand& task,
+        const uint64_t messageSeed,
+        const uint64_t commandSeed,
+        const uint64_t expectedVersion,
+        const int64_t timestamp,
+        std::string content)
+    {
+        EnqueueTaskMessageCommand command;
+        command.Metadata = MakeMetadata(commandSeed, expectedVersion, timestamp);
+        command.Message.Id = MakeId<TaskMessageId>(5000 + messageSeed);
+        command.Message.Task = task.Task.Id;
+        command.Message.Author = TaskMessageAuthor::User;
+        command.Message.State = TaskMessageState::Pending;
+        command.Message.Revision = 1;
+        command.Message.Content = std::move(content);
+        command.Message.CreatedAtUnixMilliseconds = timestamp;
+        command.Message.UpdatedAtUnixMilliseconds = timestamp;
+        return command;
+    }
+
+    inline ReviseTaskMessageCommand MakeReviseMessageCommand(
+        const CreateTaskCommand& task,
+        const TaskMessageId& message,
+        const uint64_t commandSeed,
+        const uint64_t expectedTaskVersion,
+        const uint64_t expectedMessageRevision,
+        const int64_t timestamp,
+        std::optional<std::string> replacement,
+        const bool remove = false)
+    {
+        ReviseTaskMessageCommand command;
+        command.Metadata = MakeMetadata(commandSeed, expectedTaskVersion, timestamp);
+        command.Task = task.Task.Id;
+        command.Message = message;
+        command.ExpectedMessageRevision = expectedMessageRevision;
+        command.ReplacementContent = std::move(replacement);
+        command.Remove = remove;
+        return command;
+    }
+
+    inline ClaimTaskMessagesAndCreateRunCommand MakeClaimMessagesCommand(
+        const CreateTaskCommand& task,
+        const uint64_t runSeed,
+        const uint64_t commandSeed,
+        const uint64_t expectedVersion,
+        const int64_t timestamp)
+    {
+        const auto createRun = MakeCreateRunCommand(
+            task,
+            runSeed,
+            commandSeed,
+            expectedVersion,
+            timestamp);
+        ClaimTaskMessagesAndCreateRunCommand command;
+        command.Metadata = createRun.Metadata;
+        command.Run = createRun.Run;
+        command.Run.Trigger = TaskRunTrigger::FollowUp;
+        return command;
+    }
 }

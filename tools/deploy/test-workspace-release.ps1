@@ -22,6 +22,7 @@ $configuration = 'Release'
 $openConsoleModule = Join-Path $repoRoot 'tools\OpenConsole.psm1'
 $packageBuild = Join-Path $repoRoot 'tools\Deploy-LocalRelease.ps1'
 $hookTests = Join-Path $repoRoot '.codex\hooks\test-workspace-history.ps1'
+$upstreamSync = Join-Path $repoRoot 'tools\upstream\sync-microsoft-terminal.ps1'
 $testHostDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\TestHostApp"
 $settingsTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_SettingsModel"
 $wt = Join-Path $repoRoot "src\cascadia\CascadiaPackage\bin\$Platform\$configuration\wtd.exe"
@@ -156,8 +157,18 @@ try
         (Join-Path $repoRoot '.codex\hooks\install-workspace-history.ps1'),
         (Join-Path $repoRoot '.codex\hooks\uninstall-workspace-history.ps1'),
         $hookTests,
+        $upstreamSync,
         $packageBuild,
         $PSCommandPath)
+
+    Write-Host 'Running Microsoft upstream sync tool self-tests...' -ForegroundColor Cyan
+    Invoke-CheckedCommand -Executable (Get-Command pwsh.exe -ErrorAction Stop).Source -Arguments @(
+        '-NoLogo',
+        '-NoProfile',
+        '-File',
+        $upstreamSync,
+        '-Mode',
+        'SelfTest')
 
     if (-not $SkipHookTests)
     {

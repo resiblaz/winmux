@@ -139,6 +139,27 @@ Use `tools/deploy/clean-build-artifacts.ps1` instead of running `git clean -fdX`
 
 Use `-Confirm:$false` only in non-interactive automation where deletion has already been reviewed. After cleaning root or deep outputs, the next portable release must be built without `-SkipBuild`.
 
+## Microsoft Upstream Synchronization
+
+Use `tools/upstream/sync-microsoft-terminal.ps1` for all Microsoft Terminal upstream intake. Read `UPSTREAM.md` before preparing or resolving a sync.
+
+```powershell
+# Safe drift report; this is the default mode.
+pwsh -NoLogo -NoProfile -File .\tools\upstream\sync-microsoft-terminal.ps1 -Mode Check
+
+# Create an isolated sync branch and merge without committing.
+pwsh -NoLogo -NoProfile -File .\tools\upstream\sync-microsoft-terminal.ps1 -Mode Prepare
+
+# After conflicts are resolved and staged, run the full gate, package, and commit.
+pwsh -NoLogo -NoProfile -File .\tools\upstream\sync-microsoft-terminal.ps1 -Mode Continue
+```
+
+The script must not be bypassed by merging Microsoft directly into feature branches. It never pushes or advances `main`; promote the completed sync branch only after review.
+
+When conflicts occur, read `.git/upstream-sync/report.md` and inspect the merge base, upstream version, and fork version of every file. Do not resolve a whole `TerminalPage`, Tab/Pane, action-map, XAML, MIDL, project, renderer, or Workspace hotspot with blanket `ours` or `theirs`. Preserve Microsoft core fixes together with this fork's Workspace/Surface identity, persistence, automation, security, and test contracts. Do not clean while resolving a sync.
+
+`Continue` owns the required unified Release gate and portable repackaging. Keep build outputs incremental unless the compiler, SDK, architecture, foundational build properties, or concrete generated-artifact diagnostics justify the repository cleanup script.
+
 ## Generated Output
 
 `dist/` contains generated ZIPs, extracted runtime files, and portable user settings. It is intentionally ignored by Git and must not be committed.

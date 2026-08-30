@@ -10,6 +10,7 @@
 #include "ProtocolHandshake.h"
 
 #include <memory>
+#include <optional>
 
 namespace Microsoft::Terminal::TaskRuntime
 {
@@ -31,6 +32,7 @@ namespace Microsoft::Terminal::TaskRuntime
         RuntimeControlConnectFailureReason FailureReason{
             RuntimeControlConnectFailureReason::Unclassified
         };
+        std::optional<DWORD> LaunchedProcessExitCode;
 
         [[nodiscard]] bool Succeeded() const noexcept
         {

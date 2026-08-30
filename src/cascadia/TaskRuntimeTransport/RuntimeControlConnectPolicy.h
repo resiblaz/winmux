@@ -33,6 +33,10 @@ namespace Microsoft::Terminal::TaskRuntime
         HandshakeRejected,
         HandshakeMalformed,
         HandshakeTransportFailure,
+        LaunchLockTimeout,
+        LaunchFailed,
+        LaunchedProcessExited,
+        ActivationWaitFailed,
         ResourceFailure,
         Unclassified,
     };

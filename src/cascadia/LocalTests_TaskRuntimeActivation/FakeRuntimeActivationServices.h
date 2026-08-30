@@ -47,6 +47,11 @@ namespace TaskRuntimeActivationLocalTests
                 }
                 auto result = _results.front();
                 _results.pop_front();
+                if (AdvanceToDeadlineOnTimeout &&
+                    result.Status == RuntimeActivationWaitStatus::DeadlineReached)
+                {
+                    _now = deadline.Value;
+                }
                 return result;
             }
             catch (...)
@@ -65,6 +70,12 @@ namespace TaskRuntimeActivationLocalTests
             _results.emplace_back(result);
         }
 
+        void SetNow(const RuntimeActivationMonotonicMilliseconds now) noexcept
+        {
+            std::scoped_lock lock{ _mutex };
+            _now = now;
+        }
+
         [[nodiscard]] std::vector<RuntimeActivationDeadline> Deadlines() const
         {
             std::scoped_lock lock{ _mutex };
@@ -76,6 +87,8 @@ namespace TaskRuntimeActivationLocalTests
             std::scoped_lock lock{ _mutex };
             return _wakeHandles;
         }
+
+        bool AdvanceToDeadlineOnTimeout{};
 
     private:
         mutable std::mutex _mutex;

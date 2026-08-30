@@ -14,7 +14,9 @@
   <ItemGroup>
     <ClInclude Include="ActivationTestSupport.h" />
     <ClInclude Include="FakeRuntimeActivationServices.h" />
+    <ClInclude Include="FakeRuntimeLaunchingConnector.h" />
     <ClInclude Include="FakeRuntimeWindowsProcessApi.h" />
+    <ClInclude Include="RuntimeLaunchingConnectorTestSupport.h" />
     <ClInclude Include="RuntimeProcessLauncherTestSupport.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
@@ -24,6 +26,10 @@
     </ClCompile>
     <ClCompile Include="RuntimeActivationDeadlineTests.cpp" />
     <ClCompile Include="RuntimeActivationWindowsServicesTests.cpp" />
+    <ClCompile Include="RuntimeDirectConnectDispositionTests.cpp" />
+    <ClCompile Include="RuntimeLaunchingConnectorConcurrencyTests.cpp" />
+    <ClCompile Include="RuntimeLaunchingConnectorExitTests.cpp" />
+    <ClCompile Include="RuntimeLaunchingConnectorFlowTests.cpp" />
     <ClCompile Include="RuntimeLaunchLockDeterministicTests.cpp" />
     <ClCompile Include="RuntimeLaunchLockMandatoryLabelTests.cpp" />
     <ClCompile Include="RuntimeLaunchLockNamedMutexTests.cpp" />

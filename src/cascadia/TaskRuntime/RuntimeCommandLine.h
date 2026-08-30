@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "RuntimeProcessExitCode.h"
+
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -15,18 +17,6 @@ namespace Microsoft::Terminal::TaskRuntime
         BootstrapCheck,
         Serve,
         Help,
-    };
-
-    enum class RuntimeProcessExitCode : int
-    {
-        Success = 0,
-        BootstrapFailure = 1,
-        InvalidCommandLine = 2,
-        AlreadyRunning = 3,
-        RuntimeInstanceIdFailure = 4,
-        ServerStartFailure = 5,
-        UnexpectedServerStop = 6,
-        StopInfrastructureFailure = 7,
     };
 
     struct RuntimeCommandLine

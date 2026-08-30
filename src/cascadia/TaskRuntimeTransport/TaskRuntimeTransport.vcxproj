@@ -21,6 +21,7 @@
     <ClInclude Include="RuntimeControlTransport.h" />
     <ClInclude Include="RuntimeIdentity.h" />
     <ClInclude Include="RuntimePipe.h" />
+    <ClInclude Include="RuntimeProcessExitCode.h" />
     <ClInclude Include="RuntimeSecurity.h" />
   </ItemGroup>
   <ItemGroup>

@@ -5,6 +5,7 @@
 #include "SqliteTaskStore.h"
 #include "SqliteTaskStoreInternal.h"
 
+#include "TaskStoreCommandSqlite.h"
 #include "TaskStoreRowSqlite.h"
 #include "TaskStoreSqlite.h"
 
@@ -204,6 +205,7 @@ FROM task_terminal WHERE task_id=?1;
             !_loadExecutionContexts(_impl->Database, task, snapshot.ExecutionContexts, error) ||
             !_loadTerminal(_impl->Database, task, terminal, error) ||
             !terminal ||
+            !details::LoadTaskIntent(_impl->Database, task, snapshot.Intent, error) ||
             !_loadAgentSessions(_impl->Database, task, snapshot.AgentSessions, error) ||
             !_loadRuns(_impl->Database, task, snapshot.Runs, error) ||
             !_loadMessages(_impl->Database, task, snapshot.Messages, error) ||

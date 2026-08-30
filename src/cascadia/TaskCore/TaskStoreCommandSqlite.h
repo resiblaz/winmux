@@ -29,6 +29,7 @@ namespace Microsoft::Terminal::TaskCore::details
     {
         uint64_t Version{};
         TaskStatus Status{ TaskStatus::Todo };
+        bool ManualHold{};
         int64_t CreatedAtUnixMilliseconds{};
         int64_t UpdatedAtUnixMilliseconds{};
     };
@@ -75,6 +76,17 @@ namespace Microsoft::Terminal::TaskCore::details
         std::optional<StoredTaskState>& state,
         std::string& error);
 
+    [[nodiscard]] bool IsTaskTombstoned(
+        sqlite3* database,
+        const TaskId& task,
+        bool& tombstoned,
+        std::string& error);
+
+    [[nodiscard]] TaskStoreCommandResult MissingTaskFailure(
+        sqlite3* database,
+        const TaskId& task,
+        std::string& error);
+
     [[nodiscard]] bool LoadTaskRunState(
         sqlite3* database,
         const TaskRunId& run,
@@ -85,6 +97,12 @@ namespace Microsoft::Terminal::TaskCore::details
         sqlite3* database,
         const TaskId& task,
         std::optional<StoredTaskTerminalState>& state,
+        std::string& error);
+
+    [[nodiscard]] bool LoadTaskIntent(
+        sqlite3* database,
+        const TaskId& task,
+        std::optional<TaskIntentRecord>& intent,
         std::string& error);
 
     [[nodiscard]] bool RowBelongsToTask(

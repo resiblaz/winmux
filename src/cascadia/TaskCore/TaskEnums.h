@@ -79,4 +79,25 @@ namespace Microsoft::Terminal::TaskCore
         Claimed = 2,
         Removed = 3,
     };
+
+    enum class TaskIntentKind : uint8_t
+    {
+        Stop = 0,
+        Close = 1,
+        WorktreeCleanup = 2,
+        Delete = 3,
+    };
+
+    enum class TaskIntentStage : uint8_t
+    {
+        Requested = 0,
+        Interrupting = 1,
+        WaitingForProvider = 2,
+        Checkpointing = 3,
+        FinalizingWorktree = 4,
+        RemovingSurface = 5,
+        DeletingAggregate = 6,
+        Failed = 7,
+        Completed = 8,
+    };
 }

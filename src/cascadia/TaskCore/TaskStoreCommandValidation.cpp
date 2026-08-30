@@ -6,6 +6,7 @@
 
 #include "TaskRecordValidation.h"
 #include "TaskRunStatePolicy.h"
+#include "TaskStoreResults.h"
 
 #include <limits>
 #include <type_traits>
@@ -178,6 +179,87 @@ namespace Microsoft::Terminal::TaskCore::details
             command.RequestedGeneration > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
         {
             error = "TaskTerminal transition command is invalid";
+            return false;
+        }
+        return true;
+    }
+
+    bool ValidateStartTaskIntentCommand(const StartTaskIntentCommand& command, std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error))
+        {
+            return false;
+        }
+        const auto& intent = command.Intent;
+        if (command.Metadata.ExpectedTaskVersion == 0 ||
+            !IsCanonicalUuid(intent.Id.Value()) || !IsCanonicalUuid(intent.Task.Value()) ||
+            !_enumInRange(intent.Kind, TaskIntentKind::Delete) || intent.Stage != TaskIntentStage::Requested ||
+            intent.Revision != 1 ||
+            (intent.DeadlineAtUnixMilliseconds && intent.DeadlineAtUnixMilliseconds.value() < 0) ||
+            intent.DetailJson.size() > MaximumTaskStoreJsonBytes || !intent.ReasonCode.empty() ||
+            intent.CreatedAtUnixMilliseconds < 0 || intent.UpdatedAtUnixMilliseconds < intent.CreatedAtUnixMilliseconds ||
+            intent.UpdatedAtUnixMilliseconds > command.Metadata.TimestampUnixMilliseconds)
+        {
+            error = "New Task intent is not in its canonical requested state";
+            return false;
+        }
+        return true;
+    }
+
+    bool ValidateAdvanceTaskIntentCommand(const AdvanceTaskIntentCommand& command, std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error))
+        {
+            return false;
+        }
+        if (command.Metadata.ExpectedTaskVersion == 0 || command.ExpectedIntentRevision == 0 ||
+            !IsCanonicalUuid(command.Task.Value()) || !IsCanonicalUuid(command.Intent.Value()) ||
+            !_enumInRange(command.RequestedStage, TaskIntentStage::Completed) ||
+            (command.DeadlineAtUnixMilliseconds && command.DeadlineAtUnixMilliseconds.value() < 0) ||
+            command.DetailJson.size() > MaximumTaskStoreJsonBytes ||
+            command.ReasonCode.size() > MaximumTaskReasonCodeBytes)
+        {
+            error = "Task intent advance command is invalid";
+            return false;
+        }
+        if (command.RequestedStage == TaskIntentStage::Failed && command.ReasonCode.empty())
+        {
+            error = "Failed Task intent stage requires a reason code";
+            return false;
+        }
+        return true;
+    }
+
+    bool ValidateChangeTaskManualHoldCommand(const ChangeTaskManualHoldCommand& command, std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error) ||
+            command.Metadata.ExpectedTaskVersion == 0 || !IsCanonicalUuid(command.Task.Value()))
+        {
+            if (error.empty())
+            {
+                error = "Task manual-hold command is invalid";
+            }
+            return false;
+        }
+        return true;
+    }
+
+    bool ValidateDeleteTaskCommand(const DeleteTaskCommand& command, std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error) ||
+            command.Metadata.ExpectedTaskVersion == 0 || command.ExpectedIntentRevision == 0 ||
+            !IsCanonicalUuid(command.Task.Value()) || !IsCanonicalUuid(command.Intent.Value()))
+        {
+            if (error.empty())
+            {
+                error = "Delete Task command is invalid";
+            }
+            return false;
+        }
+        if (command.Metadata.TimestampUnixMilliseconds >
+            std::numeric_limits<int64_t>::max() - TaskTombstoneRetentionMilliseconds)
+        {
+            error = "Delete Task timestamp exceeds the tombstone retention range";
             return false;
         }
         return true;

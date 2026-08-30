@@ -8,6 +8,7 @@
 #include <array>
 #include <cstdio>
 #include <filesystem>
+#include <winsqlite/winsqlite3.h>
 
 namespace TaskCoreLocalTests::TestFixtures
 {
@@ -55,6 +56,17 @@ namespace TaskCoreLocalTests::TestFixtures
             "00000000-0000-4000-8000-%012llx",
             static_cast<unsigned long long>(value));
         return TId{ buffer.data() };
+    }
+
+    inline sqlite3* OpenRawDatabase(const std::filesystem::path& path)
+    {
+        const auto native = path.u8string();
+        const std::string utf8{ reinterpret_cast<const char*>(native.data()), native.size() };
+        sqlite3* database{};
+        VERIFY_ARE_EQUAL(
+            SQLITE_OK,
+            sqlite3_open_v2(utf8.c_str(), &database, SQLITE_OPEN_READWRITE, nullptr));
+        return database;
     }
 
     inline TaskCommandMetadata MakeMetadata(
@@ -181,6 +193,76 @@ namespace TaskCoreLocalTests::TestFixtures
         command.RequestedState = state;
         command.RequestedGeneration = generation;
         command.ExplicitOpen = explicitOpen;
+        return command;
+    }
+
+    inline StartTaskIntentCommand MakeStartIntentCommand(
+        const CreateTaskCommand& task,
+        const uint64_t intentSeed,
+        const uint64_t commandSeed,
+        const uint64_t expectedVersion,
+        const int64_t timestamp,
+        const TaskIntentKind kind)
+    {
+        StartTaskIntentCommand command;
+        command.Metadata = MakeMetadata(commandSeed, expectedVersion, timestamp);
+        command.Intent.Id = MakeId<TaskIntentId>(4000 + intentSeed);
+        command.Intent.Task = task.Task.Id;
+        command.Intent.Kind = kind;
+        command.Intent.Stage = TaskIntentStage::Requested;
+        command.Intent.Revision = 1;
+        command.Intent.DetailJson = "{\"phase\":\"requested\"}";
+        command.Intent.CreatedAtUnixMilliseconds = timestamp;
+        command.Intent.UpdatedAtUnixMilliseconds = timestamp;
+        return command;
+    }
+
+    inline AdvanceTaskIntentCommand MakeAdvanceIntentCommand(
+        const StartTaskIntentCommand& start,
+        const uint64_t commandSeed,
+        const uint64_t expectedTaskVersion,
+        const uint64_t expectedIntentRevision,
+        const int64_t timestamp,
+        const TaskIntentStage stage,
+        std::string reasonCode = {})
+    {
+        AdvanceTaskIntentCommand command;
+        command.Metadata = MakeMetadata(commandSeed, expectedTaskVersion, timestamp);
+        command.Task = start.Intent.Task;
+        command.Intent = start.Intent.Id;
+        command.ExpectedIntentRevision = expectedIntentRevision;
+        command.RequestedStage = stage;
+        command.DetailJson = "{\"phase\":\"advanced\"}";
+        command.ReasonCode = std::move(reasonCode);
+        return command;
+    }
+
+    inline ChangeTaskManualHoldCommand MakeManualHoldCommand(
+        const CreateTaskCommand& task,
+        const uint64_t commandSeed,
+        const uint64_t expectedVersion,
+        const int64_t timestamp,
+        const bool hold)
+    {
+        ChangeTaskManualHoldCommand command;
+        command.Metadata = MakeMetadata(commandSeed, expectedVersion, timestamp);
+        command.Task = task.Task.Id;
+        command.RequestedHold = hold;
+        return command;
+    }
+
+    inline DeleteTaskCommand MakeDeleteTaskCommand(
+        const StartTaskIntentCommand& intent,
+        const uint64_t commandSeed,
+        const uint64_t expectedTaskVersion,
+        const uint64_t expectedIntentRevision,
+        const int64_t timestamp)
+    {
+        DeleteTaskCommand command;
+        command.Metadata = MakeMetadata(commandSeed, expectedTaskVersion, timestamp);
+        command.Task = intent.Intent.Task;
+        command.Intent = intent.Intent.Id;
+        command.ExpectedIntentRevision = expectedIntentRevision;
         return command;
     }
 }

@@ -192,6 +192,16 @@ WHERE id=?4 AND version=?5;
             return details::CommandFailure(TaskStoreCommandStatus::InvalidRecord, std::move(error));
         }
 
+        bool tombstoned{};
+        if (!details::IsTaskTombstoned(_impl->Database, command.Task.Id, tombstoned, error))
+        {
+            return details::CommandFailure(TaskStoreCommandStatus::StorageError, std::move(error));
+        }
+        if (tombstoned)
+        {
+            return details::CommandFailure(TaskStoreCommandStatus::Tombstoned, "Task identity remains protected by a deletion tombstone");
+        }
+
         std::optional<details::StoredTaskState> existing;
         if (!details::LoadTaskState(_impl->Database, command.Task.Id, existing, error))
         {
@@ -285,7 +295,7 @@ WHERE id=?4 AND version=?5;
         }
         if (!task)
         {
-            return details::CommandFailure(TaskStoreCommandStatus::NotFound, "Task was not found");
+            return details::MissingTaskFailure(_impl->Database, command.Task, error);
         }
         if (task->Version != command.Metadata.ExpectedTaskVersion)
         {
@@ -298,6 +308,18 @@ WHERE id=?4 AND version=?5;
         if (task->Version == static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
         {
             return details::CommandFailure(TaskStoreCommandStatus::StorageError, "Task version storage range is exhausted");
+        }
+        std::optional<TaskIntentRecord> currentIntent;
+        if (!details::LoadTaskIntent(_impl->Database, command.Task, currentIntent, error))
+        {
+            return details::CommandFailure(TaskStoreCommandStatus::StorageError, std::move(error));
+        }
+        if (currentIntent && currentIntent->Stage != TaskIntentStage::Completed)
+        {
+            return details::CommandFailure(
+                TaskStoreCommandStatus::InvalidTransition,
+                "Task status cannot change while a Task intent is incomplete",
+                TransitionError::ActiveIntentConflict);
         }
 
         TaskStatusTransitionContext context;

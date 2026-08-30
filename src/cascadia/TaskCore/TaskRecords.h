@@ -117,6 +117,20 @@ namespace Microsoft::Terminal::TaskCore
         int64_t CreatedAtUnixMilliseconds{};
     };
 
+    struct TaskIntentRecord
+    {
+        TaskIntentId Id;
+        TaskId Task;
+        TaskIntentKind Kind{ TaskIntentKind::Stop };
+        TaskIntentStage Stage{ TaskIntentStage::Requested };
+        uint64_t Revision{ 1 };
+        std::optional<int64_t> DeadlineAtUnixMilliseconds;
+        std::string DetailJson{ "{}" };
+        std::string ReasonCode;
+        int64_t CreatedAtUnixMilliseconds{};
+        int64_t UpdatedAtUnixMilliseconds{};
+    };
+
     struct CommandReceiptRecord
     {
         CommandId Id;
@@ -134,5 +148,9 @@ namespace Microsoft::Terminal::TaskCore
         int64_t DeletedAtUnixMilliseconds{};
         int64_t ExpiresAtUnixMilliseconds{};
         std::string ReplayDigest;
+        std::optional<CommandId> Command;
+        std::optional<uint64_t> ExpectedTaskVersion;
+        std::optional<uint64_t> CommittedTaskVersion;
+        std::optional<uint64_t> LastEventSequence;
     };
 }

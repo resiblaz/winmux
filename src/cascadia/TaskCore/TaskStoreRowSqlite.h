@@ -17,4 +17,6 @@ namespace Microsoft::Terminal::TaskCore::details
     [[nodiscard]] TaskRunRecord ReadTaskRunRow(sqlite3_stmt* statement);
     [[nodiscard]] TaskMessageRecord ReadTaskMessageRow(sqlite3_stmt* statement);
     [[nodiscard]] TaskEventRecord ReadTaskEventRow(sqlite3_stmt* statement);
+    [[nodiscard]] TaskIntentRecord ReadTaskIntentRow(sqlite3_stmt* statement);
+    [[nodiscard]] DeleteTombstoneRecord ReadDeleteTombstoneRow(sqlite3_stmt* statement);
 }

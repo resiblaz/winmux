@@ -29,9 +29,16 @@ namespace Microsoft::Terminal::TaskCore
         [[nodiscard]] virtual TaskStoreCommandResult CreateTaskRun(const CreateTaskRunCommand& command) = 0;
         [[nodiscard]] virtual TaskStoreCommandResult ChangeTaskRunState(const ChangeTaskRunStateCommand& command) = 0;
         [[nodiscard]] virtual TaskStoreCommandResult ChangeTaskTerminalState(const ChangeTaskTerminalStateCommand& command) = 0;
+        [[nodiscard]] virtual TaskStoreCommandResult StartTaskIntent(const StartTaskIntentCommand& command) = 0;
+        [[nodiscard]] virtual TaskStoreCommandResult AdvanceTaskIntent(const AdvanceTaskIntentCommand& command) = 0;
+        [[nodiscard]] virtual TaskStoreCommandResult ChangeTaskManualHold(const ChangeTaskManualHoldCommand& command) = 0;
+        [[nodiscard]] virtual TaskStoreCommandResult DeleteTask(const DeleteTaskCommand& command) = 0;
 
         [[nodiscard]] virtual std::optional<TaskAggregateSnapshot> LoadTask(const TaskId& task) const = 0;
         [[nodiscard]] virtual std::vector<TaskRecord> ListTasks(const std::optional<WorkspaceId>& workspace) const = 0;
         [[nodiscard]] virtual std::vector<TaskEventRecord> ListEvents(const TaskId& task, uint64_t afterSequence, size_t limit) const = 0;
+        [[nodiscard]] virtual std::optional<DeleteTombstoneRecord> LoadDeleteTombstone(const TaskId& task) const = 0;
+        [[nodiscard]] virtual TaskRecoveryQueryResult LoadRecoverySnapshot(size_t limit) const = 0;
+        [[nodiscard]] virtual TaskStoreMaintenanceResult PurgeExpiredTombstones(int64_t nowUnixMilliseconds, size_t limit) = 0;
     };
 }

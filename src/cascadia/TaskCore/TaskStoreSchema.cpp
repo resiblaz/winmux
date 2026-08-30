@@ -181,7 +181,37 @@ CREATE INDEX task_run_task_order ON task_run(task_id, sequence DESC);
 CREATE INDEX task_message_unclaimed ON task_message(task_id, state, created_at);
 )SQL";
 
-        bool _hasRequiredTables(sqlite3* database, std::string& error) noexcept
+        constexpr const char* SchemaV2 = R"SQL(
+CREATE TABLE task_intent (
+    id TEXT PRIMARY KEY NOT NULL,
+    task_id TEXT NOT NULL UNIQUE,
+    kind INTEGER NOT NULL CHECK(kind BETWEEN 0 AND 3),
+    stage INTEGER NOT NULL CHECK(stage BETWEEN 0 AND 8),
+    revision INTEGER NOT NULL CHECK(revision > 0),
+    deadline_at INTEGER CHECK(deadline_at IS NULL OR deadline_at >= 0),
+    detail_json TEXT NOT NULL,
+    reason_code TEXT NOT NULL,
+    created_at INTEGER NOT NULL CHECK(created_at >= 0),
+    updated_at INTEGER NOT NULL CHECK(updated_at >= created_at),
+    FOREIGN KEY(task_id) REFERENCES task(id) ON DELETE CASCADE
+);
+
+CREATE INDEX task_intent_recovery ON task_intent(stage, updated_at, task_id);
+
+ALTER TABLE delete_tombstone ADD COLUMN command_id TEXT;
+ALTER TABLE delete_tombstone ADD COLUMN expected_version INTEGER
+    CHECK(expected_version IS NULL OR expected_version >= 0);
+ALTER TABLE delete_tombstone ADD COLUMN committed_version INTEGER
+    CHECK(committed_version IS NULL OR committed_version > 0);
+ALTER TABLE delete_tombstone ADD COLUMN last_event_sequence INTEGER
+    CHECK(last_event_sequence IS NULL OR last_event_sequence > 0);
+
+CREATE UNIQUE INDEX delete_tombstone_command
+    ON delete_tombstone(command_id) WHERE command_id IS NOT NULL;
+CREATE INDEX delete_tombstone_expires ON delete_tombstone(expires_at, task_id);
+)SQL";
+
+        bool _hasRequiredTables(sqlite3* database, const int32_t version, std::string& error) noexcept
         {
             constexpr auto query = R"SQL(
 SELECT count(*)
@@ -190,11 +220,28 @@ WHERE type = 'table'
   AND name IN (
     'task', 'task_acceptance', 'execution_context', 'task_terminal',
     'agent_session', 'task_run', 'task_message', 'task_run_message',
-    'task_event', 'git_checkpoint', 'command_receipt', 'delete_tombstone'
+    'task_event', 'git_checkpoint', 'command_receipt', 'delete_tombstone',
+    'task_intent'
   );
 )SQL";
             const auto count = QueryInt64(database, query, error);
-            return count && count.value() == 12;
+            const auto expectedCount = version >= 2 ? 13 : 12;
+            return count && count.value() == expectedCount;
+        }
+
+        bool _setSchemaVersion(sqlite3* database, const int32_t version, std::string& error)
+        {
+            const auto sql = "PRAGMA user_version=" + std::to_string(version) + ";";
+            return ExecuteSql(database, sql.c_str(), error);
+        }
+
+        bool _migrateVersionOneToTwo(sqlite3* database, std::string& error)
+        {
+            SqliteTransaction transaction{ database, error };
+            return transaction &&
+                   ExecuteSql(database, SchemaV2, error) &&
+                   _setSchemaVersion(database, 2, error) &&
+                   transaction.Commit(error);
         }
     }
 
@@ -279,19 +326,35 @@ WHERE type = 'table'
             if (!transaction ||
                 !ExecuteSql(database, SchemaV1, error) ||
                 !ExecuteSql(database, "PRAGMA application_id=1414744881;", error) ||
-                !ExecuteSql(database, "PRAGMA user_version=1;", error) ||
+                !_setSchemaVersion(database, 1, error) ||
                 !transaction.Commit(error))
             {
                 return TaskStoreOpenStatus::IOError;
             }
-            observedVersion = CurrentTaskDatabaseSchemaVersion;
+            observedVersion = 1;
             observedApplicationId = TaskDatabaseApplicationId;
         }
-        if (!_hasRequiredTables(database, error))
+        if (!_hasRequiredTables(database, observedVersion, error))
         {
             if (error.empty())
             {
                 error = "Task database schema is incomplete";
+            }
+            return TaskStoreOpenStatus::RecoveryRequired;
+        }
+        if (observedVersion == 1)
+        {
+            if (!_migrateVersionOneToTwo(database, error))
+            {
+                return TaskStoreOpenStatus::IOError;
+            }
+            observedVersion = 2;
+        }
+        if (!_hasRequiredTables(database, observedVersion, error))
+        {
+            if (error.empty())
+            {
+                error = "Migrated Task database schema is incomplete";
             }
             return TaskStoreOpenStatus::RecoveryRequired;
         }

@@ -15,4 +15,8 @@ namespace Microsoft::Terminal::TaskCore::details
     [[nodiscard]] bool ValidateCreateTaskRunCommand(const CreateTaskRunCommand& command, std::string& error);
     [[nodiscard]] bool ValidateRunStateCommand(const ChangeTaskRunStateCommand& command, std::string& error);
     [[nodiscard]] bool ValidateTerminalStateCommand(const ChangeTaskTerminalStateCommand& command, std::string& error);
+    [[nodiscard]] bool ValidateStartTaskIntentCommand(const StartTaskIntentCommand& command, std::string& error);
+    [[nodiscard]] bool ValidateAdvanceTaskIntentCommand(const AdvanceTaskIntentCommand& command, std::string& error);
+    [[nodiscard]] bool ValidateChangeTaskManualHoldCommand(const ChangeTaskManualHoldCommand& command, std::string& error);
+    [[nodiscard]] bool ValidateDeleteTaskCommand(const DeleteTaskCommand& command, std::string& error);
 }

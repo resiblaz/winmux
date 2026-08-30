@@ -67,4 +67,37 @@ namespace Microsoft::Terminal::TaskCore
         uint64_t RequestedGeneration{};
         bool ExplicitOpen{};
     };
+
+    struct StartTaskIntentCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskIntentRecord Intent;
+    };
+
+    struct AdvanceTaskIntentCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskId Task;
+        TaskIntentId Intent;
+        uint64_t ExpectedIntentRevision{};
+        TaskIntentStage RequestedStage{ TaskIntentStage::Requested };
+        std::optional<int64_t> DeadlineAtUnixMilliseconds;
+        std::string DetailJson{ "{}" };
+        std::string ReasonCode;
+    };
+
+    struct ChangeTaskManualHoldCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskId Task;
+        bool RequestedHold{};
+    };
+
+    struct DeleteTaskCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskId Task;
+        TaskIntentId Intent;
+        uint64_t ExpectedIntentRevision{};
+    };
 }

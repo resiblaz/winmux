@@ -20,10 +20,13 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="TaskCoreIdentifierTests.cpp" />
+    <ClCompile Include="TaskCoreIntentPolicyTests.cpp" />
     <ClCompile Include="TaskCoreRecordValidationTests.cpp" />
+    <ClCompile Include="TaskCoreRecoveryTests.cpp" />
     <ClCompile Include="TaskCoreSchemaTests.cpp" />
     <ClCompile Include="TaskCoreStoreRunTests.cpp" />
     <ClCompile Include="TaskCoreStoreTaskTests.cpp" />
+    <ClCompile Include="TaskCoreDeletionTests.cpp" />
     <ClCompile Include="TaskCoreRunStatePolicyTests.cpp" />
     <ClCompile Include="TaskCoreTaskStatusPolicyTests.cpp" />
     <ClCompile Include="TaskCoreTerminalStatePolicyTests.cpp" />

@@ -51,6 +51,7 @@ namespace Microsoft::Terminal::TaskCore
     struct TaskMessageIdTag;
     struct TaskEventIdTag;
     struct CommandIdTag;
+    struct TaskIntentIdTag;
 
     using TaskId = StrongId<TaskIdTag>;
     using WorkspaceId = StrongId<WorkspaceIdTag>;
@@ -61,6 +62,7 @@ namespace Microsoft::Terminal::TaskCore
     using TaskMessageId = StrongId<TaskMessageIdTag>;
     using TaskEventId = StrongId<TaskEventIdTag>;
     using CommandId = StrongId<CommandIdTag>;
+    using TaskIntentId = StrongId<TaskIntentIdTag>;
 
     [[nodiscard]] bool IsCanonicalUuid(std::string_view value) noexcept;
 

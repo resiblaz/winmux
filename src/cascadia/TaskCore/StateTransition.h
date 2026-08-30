@@ -15,6 +15,9 @@ namespace Microsoft::Terminal::TaskCore
         AutomaticRetryPending,
         ExplicitOpenRequired,
         GenerationMismatch,
+        ManualHoldActive,
+        ActiveIntentConflict,
+        IntentRevisionMismatch,
     };
 
     template<typename TState>

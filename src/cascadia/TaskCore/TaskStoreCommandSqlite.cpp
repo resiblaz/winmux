@@ -51,89 +51,13 @@ namespace Microsoft::Terminal::TaskCore::details
         }
     }
 
-    TaskStoreCommandResult CommandFailure(
-        const TaskStoreCommandStatus status,
-        std::string error,
-        const TransitionError transition)
-    {
-        TaskStoreCommandResult result;
-        result.Status = status;
-        result.Transition = transition;
-        result.Error = std::move(error);
-        return result;
-    }
-
-    bool LookupReceipt(
-        sqlite3* database,
-        const CommandId& command,
-        std::optional<StoredReceipt>& receipt,
-        std::string& error)
-    {
-        constexpr auto sql = R"SQL(
-SELECT task_id, command_name, request_digest, expected_version,
-       committed_version, last_event_sequence, result_json
-FROM command_receipt WHERE id=?1;
-)SQL";
-        SqliteStatement statement{ database, sql, error };
-        if (!statement || !BindText(database, statement.Get(), 1, command.Value(), error))
-        {
-            return false;
-        }
-        const auto step = sqlite3_step(statement.Get());
-        if (step == SQLITE_DONE)
-        {
-            receipt.reset();
-            return true;
-        }
-        if (step != SQLITE_ROW)
-        {
-            error = SqliteError(database, step, "lookup command receipt");
-            return false;
-        }
-
-        StoredReceipt loaded;
-        loaded.Task = TaskId{ ColumnText(statement.Get(), 0) };
-        loaded.CommandName = ColumnText(statement.Get(), 1);
-        loaded.RequestDigest = ColumnText(statement.Get(), 2);
-        loaded.ExpectedVersion = static_cast<uint64_t>(sqlite3_column_int64(statement.Get(), 3));
-        loaded.CommittedVersion = static_cast<uint64_t>(sqlite3_column_int64(statement.Get(), 4));
-        loaded.LastEventSequence = static_cast<uint64_t>(sqlite3_column_int64(statement.Get(), 5));
-        loaded.ResultJson = ColumnText(statement.Get(), 6);
-        receipt = std::move(loaded);
-        return true;
-    }
-
-    std::optional<TaskStoreCommandResult> EvaluateReceiptReplay(
-        const std::optional<StoredReceipt>& receipt,
-        const TaskCommandMetadata& metadata,
-        const TaskId& task,
-        const std::string_view commandName)
-    {
-        if (!receipt)
-        {
-            return std::nullopt;
-        }
-        if (receipt->Task != task || receipt->CommandName != commandName ||
-            receipt->RequestDigest != metadata.RequestDigest || receipt->ExpectedVersion != metadata.ExpectedTaskVersion)
-        {
-            return CommandFailure(TaskStoreCommandStatus::IdempotencyConflict, "Command ID was already used for a different request");
-        }
-
-        TaskStoreCommandResult result;
-        result.Status = TaskStoreCommandStatus::Replayed;
-        result.CommittedTaskVersion = receipt->CommittedVersion;
-        result.LastEventSequence = receipt->LastEventSequence;
-        result.ResultJson = receipt->ResultJson;
-        return result;
-    }
-
     bool LoadTaskState(
         sqlite3* database,
         const TaskId& task,
         std::optional<StoredTaskState>& state,
         std::string& error)
     {
-        SqliteStatement statement{ database, "SELECT version, status, created_at, updated_at FROM task WHERE id=?1;", error };
+        SqliteStatement statement{ database, "SELECT version, status, manual_hold, created_at, updated_at FROM task WHERE id=?1;", error };
         if (!statement || !BindText(database, statement.Get(), 1, task.Value(), error))
         {
             return false;
@@ -152,10 +76,40 @@ FROM command_receipt WHERE id=?1;
         state = StoredTaskState{
             static_cast<uint64_t>(sqlite3_column_int64(statement.Get(), 0)),
             static_cast<TaskStatus>(sqlite3_column_int(statement.Get(), 1)),
-            sqlite3_column_int64(statement.Get(), 2),
+            sqlite3_column_int(statement.Get(), 2) != 0,
             sqlite3_column_int64(statement.Get(), 3),
+            sqlite3_column_int64(statement.Get(), 4),
         };
         return true;
+    }
+
+    bool IsTaskTombstoned(
+        sqlite3* database,
+        const TaskId& task,
+        bool& tombstoned,
+        std::string& error)
+    {
+        return _queryTaskBool(
+            database,
+            "SELECT EXISTS(SELECT 1 FROM delete_tombstone WHERE task_id=?1);",
+            task,
+            tombstoned,
+            error);
+    }
+
+    TaskStoreCommandResult MissingTaskFailure(
+        sqlite3* database,
+        const TaskId& task,
+        std::string& error)
+    {
+        bool tombstoned{};
+        if (!IsTaskTombstoned(database, task, tombstoned, error))
+        {
+            return CommandFailure(TaskStoreCommandStatus::StorageError, error);
+        }
+        return tombstoned ?
+                   CommandFailure(TaskStoreCommandStatus::Tombstoned, "Task was deleted and remains tombstoned") :
+                   CommandFailure(TaskStoreCommandStatus::NotFound, "Task was not found");
     }
 
     bool LoadTaskRunState(
@@ -228,6 +182,49 @@ FROM task_terminal WHERE task_id=?1;
             static_cast<uint64_t>(sqlite3_column_int64(statement.Get(), 2)),
             sqlite3_column_int64(statement.Get(), 3),
         };
+        return true;
+    }
+
+    bool LoadTaskIntent(
+        sqlite3* database,
+        const TaskId& task,
+        std::optional<TaskIntentRecord>& intent,
+        std::string& error)
+    {
+        constexpr auto sql = R"SQL(
+SELECT id, task_id, kind, stage, revision, deadline_at, detail_json, reason_code,
+       created_at, updated_at
+FROM task_intent WHERE task_id=?1;
+)SQL";
+        SqliteStatement statement{ database, sql, error };
+        if (!statement || !BindText(database, statement.Get(), 1, task.Value(), error))
+        {
+            return false;
+        }
+        const auto step = sqlite3_step(statement.Get());
+        if (step == SQLITE_DONE)
+        {
+            intent.reset();
+            return true;
+        }
+        if (step != SQLITE_ROW)
+        {
+            error = SqliteError(database, step, "load Task intent");
+            return false;
+        }
+
+        TaskIntentRecord loaded;
+        loaded.Id = TaskIntentId{ ColumnText(statement.Get(), 0) };
+        loaded.Task = TaskId{ ColumnText(statement.Get(), 1) };
+        loaded.Kind = static_cast<TaskIntentKind>(sqlite3_column_int(statement.Get(), 2));
+        loaded.Stage = static_cast<TaskIntentStage>(sqlite3_column_int(statement.Get(), 3));
+        loaded.Revision = static_cast<uint64_t>(sqlite3_column_int64(statement.Get(), 4));
+        loaded.DeadlineAtUnixMilliseconds = ColumnOptionalInt64(statement.Get(), 5);
+        loaded.DetailJson = ColumnText(statement.Get(), 6);
+        loaded.ReasonCode = ColumnText(statement.Get(), 7);
+        loaded.CreatedAtUnixMilliseconds = sqlite3_column_int64(statement.Get(), 8);
+        loaded.UpdatedAtUnixMilliseconds = sqlite3_column_int64(statement.Get(), 9);
+        intent = std::move(loaded);
         return true;
     }
 
@@ -341,31 +338,4 @@ VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);
                StepDone(database, statement.Get(), error);
     }
 
-    bool InsertReceipt(
-        sqlite3* database,
-        const TaskCommandMetadata& metadata,
-        const TaskId& task,
-        const std::string_view commandName,
-        const uint64_t committedVersion,
-        const uint64_t lastEventSequence,
-        std::string& error)
-    {
-        constexpr auto sql = R"SQL(
-INSERT INTO command_receipt(id, task_id, command_name, request_digest, expected_version,
-                            committed_version, last_event_sequence, result_json, created_at)
-VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9);
-)SQL";
-        SqliteStatement statement{ database, sql, error };
-        return statement &&
-               BindText(database, statement.Get(), 1, metadata.Command.Value(), error) &&
-               BindText(database, statement.Get(), 2, task.Value(), error) &&
-               BindText(database, statement.Get(), 3, commandName, error) &&
-               BindText(database, statement.Get(), 4, metadata.RequestDigest, error) &&
-               BindInt64(database, statement.Get(), 5, static_cast<int64_t>(metadata.ExpectedTaskVersion), error) &&
-               BindInt64(database, statement.Get(), 6, static_cast<int64_t>(committedVersion), error) &&
-               BindInt64(database, statement.Get(), 7, static_cast<int64_t>(lastEventSequence), error) &&
-               BindText(database, statement.Get(), 8, metadata.ReceiptResultJson, error) &&
-               BindInt64(database, statement.Get(), 9, metadata.TimestampUnixMilliseconds, error) &&
-               StepDone(database, statement.Get(), error);
-    }
 }

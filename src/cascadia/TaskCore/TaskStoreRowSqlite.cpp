@@ -137,4 +137,43 @@ namespace Microsoft::Terminal::TaskCore::details
         event.CreatedAtUnixMilliseconds = sqlite3_column_int64(statement, 7);
         return event;
     }
+
+    TaskIntentRecord ReadTaskIntentRow(sqlite3_stmt* statement)
+    {
+        TaskIntentRecord intent;
+        intent.Id = TaskIntentId{ ColumnText(statement, 0) };
+        intent.Task = TaskId{ ColumnText(statement, 1) };
+        intent.Kind = static_cast<TaskIntentKind>(sqlite3_column_int(statement, 2));
+        intent.Stage = static_cast<TaskIntentStage>(sqlite3_column_int(statement, 3));
+        intent.Revision = static_cast<uint64_t>(sqlite3_column_int64(statement, 4));
+        intent.DeadlineAtUnixMilliseconds = ColumnOptionalInt64(statement, 5);
+        intent.DetailJson = ColumnText(statement, 6);
+        intent.ReasonCode = ColumnText(statement, 7);
+        intent.CreatedAtUnixMilliseconds = sqlite3_column_int64(statement, 8);
+        intent.UpdatedAtUnixMilliseconds = sqlite3_column_int64(statement, 9);
+        return intent;
+    }
+
+    DeleteTombstoneRecord ReadDeleteTombstoneRow(sqlite3_stmt* statement)
+    {
+        DeleteTombstoneRecord tombstone;
+        tombstone.Task = TaskId{ ColumnText(statement, 0) };
+        tombstone.DeletedAtUnixMilliseconds = sqlite3_column_int64(statement, 1);
+        tombstone.ExpiresAtUnixMilliseconds = sqlite3_column_int64(statement, 2);
+        tombstone.ReplayDigest = ColumnText(statement, 3);
+        tombstone.Command = _optionalId<CommandId>(statement, 4);
+        const auto expectedVersion = ColumnOptionalInt64(statement, 5);
+        const auto committedVersion = ColumnOptionalInt64(statement, 6);
+        const auto lastEventSequence = ColumnOptionalInt64(statement, 7);
+        tombstone.ExpectedTaskVersion = expectedVersion ?
+                                                   std::optional<uint64_t>{ static_cast<uint64_t>(expectedVersion.value()) } :
+                                                   std::nullopt;
+        tombstone.CommittedTaskVersion = committedVersion ?
+                                                    std::optional<uint64_t>{ static_cast<uint64_t>(committedVersion.value()) } :
+                                                    std::nullopt;
+        tombstone.LastEventSequence = lastEventSequence ?
+                                                  std::optional<uint64_t>{ static_cast<uint64_t>(lastEventSequence.value()) } :
+                                                  std::nullopt;
+        return tombstone;
+    }
 }

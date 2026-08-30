@@ -84,6 +84,28 @@ namespace TaskCoreLocalTests
             VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_finalize(statement));
             return value;
         }
+
+        void _downgradeToVersionOne(sqlite3* database)
+        {
+            constexpr auto sql = R"SQL(
+PRAGMA foreign_keys=OFF;
+BEGIN IMMEDIATE;
+DROP TABLE task_intent;
+ALTER TABLE delete_tombstone RENAME TO delete_tombstone_v2;
+CREATE TABLE delete_tombstone (
+    task_id TEXT PRIMARY KEY NOT NULL,
+    deleted_at INTEGER NOT NULL CHECK(deleted_at >= 0),
+    expires_at INTEGER NOT NULL CHECK(expires_at > deleted_at),
+    replay_digest TEXT NOT NULL
+);
+INSERT INTO delete_tombstone(task_id, deleted_at, expires_at, replay_digest)
+SELECT task_id, deleted_at, expires_at, replay_digest FROM delete_tombstone_v2;
+DROP TABLE delete_tombstone_v2;
+PRAGMA user_version=1;
+COMMIT;
+)SQL";
+            VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_exec(database, sql, nullptr, nullptr, nullptr));
+        }
     }
 
     class TaskCoreSchemaTests
@@ -95,6 +117,8 @@ namespace TaskCoreLocalTests
         TEST_METHOD(RejectsFutureSchemaWithoutRewritingIt);
         TEST_METHOD(RejectsForeignAndUnversionedDatabases);
         TEST_METHOD(PreservesCorruptDatabaseForRecovery);
+        TEST_METHOD(MigratesVersionOneSchemaAndPreservesTombstones);
+        TEST_METHOD(FailedMigrationRollsBackWithoutVersionAdvance);
     };
 
     void TaskCoreSchemaTests::InitializesCompleteVersionOneSchemaAndPragmas()
@@ -107,10 +131,12 @@ namespace TaskCoreLocalTests
 
         auto database = _openRaw(path.Path());
         VERIFY_ARE_EQUAL(int64_t{ details::TaskDatabaseApplicationId }, _queryInteger(database, "PRAGMA application_id;"));
-        VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(int64_t{ 2 }, _queryInteger(database, "PRAGMA user_version;"));
         VERIFY_ARE_EQUAL(std::string{ "wal" }, _queryText(database, "PRAGMA journal_mode;"));
-        VERIFY_ARE_EQUAL(int64_t{ 12 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('task','task_acceptance','execution_context','task_terminal','agent_session','task_run','task_message','task_run_message','task_event','git_checkpoint','command_receipt','delete_tombstone');"));
+        VERIFY_ARE_EQUAL(int64_t{ 13 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('task','task_acceptance','execution_context','task_terminal','agent_session','task_run','task_message','task_run_message','task_event','git_checkpoint','command_receipt','delete_tombstone','task_intent');"));
         VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='task_run_one_active' AND sql LIKE '%WHERE state IN (0, 1, 2, 3, 4)%';"));
+        VERIFY_ARE_EQUAL(int64_t{ 4 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('delete_tombstone') WHERE name IN ('command_id','expected_version','committed_version','last_event_sequence');"));
+        VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='task_intent_recovery';"));
         VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
     }
 
@@ -125,7 +151,7 @@ namespace TaskCoreLocalTests
         {
             SqliteTaskStore reopened{ path.Path() };
             VERIFY_IS_TRUE(reopened.IsReady());
-            VERIFY_ARE_EQUAL(1, reopened.SchemaVersion());
+            VERIFY_ARE_EQUAL(2, reopened.SchemaVersion());
         }
         VERIFY_IS_TRUE(std::filesystem::file_size(path.Path()) >= sizeBefore);
     }
@@ -191,5 +217,67 @@ namespace TaskCoreLocalTests
         std::ifstream stream{ path.Path(), std::ios::binary };
         const std::string retained{ std::istreambuf_iterator<char>{ stream }, std::istreambuf_iterator<char>{} };
         VERIFY_ARE_EQUAL(std::string{ corruptContent }, retained);
+    }
+
+    void TaskCoreSchemaTests::MigratesVersionOneSchemaAndPreservesTombstones()
+    {
+        TemporaryDatabasePath path;
+        {
+            SqliteTaskStore store{ path.Path() };
+            VERIFY_IS_TRUE(store.IsReady());
+        }
+
+        constexpr auto taskId = "00000000-0000-4000-8000-000000000111";
+        auto database = _openRaw(path.Path());
+        VERIFY_ARE_EQUAL(
+            SQLITE_OK,
+            sqlite3_exec(
+                database,
+                "INSERT INTO delete_tombstone(task_id,deleted_at,expires_at,replay_digest) VALUES('00000000-0000-4000-8000-000000000111',10,20,'legacy');",
+                nullptr,
+                nullptr,
+                nullptr));
+        _downgradeToVersionOne(database);
+        VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
+
+        SqliteTaskStore migrated{ path.Path() };
+        VERIFY_IS_TRUE(migrated.IsReady());
+        VERIFY_ARE_EQUAL(2, migrated.SchemaVersion());
+        const auto tombstone = migrated.LoadDeleteTombstone(TaskId{ taskId });
+        VERIFY_IS_TRUE(tombstone.has_value());
+        VERIFY_ARE_EQUAL(std::string{ "legacy" }, tombstone->ReplayDigest);
+        VERIFY_IS_FALSE(tombstone->Command.has_value());
+
+        database = _openRaw(path.Path());
+        VERIFY_ARE_EQUAL(int64_t{ 2 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='task_intent';"));
+        VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
+    }
+
+    void TaskCoreSchemaTests::FailedMigrationRollsBackWithoutVersionAdvance()
+    {
+        TemporaryDatabasePath path;
+        {
+            SqliteTaskStore store{ path.Path() };
+            VERIFY_IS_TRUE(store.IsReady());
+        }
+
+        auto database = _openRaw(path.Path());
+        _downgradeToVersionOne(database);
+        VERIFY_ARE_EQUAL(
+            SQLITE_OK,
+            sqlite3_exec(database, "ALTER TABLE delete_tombstone ADD COLUMN command_id TEXT;", nullptr, nullptr, nullptr));
+        VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
+
+        SqliteTaskStore failed{ path.Path() };
+        VERIFY_IS_FALSE(failed.IsReady());
+        VERIFY_IS_TRUE(failed.OpenStatus() == TaskStoreOpenStatus::IOError);
+
+        database = _openRaw(path.Path());
+        VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(int64_t{ 0 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='task_intent';"));
+        VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('delete_tombstone') WHERE name='command_id';"));
+        VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
     }
 }

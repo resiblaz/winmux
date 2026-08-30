@@ -104,7 +104,7 @@ WHERE task_id=?4 AND state=?5 AND generation=?6;
         }
         if (!task)
         {
-            return details::CommandFailure(TaskStoreCommandStatus::NotFound, "Task was not found");
+            return details::MissingTaskFailure(_impl->Database, command.Task, error);
         }
         if (task->Version != command.Metadata.ExpectedTaskVersion)
         {

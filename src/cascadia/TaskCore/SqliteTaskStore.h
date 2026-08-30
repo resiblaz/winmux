@@ -31,10 +31,17 @@ namespace Microsoft::Terminal::TaskCore
         [[nodiscard]] TaskStoreCommandResult CreateTaskRun(const CreateTaskRunCommand& command) override;
         [[nodiscard]] TaskStoreCommandResult ChangeTaskRunState(const ChangeTaskRunStateCommand& command) override;
         [[nodiscard]] TaskStoreCommandResult ChangeTaskTerminalState(const ChangeTaskTerminalStateCommand& command) override;
+        [[nodiscard]] TaskStoreCommandResult StartTaskIntent(const StartTaskIntentCommand& command) override;
+        [[nodiscard]] TaskStoreCommandResult AdvanceTaskIntent(const AdvanceTaskIntentCommand& command) override;
+        [[nodiscard]] TaskStoreCommandResult ChangeTaskManualHold(const ChangeTaskManualHoldCommand& command) override;
+        [[nodiscard]] TaskStoreCommandResult DeleteTask(const DeleteTaskCommand& command) override;
 
         [[nodiscard]] std::optional<TaskAggregateSnapshot> LoadTask(const TaskId& task) const override;
         [[nodiscard]] std::vector<TaskRecord> ListTasks(const std::optional<WorkspaceId>& workspace) const override;
         [[nodiscard]] std::vector<TaskEventRecord> ListEvents(const TaskId& task, uint64_t afterSequence, size_t limit) const override;
+        [[nodiscard]] std::optional<DeleteTombstoneRecord> LoadDeleteTombstone(const TaskId& task) const override;
+        [[nodiscard]] TaskRecoveryQueryResult LoadRecoverySnapshot(size_t limit) const override;
+        [[nodiscard]] TaskStoreMaintenanceResult PurgeExpiredTombstones(int64_t nowUnixMilliseconds, size_t limit) override;
 
     private:
         struct Impl;

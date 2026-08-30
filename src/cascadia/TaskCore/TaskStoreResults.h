@@ -14,6 +14,9 @@
 namespace Microsoft::Terminal::TaskCore
 {
     inline constexpr size_t MaximumTaskEventQueryCount{ 1000 };
+    inline constexpr size_t MaximumTaskRecoveryQueryCount{ 256 };
+    inline constexpr size_t MaximumTombstoneCleanupBatch{ 100 };
+    inline constexpr int64_t TaskTombstoneRetentionMilliseconds{ 30LL * 24 * 60 * 60 * 1000 };
 
     enum class TaskStoreCommandStatus
     {
@@ -27,6 +30,8 @@ namespace Microsoft::Terminal::TaskCore
         InvalidRecord,
         InvalidTransition,
         ActiveRunExists,
+        ActiveIntentExists,
+        Tombstoned,
         StorageError,
     };
 
@@ -50,9 +55,52 @@ namespace Microsoft::Terminal::TaskCore
         TaskRecord Task;
         std::vector<ExecutionContextRecord> ExecutionContexts;
         TaskTerminalRecord Terminal;
+        std::optional<TaskIntentRecord> Intent;
         std::vector<AgentSessionRecord> AgentSessions;
         std::vector<TaskRunRecord> Runs;
         std::vector<TaskMessageRecord> Messages;
         uint64_t LastEventSequence{};
+    };
+
+    struct TaskRecoverySnapshot
+    {
+        std::vector<TaskRunRecord> ActiveRuns;
+        std::vector<TaskIntentRecord> PendingIntents;
+        std::vector<TaskTerminalRecord> RecoverableTerminals;
+        std::vector<TaskMessageRecord> UnclaimedMessages;
+        std::vector<DeleteTombstoneRecord> Tombstones;
+        bool HasMoreActiveRuns{};
+        bool HasMorePendingIntents{};
+        bool HasMoreRecoverableTerminals{};
+        bool HasMoreUnclaimedMessages{};
+        bool HasMoreTombstones{};
+    };
+
+    struct TaskRecoveryQueryResult
+    {
+        bool Succeeded{};
+        TaskRecoverySnapshot Snapshot;
+        std::string Error;
+    };
+
+    enum class TaskStoreMaintenanceStatus
+    {
+        Succeeded,
+        NotReady,
+        InvalidRequest,
+        StorageError,
+    };
+
+    struct TaskStoreMaintenanceResult
+    {
+        TaskStoreMaintenanceStatus Status{ TaskStoreMaintenanceStatus::StorageError };
+        size_t RemovedCount{};
+        bool HasMore{};
+        std::string Error;
+
+        [[nodiscard]] bool Succeeded() const noexcept
+        {
+            return Status == TaskStoreMaintenanceStatus::Succeeded;
+        }
     };
 }

@@ -34,6 +34,7 @@
     <ClInclude Include="RuntimeSingleInstance.h" />
     <ClInclude Include="RuntimeTerminalOutputRing.h" />
     <ClInclude Include="RuntimeTerminalInputLease.h" />
+    <ClInclude Include="RuntimeTerminalLifecycle.h" />
     <ClInclude Include="RuntimeTerminalClientRegistry.h" />
     <ClInclude Include="RuntimeTerminalBackend.h" />
     <ClInclude Include="RuntimeTerminalSession.h" />
@@ -62,6 +63,8 @@
     <ClCompile Include="RuntimeSingleInstance.cpp" />
     <ClCompile Include="RuntimeTerminalOutputRing.cpp" />
     <ClCompile Include="RuntimeTerminalInputLease.cpp" />
+    <ClCompile Include="RuntimeTerminalLifecycle.cpp" />
+    <ClCompile Include="RuntimeTerminalLifecycleTransitions.cpp" />
     <ClCompile Include="RuntimeTerminalClientRegistry.cpp" />
     <ClCompile Include="RuntimeTerminalSession.cpp" />
     <ClCompile Include="RuntimeTerminalSessionFrames.cpp" />

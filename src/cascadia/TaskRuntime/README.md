@@ -1,7 +1,7 @@
 # Task Runtime host foundation
 
 This directory contains the Windows host boundary for the per-user Task
-Runtime. The completed M2F2 foundation accepts multiple control and terminal
+Runtime. The completed M2G1 foundation accepts multiple control and terminal
 clients, drives Hello-first control sessions, routes typed requests through an
 injected interface, delivers targeted subscription notifications, and owns a
 bounded Agent-terminal session state machine. It now includes the scoped
@@ -56,6 +56,10 @@ Implemented foundations:
   receiving output, with controller ownership released on disconnect;
 - one injected terminal Backend boundary for snapshot, input, resize, and
   interrupt, so physical `Esc` and control Stop converge on one operation;
+- a caller-serialized terminal lifecycle policy with an authoritative
+  five-minute monotonic idle deadline, active-run/client exclusion, exact
+  attach-versus-deadline ordering, idempotent wake arbitration, persisted-state
+  synchronization, and a new generation for every resumed projection;
 - strict process-neutral DTOs for the four Agent-scoped `rtask` commands,
   including per-method text bounds, canonical idempotency IDs, exact JSON, and
   bounded capability/text-redacted diagnostics;
@@ -105,3 +109,6 @@ registry, input lease, and deterministic Backend into the serialized terminal
 session described above. M2F1 adds the scoped command DTO and capability
 authorization foundations. M2F2 connects them through the product router to a
 durable TaskCore transaction, builds `rtask.exe`, and packages both executables.
+M2G1 adds the pure terminal lifecycle state consumed by the future product
+dispatcher; Closed rejects passive reconnect and new-work wake while explicit
+Open remains a generation-advancing action.

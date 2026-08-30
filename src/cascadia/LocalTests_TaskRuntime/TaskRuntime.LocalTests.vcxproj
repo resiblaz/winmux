@@ -60,6 +60,7 @@
     <ClCompile Include="RuntimeTerminalResourceTests.cpp" />
     <ClCompile Include="RuntimeTerminalOutputRingTests.cpp" />
     <ClCompile Include="RuntimeTerminalInputLeaseTests.cpp" />
+    <ClCompile Include="RuntimeTerminalLifecycleTests.cpp" />
     <ClCompile Include="RuntimeTerminalClientRegistryTests.cpp" />
     <ClCompile Include="RuntimeTerminalSessionLifecycleTests.cpp" />
     <ClCompile Include="RuntimeTerminalSessionFrameTests.cpp" />

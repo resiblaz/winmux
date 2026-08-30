@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-08-31
-status: active execution queue; M2F2 complete, idle suspension next
+status: active execution queue; M2G1 complete, helper idle exit next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -41,7 +41,7 @@ untouched until the feature branch has passed both milestone closure gates.
 | M2E2 (complete) | Terminal session, input lease, bounded VT ring, deterministic Fake VT | observers/controller, stale input, resize, ack/reset/catch-up, slow peer, Esc/Stop convergence |
 | M2F1 (complete) | Scoped `rtask` DTOs and capability registry | missing/expired/wrong-run/wrong-method, method bounds, redaction, idempotency |
 | M2F2 (complete) | `rtask.exe`, TaskCore command router, package integration | four ADR commands, stdin/UTF-8/exit codes, duplicate command, cross-task refusal, CLI/package smoke |
-| M2G1 | Five-minute terminal idle suspend and idempotent wake | active-run exclusion, attach race, new generation, Closed never auto-wakes |
+| M2G1 (complete) | Five-minute terminal idle suspend and idempotent wake | active-run exclusion, attach race, new generation, Closed never auto-wakes |
 | M2G2 | Helper idle exit and final parent-exit recovery | active work survives all UI clients, reconnect catch-up, idle-exit cancellation, eventual exit |
 | M2 closure | Product composition and milestone evidence | subscriptions, heartbeat, real host, terminal, `rtask`, HOL, lease, parent-exit, full Release/portable gates |
 

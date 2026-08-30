@@ -84,8 +84,11 @@ foundational contracts required to avoid disposable data/process designs.
   random Run/method capability registry with strict text limits and redacted
   diagnostics. M2F2 adds the packaged `rtask.exe`, exact local endpoint/context
   validation, bounded stdin and exit codes, TaskCtl product routing, and an
-  atomic TaskCore Agent mutation/event/receipt transaction. Real Codex, Git,
-  and task-owned Surface integration remain later milestones.
+  atomic TaskCore Agent mutation/event/receipt transaction. M2G1 adds the
+  Runtime-owned five-minute terminal idle deadline, active-run/client
+  exclusion, deterministic attach/deadline arbitration, idempotent wake, and
+  monotonic generation recovery while keeping Closed fail-closed. Real Codex,
+  Git, and task-owned Surface integration remain later milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
 - The executable M2/M3 commit queue and frozen technical defaults are tracked

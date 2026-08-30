@@ -619,7 +619,30 @@
       <Build Solution="Fuzzing|x86" Project="false" />
     </Project>
   </Folder>
+  <Folder Name="/Terminal/Task/">
+    <Project Path="src/cascadia/TaskCore/TaskCore.vcxproj" Id="dcb2201e-7ae1-4221-95f5-fa24a8254243">
+      <Platform Solution="*|Any CPU" Project="Win32" />
+      <Build Solution="*|Any CPU" Project="false" />
+      <Build Solution="AuditMode|ARM64" Project="false" />
+      <Build Solution="AuditMode|x64" Project="false" />
+      <Build Solution="AuditMode|x86" Project="false" />
+      <Build Solution="Fuzzing|ARM64" Project="false" />
+      <Build Solution="Fuzzing|x64" Project="false" />
+      <Build Solution="Fuzzing|x86" Project="false" />
+    </Project>
+  </Folder>
   <Folder Name="/Terminal/Tests/">
+    <Project Path="src/cascadia/LocalTests_TaskCore/TaskCore.LocalTests.vcxproj" Id="be94e254-eb5c-4cc6-93d8-7c3ea7b88837">
+      <BuildDependency Project="src/cascadia/TaskCore/TaskCore.vcxproj" />
+      <Platform Solution="*|Any CPU" Project="Win32" />
+      <Build Solution="*|Any CPU" Project="false" />
+      <Build Solution="AuditMode|ARM64" Project="false" />
+      <Build Solution="AuditMode|x64" Project="false" />
+      <Build Solution="AuditMode|x86" Project="false" />
+      <Build Solution="Fuzzing|ARM64" Project="false" />
+      <Build Solution="Fuzzing|x64" Project="false" />
+      <Build Solution="Fuzzing|x86" Project="false" />
+    </Project>
     <Project Path="src/cascadia/LocalTests_TerminalApp/TerminalApp.LocalTests.vcxproj" Id="ca5cad1a-b11c-4ddb-a4fe-c3afae9b5506">
       <BuildDependency Project="src/cascadia/TerminalApp/dll/TerminalApp.vcxproj" />
       <BuildDependency Project="src/cascadia/TerminalApp/TerminalAppLib.vcxproj" />

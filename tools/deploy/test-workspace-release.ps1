@@ -22,10 +22,12 @@ $configuration = 'Release'
 $openConsoleModule = Join-Path $repoRoot 'tools\OpenConsole.psm1'
 $packageBuild = Join-Path $repoRoot 'tools\Deploy-LocalRelease.ps1'
 $hookTests = Join-Path $repoRoot '.codex\hooks\test-workspace-history.ps1'
+$taskCoreTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
 $testHostDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\TestHostApp"
 $settingsTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_SettingsModel"
 $wt = Join-Path $repoRoot "src\cascadia\CascadiaPackage\bin\$Platform\$configuration\wtd.exe"
 $workspaceTestTargets = @(
+    'Terminal\Tests\TaskCore_LocalTests',
     'Terminal\Tests\TerminalApp_LocalTests',
     'Terminal\Tests\TestHostApp',
     'Terminal\Tests\SettingsModel_UnitTests')
@@ -143,6 +145,8 @@ try
         Out-Null
 
     foreach ($project in @(
+            'src\cascadia\TaskCore\TaskCore.vcxproj',
+            'src\cascadia\LocalTests_TaskCore\TaskCore.LocalTests.vcxproj',
             'src\cascadia\TerminalApp\TerminalAppLib.vcxproj',
             'src\cascadia\LocalTests_TerminalApp\TerminalApp.LocalTests.vcxproj',
             'src\cascadia\LocalTests_TerminalApp\TestHostApp\TestHostApp.vcxproj',
@@ -220,6 +224,7 @@ try
 
     if (-not $SkipNativeTests)
     {
+        $taskCoreTests = Join-Path $taskCoreTestDirectory 'TaskCore.LocalTests.dll'
         $terminalAppTests = Join-Path $testHostDirectory 'TerminalApp.LocalTests.dll'
         $settingsTests = Join-Path $settingsTestDirectory 'SettingsModel.Unit.Tests.dll'
         $taef = @(
@@ -231,10 +236,21 @@ try
         ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1
 
         if (-not $taef -or
+            -not (Test-Path -LiteralPath $taskCoreTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $terminalAppTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $settingsTests -PathType Leaf))
         {
             throw 'Native test outputs are missing. Run without -SkipTestBuild.'
+        }
+
+        Push-Location $taskCoreTestDirectory
+        try
+        {
+            Invoke-TaefSelection -Taef $taef -TestDll $taskCoreTests -Pattern '*TaskCore*'
+        }
+        finally
+        {
+            Pop-Location
         }
 
         Push-Location $testHostDirectory

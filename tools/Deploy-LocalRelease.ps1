@@ -61,6 +61,7 @@ try
         $buildTargets.Add('Terminal\CascadiaPackage')
         if ($IncludeWorkspaceTests)
         {
+            $buildTargets.Add('Terminal\Tests\TaskCore_LocalTests')
             $buildTargets.Add('Terminal\Tests\TerminalApp_LocalTests')
             $buildTargets.Add('Terminal\Tests\TestHostApp')
             $buildTargets.Add('Terminal\Tests\SettingsModel_UnitTests')

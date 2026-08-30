@@ -18,6 +18,18 @@ known and supported; unknown optional capabilities are ignored for forward
 compatibility. The client also supplies the expected Runtime identity so a
 portable or Dev client cannot attach to another product channel accidentally.
 
+After Hello, control requests, responses, and notifications use strict typed
+envelopes with canonical UUID correlation IDs and object-valued bodies.
+Methods declare required negotiated capabilities. A control-session state
+machine enforces Hello-first ordering, bounded in-flight requests, duplicate
+in-flight ID rejection, and close-state refusal before Runtime dispatch.
+
+`SnapshotAndSubscribe` consumers seed a subscription ID, generation, and
+committed cursor atomically. Known next notifications advance exactly by one;
+duplicates are ignored and gaps or identity/generation drift require a clean
+resnapshot. Unknown optional notifications retain and advance their cursor but
+their payload is ignored.
+
 ## Agent-terminal framing
 
 The terminal stream uses this fixed 32-byte little-endian header:

@@ -36,9 +36,11 @@ foundational contracts required to avoid disposable data/process designs.
   process-neutral handshake, capability negotiation, strict control framing,
   and binary terminal framing. M2B adds Runtime user identity,
   single-instance ownership, current-user security descriptors, secure pipe
-  creation, and the bootstrap executable. M2C is next: bounded asynchronous
-  control sessions and client request routing. Real Codex, Git, and task-owned
-  Surface integration remain later milestones.
+  creation, and the bootstrap executable. M2C1 adds strict RPC envelopes,
+  Hello-first/capability-gated control-session state, and reconnect cursor
+  decisions. M2C2 is next: bounded overlapped pipe I/O and client/server
+  integration. Real Codex, Git, and task-owned Surface integration remain
+  later milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
 
@@ -237,8 +239,8 @@ Tests:
 
 ### M2: Runtime process and protocol
 
-Status: **in progress; M2A protocol and M2B host/bootstrap foundations complete
-(2026-08-30)**.
+Status: **in progress; M2A protocol, M2B host/bootstrap, and M2C1 control
+session foundations complete (2026-08-30)**.
 
 Deliverables:
 

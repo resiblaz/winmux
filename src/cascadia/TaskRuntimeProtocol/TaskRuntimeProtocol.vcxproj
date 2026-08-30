@@ -14,11 +14,15 @@
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="ControlFrame.h" />
+    <ClInclude Include="ControlSession.h" />
     <ClInclude Include="ProtocolCapabilities.h" />
     <ClInclude Include="ProtocolHandshake.h" />
     <ClInclude Include="ProtocolJson.h" />
+    <ClInclude Include="ProtocolRpc.h" />
+    <ClInclude Include="ProtocolRpcJson.h" />
     <ClInclude Include="ProtocolValidation.h" />
     <ClInclude Include="ProtocolVersion.h" />
+    <ClInclude Include="SubscriptionCursor.h" />
     <ClInclude Include="TerminalFrame.h" />
   </ItemGroup>
   <ItemGroup>
@@ -26,10 +30,14 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="ControlFrame.cpp" />
+    <ClCompile Include="ControlSession.cpp" />
     <ClCompile Include="ProtocolCapabilities.cpp" />
     <ClCompile Include="ProtocolHandshake.cpp" />
     <ClCompile Include="ProtocolJson.cpp" />
+    <ClCompile Include="ProtocolRpc.cpp" />
+    <ClCompile Include="ProtocolRpcJson.cpp" />
     <ClCompile Include="ProtocolValidation.cpp" />
+    <ClCompile Include="SubscriptionCursor.cpp" />
     <ClCompile Include="TerminalFrame.cpp" />
   </ItemGroup>
   <ItemDefinitionGroup>

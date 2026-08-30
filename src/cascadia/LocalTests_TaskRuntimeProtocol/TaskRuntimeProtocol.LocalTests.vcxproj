@@ -19,9 +19,12 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="ControlFrameTests.cpp" />
+    <ClCompile Include="ControlSessionTests.cpp" />
     <ClCompile Include="ProtocolHandshakeTests.cpp" />
     <ClCompile Include="ProtocolJsonTests.cpp" />
+    <ClCompile Include="ProtocolRpcJsonTests.cpp" />
     <ClCompile Include="ProtocolValidationTests.cpp" />
+    <ClCompile Include="SubscriptionCursorTests.cpp" />
     <ClCompile Include="TerminalFrameTests.cpp" />
   </ItemGroup>
   <ItemGroup>

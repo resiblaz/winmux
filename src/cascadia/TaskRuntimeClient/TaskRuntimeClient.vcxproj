@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{7B6394DD-3816-4A08-86F2-242DAA6334E4}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>Microsoft.Terminal.TaskRuntime</RootNamespace>
+    <ProjectName>TaskRuntimeClient</ProjectName>
+    <TargetName>TaskRuntimeClient</TargetName>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <OpenConsoleUniversalApp>false</OpenConsoleUniversalApp>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\common.build.pre.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.props" />
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="RuntimeClientEpoch.h" />
+    <ClInclude Include="RuntimeClientRequests.h" />
+    <ClInclude Include="RuntimeClientTypes.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="RuntimeClientEpoch.cpp" />
+    <ClCompile Include="RuntimeClientRequests.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj">
+      <Project>{6FC3F6B2-4AA9-4A8B-8784-3AFF0E4B90EF}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\common.build.post.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.targets" />
+</Project>

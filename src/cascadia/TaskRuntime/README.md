@@ -53,5 +53,6 @@ first control-pipe instance, prints the protocol identity, and exits. It is not
 the long-running Runtime mode. M2C4a now defines the client-side envelope,
 Snapshot DTO, and disconnect replay/outcome policy. M2C4b now provides the
 shared `TaskRuntimeTransport` library and a cancellable, single-deadline
-connect-plus-Hello seam. M2C4c will add the reconnecting client supervisor,
-request correlation, and subscription resnapshot policy execution.
+connect-plus-Hello seam. M2C4c1a now supplies the pure client epoch and request
+correlation core. M2C4c1b will add the reconnecting supervisor, reader, single
+writer, and completion delivery before subscription resnapshot is integrated.

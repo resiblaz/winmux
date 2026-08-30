@@ -63,6 +63,7 @@ try
         {
             $buildTargets.Add('Terminal\Tests\TaskCore_LocalTests')
             $buildTargets.Add('Terminal\Tests\TaskRuntimeProtocol_LocalTests')
+            $buildTargets.Add('Terminal\Tests\TaskRuntimeClient_LocalTests')
             $buildTargets.Add('Terminal\Tests\TaskRuntime_LocalTests')
             $buildTargets.Add('Terminal\Task\TaskRuntime')
             $buildTargets.Add('Terminal\Tests\TerminalApp_LocalTests')

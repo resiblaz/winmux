@@ -651,6 +651,17 @@
       <Build Solution="Fuzzing|x64" Project="false" />
       <Build Solution="Fuzzing|x86" Project="false" />
     </Project>
+    <Project Path="src/cascadia/TaskRuntimeClient/TaskRuntimeClient.vcxproj" Id="7b6394dd-3816-4a08-86f2-242daa6334e4">
+      <BuildDependency Project="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" />
+      <Platform Solution="*|Any CPU" Project="Win32" />
+      <Build Solution="*|Any CPU" Project="false" />
+      <Build Solution="AuditMode|ARM64" Project="false" />
+      <Build Solution="AuditMode|x64" Project="false" />
+      <Build Solution="AuditMode|x86" Project="false" />
+      <Build Solution="Fuzzing|ARM64" Project="false" />
+      <Build Solution="Fuzzing|x64" Project="false" />
+      <Build Solution="Fuzzing|x86" Project="false" />
+    </Project>
     <Project Path="src/cascadia/TaskRuntime/TaskRuntimeHost.vcxproj" Id="c87ce61d-7ee5-4cf8-8bcd-b5ee2817b4a9">
       <BuildDependency Project="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" />
       <BuildDependency Project="src/cascadia/TaskRuntimeTransport/TaskRuntimeTransport.vcxproj" />
@@ -689,6 +700,18 @@
       <Build Solution="Fuzzing|x86" Project="false" />
     </Project>
     <Project Path="src/cascadia/LocalTests_TaskRuntimeProtocol/TaskRuntimeProtocol.LocalTests.vcxproj" Id="bdf5f498-a056-45f8-b07b-7132e6207a48">
+      <BuildDependency Project="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" />
+      <Platform Solution="*|Any CPU" Project="Win32" />
+      <Build Solution="*|Any CPU" Project="false" />
+      <Build Solution="AuditMode|ARM64" Project="false" />
+      <Build Solution="AuditMode|x64" Project="false" />
+      <Build Solution="AuditMode|x86" Project="false" />
+      <Build Solution="Fuzzing|ARM64" Project="false" />
+      <Build Solution="Fuzzing|x64" Project="false" />
+      <Build Solution="Fuzzing|x86" Project="false" />
+    </Project>
+    <Project Path="src/cascadia/LocalTests_TaskRuntimeClient/TaskRuntimeClient.LocalTests.vcxproj" Id="954a9274-208f-4e96-a616-7d706ede7fab">
+      <BuildDependency Project="src/cascadia/TaskRuntimeClient/TaskRuntimeClient.vcxproj" />
       <BuildDependency Project="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" />
       <Platform Solution="*|Any CPU" Project="Win32" />
       <Build Solution="*|Any CPU" Project="false" />

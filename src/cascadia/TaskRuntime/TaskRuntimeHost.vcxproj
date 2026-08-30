@@ -14,13 +14,19 @@
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="RuntimeBootstrap.h" />
+    <ClInclude Include="RuntimeCommandLine.h" />
+    <ClInclude Include="RuntimeConsoleStop.h" />
     <ClInclude Include="RuntimeControlQueue.h" />
     <ClInclude Include="RuntimeControlPublisher.h" />
     <ClInclude Include="RuntimeControlRouter.h" />
     <ClInclude Include="RuntimeControlServer.h" />
+    <ClInclude Include="RuntimeControlServerInternal.h" />
     <ClInclude Include="RuntimeControlSession.h" />
     <ClInclude Include="RuntimeControlSessionState.h" />
     <ClInclude Include="RuntimeControlSubscriptions.h" />
+    <ClInclude Include="RuntimeControlThreadContext.h" />
+    <ClInclude Include="RuntimeFoundationRouter.h" />
+    <ClInclude Include="RuntimeProductHost.h" />
     <ClInclude Include="RuntimeSingleInstance.h" />
   </ItemGroup>
   <ItemGroup>
@@ -28,12 +34,18 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RuntimeBootstrap.cpp" />
+    <ClCompile Include="RuntimeCommandLine.cpp" />
+    <ClCompile Include="RuntimeConsoleStop.cpp" />
     <ClCompile Include="RuntimeControlQueue.cpp" />
     <ClCompile Include="RuntimeControlPublisher.cpp" />
     <ClCompile Include="RuntimeControlServer.cpp" />
+    <ClCompile Include="RuntimeControlServerAcceptor.cpp" />
     <ClCompile Include="RuntimeControlSession.cpp" />
     <ClCompile Include="RuntimeControlSessionReader.cpp" />
     <ClCompile Include="RuntimeControlSubscriptions.cpp" />
+    <ClCompile Include="RuntimeControlThreadContext.cpp" />
+    <ClCompile Include="RuntimeFoundationRouter.cpp" />
+    <ClCompile Include="RuntimeProductHost.cpp" />
     <ClCompile Include="RuntimeSingleInstance.cpp" />
   </ItemGroup>
   <ItemGroup>

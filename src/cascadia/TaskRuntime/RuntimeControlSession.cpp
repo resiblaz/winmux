@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "RuntimeControlSessionState.h"
+#include "RuntimeControlThreadContext.h"
 
 namespace Microsoft::Terminal::TaskRuntime
 {
@@ -89,12 +90,18 @@ namespace Microsoft::Terminal::TaskRuntime
         }
         if (disconnectedClient)
         {
+            const RuntimeControlThreadScope callbackScope;
             Router->ClientDisconnected(*disconnectedClient);
         }
     }
 
     void RuntimeControlSession::Impl::RunWriter() noexcept
     {
+        const RuntimeControlThreadScope workerScope;
+        const RuntimeControlThreadCompletionScope completionScope{
+            WriterDone,
+            Configuration.CompletionEvent,
+        };
         try
         {
             while (const auto payload = Outbound.WaitDequeue())
@@ -120,7 +127,6 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             RequestStop(RuntimeControlSessionCloseReason::TransportError);
         }
-        WriterDone.store(true, std::memory_order_release);
     }
 
     void RuntimeControlSession::Impl::MarkClosed() noexcept

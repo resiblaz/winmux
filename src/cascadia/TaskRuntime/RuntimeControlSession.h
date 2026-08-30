@@ -30,6 +30,8 @@ namespace Microsoft::Terminal::TaskRuntime
         size_t MaximumQueuedMessages{ DefaultMaximumQueuedControlMessages };
         size_t MaximumQueuedBytes{ DefaultMaximumQueuedControlBytes };
         size_t MaximumSubscriptions{ DefaultMaximumSubscriptionsPerControlClient };
+        // Borrowed event used to wake the server acceptor for prompt reaping.
+        HANDLE CompletionEvent{};
     };
 
     enum class RuntimeControlSessionCloseReason

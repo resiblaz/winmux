@@ -1,10 +1,11 @@
 # Task Runtime host foundation
 
 This directory contains the Windows host boundary for the per-user Task
-Runtime. The current M2C3 slice accepts multiple control clients, drives each
+Runtime. The current M2D1 slice accepts multiple control clients, drives each
 through Hello-first session state, routes typed requests through an injected
-interface, and delivers targeted subscription notifications. It deliberately
-stops before a reconnecting client implementation or real Task commands.
+interface, delivers targeted subscription notifications, and composes those
+foundations into a long-running per-user product host. It deliberately stops
+before on-demand launch coordination or real Task commands.
 
 Implemented foundations:
 
@@ -38,7 +39,13 @@ Implemented foundations:
   duplicate-owner detection;
 - explicit client/queue limits, connection outcome statistics, and cancellable
   shutdown of idle accept/read/write operations;
-- `TaskRuntime.exe --bootstrap-check` composition/smoke entry point.
+- callback-safe, externally joined server shutdown with explicit stopped and
+  transport/internal-failure terminal states;
+- protocol-level strict Ping and RuntimeStatus result DTOs;
+- a stable UUIDv4 Runtime instance identity shared by reconnecting clients and
+  regenerated after process restart;
+- `TaskRuntime.exe --serve` long-running composition with graceful console
+  shutdown, plus the retained `--bootstrap-check` smoke entry point.
 
 The default server accepts at most 32 clients (hard limit 64). Queue storage is
 allocated only as responses are produced; each client has an 8 MiB default
@@ -49,11 +56,10 @@ notifications reserve space for the response itself and share the client's
 bounded queue budget; overflow disconnects only that client.
 
 `--bootstrap-check` creates and validates the identity, security, mutex, and
-first control-pipe instance, prints the protocol identity, and exits. It is not
-the long-running Runtime mode. M2C4a now defines the client-side envelope,
-Snapshot DTO, and disconnect replay/outcome policy. M2C4b now provides the
-shared `TaskRuntimeTransport` library and a cancellable, single-deadline
-connect-plus-Hello seam. M2C4c1a/c1b now provide the client epoch/request core
-and reconnecting supervisor, Reader, Writer, and completion delivery. M2C4c2a
-adds pure desired-subscription/cursor recovery state; threaded subscription
-delivery remains the next client integration slice.
+first control-pipe instance, prints the protocol identity, and exits.
+`--serve` retains single-instance ownership for the entire server/session
+lifetime, advertises only the implemented RuntimeLifecycle capability, and
+continues across client disconnects until an explicit process stop. M2C4
+provides the reconnecting request/subscription client, virtual monotonic
+scheduler, and negotiated heartbeat. M2D2 will add connect-first launch
+coordination while preserving Runtime independence from any Terminal parent.

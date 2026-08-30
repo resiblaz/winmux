@@ -15,6 +15,8 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="RuntimeControlNotificationTestFixtures.h" />
     <ClInclude Include="RuntimeControlTestFixtures.h" />
+    <ClInclude Include="TaskRuntimeProcessTestFixtures.h" />
+    <ClInclude Include="TaskRuntimeProcessWin32Support.h" />
     <ClInclude Include="TaskRuntimeTestFixtures.h" />
   </ItemGroup>
   <ItemGroup>
@@ -22,6 +24,7 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RuntimeBootstrapTests.cpp" />
+    <ClCompile Include="RuntimeCommandLineTests.cpp" />
     <ClCompile Include="RuntimeControlChannelTests.cpp" />
     <ClCompile Include="RuntimeControlConnectorTests.cpp" />
     <ClCompile Include="RuntimeControlNotificationConcurrencyTests.cpp" />
@@ -29,8 +32,15 @@
     <ClCompile Include="RuntimeControlQueueTests.cpp" />
     <ClCompile Include="RuntimeControlServerTests.cpp" />
     <ClCompile Include="RuntimeControlSubscriptionRecoveryTests.cpp" />
+    <ClCompile Include="RuntimeFoundationRouterTests.cpp" />
+    <ClCompile Include="RuntimeProductHostProcessTests.cpp" />
     <ClCompile Include="RuntimeIdentityTests.cpp" />
     <ClCompile Include="RuntimeSecurityTests.cpp" />
+    <ClCompile Include="TaskRuntimeProcessArgv.cpp" />
+    <ClCompile Include="TaskRuntimeProcessLauncher.cpp" />
+    <ClCompile Include="TaskRuntimeProcessTestFixtures.cpp" />
+    <ClCompile Include="TaskRuntimeProcessWin32Support.cpp" />
+    <ClCompile Include="TaskRuntimeStderrCapture.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">

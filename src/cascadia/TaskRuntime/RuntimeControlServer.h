@@ -56,6 +56,15 @@ namespace Microsoft::Terminal::TaskRuntime
         ThreadStartFailure,
     };
 
+    enum class RuntimeControlServerTerminalStatus
+    {
+        NotStarted,
+        Running,
+        Stopped,
+        TransportFailure,
+        InternalFailure,
+    };
+
     enum class RuntimeControlPublishStatus
     {
         Delivered,
@@ -83,6 +92,9 @@ namespace Microsoft::Terminal::TaskRuntime
 
         [[nodiscard]] explicit operator bool() const noexcept;
         [[nodiscard]] bool Running() const noexcept;
+        [[nodiscard]] RuntimeControlServerTerminalStatus TerminalStatus() const noexcept;
+        // Borrowed manual-reset event, stable for this Server's lifetime.
+        [[nodiscard]] HANDLE StoppedHandle() const noexcept;
         [[nodiscard]] RuntimeControlServerStatistics Statistics() const noexcept;
         [[nodiscard]] RuntimeControlPublishStatus PublishNotification(
             const Microsoft::Terminal::TaskRuntimeProtocol::ControlNotification& notification);

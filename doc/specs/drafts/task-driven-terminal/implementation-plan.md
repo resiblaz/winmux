@@ -65,8 +65,12 @@ foundational contracts required to avoid disposable data/process designs.
   fail-closed invalid policy/scheduler handling. M2C4c3b adds negotiated
   half-interval Ping, a strict full-silence deadline, valid-inbound rearming,
   superseded ACK handling, reserved capacity, and reconnect-health reset.
-  The long-running Runtime product host is next. Real Codex, Git, and
-  task-owned Surface integration remain later milestones.
+  M2D1 adds the long-running Runtime product host, a strict protocol-level
+  Ping/RuntimeStatus contract, stable per-process instance identity, graceful
+  console shutdown, callback-safe server termination, and real-child coverage
+  for reconnect, malformed peers, second-instance refusal, and resource
+  release. On-demand activation is next. Real Codex, Git, and task-owned
+  Surface integration remain later milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
 - The executable M2/M3 commit queue and frozen technical defaults are tracked

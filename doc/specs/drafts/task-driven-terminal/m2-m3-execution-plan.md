@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-08-30
-status: active execution queue; M2C4c3 complete, Runtime product host next
+status: active execution queue; M2D1 complete, on-demand activation next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -18,9 +18,10 @@ untouched until the feature branch has passed both milestone closure gates.
 - M2A through M2C4b are complete.
 - M2C4c1a/c1b provide monotonic client epochs, bounded correlation, a
   reconnecting request client, conservative mutation outcomes, and safe Stop.
-- The Runtime host libraries provide secure multi-client control transport and
-  atomic server-side subscriptions, but `TaskRuntime.exe` is not yet a
-  long-running product host.
+- The Runtime host libraries provide secure multi-client control transport,
+  atomic server-side subscriptions, and the long-running
+  `TaskRuntime.exe --serve` product foundation. On-demand activation remains
+  M2D2.
 
 ## 2. M2 queue
 
@@ -31,7 +32,7 @@ untouched until the feature branch has passed both milestone closure gates.
 | M2C4c2b2 (complete) | `TaskRuntimeClient` threaded subscription integration | buffered first event, reconnect/resnapshot, multi-subscription, stale epoch, bounded slow consumer, Stop/destruction |
 | M2C4c3a (complete) | Virtual client scheduler replacing real backoff waits | exact virtual deadlines, Stop wake, no busy loop, request regression |
 | M2C4c3b (complete) | Negotiated heartbeat/liveness | due/ack/miss, old ACK, full user queue, Stop race, backoff health reset |
-| M2D1 | Long-running Runtime foundation host and concrete Ping/RuntimeStatus router | real child process, Hello, reconnect, second instance, malformed peer isolation, graceful stop |
+| M2D1 (complete) | Long-running Runtime foundation host and concrete Ping/RuntimeStatus router | real child process, Hello, reconnect, second instance, malformed peer isolation, graceful stop |
 | M2D2 | On-demand launch coordination and parent independence | connect-first, one launch under concurrent clients, launch failure/cancel, crash restart, short-lived parent test |
 | M2E1 | Secure binary terminal transport | framing fragmentation/coalescing, ACL/identity/generation, payload bounds, cancellation, control/data HOL |
 | M2E2 | Terminal session, input lease, bounded VT ring, deterministic Fake VT | observers/controller, stale input, resize, ack/reset/catch-up, slow peer, Esc/Stop convergence |

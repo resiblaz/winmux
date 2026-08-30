@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "RuntimeControlSessionState.h"
+#include "RuntimeControlThreadContext.h"
 
 #include "RuntimeControlHandshake.h"
 
@@ -201,6 +202,11 @@ namespace Microsoft::Terminal::TaskRuntime
 
     void RuntimeControlSession::Impl::RunReader() noexcept
     {
+        const RuntimeControlThreadScope workerScope;
+        const RuntimeControlThreadCompletionScope completionScope{
+            ReaderDone,
+            Configuration.CompletionEvent,
+        };
         try
         {
             const auto handshake = PerformRuntimeServerHandshake(
@@ -213,7 +219,6 @@ namespace Microsoft::Terminal::TaskRuntime
                 RequestStop(handshake.Status == RuntimeTransportStatus::ProtocolRejected ?
                                 RuntimeControlSessionCloseReason::HandshakeRejected :
                                 _readCloseReason(handshake.Status));
-                ReaderDone.store(true, std::memory_order_release);
                 return;
             }
 
@@ -230,7 +235,6 @@ namespace Microsoft::Terminal::TaskRuntime
                     handshake.Decision.Response.MaximumControlFrameBytes))
             {
                 RequestStop(RuntimeControlSessionCloseReason::TransportError);
-                ReaderDone.store(true, std::memory_order_release);
                 return;
             }
             const RuntimeControlCancellationToken cancellation{ CancellationState };
@@ -396,6 +400,5 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             RequestStop(RuntimeControlSessionCloseReason::TransportError);
         }
-        ReaderDone.store(true, std::memory_order_release);
     }
 }

@@ -29,6 +29,8 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(StopDuringSubscriptionPlanningCancelsBeforeRoute);
         TEST_METHOD(InvalidServerConfigurationFailsClosed);
         TEST_METHOD(StopCancelsIdleAcceptorAndClientReads);
+        TEST_METHOD(StopFromRouterWorkerDoesNotJoinItself);
+        TEST_METHOD(RapidDisconnectDuringSessionPublicationIsReapedSafely);
     };
 
     void RuntimeControlServerTests::RoutesTwoHelloValidatedClientsIndependently()
@@ -319,12 +321,81 @@ namespace TaskRuntimeLocalTests
         configuration.AcceptTimeoutMilliseconds = 60000;
         configuration.ReadTimeoutMilliseconds = 60000;
         RunningControlServer server{ configuration };
+        const auto stopped = server.Server.StoppedHandle();
+        VERIFY_IS_NOT_NULL(stopped);
+        VERIFY_ARE_EQUAL(DWORD{ WAIT_TIMEOUT }, WaitForSingleObject(stopped, 0));
         auto client = ConnectAndHello(server, ClientOneId);
         const auto started = GetTickCount64();
         server.Server.Stop();
         const auto elapsed = GetTickCount64() - started;
         VERIFY_IS_FALSE(server.Server.Running());
+        VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, WaitForSingleObject(stopped, 0));
+        VERIFY_IS_TRUE(
+            server.Server.TerminalStatus() == RuntimeControlServerTerminalStatus::Stopped);
         VERIFY_IS_TRUE(elapsed < 2000);
         VERIFY_IS_FALSE(client.Receive(1000).Succeeded());
+        server.Server.Stop();
+    }
+
+    void RuntimeControlServerTests::StopFromRouterWorkerDoesNotJoinItself()
+    {
+        RuntimeControlServerConfiguration configuration;
+        configuration.AcceptTimeoutMilliseconds = 60000;
+        configuration.ReadTimeoutMilliseconds = 60000;
+        RunningControlServer server{ configuration };
+        server.Router->SetHandler(
+            [&](const RuntimeControlClientContext&,
+                const ControlRequest&,
+                const RuntimeControlCancellationToken&) {
+                server.Server.Stop();
+                RuntimeControlRouteResult result;
+                result.Succeeded = true;
+                return result;
+            });
+
+        auto client = ConnectAndHello(server, ClientOneId);
+        SendRequest(
+            client,
+            "30000000-0000-4000-8000-000000000071",
+            ControlMethod::Ping);
+        VERIFY_ARE_EQUAL(
+            DWORD{ WAIT_OBJECT_0 },
+            WaitForSingleObject(server.Server.StoppedHandle(), 2000));
+
+        // The test thread is the external owner that performs the final join.
+        server.Server.Stop();
+        VERIFY_IS_FALSE(server.Server.Running());
+        VERIFY_IS_TRUE(
+            server.Server.TerminalStatus() == RuntimeControlServerTerminalStatus::Stopped);
+        const auto possibleResponse = client.Receive(1000);
+        const auto disconnected = possibleResponse.Succeeded() ?
+                                      client.Receive(1000) :
+                                      possibleResponse;
+        VERIFY_IS_TRUE(disconnected.Status == RuntimeTransportStatus::Disconnected);
+    }
+
+    void RuntimeControlServerTests::RapidDisconnectDuringSessionPublicationIsReapedSafely()
+    {
+        RuntimeControlServerConfiguration configuration;
+        configuration.AcceptTimeoutMilliseconds = 60000;
+        RunningControlServer server{ configuration };
+        constexpr uint64_t connectionCount{ 32 };
+        for (uint64_t index = 0; index < connectionCount; ++index)
+        {
+            auto connected = ConnectRuntimeControlChannel(server.Identity, 5000);
+            VERIFY_IS_TRUE(connected.Succeeded());
+            connected.Channel.Close();
+            VERIFY_IS_TRUE(WaitUntil([&] {
+                return server.Server.Statistics().CompletedConnections >= index + 1;
+            }, 5000));
+        }
+
+        VERIFY_IS_TRUE(server.Server.Running());
+        auto healthy = ConnectAndHello(server, ClientTwoId);
+        const auto response = Request(
+            healthy,
+            "30000000-0000-4000-8000-000000000072",
+            ControlMethod::Ping);
+        VERIFY_IS_TRUE(response.Succeeded);
     }
 }

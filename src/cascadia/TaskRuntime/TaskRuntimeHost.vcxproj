@@ -30,6 +30,7 @@
     <ClInclude Include="RuntimeSingleInstance.h" />
     <ClInclude Include="RuntimeTerminalOutputRing.h" />
     <ClInclude Include="RuntimeTerminalInputLease.h" />
+    <ClInclude Include="RuntimeTerminalClientRegistry.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -51,6 +52,7 @@
     <ClCompile Include="RuntimeSingleInstance.cpp" />
     <ClCompile Include="RuntimeTerminalOutputRing.cpp" />
     <ClCompile Include="RuntimeTerminalInputLease.cpp" />
+    <ClCompile Include="RuntimeTerminalClientRegistry.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">

@@ -26,7 +26,9 @@
     <ClInclude Include="RuntimeControlSubscriptions.h" />
     <ClInclude Include="RuntimeControlThreadContext.h" />
     <ClInclude Include="RuntimeFoundationRouter.h" />
+    <ClInclude Include="RuntimeHelperIdleState.h" />
     <ClInclude Include="RuntimeProductHost.h" />
+    <ClInclude Include="RuntimeProductHostInternal.h" />
     <ClInclude Include="RuntimeProductRouter.h" />
     <ClInclude Include="RuntimeRtaskCommandService.h" />
     <ClInclude Include="RuntimeRtaskCapabilityRegistry.h" />
@@ -55,7 +57,9 @@
     <ClCompile Include="RuntimeControlSubscriptions.cpp" />
     <ClCompile Include="RuntimeControlThreadContext.cpp" />
     <ClCompile Include="RuntimeFoundationRouter.cpp" />
+    <ClCompile Include="RuntimeHelperIdleState.cpp" />
     <ClCompile Include="RuntimeProductHost.cpp" />
+    <ClCompile Include="RuntimeProductHostIdle.cpp" />
     <ClCompile Include="RuntimeProductRouter.cpp" />
     <ClCompile Include="RuntimeRtaskCommandService.cpp" />
     <ClCompile Include="RuntimeRtaskCapabilityRegistry.cpp" />

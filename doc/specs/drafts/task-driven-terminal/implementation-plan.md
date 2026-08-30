@@ -87,8 +87,11 @@ foundational contracts required to avoid disposable data/process designs.
   atomic TaskCore Agent mutation/event/receipt transaction. M2G1 adds the
   Runtime-owned five-minute terminal idle deadline, active-run/client
   exclusion, deterministic attach/deadline arbitration, idempotent wake, and
-  monotonic generation recovery while keeping Closed fail-closed. Real Codex,
-  Git, and task-owned Surface integration remain later milestones.
+  monotonic generation recovery while keeping Closed fail-closed. M2G2 adds a
+  two-minute helper idle-exit grace, a lightweight TaskCore resident-work
+  query, deadline activity resampling, and real-process evidence that active
+  work survives every UI disconnect while quiescent helpers exit cleanly. Real
+  Codex, Git, and task-owned Surface integration remain later milestones.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
 - The executable M2/M3 commit queue and frozen technical defaults are tracked

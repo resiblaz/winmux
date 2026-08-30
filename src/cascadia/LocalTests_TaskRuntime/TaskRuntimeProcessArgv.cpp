@@ -165,9 +165,10 @@ namespace TaskRuntimeLocalTests::ProcessFixtures::details
         const std::filesystem::path& executable,
         const ProductRuntimeTestIdentity& identity,
         const HANDLE readyEvent,
-        const HANDLE shutdownEvent)
+        const HANDLE shutdownEvent,
+        const TaskRuntimeProcessOptions& options)
     {
-        const std::array<std::wstring, 10> arguments{
+        std::vector<std::wstring> arguments{
             executable.native(),
             L"--serve",
             L"--channel",
@@ -179,6 +180,11 @@ namespace TaskRuntimeLocalTests::ProcessFixtures::details
             L"--internal-test-shutdown-handle",
             _handleArgument(shutdownEvent),
         };
+        if (options.IdleExitMilliseconds)
+        {
+            arguments.emplace_back(L"--internal-test-idle-exit-ms");
+            arguments.emplace_back(std::to_wstring(*options.IdleExitMilliseconds));
+        }
         return _commandLine(arguments);
     }
 

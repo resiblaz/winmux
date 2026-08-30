@@ -159,7 +159,8 @@ namespace TaskRuntimeLocalTests::ProcessFixtures::details
     }
 
     LaunchedTaskRuntimeProcess LaunchTaskRuntimeProcess(
-        const ProductRuntimeTestIdentity& identity)
+        const ProductRuntimeTestIdentity& identity,
+        TaskRuntimeProcessOptions options)
     {
         auto inheritable = _inheritableSecurityAttributes();
         HandleOwner readyEvent{ CreateEventW(&inheritable, TRUE, FALSE, nullptr) };
@@ -191,7 +192,8 @@ namespace TaskRuntimeLocalTests::ProcessFixtures::details
             executable,
             identity,
             readyEvent.Get(),
-            shutdownEvent.Get());
+            shutdownEvent.Get(),
+            options);
 
         STARTUPINFOEXW startup{};
         startup.StartupInfo.cb = sizeof(startup);

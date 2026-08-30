@@ -25,6 +25,7 @@
     <ClCompile Include="TaskCoreMessageTests.cpp" />
     <ClCompile Include="TaskCoreRecordValidationTests.cpp" />
     <ClCompile Include="TaskCoreRecoveryTests.cpp" />
+    <ClCompile Include="TaskCoreRuntimeActivityTests.cpp" />
     <ClCompile Include="TaskCoreSchemaTests.cpp" />
     <ClCompile Include="TaskCoreStoreRunTests.cpp" />
     <ClCompile Include="TaskCoreStoreTaskTests.cpp" />

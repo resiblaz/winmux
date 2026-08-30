@@ -1,7 +1,7 @@
 # Task Runtime host foundation
 
 This directory contains the Windows host boundary for the per-user Task
-Runtime. The completed M2G1 foundation accepts multiple control and terminal
+Runtime. The completed M2G2 foundation accepts multiple control and terminal
 clients, drives Hello-first control sessions, routes typed requests through an
 injected interface, delivers targeted subscription notifications, and owns a
 bounded Agent-terminal session state machine. It now includes the scoped
@@ -60,6 +60,10 @@ Implemented foundations:
   five-minute monotonic idle deadline, active-run/client exclusion, exact
   attach-versus-deadline ordering, idempotent wake arbitration, persisted-state
   synchronization, and a new generation for every resumed projection;
+- a two-minute helper idle-exit policy plus ProductHost monitor that samples
+  current control clients and one constant-shape TaskCore activity query,
+  resamples at the deadline, cancels on new activity, and treats observation
+  failure as a reason to remain resident;
 - strict process-neutral DTOs for the four Agent-scoped `rtask` commands,
   including per-method text bounds, canonical idempotency IDs, exact JSON, and
   bounded capability/text-redacted diagnostics;
@@ -96,8 +100,10 @@ item before calling `RuntimeTerminalSession`.
 first control-pipe instance, prints the protocol identity, and exits.
 `--serve` retains single-instance ownership for the entire server/session
 lifetime, advertises the implemented RuntimeLifecycle and TaskCommands
-capabilities, and continues across client disconnects until an explicit
-process stop. M2C4
+capabilities, and continues across client disconnects while active Runs,
+actionable intents/messages, live terminal sessions, or clients remain. After
+the helper is fully quiescent, a two-minute grace expires before clean process
+exit. M2C4
 provides the reconnecting request/subscription client, virtual monotonic
 scheduler, and negotiated heartbeat. M2D2 adds connect-first, cross-process
 launch coordination while preserving Runtime independence from any Terminal
@@ -112,3 +118,7 @@ durable TaskCore transaction, builds `rtask.exe`, and packages both executables.
 M2G1 adds the pure terminal lifecycle state consumed by the future product
 dispatcher; Closed rejects passive reconnect and new-work wake while explicit
 Open remains a generation-advancing action.
+M2G2 adds the helper-level idle state and real ProductHost monitor. Existing
+short-lived-parent activation coverage remains valid, active Run coverage now
+crosses the configured idle deadline with no UI clients, and quiescent process
+tests verify eventual exit with code zero.

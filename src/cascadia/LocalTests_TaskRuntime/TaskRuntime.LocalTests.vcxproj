@@ -22,6 +22,7 @@
     <ClInclude Include="RuntimeRtaskCommandTestSupport.h" />
     <ClInclude Include="RuntimeTerminalSessionTestSupport.h" />
     <ClInclude Include="TaskRuntimeProcessTestFixtures.h" />
+    <ClInclude Include="TaskRuntimeProcessOptions.h" />
     <ClInclude Include="TaskRuntimeProcessWin32Support.h" />
     <ClInclude Include="TaskRuntimeTestFixtures.h" />
   </ItemGroup>
@@ -44,7 +45,9 @@
     <ClCompile Include="RuntimeControlSubscriptionRecoveryTests.cpp" />
     <ClCompile Include="RuntimeCryptoTests.cpp" />
     <ClCompile Include="RuntimeFoundationRouterTests.cpp" />
+    <ClCompile Include="RuntimeHelperIdleStateTests.cpp" />
     <ClCompile Include="RuntimeProductHostProcessTests.cpp" />
+    <ClCompile Include="RuntimeProductHostIdleProcessTests.cpp" />
     <ClCompile Include="RuntimeProductRouterTests.cpp" />
     <ClCompile Include="RuntimeRtaskCapabilityRegistryTests.cpp" />
     <ClCompile Include="RuntimeRtaskCommandServiceTests.cpp" />

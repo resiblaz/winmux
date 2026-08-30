@@ -27,6 +27,7 @@ namespace Microsoft::Terminal::TaskRuntime
         std::filesystem::path SettingsRoot;
         std::optional<uintptr_t> TestReadyHandle;
         std::optional<uintptr_t> TestShutdownHandle;
+        std::optional<uint32_t> TestIdleExitMilliseconds;
         std::wstring Error;
     };
 

@@ -5,6 +5,7 @@
 
 #include "RuntimeBootstrap.h"
 #include "RuntimeControlServer.h"
+#include "RuntimeHelperIdleState.h"
 
 #include <filesystem>
 #include <memory>
@@ -13,6 +14,21 @@
 
 namespace Microsoft::Terminal::TaskRuntime
 {
+    inline constexpr uint32_t DefaultRuntimeProductHostIdlePollMilliseconds{ 1000 };
+    inline constexpr uint32_t MaximumRuntimeProductHostIdlePollMilliseconds{ 60000 };
+
+    struct RuntimeProductHostIdleConfiguration
+    {
+        uint32_t IdleExitMilliseconds{ DefaultRuntimeHelperIdleExitMilliseconds };
+        uint32_t PollMilliseconds{ DefaultRuntimeProductHostIdlePollMilliseconds };
+
+        [[nodiscard]] bool Valid() const noexcept
+        {
+            return IdleExitMilliseconds != 0 && PollMilliseconds != 0 &&
+                   PollMilliseconds <= MaximumRuntimeProductHostIdlePollMilliseconds;
+        }
+    };
+
     enum class RuntimeProductHostStartStatus
     {
         Started,
@@ -21,6 +37,7 @@ namespace Microsoft::Terminal::TaskRuntime
         RuntimeInstanceIdFailure,
         TaskStoreFailure,
         ServerStartFailure,
+        IdleMonitorFailure,
         ResourceFailure,
     };
 
@@ -85,7 +102,8 @@ namespace Microsoft::Terminal::TaskRuntime
         friend RuntimeProductHostStartResult StartRuntimeProductHost(
             std::wstring_view channel,
             const std::filesystem::path& settingsRoot,
-            RuntimeControlServerConfiguration configuration);
+            RuntimeControlServerConfiguration configuration,
+            RuntimeProductHostIdleConfiguration idleConfiguration);
         std::unique_ptr<Impl> _impl;
     };
 
@@ -106,5 +124,6 @@ namespace Microsoft::Terminal::TaskRuntime
     [[nodiscard]] RuntimeProductHostStartResult StartRuntimeProductHost(
         std::wstring_view channel,
         const std::filesystem::path& settingsRoot,
-        RuntimeControlServerConfiguration configuration = {});
+        RuntimeControlServerConfiguration configuration = {},
+        RuntimeProductHostIdleConfiguration idleConfiguration = {});
 }

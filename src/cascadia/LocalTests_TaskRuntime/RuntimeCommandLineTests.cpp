@@ -54,6 +54,7 @@ namespace TaskRuntimeLocalTests
             std::wstring_view SettingsRoot;
             std::optional<uintptr_t> ReadyHandle;
             std::optional<uintptr_t> ShutdownHandle;
+            std::optional<uint32_t> IdleExitMilliseconds;
         };
 
         const std::vector<LegalCase> cases{
@@ -63,6 +64,7 @@ namespace TaskRuntimeLocalTests
                 RuntimeCommandMode::Help,
                 {},
                 {},
+                std::nullopt,
                 std::nullopt,
                 std::nullopt,
             },
@@ -81,6 +83,7 @@ namespace TaskRuntimeLocalTests
                 L"C:\\Task Runtime Tests",
                 std::nullopt,
                 std::nullopt,
+                std::nullopt,
             },
             {
                 L"serve options reordered",
@@ -97,6 +100,7 @@ namespace TaskRuntimeLocalTests
                 L"C:\\Task Runtime Tests",
                 std::nullopt,
                 std::nullopt,
+                std::nullopt,
             },
             {
                 L"serve paired internal handles",
@@ -111,12 +115,15 @@ namespace TaskRuntimeLocalTests
                     L"123",
                     L"--internal-test-shutdown-handle",
                     L"456",
+                    L"--internal-test-idle-exit-ms",
+                    L"250",
                 },
                 RuntimeCommandMode::Serve,
                 L"dev",
                 L"C:\\Task Runtime Tests",
                 uintptr_t{ 123 },
                 uintptr_t{ 456 },
+                uint32_t{ 250 },
             },
         };
 
@@ -133,6 +140,8 @@ namespace TaskRuntimeLocalTests
                 parsed.SettingsRoot.native());
             VERIFY_IS_TRUE(parsed.TestReadyHandle == test.ReadyHandle);
             VERIFY_IS_TRUE(parsed.TestShutdownHandle == test.ShutdownHandle);
+            VERIFY_IS_TRUE(
+                parsed.TestIdleExitMilliseconds == test.IdleExitMilliseconds);
         }
     }
 
@@ -299,6 +308,55 @@ namespace TaskRuntimeLocalTests
                     L"123",
                     L"--internal-test-shutdown-handle",
                     L"456",
+                },
+            },
+            {
+                L"idle exit requires lifecycle handles",
+                {
+                    L"TaskRuntime.exe",
+                    L"--serve",
+                    L"--channel",
+                    L"dev",
+                    L"--settings-root",
+                    L"C:\\settings",
+                    L"--internal-test-idle-exit-ms",
+                    L"250",
+                },
+            },
+            {
+                L"zero idle exit",
+                {
+                    L"TaskRuntime.exe",
+                    L"--serve",
+                    L"--channel",
+                    L"dev",
+                    L"--settings-root",
+                    L"C:\\settings",
+                    L"--internal-test-ready-handle",
+                    L"123",
+                    L"--internal-test-shutdown-handle",
+                    L"456",
+                    L"--internal-test-idle-exit-ms",
+                    L"0",
+                },
+            },
+            {
+                L"duplicate idle exit",
+                {
+                    L"TaskRuntime.exe",
+                    L"--serve",
+                    L"--channel",
+                    L"dev",
+                    L"--settings-root",
+                    L"C:\\settings",
+                    L"--internal-test-ready-handle",
+                    L"123",
+                    L"--internal-test-shutdown-handle",
+                    L"456",
+                    L"--internal-test-idle-exit-ms",
+                    L"250",
+                    L"--internal-test-idle-exit-ms",
+                    L"251",
                 },
             },
         };

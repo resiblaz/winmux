@@ -12,7 +12,9 @@ namespace Microsoft::Terminal::TaskRuntime
 {
     namespace
     {
-        std::optional<uintptr_t> _parseHandle(const std::wstring_view text) noexcept
+        std::optional<uint64_t> _parseUnsigned(
+            const std::wstring_view text,
+            const uint64_t maximum) noexcept
         {
             if (text.empty() || !std::ranges::all_of(text, [](const wchar_t value) {
                     return value >= L'0' && value <= L'9';
@@ -25,11 +27,29 @@ namespace Microsoft::Terminal::TaskRuntime
             wchar_t* end{};
             const auto value = std::wcstoull(text.data(), &end, 10);
             if (errno == ERANGE || end != text.data() + text.size() || value == 0 ||
-                value > std::numeric_limits<uintptr_t>::max())
+                value > maximum)
             {
                 return std::nullopt;
             }
-            return static_cast<uintptr_t>(value);
+            return value;
+        }
+
+        std::optional<uintptr_t> _parseHandle(const std::wstring_view text) noexcept
+        {
+            const auto value = _parseUnsigned(
+                text,
+                std::numeric_limits<uintptr_t>::max());
+            return value ? std::optional<uintptr_t>{ static_cast<uintptr_t>(*value) } :
+                           std::nullopt;
+        }
+
+        std::optional<uint32_t> _parseMilliseconds(const std::wstring_view text) noexcept
+        {
+            const auto value = _parseUnsigned(
+                text,
+                std::numeric_limits<uint32_t>::max());
+            return value ? std::optional<uint32_t>{ static_cast<uint32_t>(*value) } :
+                           std::nullopt;
         }
 
         RuntimeCommandLine _invalid(std::wstring error) noexcept
@@ -75,6 +95,7 @@ namespace Microsoft::Terminal::TaskRuntime
             bool settingsRootSeen{};
             bool readyHandleSeen{};
             bool shutdownHandleSeen{};
+            bool idleExitSeen{};
             for (int index = 2; index < argc; index += 2)
             {
                 if (index + 1 >= argc || !argv[index] || !argv[index + 1])
@@ -132,6 +153,19 @@ namespace Microsoft::Terminal::TaskRuntime
                     }
                     shutdownHandleSeen = true;
                 }
+                else if (name == L"--internal-test-idle-exit-ms")
+                {
+                    if (result.Mode != RuntimeCommandMode::Serve || idleExitSeen)
+                    {
+                        return _invalid(L"The test idle-exit duration is not valid for this invocation");
+                    }
+                    result.TestIdleExitMilliseconds = _parseMilliseconds(value);
+                    if (!result.TestIdleExitMilliseconds)
+                    {
+                        return _invalid(L"The test idle-exit duration is invalid");
+                    }
+                    idleExitSeen = true;
+                }
                 else
                 {
                     return _invalid(L"An unknown Runtime option was supplied");
@@ -145,6 +179,10 @@ namespace Microsoft::Terminal::TaskRuntime
             if (readyHandleSeen != shutdownHandleSeen)
             {
                 return _invalid(L"The test ready and shutdown handles must be supplied together");
+            }
+            if (idleExitSeen && (!readyHandleSeen || !shutdownHandleSeen))
+            {
+                return _invalid(L"The test idle-exit duration requires test lifecycle handles");
             }
 
             result.Succeeded = true;

@@ -5,6 +5,7 @@
 
 #include "RuntimeControlChannel.h"
 #include "RuntimeIdentity.h"
+#include "TaskRuntimeProcessOptions.h"
 #include "TaskRuntimeTestFixtures.h"
 
 #include "ProtocolHandshake.h"
@@ -54,7 +55,9 @@ namespace TaskRuntimeLocalTests::ProcessFixtures
     class TaskRuntimeProcess final
     {
     public:
-        explicit TaskRuntimeProcess(const ProductRuntimeTestIdentity& identity);
+        explicit TaskRuntimeProcess(
+            const ProductRuntimeTestIdentity& identity,
+            TaskRuntimeProcessOptions options = {});
         ~TaskRuntimeProcess();
 
         TaskRuntimeProcess(const TaskRuntimeProcess&) = delete;

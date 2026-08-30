@@ -17,9 +17,13 @@ namespace TaskRuntimeLocalTests::ProcessFixtures
 
     struct TaskRuntimeProcess::Impl
     {
-        explicit Impl(const ProductRuntimeTestIdentity& identity)
+        Impl(
+            const ProductRuntimeTestIdentity& identity,
+            TaskRuntimeProcessOptions options)
         {
-            auto launched = details::LaunchTaskRuntimeProcess(identity);
+            auto launched = details::LaunchTaskRuntimeProcess(
+                identity,
+                std::move(options));
             ReadyEvent = std::move(launched.ReadyEvent);
             ShutdownEvent = std::move(launched.ShutdownEvent);
             Process = std::move(launched.Process);
@@ -93,8 +97,10 @@ namespace TaskRuntimeLocalTests::ProcessFixtures
         std::atomic_bool ForcedCleanup{};
     };
 
-    TaskRuntimeProcess::TaskRuntimeProcess(const ProductRuntimeTestIdentity& identity) :
-        _impl{ std::make_unique<Impl>(identity) }
+    TaskRuntimeProcess::TaskRuntimeProcess(
+        const ProductRuntimeTestIdentity& identity,
+        TaskRuntimeProcessOptions options) :
+        _impl{ std::make_unique<Impl>(identity, std::move(options)) }
     {
     }
 

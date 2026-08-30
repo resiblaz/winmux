@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "TaskRuntimeProcessOptions.h"
+
 #include <windows.h>
 
 #include <filesystem>
@@ -104,14 +106,16 @@ namespace TaskRuntimeLocalTests::ProcessFixtures::details
     };
 
     [[nodiscard]] LaunchedTaskRuntimeProcess LaunchTaskRuntimeProcess(
-        const ProductRuntimeTestIdentity& identity);
+        const ProductRuntimeTestIdentity& identity,
+        TaskRuntimeProcessOptions options);
 
     [[nodiscard]] std::filesystem::path TaskRuntimeExecutable();
     [[nodiscard]] std::vector<wchar_t> BuildTaskRuntimeCommandLine(
         const std::filesystem::path& executable,
         const ProductRuntimeTestIdentity& identity,
         HANDLE readyEvent,
-        HANDLE shutdownEvent);
+        HANDLE shutdownEvent,
+        const TaskRuntimeProcessOptions& options);
 
     void LogProcessDiagnostic(
         std::wstring_view prefix,

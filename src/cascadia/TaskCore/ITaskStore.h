@@ -43,6 +43,7 @@ namespace Microsoft::Terminal::TaskCore
         [[nodiscard]] virtual std::vector<TaskEventRecord> ListEvents(const TaskId& task, uint64_t afterSequence, size_t limit) const = 0;
         [[nodiscard]] virtual std::optional<DeleteTombstoneRecord> LoadDeleteTombstone(const TaskId& task) const = 0;
         [[nodiscard]] virtual TaskRecoveryQueryResult LoadRecoverySnapshot(size_t limit) const = 0;
+        [[nodiscard]] virtual TaskStoreRuntimeActivityQueryResult LoadRuntimeActivity() const = 0;
         [[nodiscard]] virtual TaskStoreMaintenanceResult PurgeExpiredTombstones(int64_t nowUnixMilliseconds, size_t limit) = 0;
     };
 }

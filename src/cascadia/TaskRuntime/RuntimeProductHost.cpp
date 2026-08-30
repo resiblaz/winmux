@@ -2,11 +2,10 @@
 // Licensed under the MIT license.
 
 #include "pch.h"
-#include "RuntimeProductHost.h"
+#include "RuntimeProductHostInternal.h"
 
 #include "RuntimeCrypto.h"
 #include "RuntimeFoundationRouter.h"
-#include "RuntimeProductRouter.h"
 #include "RuntimeRtaskCapabilityRegistry.h"
 #include "RuntimeRtaskCapabilityToken.h"
 
@@ -14,8 +13,6 @@
 
 #include "ProtocolCapabilities.h"
 #include "ProtocolValidation.h"
-
-#include <mutex>
 
 namespace Microsoft::Terminal::TaskRuntime
 {
@@ -37,25 +34,23 @@ namespace Microsoft::Terminal::TaskRuntime
         }
     }
 
-    struct RuntimeProductHost::Impl
+    RuntimeProductHost::Impl::Impl(
+        RuntimeBootstrapResult bootstrap,
+        std::string instanceId,
+        std::shared_ptr<RuntimeProductRouter> router,
+        std::shared_ptr<Microsoft::Terminal::TaskCore::ITaskStore> store,
+        RuntimeProductHostIdleConfiguration idleConfiguration) :
+        Bootstrap{ std::move(bootstrap) },
+        InstanceId{ std::move(instanceId) },
+        Router{ std::move(router) },
+        Store{ std::move(store) },
+        IdleConfiguration{ std::move(idleConfiguration) }
     {
-        mutable std::mutex LifecycleMutex;
-        RuntimeBootstrapResult Bootstrap;
-        std::string InstanceId;
-        std::shared_ptr<RuntimeProductRouter> Router;
-        RuntimeControlServer Server;
+    }
 
-        Impl(
-            RuntimeBootstrapResult bootstrap,
-            std::string instanceId,
-            std::shared_ptr<RuntimeProductRouter> router) :
-            Bootstrap{ std::move(bootstrap) },
-            InstanceId{ std::move(instanceId) },
-            Router{ std::move(router) }
-        {
-        }
-
-        void Finalize() noexcept
+    void RuntimeProductHost::Impl::Finalize() noexcept
+    {
+        StopIdleMonitor();
         {
             std::scoped_lock lock{ LifecycleMutex };
             Server.Stop();
@@ -68,7 +63,7 @@ namespace Microsoft::Terminal::TaskRuntime
                 Bootstrap.Instance = {};
             }
         }
-    };
+    }
 
     RuntimeProductHost::RuntimeProductHost() noexcept = default;
     RuntimeProductHost::~RuntimeProductHost()
@@ -189,11 +184,18 @@ namespace Microsoft::Terminal::TaskRuntime
     RuntimeProductHostStartResult StartRuntimeProductHost(
         const std::wstring_view channel,
         const std::filesystem::path& settingsRoot,
-        RuntimeControlServerConfiguration configuration)
+        RuntimeControlServerConfiguration configuration,
+        RuntimeProductHostIdleConfiguration idleConfiguration)
     {
         RuntimeProductHostStartResult result;
         try
         {
+            if (!idleConfiguration.Valid())
+            {
+                result.Status = RuntimeProductHostStartStatus::IdleMonitorFailure;
+                result.Error = "Runtime helper idle configuration is invalid";
+                return result;
+            }
             auto bootstrap = BootstrapCurrentUserRuntime(channel, settingsRoot);
             result.BootstrapStatus = bootstrap.Status;
             if (!bootstrap.Ready())
@@ -236,7 +238,7 @@ namespace Microsoft::Terminal::TaskRuntime
                 RuntimeRtaskCapabilityRegistryConfiguration{},
                 std::move(tokenSource));
             auto rtask = std::make_shared<RuntimeRtaskCommandService>(
-                std::move(store),
+                store,
                 std::move(capabilities));
             auto router = std::make_shared<RuntimeProductRouter>(
                 std::move(foundation),
@@ -251,7 +253,9 @@ namespace Microsoft::Terminal::TaskRuntime
             auto impl = std::make_unique<RuntimeProductHost::Impl>(
                 std::move(bootstrap),
                 std::move(*instanceId),
-                std::move(router));
+                std::move(router),
+                std::move(store),
+                std::move(idleConfiguration));
             configuration.Handshake = _foundationHandshake(
                 impl->Bootstrap.Identity,
                 impl->InstanceId);
@@ -269,6 +273,12 @@ namespace Microsoft::Terminal::TaskRuntime
                 return result;
             }
             impl->Server = std::move(server.Server);
+            if (!impl->StartIdleMonitor())
+            {
+                result.Status = RuntimeProductHostStartStatus::IdleMonitorFailure;
+                result.Error = "Runtime helper idle monitor failed to start";
+                return result;
+            }
             result.Host = RuntimeProductHost{ std::move(impl) };
             result.Status = RuntimeProductHostStartStatus::Started;
             result.Error.clear();

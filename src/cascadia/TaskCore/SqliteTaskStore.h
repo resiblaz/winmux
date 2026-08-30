@@ -45,6 +45,7 @@ namespace Microsoft::Terminal::TaskCore
         [[nodiscard]] std::vector<TaskEventRecord> ListEvents(const TaskId& task, uint64_t afterSequence, size_t limit) const override;
         [[nodiscard]] std::optional<DeleteTombstoneRecord> LoadDeleteTombstone(const TaskId& task) const override;
         [[nodiscard]] TaskRecoveryQueryResult LoadRecoverySnapshot(size_t limit) const override;
+        [[nodiscard]] TaskStoreRuntimeActivityQueryResult LoadRuntimeActivity() const override;
         [[nodiscard]] TaskStoreMaintenanceResult PurgeExpiredTombstones(int64_t nowUnixMilliseconds, size_t limit) override;
 
     private:

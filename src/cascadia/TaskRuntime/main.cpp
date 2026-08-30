@@ -50,7 +50,19 @@ namespace
             return _exit(RuntimeProcessExitCode::StopInfrastructureFailure);
         }
 
-        auto started = StartRuntimeProductHost(commandLine.Channel, commandLine.SettingsRoot);
+        RuntimeProductHostIdleConfiguration idleConfiguration;
+        if (commandLine.TestIdleExitMilliseconds)
+        {
+            idleConfiguration.IdleExitMilliseconds = *commandLine.TestIdleExitMilliseconds;
+            idleConfiguration.PollMilliseconds = (std::max)(
+                uint32_t{ 1 },
+                (std::min)(uint32_t{ 25 }, *commandLine.TestIdleExitMilliseconds / 4));
+        }
+        auto started = StartRuntimeProductHost(
+            commandLine.Channel,
+            commandLine.SettingsRoot,
+            {},
+            idleConfiguration);
         if (!started.Started())
         {
             std::fprintf(stderr, "Task Runtime host failed to start: %s\n", started.Error.c_str());
@@ -62,6 +74,7 @@ namespace
                 return _exit(RuntimeProcessExitCode::RuntimeInstanceIdFailure);
             case RuntimeProductHostStartStatus::TaskStoreFailure:
             case RuntimeProductHostStartStatus::ServerStartFailure:
+            case RuntimeProductHostStartStatus::IdleMonitorFailure:
             case RuntimeProductHostStartStatus::ResourceFailure:
                 return _exit(RuntimeProcessExitCode::ServerStartFailure);
             default:

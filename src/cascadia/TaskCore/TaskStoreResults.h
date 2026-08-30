@@ -85,6 +85,27 @@ namespace Microsoft::Terminal::TaskCore
         std::string Error;
     };
 
+    struct TaskStoreRuntimeActivitySnapshot
+    {
+        bool HasActiveRuns{};
+        bool HasPendingIntents{};
+        bool HasPendingMessages{};
+        bool HasLiveTerminals{};
+
+        [[nodiscard]] bool Active() const noexcept
+        {
+            return HasActiveRuns || HasPendingIntents ||
+                   HasPendingMessages || HasLiveTerminals;
+        }
+    };
+
+    struct TaskStoreRuntimeActivityQueryResult
+    {
+        bool Succeeded{};
+        TaskStoreRuntimeActivitySnapshot Snapshot;
+        std::string Error;
+    };
+
     enum class TaskStoreMaintenanceStatus
     {
         Succeeded,

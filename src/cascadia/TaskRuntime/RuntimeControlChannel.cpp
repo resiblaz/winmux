@@ -328,7 +328,7 @@ namespace Microsoft::Terminal::TaskRuntime
     }
 
     RuntimeControlChannelResult AcceptRuntimeControlChannel(
-        RuntimeNamedPipe listener,
+        RuntimeNamedPipe& listener,
         const uint32_t timeoutMilliseconds)
     {
         RuntimeControlChannelResult result;

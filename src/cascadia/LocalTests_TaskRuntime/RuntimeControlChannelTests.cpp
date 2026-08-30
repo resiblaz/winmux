@@ -34,7 +34,7 @@ namespace TaskRuntimeLocalTests
 
             RuntimeControlChannelResult accepted;
             std::thread acceptThread{ [&] {
-                accepted = AcceptRuntimeControlChannel(std::move(listener.Pipe), 5000);
+                accepted = AcceptRuntimeControlChannel(listener.Pipe, 5000);
             } };
             auto connected = ConnectRuntimeControlChannel(identity, 5000);
             acceptThread.join();

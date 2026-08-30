@@ -4,6 +4,7 @@
 #include "pch.h"
 #include "RuntimeControlChannel.h"
 
+#include "ControlSession.h"
 #include "ProtocolJson.h"
 
 namespace Microsoft::Terminal::TaskRuntime
@@ -96,6 +97,15 @@ namespace Microsoft::Terminal::TaskRuntime
         const RuntimeHandshakeConfiguration& runtime,
         const uint32_t timeoutMilliseconds)
     {
+        ControlSession session{ runtime };
+        return PerformRuntimeServerHandshake(channel, session, timeoutMilliseconds);
+    }
+
+    RuntimeServerHandshakeResult PerformRuntimeServerHandshake(
+        RuntimeControlChannel& channel,
+        ControlSession& session,
+        const uint32_t timeoutMilliseconds)
+    {
         RuntimeServerHandshakeResult result;
         const auto deadline = GetTickCount64() + timeoutMilliseconds;
         if (!_requireRemaining(deadline, result))
@@ -115,7 +125,8 @@ namespace Microsoft::Terminal::TaskRuntime
             result.Error = decoded.Error;
             return result;
         }
-        result.Decision = NegotiateHandshake(decoded.Value, runtime);
+        result.Request = decoded.Value;
+        result.Decision = session.AcceptHello(result.Request);
         if (!result.Decision.Accepted)
         {
             result.Status = RuntimeTransportStatus::ProtocolRejected;

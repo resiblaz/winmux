@@ -15,6 +15,11 @@
 #include <string>
 #include <string_view>
 
+namespace Microsoft::Terminal::TaskRuntimeProtocol
+{
+    class ControlSession;
+}
+
 namespace Microsoft::Terminal::TaskRuntime
 {
     struct RuntimeControlChannelResult;
@@ -74,7 +79,7 @@ namespace Microsoft::Terminal::TaskRuntime
         explicit RuntimeControlChannel(HANDLE handle);
         friend struct RuntimeControlChannelResult;
         friend RuntimeControlChannelResult AcceptRuntimeControlChannel(
-            RuntimeNamedPipe listener,
+            RuntimeNamedPipe& listener,
             uint32_t timeoutMilliseconds);
         friend RuntimeControlChannelResult ConnectRuntimeControlChannel(
             const RuntimeIdentity& identity,
@@ -105,11 +110,12 @@ namespace Microsoft::Terminal::TaskRuntime
 
     struct RuntimeServerHandshakeResult : RuntimeTransportResult
     {
+        Microsoft::Terminal::TaskRuntimeProtocol::HelloRequest Request;
         Microsoft::Terminal::TaskRuntimeProtocol::HandshakeDecision Decision;
     };
 
     [[nodiscard]] RuntimeControlChannelResult AcceptRuntimeControlChannel(
-        RuntimeNamedPipe listener,
+        RuntimeNamedPipe& listener,
         uint32_t timeoutMilliseconds);
     [[nodiscard]] RuntimeControlChannelResult ConnectRuntimeControlChannel(
         const RuntimeIdentity& identity,
@@ -121,5 +127,9 @@ namespace Microsoft::Terminal::TaskRuntime
     [[nodiscard]] RuntimeServerHandshakeResult PerformRuntimeServerHandshake(
         RuntimeControlChannel& channel,
         const Microsoft::Terminal::TaskRuntimeProtocol::RuntimeHandshakeConfiguration& runtime,
+        uint32_t timeoutMilliseconds);
+    [[nodiscard]] RuntimeServerHandshakeResult PerformRuntimeServerHandshake(
+        RuntimeControlChannel& channel,
+        Microsoft::Terminal::TaskRuntimeProtocol::ControlSession& session,
         uint32_t timeoutMilliseconds);
 }

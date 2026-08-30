@@ -21,6 +21,8 @@
     </ClCompile>
     <ClCompile Include="RuntimeBootstrapTests.cpp" />
     <ClCompile Include="RuntimeControlChannelTests.cpp" />
+    <ClCompile Include="RuntimeControlQueueTests.cpp" />
+    <ClCompile Include="RuntimeControlServerTests.cpp" />
     <ClCompile Include="RuntimeIdentityTests.cpp" />
     <ClCompile Include="RuntimeSecurityTests.cpp" />
   </ItemGroup>

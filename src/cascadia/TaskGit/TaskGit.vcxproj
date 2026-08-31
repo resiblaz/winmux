@@ -13,18 +13,28 @@
   <Import Project="$(SolutionDir)src\common.nugetversions.props" />
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="GitFileHash.h" />
     <ClInclude Include="GitSnapshotFile.h" />
     <ClInclude Include="GitSourceCapture.h" />
+    <ClInclude Include="GitSourceCapturePolicy.h" />
+    <ClInclude Include="GitSourceCommandOutput.h" />
+    <ClInclude Include="GitSourceDigest.h" />
     <ClInclude Include="GitSourceSnapshot.h" />
     <ClInclude Include="GitSourceStatus.h" />
+    <ClInclude Include="GitTrackedSource.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="GitFileHash.cpp" />
     <ClCompile Include="GitSnapshotFile.cpp" />
     <ClCompile Include="GitSourceCapture.cpp" />
+    <ClCompile Include="GitSourceCapturePolicy.cpp" />
+    <ClCompile Include="GitSourceCommandOutput.cpp" />
+    <ClCompile Include="GitSourceDigest.cpp" />
     <ClCompile Include="GitSourceStatus.cpp" />
+    <ClCompile Include="GitTrackedSource.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskCore\TaskCore.vcxproj">

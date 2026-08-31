@@ -3,10 +3,7 @@
 
 #include "pch.h"
 #include "GitSnapshotFile.h"
-
-#include <bcrypt.h>
-
-#pragma comment(lib, "bcrypt.lib")
+#include "GitFileHash.h"
 
 namespace Microsoft::Terminal::TaskGit
 {
@@ -20,30 +17,6 @@ namespace Microsoft::Terminal::TaskGit
                 if (Value && Value != INVALID_HANDLE_VALUE)
                 {
                     CloseHandle(Value);
-                }
-            }
-        };
-
-        struct AlgorithmOwner
-        {
-            BCRYPT_ALG_HANDLE Value{};
-            ~AlgorithmOwner()
-            {
-                if (Value)
-                {
-                    BCryptCloseAlgorithmProvider(Value, 0);
-                }
-            }
-        };
-
-        struct HashOwner
-        {
-            BCRYPT_HASH_HANDLE Value{};
-            ~HashOwner()
-            {
-                if (Value)
-                {
-                    BCryptDestroyHash(Value);
                 }
             }
         };
@@ -207,120 +180,6 @@ namespace Microsoft::Terminal::TaskGit
                    left.FileAttributes == right.FileAttributes;
         }
 
-        std::optional<std::string> _hashFile(
-            const HANDLE file,
-            const uint64_t expectedBytes,
-            const HANDLE cancellationEvent,
-            DWORD& systemError)
-        {
-            AlgorithmOwner algorithm;
-            if (!BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(
-                    &algorithm.Value,
-                    BCRYPT_SHA256_ALGORITHM,
-                    nullptr,
-                    0)))
-            {
-                systemError = ERROR_INVALID_DATA;
-                return std::nullopt;
-            }
-            DWORD objectBytes{};
-            DWORD returned{};
-            if (!BCRYPT_SUCCESS(BCryptGetProperty(
-                    algorithm.Value,
-                    BCRYPT_OBJECT_LENGTH,
-                    reinterpret_cast<PUCHAR>(&objectBytes),
-                    sizeof(objectBytes),
-                    &returned,
-                    0)) ||
-                returned != sizeof(objectBytes) || objectBytes == 0)
-            {
-                systemError = ERROR_INVALID_DATA;
-                return std::nullopt;
-            }
-            std::vector<uint8_t> object(objectBytes);
-            HashOwner hash;
-            if (!BCRYPT_SUCCESS(BCryptCreateHash(
-                    algorithm.Value,
-                    &hash.Value,
-                    object.data(),
-                    static_cast<ULONG>(object.size()),
-                    nullptr,
-                    0,
-                    0)))
-            {
-                systemError = ERROR_INVALID_DATA;
-                return std::nullopt;
-            }
-
-            uint64_t bytesReadTotal{};
-            std::array<uint8_t, 64 * 1024> buffer{};
-            for (;;)
-            {
-                const auto cancelled = WaitForSingleObject(cancellationEvent, 0);
-                if (cancelled == WAIT_OBJECT_0)
-                {
-                    systemError = ERROR_OPERATION_ABORTED;
-                    return std::nullopt;
-                }
-                if (cancelled != WAIT_TIMEOUT)
-                {
-                    systemError = cancelled == WAIT_FAILED ?
-                                      GetLastError() :
-                                      ERROR_INVALID_HANDLE;
-                    return std::nullopt;
-                }
-                DWORD bytesRead{};
-                if (!ReadFile(
-                        file,
-                        buffer.data(),
-                        static_cast<DWORD>(buffer.size()),
-                        &bytesRead,
-                        nullptr))
-                {
-                    systemError = GetLastError();
-                    return std::nullopt;
-                }
-                if (bytesRead == 0)
-                {
-                    break;
-                }
-                bytesReadTotal += bytesRead;
-                if (bytesReadTotal > expectedBytes ||
-                    !BCRYPT_SUCCESS(BCryptHashData(
-                        hash.Value,
-                        buffer.data(),
-                        bytesRead,
-                        0)))
-                {
-                    systemError = ERROR_INVALID_DATA;
-                    return std::nullopt;
-                }
-            }
-            if (bytesReadTotal != expectedBytes)
-            {
-                systemError = ERROR_FILE_INVALID;
-                return std::nullopt;
-            }
-            std::array<uint8_t, 32> digest{};
-            if (!BCRYPT_SUCCESS(BCryptFinishHash(
-                    hash.Value,
-                    digest.data(),
-                    static_cast<ULONG>(digest.size()),
-                    0)))
-            {
-                systemError = ERROR_INVALID_DATA;
-                return std::nullopt;
-            }
-            constexpr std::string_view digits{ "0123456789abcdef" };
-            std::string result;
-            result.reserve(digest.size() * 2);
-            for (const auto byte : digest)
-            {
-                result.push_back(digits[byte >> 4]);
-                result.push_back(digits[byte & 0x0f]);
-            }
-            return result;
-        }
     }
 
     namespace details
@@ -481,18 +340,19 @@ namespace Microsoft::Terminal::TaskGit
                     error == ERROR_SUCCESS ? ERROR_INVALID_DATA : error,
                     "Git snapshot file final path escaped its manifest identity");
             }
-            const auto digest = _hashFile(
+            const auto digest = details::HashOpenGitFileSha256(
                 file.Value,
                 size,
-                cancellationEvent,
-                error);
-            if (!digest)
+                cancellationEvent);
+            if (!digest.Succeeded())
             {
                 return _failure(
-                    error == ERROR_OPERATION_ABORTED ?
+                    digest.Status == details::GitFileHashStatus::Cancelled ?
                         GitSnapshotFileStatus::Cancelled :
+                    digest.Status == details::GitFileHashStatus::ResourceFailure ?
+                        GitSnapshotFileStatus::ResourceFailure :
                         GitSnapshotFileStatus::ReadFailure,
-                    error,
+                    digest.SystemError,
                     "Git snapshot file could not be hashed completely");
             }
 
@@ -530,7 +390,7 @@ namespace Microsoft::Terminal::TaskGit
                 std::string{ relativePath },
                 GitSourceFileType::RegularFile,
                 size,
-                *digest,
+                digest.Digest,
             };
             return result;
         }

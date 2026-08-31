@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-08-31
-status: active execution queue; M2 closure and M3A-M3C complete, M3D next
+status: active execution queue; M2 closure and M3A-M3D complete, M3E next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -115,7 +115,7 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
 | M3A (complete) | Typed Git/worktree records, SQLite v4, identity freeze and delete gate | v3 migration, rollback, replay/conflict, first-run freeze, recovery, undelivered-work refusal |
 | M3B (complete) | Canonical directory identity, Direct FIFO lease, Git common-dir mutex | Unicode/alias/reparse, cancellation, abandoned owner, two Runtime identities/processes |
 | M3C (complete) | Structured Windows Git runner and repository inspector | argv/env injection, timeout/cancel/tree kill, output/UTF-8 bounds, linked/detached/SHA-1/SHA-256 |
-| M3D | Read-only faithful source-state capture | clean/staged/unstaged/untracked/ignored, 2,000/200 MiB bounds, symlink/vanish, digest race, source unchanged |
+| M3D (complete) | Read-only faithful source-state capture | clean/staged/unstaged/untracked/ignored, 2,000/200 MiB bounds, symlink/vanish, digest race, source unchanged |
 | M3E | Worktree provision, replay, verification, baseline and setup recovery | deterministic collisions, every crash phase, hook/sign/identity/lock/copy/persist failure, no fallback |
 | M3F | Per-TaskRun checkpoint and fake-run integration | preserve Agent commits, add-A, no empty commit, all terminal outcomes, exactly-once recovery, Worktree reuse |
 | M3G | Explicit finalize/cleanup, Delete guard and recovery | exact path/ref proof, empty/produced branch, failure preservation, crash resume, late-event tombstone |
@@ -275,6 +275,44 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
   `AF29D5405F7538AA322C674C32D45315AC0BF7737D71657AED6460AD5F800E92`;
   the portable ZIP is 11,995,727 bytes with SHA256
   `5958C7A2916CBFBFEB1AE1CC95F5B68C35720CBA79A983A173841E64BC6A6C84`.
+
+### 4.5 M3D closure evidence
+
+- The new `TaskGit` static target owns source inventory, safe untracked-file
+  hashing, tracked-state proof, and canonical snapshot digests. Runtime only
+  references this target as a composition boundary; TaskCore, transport, XAML,
+  TerminalApp, and provider code remain outside the implementation.
+- Capture verifies repository identity, acquires the Git common-directory
+  Mutex, and verifies identity again under lock. It compares three tracked
+  worktree/index tree proofs, three porcelain-v2/NUL inventories, two hashes of
+  every untracked file, the stash ref, and a final repository inspection before
+  returning a snapshot.
+- Dirty tracked state uses `git stash create` with command-local fallback
+  identity. The transient commit is retained for replay but excluded from the
+  canonical digest because commit timestamps are nondeterministic; equal trees,
+  status, manifest, repository identity, and stash ref therefore produce the
+  same digest across captures.
+- Untracked manifest records explicitly include relative UTF-8 path, regular
+  file type, size, and SHA-256. Handle-resolved final paths, parent traversal,
+  file identity/basic metadata, exclusive read sharing, and a second digest
+  reject escapes, reparse/device/directory entries, disappearance, replacement,
+  or content races. The fixed bounds are exactly 2,000 files and 200 MiB.
+- Real SHA-1/SHA-256 temporary repositories cover clean, staged plus unstaged,
+  nested Unicode untracked, ignored, and pre-existing stash states. Tests prove
+  HEAD, branch, logical index entries, worktree contents, status, and refs/stash
+  remain unchanged. Deterministic injections cover tracked/stash races, vanish,
+  second-hash drift, cancellation, malformed hasher records, and resource
+  failures; a real Windows symlink/reparse case fails closed on this machine.
+- `TaskGit.LocalTests` passes 16/16. The stage matrix passed 20/20 capture/race
+  rounds (140/140), 100/100 path/status rounds (600/600), and 5/5 limit rounds
+  (15/15), for 755/755 repeated test executions in addition to focused and full
+  gates.
+- The unified Release/MSIX, Hook, complete native-test graph, CLI smoke, and
+  portable `-SkipBuild -NoLaunch` gates passed. The resulting MSIX is 8,112,504
+  bytes with SHA256
+  `CB8F02B1126B289A92D0E0F0215927CC546E7D27EA629C8B4D913E624844E75C`;
+  the portable ZIP is 11,995,698 bytes with SHA256
+  `622D4BD59C4C4DC8F5CFA0312BA44622CBB4BF77C9077B14927CBD1B6FAA7ECC`.
 
 ## 5. Verification discipline
 

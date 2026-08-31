@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{013DA5F2-0EAB-4CE6-9A55-F350AC045088}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>TaskGitLocalTests</RootNamespace>
+    <ProjectName>LocalTests_TaskGit</ProjectName>
+    <TargetName>TaskGit.LocalTests</TargetName>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <OpenConsoleUniversalApp>false</OpenConsoleUniversalApp>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\common.build.pre.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.props" />
+  <ItemGroup>
+    <ClInclude Include="GitSourceCaptureTestSupport.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="TaskGitTestSupport.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="GitSnapshotFileTests.cpp" />
+    <ClCompile Include="GitSourceCaptureLimitTests.cpp" />
+    <ClCompile Include="GitSourceCaptureTests.cpp" />
+    <ClCompile Include="GitSourceStatusTests.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TaskGit\TaskGit.vcxproj">
+      <Project>{459E0D99-14B3-4184-82A9-59E23D5393A8}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskGit;$(SolutionDir)src\cascadia\TaskExecution;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>advapi32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\common.build.post.props" />
+  <Import Project="$(SolutionDir)src\common.build.tests.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.targets" />
+</Project>

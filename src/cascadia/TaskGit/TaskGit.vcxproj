@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{459E0D99-14B3-4184-82A9-59E23D5393A8}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>Microsoft.Terminal.TaskGit</RootNamespace>
+    <ProjectName>TaskGit</ProjectName>
+    <TargetName>TaskGit</TargetName>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <OpenConsoleUniversalApp>false</OpenConsoleUniversalApp>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\common.build.pre.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.props" />
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="GitSnapshotFile.h" />
+    <ClInclude Include="GitSourceCapture.h" />
+    <ClInclude Include="GitSourceSnapshot.h" />
+    <ClInclude Include="GitSourceStatus.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="GitSnapshotFile.cpp" />
+    <ClCompile Include="GitSourceCapture.cpp" />
+    <ClCompile Include="GitSourceStatus.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TaskCore\TaskCore.vcxproj">
+      <Project>{DCB2201E-7AE1-4221-95F5-FA24A8254243}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\TaskExecution\TaskExecution.vcxproj">
+      <Project>{C0BE2B61-09F6-4523-A7F1-77980CE41DC7}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskGit;$(SolutionDir)src\cascadia\TaskExecution;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\common.build.post.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.targets" />
+</Project>

@@ -80,6 +80,9 @@
     <ProjectReference Include="..\TaskExecution\TaskExecution.vcxproj">
       <Project>{C0BE2B61-09F6-4523-A7F1-77980CE41DC7}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\TaskGit\TaskGit.vcxproj">
+      <Project>{459E0D99-14B3-4184-82A9-59E23D5393A8}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">
       <Project>{C227632F-A428-48E3-AB9B-DB3D170DDAAC}</Project>
     </ProjectReference>
@@ -89,7 +92,7 @@
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\cascadia\TaskExecution;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\cascadia\TaskExecution;$(SolutionDir)src\cascadia\TaskGit;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>

@@ -18,6 +18,13 @@
     <ClInclude Include="DirectoryMutexInternal.h" />
     <ClInclude Include="DirectDirectoryLease.h" />
     <ClInclude Include="GitRepositoryLock.h" />
+    <ClInclude Include="GitRepositoryInspector.h" />
+    <ClInclude Include="GitCommandLine.h" />
+    <ClInclude Include="GitCommandRunner.h" />
+    <ClInclude Include="GitCommandTypes.h" />
+    <ClInclude Include="GitEnvironment.h" />
+    <ClInclude Include="GitExecutable.h" />
+    <ClInclude Include="GitProcessInternal.h" />
     <ClInclude Include="TaskDirectoryLock.h" />
     <ClInclude Include="TaskExecutionCrypto.h" />
     <ClInclude Include="TaskExecutionSecurity.h" />
@@ -30,6 +37,12 @@
     <ClCompile Include="DirectoryMutex.cpp" />
     <ClCompile Include="DirectDirectoryLease.cpp" />
     <ClCompile Include="GitRepositoryLock.cpp" />
+    <ClCompile Include="GitRepositoryInspector.cpp" />
+    <ClCompile Include="GitCommandLine.cpp" />
+    <ClCompile Include="GitCommandRunner.cpp" />
+    <ClCompile Include="GitEnvironment.cpp" />
+    <ClCompile Include="GitExecutable.cpp" />
+    <ClCompile Include="GitProcess.cpp" />
     <ClCompile Include="TaskExecutionCrypto.cpp" />
     <ClCompile Include="TaskExecutionSecurity.cpp" />
   </ItemGroup>

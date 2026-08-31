@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <charconv>
 #include <mutex>
 #include <array>
 #include <filesystem>

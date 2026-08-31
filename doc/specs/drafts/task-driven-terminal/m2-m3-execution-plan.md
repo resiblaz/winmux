@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-08-31
-status: active execution queue; M2 closure and M3A-M3B complete, M3C next
+status: active execution queue; M2 closure and M3A-M3C complete, M3D next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -114,7 +114,7 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
 |---|---|---|
 | M3A (complete) | Typed Git/worktree records, SQLite v4, identity freeze and delete gate | v3 migration, rollback, replay/conflict, first-run freeze, recovery, undelivered-work refusal |
 | M3B (complete) | Canonical directory identity, Direct FIFO lease, Git common-dir mutex | Unicode/alias/reparse, cancellation, abandoned owner, two Runtime identities/processes |
-| M3C | Structured Windows Git runner and repository inspector | argv/env injection, timeout/cancel/tree kill, output/UTF-8 bounds, linked/detached/SHA-1/SHA-256 |
+| M3C (complete) | Structured Windows Git runner and repository inspector | argv/env injection, timeout/cancel/tree kill, output/UTF-8 bounds, linked/detached/SHA-1/SHA-256 |
 | M3D | Read-only faithful source-state capture | clean/staged/unstaged/untracked/ignored, 2,000/200 MiB bounds, symlink/vanish, digest race, source unchanged |
 | M3E | Worktree provision, replay, verification, baseline and setup recovery | deterministic collisions, every crash phase, hook/sign/identity/lock/copy/persist failure, no fallback |
 | M3F | Per-TaskRun checkpoint and fake-run integration | preserve Agent commits, add-A, no empty commit, all terminal outcomes, exactly-once recovery, Worktree reuse |
@@ -237,6 +237,44 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
   `B480F69134F1B0376ACD2ABC617B1CDFCE3DBAC8FF826CA69F5C43B8E283ACA8`;
   the portable ZIP is 11,995,719 bytes with SHA256
   `0EAFCD60D724899FDBF5059E274844FEB9619B15C0E7B3D517F3E596AB5C2547`.
+
+### 4.4 M3C closure evidence
+
+- `TaskExecution` now provides a structured `GitCommandRunner` with explicit
+  executable, canonical working-directory identity, argv vector, allowlisted
+  author/committer environment overrides, cancellation handle, deadline, and
+  independent stdout/stderr bounds. It never invokes a shell.
+- Windows command-line encoding follows the CRT quote/backslash rules for every
+  argument. The child environment removes all inherited `GIT_*` selectors and
+  `GCM_INTERACTIVE`, then installs fixed non-interactive prompt/config policy.
+  Metacharacter, quote, trailing-backslash, Unicode, embedded-NUL, duplicate,
+  reserved-variable, and replaced-directory cases fail or round-trip exactly.
+- `git.exe` must be a local, handle-resolved regular file below a canonical
+  non-reparse directory. Each process starts suspended with an exact inherited
+  handle list, enters a kill-on-close Job before resume, and uses two bounded
+  drain threads. Timeout, cancellation, output overflow, invalid UTF-8, launch,
+  pipe, Job termination, and nonzero Git exit remain distinct outcomes.
+- The runner deadline covers preparation and execution. Cancellation is polled
+  before launch and wins at the process wait; Job termination is verified before
+  returning. A native fake `git.exe` proves descendant tree kill and 50 repeated
+  process/pipe/Job cycles prove handle stability.
+- `GitRepositoryInspector` requires Git 2.38 or newer, resolves the common-dir,
+  acquires its Git lock, and rechecks the exact common-dir identity under lock
+  before reading worktree/git-dir, bare/inside state, object format, HEAD, and
+  symbolic ref. It preserves UTF-8 branch refs and rejects bare, unborn, plain,
+  stale-directory, malformed-output, timeout, and cancellation cases.
+- Real Git 2.38.1 tests cover nested/main/linked/detached Unicode worktrees,
+  SHA-1 and SHA-256 repositories, common-dir contention, and different git-dir
+  versus common-dir identities. `TaskExecution.LocalTests` passes 27/27.
+- The final M3C Git matrix passed 100/100 rounds (1,700/1,700 test executions).
+  The unified Release/MSIX, complete native-test graph, CLI smoke, and portable
+  repackaging gates passed with TaskCore 69/69, TaskExecution 27/27,
+  TaskRuntimeProtocol 71/71, TaskRuntimeActivation 66/66,
+  TaskRuntimeClient 132/132, and TaskRuntime 182/182.
+- The resulting MSIX is 8,112,520 bytes with SHA256
+  `AF29D5405F7538AA322C674C32D45315AC0BF7737D71657AED6460AD5F800E92`;
+  the portable ZIP is 11,995,727 bytes with SHA256
+  `5958C7A2916CBFBFEB1AE1CC95F5B68C35720CBA79A983A173841E64BC6A6C84`.
 
 ## 5. Verification discipline
 

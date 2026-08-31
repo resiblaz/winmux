@@ -35,6 +35,7 @@ $workspaceTestTargets = @(
     'Terminal\Tests\TaskCore_LocalTests',
     'Terminal\Tests\TaskExecution_LocalTests',
     'Terminal\Tests\TaskExecutionLockChild',
+    'Terminal\Tests\GitTestChild',
     'Terminal\Tests\TaskRuntimeProtocol_LocalTests',
     'Terminal\Tests\TaskRuntimeActivation_LocalTests',
     'Terminal\Tests\TaskRuntimeClient_LocalTests',
@@ -234,6 +235,7 @@ try
             'src\cascadia\TaskExecution\TaskExecution.vcxproj',
             'src\cascadia\LocalTests_TaskExecution\TaskExecution.LocalTests.vcxproj',
             'src\cascadia\LocalTests_TaskExecution\TaskExecutionLockChild\TaskExecutionLockChild.vcxproj',
+            'src\cascadia\LocalTests_TaskExecution\GitTestChild\GitTestChild.vcxproj',
             'src\cascadia\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj',
             'src\cascadia\LocalTests_TaskRuntimeProtocol\TaskRuntimeProtocol.LocalTests.vcxproj',
             'src\cascadia\TaskRuntimeActivation\TaskRuntimeActivation.vcxproj',
@@ -327,6 +329,7 @@ try
         $taskCoreTests = Join-Path $taskCoreTestDirectory 'TaskCore.LocalTests.dll'
         $taskExecutionTests = Join-Path $taskExecutionTestDirectory 'TaskExecution.LocalTests.dll'
         $taskExecutionLockChild = Join-Path $taskExecutionTestDirectory 'TaskExecutionLockChild.exe'
+        $taskExecutionGitTestChild = Join-Path $taskExecutionTestDirectory 'TaskExecutionGitTestChild.exe'
         $taskProtocolTests = Join-Path $taskProtocolTestDirectory 'TaskRuntimeProtocol.LocalTests.dll'
         $taskActivationTests = Join-Path $taskActivationTestDirectory 'TaskRuntimeActivation.LocalTests.dll'
         $taskClientTests = Join-Path $taskClientTestDirectory 'TaskRuntimeClient.LocalTests.dll'
@@ -347,6 +350,7 @@ try
             -not (Test-Path -LiteralPath $taskCoreTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskExecutionTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskExecutionLockChild -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $taskExecutionGitTestChild -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskProtocolTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskActivationTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskClientTests -PathType Leaf) -or

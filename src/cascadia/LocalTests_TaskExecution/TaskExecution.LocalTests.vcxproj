@@ -13,6 +13,7 @@
   <Import Project="$(SolutionDir)src\common.nugetversions.props" />
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="GitRepositoryTestSupport.h" />
     <ClInclude Include="TaskExecutionTestSupport.h" />
   </ItemGroup>
   <ItemGroup>
@@ -20,6 +21,9 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="DirectoryIdentityTests.cpp" />
+    <ClCompile Include="GitCommandBoundaryTests.cpp" />
+    <ClCompile Include="GitCommandRunnerTests.cpp" />
+    <ClCompile Include="GitRepositoryInspectorTests.cpp" />
     <ClCompile Include="TaskExecutionCrossProcessTests.cpp" />
     <ClCompile Include="TaskExecutionLockTests.cpp" />
   </ItemGroup>

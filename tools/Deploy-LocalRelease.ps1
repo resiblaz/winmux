@@ -64,6 +64,7 @@ try
             $buildTargets.Add('Terminal\Tests\TaskCore_LocalTests')
             $buildTargets.Add('Terminal\Tests\TaskExecution_LocalTests')
             $buildTargets.Add('Terminal\Tests\TaskExecutionLockChild')
+            $buildTargets.Add('Terminal\Tests\GitTestChild')
             $buildTargets.Add('Terminal\Tests\TaskRuntimeProtocol_LocalTests')
             $buildTargets.Add('Terminal\Tests\TaskRuntimeActivation_LocalTests')
             $buildTargets.Add('Terminal\Tests\TaskRuntimeClient_LocalTests')

@@ -8,6 +8,7 @@
 #include <array>
 #include <chrono>
 #include <filesystem>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -71,6 +72,27 @@ namespace TaskExecutionLocalTests::TestSupport
     inline UniqueHandle MakeManualResetEvent(const bool signaled = false)
     {
         return UniqueHandle{ CreateEventW(nullptr, TRUE, signaled, nullptr) };
+    }
+
+    inline std::filesystem::path TestModuleSibling(
+        const std::wstring_view filename)
+    {
+        HMODULE module{};
+        VERIFY_IS_TRUE(GetModuleHandleExW(
+                           GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCWSTR>(&TestModuleSibling),
+                           &module) != FALSE);
+        std::wstring value(32768, L'\0');
+        const auto written = GetModuleFileNameW(
+            module,
+            value.data(),
+            static_cast<DWORD>(value.size()));
+        VERIFY_IS_GREATER_THAN(written, DWORD{ 0 });
+        VERIFY_IS_LESS_THAN(written, static_cast<DWORD>(value.size()));
+        value.resize(written);
+        return std::filesystem::path{ value }.parent_path() /
+               std::filesystem::path{ filename };
     }
 
     class TemporaryDirectory final

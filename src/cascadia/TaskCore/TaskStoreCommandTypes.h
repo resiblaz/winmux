@@ -59,6 +59,20 @@ namespace Microsoft::Terminal::TaskCore
         TaskGitWorktreeRecord Worktree;
     };
 
+    struct AdvanceTaskGitWorktreeCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskId Task;
+        ExecutionContextId ExecutionContext;
+        uint64_t ExpectedWorktreeRevision{};
+        TaskGitWorktreeState RequestedState{ TaskGitWorktreeState::Planning };
+        std::string SnapshotDigest;
+        std::string BaselineCommit;
+        bool HasUndeliveredWork{};
+        std::string PreservedPath;
+        std::string FailureReasonCode;
+    };
+
     struct ChangeTaskRunStateCommand
     {
         TaskCommandMetadata Metadata;

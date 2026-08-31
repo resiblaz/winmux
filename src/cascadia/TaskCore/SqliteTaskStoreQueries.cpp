@@ -6,6 +6,7 @@
 #include "SqliteTaskStoreInternal.h"
 
 #include "TaskStoreCommandSqlite.h"
+#include "TaskStoreGitSqlite.h"
 #include "TaskStoreRowSqlite.h"
 #include "TaskStoreSqlite.h"
 
@@ -83,32 +84,11 @@ FROM execution_context WHERE task_id=?1 ORDER BY revision;
             std::optional<TaskGitWorktreeRecord>& worktree,
             std::string& error)
         {
-            constexpr auto sql = R"SQL(
-SELECT task_id, execution_context_id, revision, state, repository_root,
-       repository_common_directory, repository_identity_digest, worktree_path,
-       branch_ref, source_head, source_reference, snapshot_digest, baseline_commit,
-       ownership_nonce, has_undelivered_work, cleanup_eligible, preserved_path,
-       failure_reason_code, created_at, updated_at
-FROM task_git_worktree WHERE task_id=?1;
-)SQL";
-            details::SqliteStatement statement{ database, sql, error };
-            if (!statement || !details::BindText(database, statement.Get(), 1, task.Value(), error))
-            {
-                return false;
-            }
-            const auto step = sqlite3_step(statement.Get());
-            if (step == SQLITE_DONE)
-            {
-                worktree.reset();
-                return true;
-            }
-            if (step != SQLITE_ROW)
-            {
-                error = details::SqliteError(database, step, "read Task Git Worktree");
-                return false;
-            }
-            worktree = details::ReadTaskGitWorktreeRow(statement.Get());
-            return true;
+            return details::LoadTaskGitWorktree(
+                database,
+                task,
+                worktree,
+                error);
         }
 
         bool _loadGitCheckpoints(

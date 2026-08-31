@@ -5,6 +5,7 @@
 #include "TaskStoreCommandValidation.h"
 
 #include "TaskRecordValidation.h"
+#include "TaskGitWorktreeStatePolicy.h"
 #include "TaskRunStatePolicy.h"
 #include "TaskStoreResults.h"
 
@@ -24,6 +25,15 @@ namespace Microsoft::Terminal::TaskCore::details
             return std::ranges::all_of(value, [](const char character) {
                 return (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f');
             });
+        }
+
+        bool _isGitObjectId(const std::string_view value) noexcept
+        {
+            return (value.size() == 40 || value.size() == 64) &&
+                   std::ranges::all_of(value, [](const char character) {
+                       return (character >= '0' && character <= '9') ||
+                              (character >= 'a' && character <= 'f');
+                   });
         }
 
         bool _validOptionalId(const auto& value) noexcept
@@ -172,6 +182,90 @@ namespace Microsoft::Terminal::TaskCore::details
                 command.Metadata.TimestampUnixMilliseconds)
         {
             error = "Initial Task Git Worktree state is invalid";
+            return false;
+        }
+        return true;
+    }
+
+    bool ValidateAdvanceTaskGitWorktreeCommand(
+        const AdvanceTaskGitWorktreeCommand& command,
+        std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error))
+        {
+            return false;
+        }
+        if (command.Metadata.ExpectedTaskVersion == 0 ||
+            command.ExpectedWorktreeRevision == 0 ||
+            !IsCanonicalUuid(command.Task.Value()) ||
+            !IsCanonicalUuid(command.ExecutionContext.Value()) ||
+            !IsTaskGitWorktreeSetupState(command.RequestedState) ||
+            command.RequestedState == TaskGitWorktreeState::Planning ||
+            command.PreservedPath.size() > MaximumTaskPathBytes ||
+            command.FailureReasonCode.size() > MaximumTaskGitReasonCodeBytes ||
+            (!command.SnapshotDigest.empty() &&
+             !_isLowerHexDigest(command.SnapshotDigest)) ||
+            (!command.BaselineCommit.empty() &&
+             !_isGitObjectId(command.BaselineCommit)))
+        {
+            error = "Task Git Worktree advance command is invalid";
+            return false;
+        }
+
+        const auto clearFailure = command.FailureReasonCode.empty();
+        switch (command.RequestedState)
+        {
+        case TaskGitWorktreeState::CapturingSource:
+            if (!command.SnapshotDigest.empty() ||
+                !command.BaselineCommit.empty() ||
+                command.HasUndeliveredWork || !command.PreservedPath.empty() ||
+                !clearFailure)
+            {
+                error = "Capturing source requires empty setup evidence";
+                return false;
+            }
+            break;
+        case TaskGitWorktreeState::Provisioning:
+            if (command.SnapshotDigest.empty() ||
+                !command.BaselineCommit.empty() ||
+                command.HasUndeliveredWork || !command.PreservedPath.empty() ||
+                !clearFailure)
+            {
+                error = "Provisioning requires only source snapshot evidence";
+                return false;
+            }
+            break;
+        case TaskGitWorktreeState::RestoringSource:
+        case TaskGitWorktreeState::CreatingBaseline:
+            if (command.SnapshotDigest.empty() ||
+                !command.BaselineCommit.empty() ||
+                !command.HasUndeliveredWork || command.PreservedPath.empty() ||
+                !clearFailure)
+            {
+                error = "Reconstructed source requires its preserved Worktree path";
+                return false;
+            }
+            break;
+        case TaskGitWorktreeState::Ready:
+            if (command.SnapshotDigest.empty() ||
+                command.BaselineCommit.empty() ||
+                command.HasUndeliveredWork || !command.PreservedPath.empty() ||
+                !clearFailure)
+            {
+                error = "Ready Worktree requires baseline and snapshot evidence";
+                return false;
+            }
+            break;
+        case TaskGitWorktreeState::Failed:
+            if (clearFailure ||
+                command.HasUndeliveredWork != !command.PreservedPath.empty())
+            {
+                error = "Failed Worktree preservation evidence is inconsistent";
+                return false;
+            }
+            break;
+        default:
+            error = "Requested Git Worktree state is not a setup phase";
             return false;
         }
         return true;

@@ -4,6 +4,7 @@
 #include "pch.h"
 #include "TaskStoreGitSqlite.h"
 
+#include "TaskStoreRowSqlite.h"
 #include "TaskStoreSqlite.h"
 
 namespace Microsoft::Terminal::TaskCore::details
@@ -25,6 +26,41 @@ namespace Microsoft::Terminal::TaskCore::details
             value = sqlite3_column_int(statement, 0) != 0;
             return true;
         }
+    }
+
+    bool LoadTaskGitWorktree(
+        sqlite3* database,
+        const TaskId& task,
+        std::optional<TaskGitWorktreeRecord>& worktree,
+        std::string& error)
+    {
+        constexpr auto sql = R"SQL(
+SELECT task_id, execution_context_id, revision, state, repository_root,
+       repository_common_directory, repository_identity_digest, worktree_path,
+       branch_ref, source_head, source_reference, snapshot_digest, baseline_commit,
+       ownership_nonce, has_undelivered_work, cleanup_eligible, preserved_path,
+       failure_reason_code, created_at, updated_at
+FROM task_git_worktree WHERE task_id=?1;
+)SQL";
+        SqliteStatement statement{ database, sql, error };
+        if (!statement ||
+            !BindText(database, statement.Get(), 1, task.Value(), error))
+        {
+            return false;
+        }
+        const auto step = sqlite3_step(statement.Get());
+        if (step == SQLITE_DONE)
+        {
+            worktree.reset();
+            return true;
+        }
+        if (step != SQLITE_ROW)
+        {
+            error = SqliteError(database, step, "read Task Git Worktree");
+            return false;
+        }
+        worktree = ReadTaskGitWorktreeRow(statement.Get());
+        return true;
     }
 
     bool ValidateGitWorktreeExecutionContext(
@@ -103,6 +139,46 @@ VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20);
                BindInt64(database, statement.Get(), 19, worktree.CreatedAtUnixMilliseconds, error) &&
                BindInt64(database, statement.Get(), 20, worktree.UpdatedAtUnixMilliseconds, error) &&
                StepDone(database, statement.Get(), error);
+    }
+
+    bool AdvanceTaskGitWorktree(
+        sqlite3* database,
+        const AdvanceTaskGitWorktreeCommand& command,
+        const TaskGitWorktreeState currentState,
+        const uint64_t committedRevision,
+        std::string& error)
+    {
+        constexpr auto sql = R"SQL(
+UPDATE task_git_worktree
+SET revision=?1, state=?2, snapshot_digest=?3, baseline_commit=?4,
+    has_undelivered_work=?5, cleanup_eligible=0, preserved_path=?6,
+    failure_reason_code=?7, updated_at=?8
+WHERE task_id=?9 AND execution_context_id=?10 AND revision=?11 AND state=?12;
+)SQL";
+        SqliteStatement statement{ database, sql, error };
+        if (!statement ||
+            !BindInt64(database, statement.Get(), 1, static_cast<int64_t>(committedRevision), error) ||
+            !BindInt64(database, statement.Get(), 2, static_cast<int64_t>(command.RequestedState), error) ||
+            !BindText(database, statement.Get(), 3, command.SnapshotDigest, error) ||
+            !BindText(database, statement.Get(), 4, command.BaselineCommit, error) ||
+            !BindInt64(database, statement.Get(), 5, command.HasUndeliveredWork ? 1 : 0, error) ||
+            !BindText(database, statement.Get(), 6, command.PreservedPath, error) ||
+            !BindText(database, statement.Get(), 7, command.FailureReasonCode, error) ||
+            !BindInt64(database, statement.Get(), 8, command.Metadata.TimestampUnixMilliseconds, error) ||
+            !BindText(database, statement.Get(), 9, command.Task.Value(), error) ||
+            !BindText(database, statement.Get(), 10, command.ExecutionContext.Value(), error) ||
+            !BindInt64(database, statement.Get(), 11, static_cast<int64_t>(command.ExpectedWorktreeRevision), error) ||
+            !BindInt64(database, statement.Get(), 12, static_cast<int64_t>(currentState), error) ||
+            !StepDone(database, statement.Get(), error))
+        {
+            return false;
+        }
+        if (sqlite3_changes(database) != 1)
+        {
+            error = "Task Git Worktree changed during transaction";
+            return false;
+        }
+        return true;
     }
 
     bool HasBlockingGitDelivery(

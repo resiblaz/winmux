@@ -204,6 +204,36 @@ namespace TaskCoreLocalTests::TestFixtures
         return command;
     }
 
+    inline AdvanceTaskGitWorktreeCommand MakeAdvanceGitWorktreeCommand(
+        const CreateTaskCommand& task,
+        const uint64_t commandSeed,
+        const uint64_t expectedTaskVersion,
+        const uint64_t expectedWorktreeRevision,
+        const int64_t timestamp,
+        const TaskGitWorktreeState state,
+        std::string snapshotDigest = {},
+        std::string baselineCommit = {},
+        const bool hasUndeliveredWork = false,
+        std::string preservedPath = {},
+        std::string reasonCode = {})
+    {
+        AdvanceTaskGitWorktreeCommand command;
+        command.Metadata = MakeMetadata(
+            commandSeed,
+            expectedTaskVersion,
+            timestamp);
+        command.Task = task.Task.Id;
+        command.ExecutionContext = task.ExecutionContext.Id;
+        command.ExpectedWorktreeRevision = expectedWorktreeRevision;
+        command.RequestedState = state;
+        command.SnapshotDigest = std::move(snapshotDigest);
+        command.BaselineCommit = std::move(baselineCommit);
+        command.HasUndeliveredWork = hasUndeliveredWork;
+        command.PreservedPath = std::move(preservedPath);
+        command.FailureReasonCode = std::move(reasonCode);
+        return command;
+    }
+
     inline ApplyTaskAgentMutationCommand MakeAgentMutationCommand(
         const CreateTaskRunCommand& run,
         const uint64_t commandSeed,

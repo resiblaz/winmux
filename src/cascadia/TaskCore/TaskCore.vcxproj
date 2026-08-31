@@ -20,6 +20,7 @@
     <ClInclude Include="TaskEnums.h" />
     <ClInclude Include="TaskIdentifiers.h" />
     <ClInclude Include="TaskIntentStatePolicy.h" />
+    <ClInclude Include="TaskGitWorktreeStatePolicy.h" />
     <ClInclude Include="TaskRecords.h" />
     <ClInclude Include="TaskRecordValidation.h" />
     <ClInclude Include="TaskRunStatePolicy.h" />
@@ -43,6 +44,7 @@
     </ClCompile>
     <ClCompile Include="TaskIdentifiers.cpp" />
     <ClCompile Include="TaskIntentStatePolicy.cpp" />
+    <ClCompile Include="TaskGitWorktreeStatePolicy.cpp" />
     <ClCompile Include="SqliteTaskStore.cpp" />
     <ClCompile Include="SqliteTaskStoreDeletion.cpp" />
     <ClCompile Include="SqliteTaskStoreHolds.cpp" />
@@ -55,6 +57,7 @@
     <ClCompile Include="SqliteTaskStoreAgentMutations.cpp" />
     <ClCompile Include="SqliteTaskStoreActivity.cpp" />
     <ClCompile Include="SqliteTaskStoreGit.cpp" />
+    <ClCompile Include="SqliteTaskStoreGitTransitions.cpp" />
     <ClCompile Include="SqliteTaskStoreRuns.cpp" />
     <ClCompile Include="SqliteTaskStoreTasks.cpp" />
     <ClCompile Include="SqliteTaskStoreTerminals.cpp" />

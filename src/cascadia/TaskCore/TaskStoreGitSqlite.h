@@ -3,14 +3,20 @@
 
 #pragma once
 
-#include "TaskRecords.h"
+#include "TaskStoreCommandTypes.h"
 
 #include <winsqlite/winsqlite3.h>
 
+#include <optional>
 #include <string>
 
 namespace Microsoft::Terminal::TaskCore::details
 {
+    [[nodiscard]] bool LoadTaskGitWorktree(
+        sqlite3* database,
+        const TaskId& task,
+        std::optional<TaskGitWorktreeRecord>& worktree,
+        std::string& error);
     [[nodiscard]] bool ValidateGitWorktreeExecutionContext(
         sqlite3* database,
         const TaskGitWorktreeRecord& worktree,
@@ -24,6 +30,12 @@ namespace Microsoft::Terminal::TaskCore::details
     [[nodiscard]] bool InsertTaskGitWorktree(
         sqlite3* database,
         const TaskGitWorktreeRecord& worktree,
+        std::string& error);
+    [[nodiscard]] bool AdvanceTaskGitWorktree(
+        sqlite3* database,
+        const AdvanceTaskGitWorktreeCommand& command,
+        TaskGitWorktreeState currentState,
+        uint64_t committedRevision,
         std::string& error);
     [[nodiscard]] bool HasBlockingGitDelivery(
         sqlite3* database,

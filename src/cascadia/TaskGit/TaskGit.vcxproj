@@ -22,6 +22,7 @@
     <ClInclude Include="GitSourceSnapshot.h" />
     <ClInclude Include="GitSourceStatus.h" />
     <ClInclude Include="GitTrackedSource.h" />
+    <ClInclude Include="GitWorktreeLayout.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -35,6 +36,7 @@
     <ClCompile Include="GitSourceDigest.cpp" />
     <ClCompile Include="GitSourceStatus.cpp" />
     <ClCompile Include="GitTrackedSource.cpp" />
+    <ClCompile Include="GitWorktreeLayout.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskCore\TaskCore.vcxproj">

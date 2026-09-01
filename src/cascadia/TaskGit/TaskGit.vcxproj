@@ -25,6 +25,7 @@
     <ClInclude Include="GitWorktreeLayout.h" />
     <ClInclude Include="GitWorktreeMarker.h" />
     <ClInclude Include="GitWorktreeMetadataFile.h" />
+    <ClInclude Include="GitWorktreeSourceJournal.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -42,6 +43,8 @@
     <ClCompile Include="GitWorktreeMarkerCodec.cpp" />
     <ClCompile Include="GitWorktreeMarkerFile.cpp" />
     <ClCompile Include="GitWorktreeMetadataFile.cpp" />
+    <ClCompile Include="GitWorktreeSourceJournalCodec.cpp" />
+    <ClCompile Include="GitWorktreeSourceJournalFile.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskCore\TaskCore.vcxproj">

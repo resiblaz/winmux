@@ -31,6 +31,7 @@ namespace Microsoft::Terminal::TaskGit
         std::filesystem::path WorktreePath;
         std::filesystem::path MarkerPath;
         std::filesystem::path SnapshotPath;
+        std::filesystem::path CopyStagingPath;
         std::string WorktreePathUtf8;
         std::string BranchRef;
         std::string BranchName;

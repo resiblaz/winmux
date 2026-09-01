@@ -51,6 +51,8 @@ namespace TaskGitLocalTests
         VERIFY_IS_TRUE(first.Layout->WorktreePath == repeated.Layout->WorktreePath);
         VERIFY_IS_TRUE(first.Layout->MarkerPath == repeated.Layout->MarkerPath);
         VERIFY_IS_TRUE(first.Layout->SnapshotPath == repeated.Layout->SnapshotPath);
+        VERIFY_IS_TRUE(
+            first.Layout->CopyStagingPath == repeated.Layout->CopyStagingPath);
         VERIFY_IS_TRUE(std::filesystem::is_directory(
             runtimeRoot / std::wstring{ GitWorktreeRootDirectoryName } /
             std::wstring{ GitWorktreeLayoutVersionDirectoryName }));
@@ -72,6 +74,9 @@ namespace TaskGitLocalTests
         VERIFY_IS_TRUE(first.Layout->SnapshotPath.filename() ==
                        std::filesystem::path{
                            L"11111111-1111-4111-8111-111111111111.source-v1.bin" });
+        VERIFY_IS_TRUE(first.Layout->CopyStagingPath.filename() ==
+                       std::filesystem::path{
+                           L"11111111-1111-4111-8111-111111111111.copy-v1.tmp" });
     }
 
     void GitWorktreeLayoutTests::DistinguishesTaskPathsAndRejectsInvalidRequests()

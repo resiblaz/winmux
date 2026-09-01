@@ -151,11 +151,15 @@ namespace Microsoft::Terminal::TaskGit
                                     (taskName + L".owner-v1.bin");
             const auto snapshotPath = stateRoot.Identity->CanonicalPath() /
                                       (taskName + L".source-v1.bin");
+            const auto copyStagingPath = stateRoot.Identity->CanonicalPath() /
+                                         (taskName + L".copy-v1.tmp");
             if (worktreePath.native().size() >
                     Microsoft::Terminal::TaskExecution::MaximumTaskExecutionPathCharacters ||
                 markerPath.native().size() >
                     Microsoft::Terminal::TaskExecution::MaximumTaskExecutionPathCharacters ||
                 snapshotPath.native().size() >
+                    Microsoft::Terminal::TaskExecution::MaximumTaskExecutionPathCharacters ||
+                copyStagingPath.native().size() >
                     Microsoft::Terminal::TaskExecution::MaximumTaskExecutionPathCharacters)
             {
                 return _failure(
@@ -182,6 +186,7 @@ namespace Microsoft::Terminal::TaskGit
             result.Layout->WorktreePath = worktreePath;
             result.Layout->MarkerPath = markerPath;
             result.Layout->SnapshotPath = snapshotPath;
+            result.Layout->CopyStagingPath = copyStagingPath;
             result.Layout->WorktreePathUtf8 = *worktreeUtf8;
             result.Layout->BranchRef = "refs/heads/wt-task/" + task.Value();
             result.Layout->BranchName = "wt-task/" + task.Value();

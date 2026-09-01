@@ -26,6 +26,7 @@
     <ClCompile Include="GitSourceCaptureTests.cpp" />
     <ClCompile Include="GitSourceStatusTests.cpp" />
     <ClCompile Include="GitWorktreeBaselineTests.cpp" />
+    <ClCompile Include="GitWorktreeCaptureJournalTests.cpp" />
     <ClCompile Include="GitWorktreeFileCopyTests.cpp" />
     <ClCompile Include="GitWorktreeLayoutTests.cpp" />
     <ClCompile Include="GitWorktreeMarkerTests.cpp" />

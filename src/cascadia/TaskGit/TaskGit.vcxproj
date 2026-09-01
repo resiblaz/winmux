@@ -25,6 +25,7 @@
     <ClInclude Include="GitWorktreeBaseline.h" />
     <ClInclude Include="GitWorktreeBaselineInternal.h" />
     <ClInclude Include="GitWorktreeBaselineProof.h" />
+    <ClInclude Include="GitWorktreeCaptureJournal.h" />
     <ClInclude Include="GitWorktreeLayout.h" />
     <ClInclude Include="GitWorktreeFileCopy.h" />
     <ClInclude Include="GitWorktreeFileCopyInternal.h" />
@@ -54,6 +55,7 @@
     <ClCompile Include="GitWorktreeBaselineProof.cpp" />
     <ClCompile Include="GitWorktreeBaselineSupport.cpp" />
     <ClCompile Include="GitWorktreeBaselineValidation.cpp" />
+    <ClCompile Include="GitWorktreeCaptureJournal.cpp" />
     <ClCompile Include="GitWorktreeFileCopy.cpp" />
     <ClCompile Include="GitWorktreeFileCopyFilesystem.cpp" />
     <ClCompile Include="GitWorktreeFileCopyVerification.cpp" />

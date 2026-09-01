@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-09-01
-status: active execution queue; M2 closure and M3A-M3F complete, M3G next
+status: active execution queue; M2 closure and M3A-M3G complete, M3H next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -118,7 +118,7 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
 | M3D (complete) | Read-only faithful source-state capture | clean/staged/unstaged/untracked/ignored, 2,000/200 MiB bounds, symlink/vanish, digest race, source unchanged |
 | M3E (complete) | Worktree provision, replay, verification, baseline and setup recovery | deterministic collisions, every crash phase, hook/sign/identity/lock/copy/persist failure, no fallback |
 | M3F (complete) | Per-TaskRun checkpoint and fake-run integration | preserve Agent commits, add-A, no empty commit, all terminal outcomes, exactly-once recovery, Worktree reuse |
-| M3G | Explicit finalize/cleanup, Delete guard and recovery | exact path/ref proof, empty/produced branch, failure preservation, crash resume, late-event tombstone |
+| M3G (complete) | Explicit finalize/cleanup, Delete guard and recovery | exact path/ref proof, empty/produced branch, failure preservation, crash resume, late-event tombstone |
 | M3H | Cross-process concurrency, soak and milestone gate | Direct FIFO, same-repo Git serialization, different-repo parallelism, abandoned mutex, repeated restart/finalize |
 
 ### 4.1 Frozen M3 decisions
@@ -403,6 +403,47 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
   TaskExecution, TaskGit, protocol, activation, client, and Runtime tests plus
   Runtime/rtask command-line checks. No build cache or user process was
   cleaned, stopped, or restarted.
+
+### 4.8 M3G closure evidence
+
+- TaskCore now persists the explicit `Ready -> Finalizing -> Finalized` path
+  and the recoverable `Finalizing -> Preserved -> Finalizing` path. Each edge
+  is an idempotent CAS/receipt transaction; active TaskRuns and Pending,
+  Inspecting, Committing, or Failed checkpoints block cleanup. A non-Ready
+  managed Worktree also blocks creation of another TaskRun.
+- Finalization revalidates the versioned marker, source journal, normalized
+  common-directory identity, exact managed path, deterministic branch ref,
+  Worktree registration, branch HEAD, and baseline ancestry while holding the
+  repository Mutex. It never uses broad prune, reset, checkout, force removal,
+  force branch deletion, merge, rebase, push, or source-branch mutation.
+- Remaining non-ignored dirty state is preserved with `git add -A`, disabled
+  hooks, `--no-verify`, the accepted identity fallback, and unchanged signing
+  policy. A nonce-bound subject, exact single parent, non-empty tree diff,
+  clean status, and ref equality recover a commit that completed before the
+  next durable phase without duplicating or rewriting Agent commits. Ignored
+  files fail closed because ordinary Git staging cannot prove their delivery.
+- Git removes the exact clean Worktree without `--force` only after the Task
+  branch carries the final commit. A produced branch remains; a branch equal
+  to baseline is deleted only through `update-ref -d <ref> <expected-old>`.
+  Only the three deterministic Runtime sidecar files are removed, individually
+  and marker-last; shared directories and Agent files are never recursively
+  deleted.
+- Recovery covers commit-before-observation, Worktree/branch removal before
+  SQLite publication, partial marker-last sidecar cleanup, and repeated calls
+  after complete removal. Failures before removal persist `Preserved` plus the
+  exact Worktree path. Once the branch is safe and the Worktree is gone,
+  remaining sidecar/store failures leave `Finalizing` and resume without
+  repeating Git removal.
+- Delete remains a separate intent. TaskCore refuses it before Finalized plus
+  cleanup-eligible evidence, deletes aggregate content transactionally after
+  safe finalization, retains the bounded tombstone, and rejects a late
+  finalization command as Tombstoned. Finalization leaves Task status/history
+  unchanged.
+- Focused finalization suites pass with TaskCore 3/3, TaskGit 6/6, and Runtime
+  5/5. The complete Task-only unified incremental Release gate passes with
+  TaskGit 66/66 and TaskRuntime 193/193 plus all TaskCore, TaskExecution,
+  protocol, activation, client, and command-line checks. No cache or user
+  process was cleaned, stopped, or restarted.
 
 ## 5. Verification discipline
 

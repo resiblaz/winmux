@@ -6,6 +6,7 @@
 
 #include "TaskStoreCommandSqlite.h"
 #include "TaskStoreGitCheckpointSqlite.h"
+#include "TaskStoreGitSqlite.h"
 #include "TaskStoreSqlite.h"
 
 namespace Microsoft::Terminal::TaskCore::details
@@ -85,6 +86,20 @@ WHERE id=?1 AND task_id=?2 AND identity_frozen=0;
         if (incompleteCheckpoint)
         {
             error = "A previous TaskRun Git checkpoint requires recovery";
+            return TaskRunReferenceValidation::Invalid;
+        }
+        bool unavailableWorktree{};
+        if (!TaskGitWorktreeBlocksRun(
+                database,
+                run.Task,
+                unavailableWorktree,
+                error))
+        {
+            return TaskRunReferenceValidation::StorageError;
+        }
+        if (unavailableWorktree)
+        {
+            error = "The managed Task Worktree is not ready for another TaskRun";
             return TaskRunReferenceValidation::Invalid;
         }
         const auto executionContext = _referenceBelongsToTask(

@@ -272,6 +272,61 @@ namespace Microsoft::Terminal::TaskCore::details
         return true;
     }
 
+    bool ValidateAdvanceTaskGitWorktreeFinalizationCommand(
+        const AdvanceTaskGitWorktreeFinalizationCommand& command,
+        std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error))
+        {
+            return false;
+        }
+        if (command.Metadata.ExpectedTaskVersion == 0 ||
+            command.ExpectedWorktreeRevision == 0 ||
+            !IsCanonicalUuid(command.Task.Value()) ||
+            !IsCanonicalUuid(command.ExecutionContext.Value()) ||
+            !IsTaskGitWorktreeFinalizationState(command.RequestedState) ||
+            command.RequestedState == TaskGitWorktreeState::Ready ||
+            command.PreservedPath.size() > MaximumTaskPathBytes ||
+            command.FailureReasonCode.size() > MaximumTaskGitReasonCodeBytes)
+        {
+            error = "Task Git Worktree finalization command is invalid";
+            return false;
+        }
+        switch (command.RequestedState)
+        {
+        case TaskGitWorktreeState::Finalizing:
+            if (command.CleanupEligible || !command.PreservedPath.empty() ||
+                !command.FailureReasonCode.empty())
+            {
+                error = "Finalizing Worktree cannot carry completion or failure evidence";
+                return false;
+            }
+            break;
+        case TaskGitWorktreeState::Preserved:
+            if (!command.HasUndeliveredWork || command.CleanupEligible ||
+                command.PreservedPath.empty() ||
+                command.FailureReasonCode.empty())
+            {
+                error = "Preserved Worktree requires undelivered failure evidence";
+                return false;
+            }
+            break;
+        case TaskGitWorktreeState::Finalized:
+            if (command.HasUndeliveredWork || !command.CleanupEligible ||
+                !command.PreservedPath.empty() ||
+                !command.FailureReasonCode.empty())
+            {
+                error = "Finalized Worktree requires complete cleanup evidence";
+                return false;
+            }
+            break;
+        default:
+            error = "Requested Worktree finalization state is unsupported";
+            return false;
+        }
+        return true;
+    }
+
     bool ValidateBeginTaskRunGitCheckpointCommand(
         const BeginTaskRunGitCheckpointCommand& command,
         std::string& error)

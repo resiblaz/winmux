@@ -66,4 +66,41 @@ namespace Microsoft::Terminal::TaskCore
                        current,
                        TransitionError::InvalidTransition);
     }
+
+    bool IsTaskGitWorktreeFinalizationState(
+        const TaskGitWorktreeState state) noexcept
+    {
+        return state == TaskGitWorktreeState::Ready ||
+               state == TaskGitWorktreeState::Finalizing ||
+               state == TaskGitWorktreeState::Preserved ||
+               state == TaskGitWorktreeState::Finalized;
+    }
+
+    StateTransitionDecision<TaskGitWorktreeState>
+    EvaluateTaskGitWorktreeFinalizationTransition(
+        const TaskGitWorktreeState current,
+        const TaskGitWorktreeState requested) noexcept
+    {
+        if (!IsTaskGitWorktreeFinalizationState(current) ||
+            !IsTaskGitWorktreeFinalizationState(requested) ||
+            current == requested || current == TaskGitWorktreeState::Finalized)
+        {
+            return StateTransitionDecision<TaskGitWorktreeState>::Reject(
+                current,
+                TransitionError::InvalidTransition);
+        }
+        const auto allowed =
+            (current == TaskGitWorktreeState::Ready &&
+             requested == TaskGitWorktreeState::Finalizing) ||
+            (current == TaskGitWorktreeState::Finalizing &&
+             (requested == TaskGitWorktreeState::Preserved ||
+              requested == TaskGitWorktreeState::Finalized)) ||
+            (current == TaskGitWorktreeState::Preserved &&
+             requested == TaskGitWorktreeState::Finalizing);
+        return allowed ?
+                   StateTransitionDecision<TaskGitWorktreeState>::Permit(requested) :
+                   StateTransitionDecision<TaskGitWorktreeState>::Reject(
+                       current,
+                       TransitionError::InvalidTransition);
+    }
 }

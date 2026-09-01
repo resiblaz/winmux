@@ -14,4 +14,10 @@ namespace Microsoft::Terminal::TaskCore
     EvaluateTaskGitWorktreeSetupTransition(
         TaskGitWorktreeState current,
         TaskGitWorktreeState requested) noexcept;
+    [[nodiscard]] bool IsTaskGitWorktreeFinalizationState(
+        TaskGitWorktreeState state) noexcept;
+    [[nodiscard]] StateTransitionDecision<TaskGitWorktreeState>
+    EvaluateTaskGitWorktreeFinalizationTransition(
+        TaskGitWorktreeState current,
+        TaskGitWorktreeState requested) noexcept;
 }

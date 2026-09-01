@@ -73,6 +73,19 @@ namespace Microsoft::Terminal::TaskCore
         std::string FailureReasonCode;
     };
 
+    struct AdvanceTaskGitWorktreeFinalizationCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskId Task;
+        ExecutionContextId ExecutionContext;
+        uint64_t ExpectedWorktreeRevision{};
+        TaskGitWorktreeState RequestedState{ TaskGitWorktreeState::Finalizing };
+        bool HasUndeliveredWork{};
+        bool CleanupEligible{};
+        std::string PreservedPath;
+        std::string FailureReasonCode;
+    };
+
     struct BeginTaskRunGitCheckpointCommand
     {
         TaskCommandMetadata Metadata;

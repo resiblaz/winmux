@@ -48,6 +48,7 @@
     <ClCompile Include="RuntimeFoundationRouterTests.cpp" />
     <ClCompile Include="RuntimeGitWorktreeSetupTests.cpp" />
     <ClCompile Include="RuntimeGitWorktreeCheckpointTests.cpp" />
+    <ClCompile Include="RuntimeGitWorktreeFinalizeTests.cpp" />
     <ClCompile Include="RuntimeHelperIdleStateTests.cpp" />
     <ClCompile Include="RuntimeProductHostProcessTests.cpp" />
     <ClCompile Include="RuntimeProductHostIdleProcessTests.cpp" />

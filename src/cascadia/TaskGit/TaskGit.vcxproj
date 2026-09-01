@@ -31,6 +31,8 @@
     <ClInclude Include="GitWorktreeLayout.h" />
     <ClInclude Include="GitWorktreeFileCopy.h" />
     <ClInclude Include="GitWorktreeFileCopyInternal.h" />
+    <ClInclude Include="GitWorktreeFinalize.h" />
+    <ClInclude Include="GitWorktreeFinalizeInternal.h" />
     <ClInclude Include="GitWorktreeMarker.h" />
     <ClInclude Include="GitWorktreeMetadataFile.h" />
     <ClInclude Include="GitWorktreePreflight.h" />
@@ -64,6 +66,9 @@
     <ClCompile Include="GitWorktreeFileCopy.cpp" />
     <ClCompile Include="GitWorktreeFileCopyFilesystem.cpp" />
     <ClCompile Include="GitWorktreeFileCopyVerification.cpp" />
+    <ClCompile Include="GitWorktreeFinalize.cpp" />
+    <ClCompile Include="GitWorktreeFinalizeCheckpoint.cpp" />
+    <ClCompile Include="GitWorktreeFinalizeSupport.cpp" />
     <ClCompile Include="GitWorktreeLayout.cpp" />
     <ClCompile Include="GitWorktreeMarkerCodec.cpp" />
     <ClCompile Include="GitWorktreeMarkerFile.cpp" />

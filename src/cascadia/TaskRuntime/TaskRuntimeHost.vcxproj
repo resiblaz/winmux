@@ -29,6 +29,8 @@
     <ClInclude Include="RuntimeGitWorktreeSetup.h" />
     <ClInclude Include="RuntimeGitWorktreeCheckpoint.h" />
     <ClInclude Include="RuntimeGitWorktreeCheckpointStore.h" />
+    <ClInclude Include="RuntimeGitWorktreeFinalize.h" />
+    <ClInclude Include="RuntimeGitWorktreeFinalizeStore.h" />
     <ClInclude Include="RuntimeGitWorktreeSetupEvidence.h" />
     <ClInclude Include="RuntimeGitWorktreeSetupStore.h" />
     <ClInclude Include="RuntimeHelperIdleState.h" />
@@ -65,6 +67,8 @@
     <ClCompile Include="RuntimeGitWorktreeSetup.cpp" />
     <ClCompile Include="RuntimeGitWorktreeCheckpoint.cpp" />
     <ClCompile Include="RuntimeGitWorktreeCheckpointStore.cpp" />
+    <ClCompile Include="RuntimeGitWorktreeFinalize.cpp" />
+    <ClCompile Include="RuntimeGitWorktreeFinalizeStore.cpp" />
     <ClCompile Include="RuntimeGitWorktreeSetupEvidence.cpp" />
     <ClCompile Include="RuntimeGitWorktreeSetupStore.cpp" />
     <ClCompile Include="RuntimeHelperIdleState.cpp" />

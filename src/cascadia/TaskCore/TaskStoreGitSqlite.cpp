@@ -181,6 +181,61 @@ WHERE task_id=?9 AND execution_context_id=?10 AND revision=?11 AND state=?12;
         return true;
     }
 
+    bool AdvanceTaskGitWorktreeFinalization(
+        sqlite3* database,
+        const AdvanceTaskGitWorktreeFinalizationCommand& command,
+        const TaskGitWorktreeState currentState,
+        const uint64_t committedRevision,
+        std::string& error)
+    {
+        constexpr auto sql = R"SQL(
+UPDATE task_git_worktree
+SET revision=?1, state=?2, has_undelivered_work=?3,
+    cleanup_eligible=?4, preserved_path=?5, failure_reason_code=?6,
+    updated_at=?7
+WHERE task_id=?8 AND execution_context_id=?9 AND revision=?10 AND state=?11;
+)SQL";
+        SqliteStatement statement{ database, sql, error };
+        if (!statement ||
+            !BindInt64(database, statement.Get(), 1, static_cast<int64_t>(committedRevision), error) ||
+            !BindInt64(database, statement.Get(), 2, static_cast<int64_t>(command.RequestedState), error) ||
+            !BindInt64(database, statement.Get(), 3, command.HasUndeliveredWork ? 1 : 0, error) ||
+            !BindInt64(database, statement.Get(), 4, command.CleanupEligible ? 1 : 0, error) ||
+            !BindText(database, statement.Get(), 5, command.PreservedPath, error) ||
+            !BindText(database, statement.Get(), 6, command.FailureReasonCode, error) ||
+            !BindInt64(database, statement.Get(), 7, command.Metadata.TimestampUnixMilliseconds, error) ||
+            !BindText(database, statement.Get(), 8, command.Task.Value(), error) ||
+            !BindText(database, statement.Get(), 9, command.ExecutionContext.Value(), error) ||
+            !BindInt64(database, statement.Get(), 10, static_cast<int64_t>(command.ExpectedWorktreeRevision), error) ||
+            !BindInt64(database, statement.Get(), 11, static_cast<int64_t>(currentState), error) ||
+            !StepDone(database, statement.Get(), error))
+        {
+            return false;
+        }
+        if (sqlite3_changes(database) != 1)
+        {
+            error = "Task Git Worktree changed during finalization transaction";
+            return false;
+        }
+        return true;
+    }
+
+    bool TaskGitWorktreeBlocksRun(
+        sqlite3* database,
+        const TaskId& task,
+        bool& blocked,
+        std::string& error)
+    {
+        SqliteStatement statement{
+            database,
+            "SELECT EXISTS(SELECT 1 FROM task_git_worktree WHERE task_id=?1 AND state<>5);",
+            error
+        };
+        return statement &&
+               BindText(database, statement.Get(), 1, task.Value(), error) &&
+               _readExists(database, statement.Get(), blocked, error);
+    }
+
     bool HasBlockingGitDelivery(
         sqlite3* database,
         const TaskId& task,

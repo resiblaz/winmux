@@ -15,6 +15,7 @@ namespace Microsoft::Terminal::TaskCore::details
     [[nodiscard]] bool ValidateCreateTaskRunCommand(const CreateTaskRunCommand& command, std::string& error);
     [[nodiscard]] bool ValidateInitializeTaskGitWorktreeCommand(const InitializeTaskGitWorktreeCommand& command, std::string& error);
     [[nodiscard]] bool ValidateAdvanceTaskGitWorktreeCommand(const AdvanceTaskGitWorktreeCommand& command, std::string& error);
+    [[nodiscard]] bool ValidateAdvanceTaskGitWorktreeFinalizationCommand(const AdvanceTaskGitWorktreeFinalizationCommand& command, std::string& error);
     [[nodiscard]] bool ValidateBeginTaskRunGitCheckpointCommand(const BeginTaskRunGitCheckpointCommand& command, std::string& error);
     [[nodiscard]] bool ValidateAdvanceTaskRunGitCheckpointCommand(const AdvanceTaskRunGitCheckpointCommand& command, std::string& error);
     [[nodiscard]] bool ValidateRunStateCommand(const ChangeTaskRunStateCommand& command, std::string& error);

@@ -37,6 +37,17 @@ namespace Microsoft::Terminal::TaskCore::details
         TaskGitWorktreeState currentState,
         uint64_t committedRevision,
         std::string& error);
+    [[nodiscard]] bool AdvanceTaskGitWorktreeFinalization(
+        sqlite3* database,
+        const AdvanceTaskGitWorktreeFinalizationCommand& command,
+        TaskGitWorktreeState currentState,
+        uint64_t committedRevision,
+        std::string& error);
+    [[nodiscard]] bool TaskGitWorktreeBlocksRun(
+        sqlite3* database,
+        const TaskId& task,
+        bool& blocked,
+        std::string& error);
     [[nodiscard]] bool HasBlockingGitDelivery(
         sqlite3* database,
         const TaskId& task,

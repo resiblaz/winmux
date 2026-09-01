@@ -261,6 +261,35 @@ namespace TaskCoreLocalTests::TestFixtures
         return command;
     }
 
+    inline AdvanceTaskGitWorktreeFinalizationCommand
+    MakeAdvanceGitWorktreeFinalizationCommand(
+        const CreateTaskCommand& task,
+        const uint64_t commandSeed,
+        const uint64_t expectedTaskVersion,
+        const uint64_t expectedWorktreeRevision,
+        const int64_t timestamp,
+        const TaskGitWorktreeState state,
+        const bool hasUndeliveredWork,
+        const bool cleanupEligible = false,
+        std::string preservedPath = {},
+        std::string reasonCode = {})
+    {
+        AdvanceTaskGitWorktreeFinalizationCommand command;
+        command.Metadata = MakeMetadata(
+            commandSeed,
+            expectedTaskVersion,
+            timestamp);
+        command.Task = task.Task.Id;
+        command.ExecutionContext = task.ExecutionContext.Id;
+        command.ExpectedWorktreeRevision = expectedWorktreeRevision;
+        command.RequestedState = state;
+        command.HasUndeliveredWork = hasUndeliveredWork;
+        command.CleanupEligible = cleanupEligible;
+        command.PreservedPath = std::move(preservedPath);
+        command.FailureReasonCode = std::move(reasonCode);
+        return command;
+    }
+
     inline AdvanceTaskRunGitCheckpointCommand MakeAdvanceGitCheckpointCommand(
         const BeginTaskRunGitCheckpointCommand& begin,
         const uint64_t commandSeed,

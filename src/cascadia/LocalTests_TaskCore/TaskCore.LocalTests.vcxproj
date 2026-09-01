@@ -23,6 +23,7 @@
     <ClCompile Include="TaskCoreAgentMutationTests.cpp" />
     <ClCompile Include="TaskCoreGitStoreTests.cpp" />
     <ClCompile Include="TaskCoreGitCheckpointTests.cpp" />
+    <ClCompile Include="TaskCoreGitFinalizationTests.cpp" />
     <ClCompile Include="TaskCoreGitWorktreeTransitionTests.cpp" />
     <ClCompile Include="TaskCoreIntentPolicyTests.cpp" />
     <ClCompile Include="TaskCoreMessageTests.cpp" />

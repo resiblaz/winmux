@@ -22,6 +22,9 @@
     <ClInclude Include="GitSourceSnapshot.h" />
     <ClInclude Include="GitSourceStatus.h" />
     <ClInclude Include="GitTrackedSource.h" />
+    <ClInclude Include="GitWorktreeBaseline.h" />
+    <ClInclude Include="GitWorktreeBaselineInternal.h" />
+    <ClInclude Include="GitWorktreeBaselineProof.h" />
     <ClInclude Include="GitWorktreeLayout.h" />
     <ClInclude Include="GitWorktreeFileCopy.h" />
     <ClInclude Include="GitWorktreeFileCopyInternal.h" />
@@ -47,6 +50,10 @@
     <ClCompile Include="GitSourceDigest.cpp" />
     <ClCompile Include="GitSourceStatus.cpp" />
     <ClCompile Include="GitTrackedSource.cpp" />
+    <ClCompile Include="GitWorktreeBaseline.cpp" />
+    <ClCompile Include="GitWorktreeBaselineProof.cpp" />
+    <ClCompile Include="GitWorktreeBaselineSupport.cpp" />
+    <ClCompile Include="GitWorktreeBaselineValidation.cpp" />
     <ClCompile Include="GitWorktreeFileCopy.cpp" />
     <ClCompile Include="GitWorktreeFileCopyFilesystem.cpp" />
     <ClCompile Include="GitWorktreeFileCopyVerification.cpp" />

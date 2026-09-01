@@ -6,6 +6,7 @@
 #include "GitSourceCapture.h"
 #include "GitWorktreePreflight.h"
 #include "GitWorktreeProvision.h"
+#include "GitWorktreeReplay.h"
 #include "TaskGitTestSupport.h"
 
 namespace TaskGitLocalTests::TestSupport
@@ -120,6 +121,22 @@ namespace TaskGitLocalTests::TestSupport
             prepared.Journal,
             cancellationEvent ? cancellationEvent : fixture.Cancellation.Get(),
             mode);
+    }
+
+    inline Microsoft::Terminal::TaskGit::GitWorktreeReplayResult
+    ReplayTaskWorktree(
+        const GitFixture& fixture,
+        const PreparedTaskWorktree& prepared,
+        const HANDLE cancellationEvent = nullptr)
+    {
+        Microsoft::Terminal::TaskGit::GitWorktreeReplayer replayer{
+            fixture.GitExecutable
+        };
+        return replayer.Replay(
+            prepared.Layout,
+            prepared.Marker,
+            prepared.Journal,
+            cancellationEvent ? cancellationEvent : fixture.Cancellation.Get());
     }
 
     inline void RecaptureTaskWorktree(

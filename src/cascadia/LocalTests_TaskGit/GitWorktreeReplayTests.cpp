@@ -15,22 +15,6 @@ using namespace TaskGitLocalTests::TestSupport;
 
 namespace TaskGitLocalTests
 {
-    namespace
-    {
-        GitWorktreeReplayResult _replay(
-            const GitFixture& fixture,
-            const PreparedTaskWorktree& prepared,
-            const HANDLE cancellationEvent = nullptr)
-        {
-            GitWorktreeReplayer replayer{ fixture.GitExecutable };
-            return replayer.Replay(
-                prepared.Layout,
-                prepared.Marker,
-                prepared.Journal,
-                cancellationEvent ? cancellationEvent : fixture.Cancellation.Get());
-        }
-    }
-
     class GitWorktreeReplayTests
     {
         TEST_CLASS(GitWorktreeReplayTests);
@@ -77,7 +61,7 @@ namespace TaskGitLocalTests
                            GitWorktreePreflightMode::RequireUnoccupied)
                            .Succeeded());
 
-        const auto replayed = _replay(fixture, prepared);
+        const auto replayed = ReplayTaskWorktree(fixture, prepared);
         VERIFY_IS_TRUE(replayed.Succeeded());
         VERIFY_IS_TRUE(replayed.TrackedApplied);
         VERIFY_ARE_EQUAL(size_t{ 1 }, replayed.FilesCopied);
@@ -108,7 +92,7 @@ namespace TaskGitLocalTests
             });
         VERIFY_IS_TRUE(SameGitSourceState(before, after));
 
-        const auto resumed = _replay(fixture, prepared);
+        const auto resumed = ReplayTaskWorktree(fixture, prepared);
         VERIFY_IS_TRUE(resumed.Succeeded());
         VERIFY_IS_FALSE(resumed.TrackedApplied);
         VERIFY_ARE_EQUAL(size_t{ 0 }, resumed.FilesCopied);
@@ -133,7 +117,7 @@ namespace TaskGitLocalTests
                            .Succeeded());
         GitFixture::Write(prepared.Repository / L"b.txt", "changed\n");
 
-        const auto failed = _replay(fixture, prepared);
+        const auto failed = ReplayTaskWorktree(fixture, prepared);
         VERIFY_IS_TRUE(failed.Status == GitWorktreeReplayStatus::CopyFailed);
         VERIFY_IS_TRUE(
             failed.FileCopyStatus == GitWorktreeFileCopyStatus::SourceChanged);
@@ -147,7 +131,7 @@ namespace TaskGitLocalTests
             prepared.Layout.WorktreePath / L"b.txt"));
 
         GitFixture::Write(prepared.Repository / L"b.txt", "second\n");
-        const auto recovered = _replay(fixture, prepared);
+        const auto recovered = ReplayTaskWorktree(fixture, prepared);
         VERIFY_IS_TRUE(recovered.Succeeded());
         VERIFY_ARE_EQUAL(size_t{ 1 }, recovered.FilesCopied);
         VERIFY_ARE_EQUAL(size_t{ 1 }, recovered.FilesReused);
@@ -170,7 +154,7 @@ namespace TaskGitLocalTests
             prepared.Layout.WorktreePath / L"tracked.txt",
             "unrelated target edit\n");
 
-        const auto result = _replay(fixture, prepared);
+        const auto result = ReplayTaskWorktree(fixture, prepared);
         VERIFY_IS_TRUE(result.Status == GitWorktreeReplayStatus::TargetChanged);
         VERIFY_IS_TRUE(result.Preserved);
         VERIFY_ARE_EQUAL(
@@ -228,7 +212,7 @@ namespace TaskGitLocalTests
             std::string{ "base\n" },
             ReadBinaryFile(prepared.Layout.WorktreePath / L"tracked.txt"));
 
-        const auto recovered = _replay(fixture, prepared);
+        const auto recovered = ReplayTaskWorktree(fixture, prepared);
         VERIFY_IS_TRUE(recovered.Succeeded());
         VERIFY_IS_TRUE(recovered.TrackedApplied);
         VERIFY_ARE_EQUAL(
@@ -253,19 +237,19 @@ namespace TaskGitLocalTests
 
         const auto cancellation = MakeEvent(true);
         VERIFY_IS_TRUE(static_cast<bool>(cancellation));
-        const auto cancelled = _replay(
+        const auto cancelled = ReplayTaskWorktree(
             fixture,
             prepared,
             cancellation.Get());
         VERIFY_IS_TRUE(cancelled.Status == GitWorktreeReplayStatus::Cancelled);
         VERIFY_IS_TRUE(cancelled.Preserved);
 
-        auto result = _replay(fixture, prepared);
+        auto result = ReplayTaskWorktree(fixture, prepared);
         VERIFY_IS_TRUE(result.Succeeded());
         VERIFY_IS_FALSE(result.TrackedApplied);
         VERIFY_ARE_EQUAL(size_t{ 0 }, result.FilesCopied);
         VERIFY_ARE_EQUAL(size_t{ 0 }, result.FilesReused);
-        result = _replay(fixture, prepared);
+        result = ReplayTaskWorktree(fixture, prepared);
         VERIFY_IS_TRUE(result.Succeeded());
         VERIFY_IS_FALSE(result.TrackedApplied);
     }

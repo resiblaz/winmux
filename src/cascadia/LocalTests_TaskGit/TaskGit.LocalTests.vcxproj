@@ -31,6 +31,7 @@
     <ClCompile Include="GitWorktreePreflightParserTests.cpp" />
     <ClCompile Include="GitWorktreePreflightTests.cpp" />
     <ClCompile Include="GitWorktreeProvisionTests.cpp" />
+    <ClCompile Include="GitWorktreeReplayTests.cpp" />
     <ClCompile Include="GitWorktreeSourceJournalTests.cpp" />
   </ItemGroup>
   <ItemGroup>

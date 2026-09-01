@@ -30,6 +30,9 @@
     <ClInclude Include="GitWorktreePreflight.h" />
     <ClInclude Include="GitWorktreePreflightInternal.h" />
     <ClInclude Include="GitWorktreeProvision.h" />
+    <ClInclude Include="GitWorktreeReplay.h" />
+    <ClInclude Include="GitWorktreeReplayInternal.h" />
+    <ClInclude Include="GitWorktreeReplayProof.h" />
     <ClInclude Include="GitWorktreeSourceJournal.h" />
   </ItemGroup>
   <ItemGroup>
@@ -57,6 +60,10 @@
     <ClCompile Include="GitWorktreePreflightPolicy.cpp" />
     <ClCompile Include="GitWorktreePreflightRepository.cpp" />
     <ClCompile Include="GitWorktreeProvision.cpp" />
+    <ClCompile Include="GitWorktreeReplay.cpp" />
+    <ClCompile Include="GitWorktreeReplayProof.cpp" />
+    <ClCompile Include="GitWorktreeReplaySupport.cpp" />
+    <ClCompile Include="GitWorktreeReplayValidation.cpp" />
     <ClCompile Include="GitWorktreeSourceJournalCodec.cpp" />
     <ClCompile Include="GitWorktreeSourceJournalFile.cpp" />
   </ItemGroup>

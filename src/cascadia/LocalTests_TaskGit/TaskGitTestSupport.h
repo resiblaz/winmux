@@ -155,6 +155,16 @@ namespace TaskGitLocalTests::TestSupport
                     L"symbolic-ref",
                     L"HEAD",
                     L"refs/heads/main",
+                }).Succeeded() ||
+                !Run(repository, {
+                    L"config",
+                    L"core.autocrlf",
+                    L"false",
+                }).Succeeded() ||
+                !Run(repository, {
+                    L"config",
+                    L"core.safecrlf",
+                    L"false",
                 }).Succeeded())
             {
                 return false;

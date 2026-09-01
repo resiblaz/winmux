@@ -16,24 +16,6 @@ using namespace TaskGitLocalTests::TestSupport;
 
 namespace TaskGitLocalTests
 {
-    namespace
-    {
-        GitWorktreeProvisionResult _provision(
-            const GitFixture& fixture,
-            const PreparedTaskWorktree& prepared,
-            const GitWorktreePreflightMode mode,
-            const HANDLE cancellationEvent = nullptr)
-        {
-            GitWorktreeProvisioner provisioner{ fixture.GitExecutable };
-            return provisioner.Provision(
-                prepared.Layout,
-                prepared.Marker,
-                prepared.Journal,
-                cancellationEvent ? cancellationEvent : fixture.Cancellation.Get(),
-                mode);
-        }
-    }
-
     class GitWorktreeProvisionTests
     {
         TEST_CLASS(GitWorktreeProvisionTests);
@@ -79,7 +61,7 @@ namespace TaskGitLocalTests
             prepared.Repository,
             { L"tracked.txt" });
 
-        const auto result = _provision(
+        const auto result = ProvisionTaskWorktree(
             fixture,
             prepared,
             GitWorktreePreflightMode::RequireUnoccupied);
@@ -142,7 +124,7 @@ namespace TaskGitLocalTests
                                   })
                            .Succeeded());
 
-        auto result = _provision(
+        auto result = ProvisionTaskWorktree(
             fixture,
             prepared,
             GitWorktreePreflightMode::AllowOwnedRecovery);
@@ -153,7 +135,7 @@ namespace TaskGitLocalTests
         VERIFY_IS_FALSE(result.WorktreeCreated);
         VERIFY_IS_TRUE(result.BranchCreated);
 
-        result = _provision(
+        result = ProvisionTaskWorktree(
             fixture,
             prepared,
             GitWorktreePreflightMode::AllowOwnedRecovery);
@@ -211,7 +193,7 @@ namespace TaskGitLocalTests
             detached.Disposition ==
             GitWorktreePreflightDisposition::ResumeDetached);
 
-        const auto recovered = _provision(
+        const auto recovered = ProvisionTaskWorktree(
             fixture,
             prepared,
             GitWorktreePreflightMode::AllowOwnedRecovery);
@@ -240,7 +222,7 @@ namespace TaskGitLocalTests
                                           collision.Journal.SourceHead),
                                   })
                            .Succeeded());
-        const auto rejected = _provision(
+        const auto rejected = ProvisionTaskWorktree(
             fixture,
             collision,
             GitWorktreePreflightMode::RequireUnoccupied);
@@ -257,7 +239,7 @@ namespace TaskGitLocalTests
             fixture,
             L"cancelled provision",
             TaskId{ "94000000-0000-4000-8000-000000000005" });
-        const auto missingEvidence = _provision(
+        const auto missingEvidence = ProvisionTaskWorktree(
             fixture,
             cancelledTask,
             GitWorktreePreflightMode::RequireUnoccupied);
@@ -269,7 +251,7 @@ namespace TaskGitLocalTests
         PersistTaskWorktreeEvidence(cancelledTask);
         const auto cancellation = MakeEvent(true);
         VERIFY_IS_TRUE(static_cast<bool>(cancellation));
-        const auto cancelled = _provision(
+        const auto cancelled = ProvisionTaskWorktree(
             fixture,
             cancelledTask,
             GitWorktreePreflightMode::RequireUnoccupied,

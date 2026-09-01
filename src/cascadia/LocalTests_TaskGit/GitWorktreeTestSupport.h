@@ -5,6 +5,7 @@
 
 #include "GitSourceCapture.h"
 #include "GitWorktreePreflight.h"
+#include "GitWorktreeProvision.h"
 #include "TaskGitTestSupport.h"
 
 namespace TaskGitLocalTests::TestSupport
@@ -101,6 +102,24 @@ namespace TaskGitLocalTests::TestSupport
                            captured)
                            .Succeeded());
         prepared.Marker = std::move(captured);
+    }
+
+    inline Microsoft::Terminal::TaskGit::GitWorktreeProvisionResult
+    ProvisionTaskWorktree(
+        const GitFixture& fixture,
+        const PreparedTaskWorktree& prepared,
+        const Microsoft::Terminal::TaskGit::GitWorktreePreflightMode mode,
+        const HANDLE cancellationEvent = nullptr)
+    {
+        Microsoft::Terminal::TaskGit::GitWorktreeProvisioner provisioner{
+            fixture.GitExecutable
+        };
+        return provisioner.Provision(
+            prepared.Layout,
+            prepared.Marker,
+            prepared.Journal,
+            cancellationEvent ? cancellationEvent : fixture.Cancellation.Get(),
+            mode);
     }
 
     inline void RecaptureTaskWorktree(

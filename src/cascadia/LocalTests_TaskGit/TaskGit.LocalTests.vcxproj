@@ -13,6 +13,7 @@
   <Import Project="$(SolutionDir)src\common.nugetversions.props" />
   <ItemGroup>
     <ClInclude Include="GitSourceCaptureTestSupport.h" />
+    <ClInclude Include="GitWorktreeTestSupport.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="TaskGitTestSupport.h" />
   </ItemGroup>
@@ -28,6 +29,7 @@
     <ClCompile Include="GitWorktreeMarkerTests.cpp" />
     <ClCompile Include="GitWorktreePreflightParserTests.cpp" />
     <ClCompile Include="GitWorktreePreflightTests.cpp" />
+    <ClCompile Include="GitWorktreeProvisionTests.cpp" />
     <ClCompile Include="GitWorktreeSourceJournalTests.cpp" />
   </ItemGroup>
   <ItemGroup>

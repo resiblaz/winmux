@@ -3,10 +3,8 @@
 
 #include "pch.h"
 
-#include "GitSourceCapture.h"
 #include "GitSourceCommandOutput.h"
-#include "GitWorktreePreflight.h"
-#include "TaskGitTestSupport.h"
+#include "GitWorktreeTestSupport.h"
 
 using namespace WEX::TestExecution;
 using namespace Microsoft::Terminal::TaskCore;
@@ -16,91 +14,6 @@ using namespace TaskGitLocalTests::TestSupport;
 
 namespace TaskGitLocalTests
 {
-    namespace
-    {
-        struct PreparedWorktree
-        {
-            std::filesystem::path Repository;
-            GitWorktreeLayout Layout;
-            GitWorktreeMarker Marker;
-            GitWorktreeSourceJournal Journal;
-        };
-
-        PreparedWorktree _prepare(
-            GitFixture& fixture,
-            const std::wstring_view name,
-            const TaskId& task,
-            const bool sha256 = false)
-        {
-            const auto repository = fixture.Temporary.Path() /
-                                    (std::wstring{ name } + L" repository");
-            const auto runtimeRoot = fixture.Temporary.Path() /
-                                     (std::wstring{ name } + L" runtime");
-            VERIFY_IS_TRUE(fixture.Initialize(repository, sha256));
-            VERIFY_IS_TRUE(std::filesystem::create_directory(runtimeRoot));
-
-            GitSourceCapture capture{ fixture.GitExecutable };
-            const auto snapshot = capture.Capture(
-                repository,
-                fixture.Cancellation.Get());
-            VERIFY_IS_TRUE(snapshot.Succeeded());
-            const auto layout = PrepareGitWorktreeLayout(runtimeRoot, task);
-            VERIFY_IS_TRUE(layout.Succeeded());
-
-            GitWorktreeMarker marker;
-            marker.Task = task;
-            marker.RepositoryIdentityDigest =
-                snapshot.Snapshot->Repository.CommonDirectoryIdentity.Digest();
-            marker.BranchRef = layout.Layout->BranchRef;
-            marker.OwnershipNonce =
-                "99999999-9999-4999-8999-999999999999";
-            marker.WorktreePath = layout.Layout->WorktreePathUtf8;
-            const auto journal = MakeGitWorktreeSourceJournal(
-                *layout.Layout,
-                marker,
-                *snapshot.Snapshot);
-            VERIFY_IS_TRUE(journal.Succeeded());
-            return {
-                repository,
-                *layout.Layout,
-                std::move(marker),
-                *journal.Journal,
-            };
-        }
-
-        GitWorktreePreflightResult _inspect(
-            const GitFixture& fixture,
-            const PreparedWorktree& prepared,
-            const GitWorktreePreflightMode mode,
-            const HANDLE cancellationEvent = nullptr)
-        {
-            GitWorktreePreflightInspector inspector{ fixture.GitExecutable };
-            return inspector.Inspect(
-                prepared.Layout,
-                prepared.Marker,
-                prepared.Journal,
-                cancellationEvent ? cancellationEvent : fixture.Cancellation.Get(),
-                mode);
-        }
-
-        void _recapture(
-            const GitFixture& fixture,
-            PreparedWorktree& prepared)
-        {
-            GitSourceCapture capture{ fixture.GitExecutable };
-            const auto snapshot = capture.Capture(
-                prepared.Repository,
-                fixture.Cancellation.Get());
-            VERIFY_IS_TRUE(snapshot.Succeeded());
-            const auto journal = MakeGitWorktreeSourceJournal(
-                prepared.Layout,
-                prepared.Marker,
-                *snapshot.Snapshot);
-            VERIFY_IS_TRUE(journal.Succeeded());
-            prepared.Journal = *journal.Journal;
-        }
-    }
-
     class GitWorktreePreflightTests
     {
         TEST_CLASS(GitWorktreePreflightTests);
@@ -114,11 +27,11 @@ namespace TaskGitLocalTests
     void GitWorktreePreflightTests::AcceptsUnoccupiedAndExactOwnedRecoveryStates()
     {
         GitFixture fixture;
-        const auto prepared = _prepare(
+        const auto prepared = PrepareTaskWorktree(
             fixture,
             L"recoverable",
             TaskId{ "81000000-0000-4000-8000-000000000001" });
-        auto result = _inspect(
+        auto result = InspectTaskWorktreePreflight(
             fixture,
             prepared,
             GitWorktreePreflightMode::RequireUnoccupied);
@@ -137,7 +50,7 @@ namespace TaskGitLocalTests
                                           prepared.Journal.SourceHead),
                                   })
                            .Succeeded());
-        result = _inspect(
+        result = InspectTaskWorktreePreflight(
             fixture,
             prepared,
             GitWorktreePreflightMode::AllowOwnedRecovery);
@@ -147,7 +60,7 @@ namespace TaskGitLocalTests
             GitWorktreePreflightDisposition::ResumeDetached);
         VERIFY_IS_TRUE(result.ExistingRegistration.has_value());
 
-        const auto occupied = _inspect(
+        const auto occupied = InspectTaskWorktreePreflight(
             fixture,
             prepared,
             GitWorktreePreflightMode::RequireUnoccupied);
@@ -163,7 +76,7 @@ namespace TaskGitLocalTests
                                           prepared.Layout.BranchName),
                                   })
                            .Succeeded());
-        result = _inspect(
+        result = InspectTaskWorktreePreflight(
             fixture,
             prepared,
             GitWorktreePreflightMode::AllowOwnedRecovery);
@@ -172,12 +85,12 @@ namespace TaskGitLocalTests
             result.Disposition ==
             GitWorktreePreflightDisposition::ResumeBranch);
 
-        const auto sha256 = _prepare(
+        const auto sha256 = PrepareTaskWorktree(
             fixture,
             L"sha256 available",
             TaskId{ "81000000-0000-4000-8000-000000000006" },
             true);
-        result = _inspect(
+        result = InspectTaskWorktreePreflight(
             fixture,
             sha256,
             GitWorktreePreflightMode::RequireUnoccupied);
@@ -189,7 +102,7 @@ namespace TaskGitLocalTests
     void GitWorktreePreflightTests::RejectsDeterministicBranchAndPathCollisions()
     {
         GitFixture fixture;
-        const auto branch = _prepare(
+        const auto branch = PrepareTaskWorktree(
             fixture,
             L"branch collision",
             TaskId{ "82000000-0000-4000-8000-000000000002" });
@@ -204,26 +117,26 @@ namespace TaskGitLocalTests
                                   })
                            .Succeeded());
         VERIFY_IS_TRUE(
-            _inspect(
+            InspectTaskWorktreePreflight(
                 fixture,
                 branch,
                 GitWorktreePreflightMode::AllowOwnedRecovery)
                 .Status == GitWorktreePreflightStatus::BranchCollision);
 
-        const auto path = _prepare(
+        const auto path = PrepareTaskWorktree(
             fixture,
             L"path collision",
             TaskId{ "82000000-0000-4000-8000-000000000003" });
         VERIFY_IS_TRUE(std::filesystem::create_directory(
             path.Layout.WorktreePath));
         VERIFY_IS_TRUE(
-            _inspect(
+            InspectTaskWorktreePreflight(
                 fixture,
                 path,
                 GitWorktreePreflightMode::AllowOwnedRecovery)
                 .Status == GitWorktreePreflightStatus::PathCollision);
 
-        const auto unsafe = _prepare(
+        const auto unsafe = PrepareTaskWorktree(
             fixture,
             L"unsafe path",
             TaskId{ "82000000-0000-4000-8000-000000000007" });
@@ -242,7 +155,7 @@ namespace TaskGitLocalTests
         else
         {
             VERIFY_IS_TRUE(
-                _inspect(
+                InspectTaskWorktreePreflight(
                     fixture,
                     unsafe,
                     GitWorktreePreflightMode::AllowOwnedRecovery)
@@ -253,7 +166,7 @@ namespace TaskGitLocalTests
     void GitWorktreePreflightTests::RejectsSparseSubmoduleFilterAndPromisorRepositories()
     {
         GitFixture fixture;
-        auto prepared = _prepare(
+        auto prepared = PrepareTaskWorktree(
             fixture,
             L"unsupported",
             TaskId{ "83000000-0000-4000-8000-000000000004" });
@@ -263,7 +176,7 @@ namespace TaskGitLocalTests
                                   { L"config", L"core.sparseCheckout", L"true" })
                            .Succeeded());
         VERIFY_IS_TRUE(
-            _inspect(
+            InspectTaskWorktreePreflight(
                 fixture,
                 prepared,
                 GitWorktreePreflightMode::RequireUnoccupied)
@@ -279,7 +192,7 @@ namespace TaskGitLocalTests
                                   { L"config", L"remote.origin.promisor", L"true" })
                            .Succeeded());
         VERIFY_IS_TRUE(
-            _inspect(
+            InspectTaskWorktreePreflight(
                 fixture,
                 prepared,
                 GitWorktreePreflightMode::RequireUnoccupied)
@@ -313,7 +226,7 @@ namespace TaskGitLocalTests
         const auto capturedJournal = prepared.Journal;
         prepared.Journal.IndexTree = *submoduleTree;
         VERIFY_IS_TRUE(
-            _inspect(
+            InspectTaskWorktreePreflight(
                 fixture,
                 prepared,
                 GitWorktreePreflightMode::RequireUnoccupied)
@@ -365,9 +278,9 @@ namespace TaskGitLocalTests
                                   prepared.Repository,
                                   { L"config", L"filter.tasktest.required", L"true" })
                            .Succeeded());
-        _recapture(fixture, prepared);
+        RecaptureTaskWorktree(fixture, prepared);
         VERIFY_IS_TRUE(
-            _inspect(
+            InspectTaskWorktreePreflight(
                 fixture,
                 prepared,
                 GitWorktreePreflightMode::RequireUnoccupied)
@@ -377,7 +290,7 @@ namespace TaskGitLocalTests
     void GitWorktreePreflightTests::RejectsMissingObjectsChangedSourceAndCancellation()
     {
         GitFixture fixture;
-        auto prepared = _prepare(
+        auto prepared = PrepareTaskWorktree(
             fixture,
             L"failure evidence",
             TaskId{ "84000000-0000-4000-8000-000000000005" });
@@ -385,7 +298,7 @@ namespace TaskGitLocalTests
         auto missing = prepared;
         missing.Journal.TrackedSnapshotCommit.assign(40, 'f');
         VERIFY_IS_TRUE(
-            _inspect(
+            InspectTaskWorktreePreflight(
                 fixture,
                 missing,
                 GitWorktreePreflightMode::RequireUnoccupied)
@@ -414,7 +327,7 @@ namespace TaskGitLocalTests
                                   })
                            .Succeeded());
         VERIFY_IS_TRUE(
-            _inspect(
+            InspectTaskWorktreePreflight(
                 fixture,
                 prepared,
                 GitWorktreePreflightMode::RequireUnoccupied)
@@ -423,7 +336,7 @@ namespace TaskGitLocalTests
         const auto cancelled = MakeEvent(true);
         VERIFY_IS_TRUE(static_cast<bool>(cancelled));
         VERIFY_IS_TRUE(
-            _inspect(
+            InspectTaskWorktreePreflight(
                 fixture,
                 prepared,
                 GitWorktreePreflightMode::RequireUnoccupied,

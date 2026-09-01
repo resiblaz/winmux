@@ -27,6 +27,7 @@
     <ClInclude Include="GitWorktreeMetadataFile.h" />
     <ClInclude Include="GitWorktreePreflight.h" />
     <ClInclude Include="GitWorktreePreflightInternal.h" />
+    <ClInclude Include="GitWorktreeProvision.h" />
     <ClInclude Include="GitWorktreeSourceJournal.h" />
   </ItemGroup>
   <ItemGroup>
@@ -50,6 +51,7 @@
     <ClCompile Include="GitWorktreePreflightParsers.cpp" />
     <ClCompile Include="GitWorktreePreflightPolicy.cpp" />
     <ClCompile Include="GitWorktreePreflightRepository.cpp" />
+    <ClCompile Include="GitWorktreeProvision.cpp" />
     <ClCompile Include="GitWorktreeSourceJournalCodec.cpp" />
     <ClCompile Include="GitWorktreeSourceJournalFile.cpp" />
   </ItemGroup>

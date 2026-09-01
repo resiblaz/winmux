@@ -4,6 +4,7 @@
 #include "pch.h"
 
 #include "CodexAppServerAdapter.h"
+#include "CodexAppServerTransport.h"
 #include "FakeCodexAppServerTransport.h"
 
 using namespace WEX::TestExecution;
@@ -40,6 +41,7 @@ namespace TaskProviderLocalTests
         TEST_METHOD(InitializesStartsResumesAndRunsWithScopedContext);
         TEST_METHOD(TranslatesEventsAndCorrelatesApprovalResponse);
         TEST_METHOD(PropagatesMethodErrorsAndTransportFailure);
+        TEST_METHOD(YoloPrecedesAppServerSubcommandInProcessCommandLine);
         TEST_METHOD(OptInInstalledCodexInitializeSmoke);
     };
 
@@ -130,6 +132,15 @@ namespace TaskProviderLocalTests
         event = adapter.NextEvent(1, nullptr);
         VERIFY_IS_TRUE(event.Succeeded());
         VERIFY_IS_TRUE(event.NoEvent);
+    }
+
+    void CodexAppServerAdapterTests::YoloPrecedesAppServerSubcommandInProcessCommandLine()
+    {
+        const auto commandLine = BuildCodexAppServerCommandLine(
+            LR"(C:\Program Files\Codex\codex.exe)");
+        VERIFY_ARE_EQUAL(
+            std::wstring{ LR"("C:\Program Files\Codex\codex.exe" --yolo app-server --listen stdio://)" },
+            commandLine);
     }
 
     void CodexAppServerAdapterTests::PropagatesMethodErrorsAndTransportFailure()

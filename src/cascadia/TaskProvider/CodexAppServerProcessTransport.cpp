@@ -199,8 +199,7 @@ namespace Microsoft::Terminal::TaskProvider
                     {
                         return _failure(TaskProviderStatus::ResourceFailure, "Codex App Server environment could not initialize");
                     }
-                    auto commandLine = _quote(_executable.native()) +
-                                       L" app-server --listen stdio://";
+                    auto commandLine = BuildCodexAppServerCommandLine(_executable);
                     PROCESS_INFORMATION processInfo{};
                     if (!CreateProcessW(
                             _executable.c_str(), commandLine.data(), nullptr, nullptr,
@@ -495,6 +494,16 @@ namespace Microsoft::Terminal::TaskProvider
             std::thread _stdoutThread;
             std::thread _stderrThread;
         };
+    }
+
+    std::wstring BuildCodexAppServerCommandLine(
+        const std::filesystem::path& executable)
+    {
+        // --yolo is a top-level Codex option, so it must precede the
+        // app-server subcommand. It applies to every Task sharing this Runtime
+        // provider and intentionally bypasses approvals and sandboxing.
+        return _quote(executable.native()) +
+               L" --yolo app-server --listen stdio://";
     }
 
     CodexAppServerTransportFactory MakeCodexAppServerProcessTransportFactory(

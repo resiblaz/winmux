@@ -47,6 +47,9 @@ namespace Microsoft::Terminal::TaskProvider
     using CodexAppServerTransportFactory = std::function<
         std::unique_ptr<ICodexAppServerTransport>()>;
 
+    [[nodiscard]] std::wstring BuildCodexAppServerCommandLine(
+        const std::filesystem::path& executable);
+
     [[nodiscard]] CodexAppServerTransportFactory
     MakeCodexAppServerProcessTransportFactory(
         std::filesystem::path executable);

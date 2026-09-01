@@ -27,6 +27,11 @@ The Runtime is a current-user helper started on demand. It is not a Windows
 service and does not require elevation. `TaskRuntime.exe` and `rtask.exe` must
 remain beside `WindowsTerminal.exe` in registered and portable distributions.
 
+This fork currently launches its shared Codex App Server with `--yolo`. Every
+Task therefore bypasses Codex approval prompts and sandboxing. Use Tasks only
+with repositories and instructions you trust; this setting applies globally to
+all Tasks owned by the Runtime.
+
 ## Follow-ups, retries, and completion
 
 - Messages entered on the Tasks page are durable. A message joins a run that

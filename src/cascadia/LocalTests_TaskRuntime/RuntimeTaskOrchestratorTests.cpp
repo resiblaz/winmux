@@ -141,6 +141,7 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(FollowupPromptPreservesCanonicalMessageOrder);
         TEST_METHOD(DirectQueuedRunExecutesToCompletionAndReleasesRuntimeResources);
         TEST_METHOD(StopIntentCancelsPendingRunAndRetainsManualHold);
+        TEST_METHOD(IdleTerminalWithoutProviderSessionSuspends);
     };
 
     void RuntimeTaskOrchestratorTests::RetryPolicyIsAllowlistedBoundedAndBackedOff()
@@ -289,5 +290,56 @@ namespace TaskRuntimeLocalTests
         terminals->Stop();
         const auto aggregate = store->LoadTask(task.Task.Id);
         VERIFY_IS_TRUE(aggregate->Task.ManualHold);
+    }
+
+    void RuntimeTaskOrchestratorTests::IdleTerminalWithoutProviderSessionSuspends()
+    {
+        TemporaryDatabasePath database;
+        UniqueRuntimeRoot runtimeRoot;
+        std::filesystem::create_directory(runtimeRoot.Path());
+        const auto store = std::make_shared<SqliteTaskStore>(database.Path());
+        const auto task = MakeCreateTaskCommand();
+        VERIFY_IS_TRUE(store->CreateTask(task).Succeeded());
+        VERIFY_IS_TRUE(store->ChangeTaskTerminalState(
+                                MakeTerminalStateCommand(
+                                    task, 2, 1, 1100,
+                                    TaskTerminalState::Starting, 1, true))
+                           .Succeeded());
+        VERIFY_IS_TRUE(store->ChangeTaskTerminalState(
+                                MakeTerminalStateCommand(
+                                    task, 3, 2, 1200,
+                                    TaskTerminalState::Ready, 1))
+                           .Succeeded());
+
+        const auto identity = RequireIdentity(runtimeRoot.Path());
+        auto terminals = std::make_shared<RuntimeTaskTerminalService>(
+            identity,
+            "b3000000-0000-4000-8000-000000000003",
+            [](auto&&, auto&&) { return RuntimeTerminalBackendResult{ RuntimeTerminalBackendStatus::Succeeded, {} }; },
+            [](auto&&) { return RuntimeTerminalBackendResult{ RuntimeTerminalBackendStatus::Succeeded, {} }; });
+        auto sink = std::make_shared<RuntimeTaskProviderSink>(store, terminals);
+        auto provider = std::make_shared<RuntimeTaskProviderService>(
+            [] { return std::make_unique<CompletingProviderAdapter>(); }, sink);
+        auto tokens = std::make_shared<FakeRuntimeRtaskCapabilityTokenSource>();
+        auto registry = std::make_shared<RuntimeRtaskCapabilityRegistry>(
+            RuntimeRtaskCapabilityRegistryConfiguration{}, tokens);
+        auto rtask = std::make_shared<RuntimeRtaskCommandService>(store, registry);
+        RuntimeTaskOrchestratorConfiguration configuration;
+        configuration.ActivePollMilliseconds = 50;
+        configuration.IdlePollMilliseconds = 100;
+        configuration.TerminalIdleMilliseconds = 1000;
+        RuntimeTaskOrchestrator orchestrator{
+            store, provider, rtask, terminals, runtimeRoot.Path(), {},
+            LR"(C:\test\rtask.exe)", R"(\\.\pipe\orchestrator-idle-test)", configuration
+        };
+        VERIFY_IS_TRUE(orchestrator.Start());
+        orchestrator.Notify();
+        VERIFY_IS_TRUE(_waitUntil([&] {
+            const auto aggregate = store->LoadTask(task.Task.Id);
+            return aggregate && aggregate->Terminal.State == TaskTerminalState::Suspended;
+        }, 5000));
+        orchestrator.Stop();
+        provider->Stop();
+        terminals->Stop();
     }
 }

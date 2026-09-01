@@ -15,6 +15,10 @@ is quiescent; the reconnecting client then activates the matching packaged
 Runtime. An older helper without drain support remains usable for its negotiated
 capabilities and exits through the existing idle grace.
 
+Protocol 1.2 retains the 1.1 wire shapes and marks the Runtime generation that
+starts the shared Codex App Server with `--yolo`. This lets the existing drain
+path replace a still-running 1.1 helper without interrupting durable work.
+
 ## Data migration
 
 M6-M8 require no destructive database migration. Existing schema-v1 Task,
@@ -31,6 +35,9 @@ not delete `workspace-tasks.db` or managed Worktrees as a rollback mechanism.
 
 ## Security and privacy review
 
+- this fork intentionally launches the shared Codex App Server with `--yolo`;
+  all Task turns bypass Codex approvals and sandboxing, so Tasks must be used
+  only with trusted repositories and instructions;
 - control and terminal named pipes retain current-user ACLs and exact Runtime,
   session, generation, sequence, and payload validation;
 - one expiring input lease prevents two windows from controlling a Task

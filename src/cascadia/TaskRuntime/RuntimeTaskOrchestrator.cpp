@@ -490,7 +490,8 @@ namespace Microsoft::Terminal::TaskRuntime
         if (inserted || now < found->second)
             return;
         const auto suspended = Provider->SuspendTask(taskId, StopEvent.get());
-        if (suspended.Succeeded())
+        if (suspended.Succeeded() ||
+            suspended.Status == Microsoft::Terminal::TaskProvider::TaskProviderStatus::NotFound)
         {
             static_cast<void>(Terminals->Close(taskId, aggregate.Terminal.Generation, false));
             static_cast<void>(TransitionTerminal(aggregate.Task.Id, TaskTerminalState::Suspended, aggregate.Terminal.Generation));

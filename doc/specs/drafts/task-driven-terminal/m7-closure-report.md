@@ -45,13 +45,15 @@ locks, or infer completion from terminal/process state.
 
 ## Verification
 
-- Orchestrator policy/end-to-end tests: 4/4 passed for ordered follow-ups,
+- Orchestrator policy/end-to-end tests: 5/5 passed for ordered follow-ups,
   retry limits/backoff, a Direct Queued-to-Completed Run, resource release, and
-  Stop intent during directory wait.
+  Stop intent during directory wait. A Ready terminal whose Provider session
+  is already absent also suspends instead of indefinitely blocking Runtime
+  drain.
 - Runtime projection tests: 6/6 passed for durable messages, revision/removal,
   manual Retry, derived Task, terminal ownership, and lifecycle commands.
 - TerminalApp tests passed for Task page mapping/actions and exact Summary
-  exclusion; the full Runtime suite passed 215/215 after updating the legacy
+  exclusion; the full Runtime suite passed 216/216 after updating the legacy
   idle fixture to model an unmanaged active phase instead of an M7-consumable
   Queued Run.
 - The final unified incremental Release/MSIX gate passed on 2026-09-01.

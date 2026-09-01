@@ -36,7 +36,7 @@ foundational contracts required to avoid disposable data/process designs.
   Worktree runs, folds/defer messages, retries allowlisted failures, processes
   lifecycle intents, suspends idle terminal sessions, and excludes Task Codex
   sessions from Summary.
-- M8 is complete: protocol 1.1 drain/update behavior, MSIX/portable payload
+- M8 is complete: protocol 1.2 drain/update behavior, MSIX/portable payload
   validation, prototype updates, user documentation, migration/rollback,
   security/privacy, storage, and upstream-sync reviews are recorded.
 - Closure evidence is in the M2 through M8 closure reports in this directory.

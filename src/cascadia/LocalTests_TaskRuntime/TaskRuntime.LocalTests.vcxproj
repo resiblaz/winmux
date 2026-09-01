@@ -45,6 +45,7 @@
     <ClCompile Include="RuntimeControlSubscriptionRecoveryTests.cpp" />
     <ClCompile Include="RuntimeCryptoTests.cpp" />
     <ClCompile Include="RuntimeFoundationRouterTests.cpp" />
+    <ClCompile Include="RuntimeGitWorktreeSetupTests.cpp" />
     <ClCompile Include="RuntimeHelperIdleStateTests.cpp" />
     <ClCompile Include="RuntimeProductHostProcessTests.cpp" />
     <ClCompile Include="RuntimeProductHostIdleProcessTests.cpp" />
@@ -95,7 +96,7 @@
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\Rtask;$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\cascadia\LocalTests_TaskCore;$(SolutionDir)src\cascadia\TaskRuntimeActivation;$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\Rtask;$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\cascadia\LocalTests_TaskCore;$(SolutionDir)src\cascadia\TaskGit;$(SolutionDir)src\cascadia\LocalTests_TaskGit;$(SolutionDir)src\cascadia\TaskExecution;$(SolutionDir)src\cascadia\TaskRuntimeActivation;$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>

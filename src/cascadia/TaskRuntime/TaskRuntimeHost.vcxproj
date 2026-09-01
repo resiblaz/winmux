@@ -26,6 +26,9 @@
     <ClInclude Include="RuntimeControlSubscriptions.h" />
     <ClInclude Include="RuntimeControlThreadContext.h" />
     <ClInclude Include="RuntimeFoundationRouter.h" />
+    <ClInclude Include="RuntimeGitWorktreeSetup.h" />
+    <ClInclude Include="RuntimeGitWorktreeSetupEvidence.h" />
+    <ClInclude Include="RuntimeGitWorktreeSetupStore.h" />
     <ClInclude Include="RuntimeHelperIdleState.h" />
     <ClInclude Include="RuntimeProductHost.h" />
     <ClInclude Include="RuntimeProductHostInternal.h" />
@@ -57,6 +60,9 @@
     <ClCompile Include="RuntimeControlSubscriptions.cpp" />
     <ClCompile Include="RuntimeControlThreadContext.cpp" />
     <ClCompile Include="RuntimeFoundationRouter.cpp" />
+    <ClCompile Include="RuntimeGitWorktreeSetup.cpp" />
+    <ClCompile Include="RuntimeGitWorktreeSetupEvidence.cpp" />
+    <ClCompile Include="RuntimeGitWorktreeSetupStore.cpp" />
     <ClCompile Include="RuntimeHelperIdleState.cpp" />
     <ClCompile Include="RuntimeProductHost.cpp" />
     <ClCompile Include="RuntimeProductHostIdle.cpp" />

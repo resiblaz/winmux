@@ -7,6 +7,7 @@
 #include "RuntimeCrypto.h"
 
 #include "RtaskCommandJson.h"
+#include "TaskProjectionRpc.h"
 
 #include <json/json.h>
 
@@ -128,13 +129,84 @@ namespace Microsoft::Terminal::TaskRuntime
             result.ResultJson = std::move(encoded.Payload);
             return result;
         }
+
+        ProtocolRpcErrorCode _taskRpcCode(const RuntimeTaskProjectionStatus status) noexcept
+        {
+            switch (status)
+            {
+            case RuntimeTaskProjectionStatus::InvalidRequest: return ProtocolRpcErrorCode::InvalidRequest;
+            case RuntimeTaskProjectionStatus::NotFound: return ProtocolRpcErrorCode::NotFound;
+            case RuntimeTaskProjectionStatus::Conflict: return ProtocolRpcErrorCode::Conflict;
+            case RuntimeTaskProjectionStatus::StoreUnavailable: return ProtocolRpcErrorCode::RuntimeUnavailable;
+            default: return ProtocolRpcErrorCode::InternalError;
+            }
+        }
+
+        RuntimeControlRouteResult _routeTaskQuery(
+            RuntimeTaskProjectionService& service,
+            const RuntimeControlClientContext& client,
+            const ControlRequest& request,
+            const RuntimeControlCancellationToken& cancellation)
+        {
+            if (client.ClientKind == ProtocolClientKind::TaskCtl)
+            {
+                return _error(ProtocolRpcErrorCode::CapabilityRequired, "TaskCtl cannot query UI Task projections");
+            }
+            if (cancellation.IsCancellationRequested())
+            {
+                return _error(ProtocolRpcErrorCode::RuntimeUnavailable, "Task projection query was cancelled");
+            }
+            const auto decoded = DecodeTaskProjectionQueryRequest(request.PayloadJson);
+            if (!decoded.Succeeded()) return _error(ProtocolRpcErrorCode::InvalidRequest, "Task projection query is invalid");
+            const auto queried = service.Query(decoded.Value);
+            if (!queried.Succeeded()) return _error(_taskRpcCode(queried.Status), queried.Error);
+            auto projection = queried.Projection;
+            auto encoded = EncodeTaskProjectionQueryResult(projection);
+            while (!encoded.Succeeded && !decoded.Value.TaskId && projection.Tasks.size() > 1)
+            {
+                projection.Tasks.resize((projection.Tasks.size() + 1) / 2);
+                encoded = EncodeTaskProjectionQueryResult(projection);
+            }
+            if (!encoded.Succeeded) return _error(ProtocolRpcErrorCode::InternalError, "Task projection could not be encoded");
+            RuntimeControlRouteResult result;
+            result.Succeeded = true;
+            result.ResultJson = encoded.Payload;
+            return result;
+        }
+
+        RuntimeControlRouteResult _routeTaskCommand(
+            RuntimeTaskProjectionService& service,
+            const RuntimeControlClientContext& client,
+            const ControlRequest& request,
+            const RuntimeControlCancellationToken& cancellation)
+        {
+            if (client.ClientKind == ProtocolClientKind::TaskCtl)
+            {
+                return _error(ProtocolRpcErrorCode::CapabilityRequired, "TaskCtl cannot issue UI Task commands");
+            }
+            const auto decoded = DecodeTaskUiCommandRequest(request.PayloadJson);
+            if (!decoded.Succeeded()) return _error(ProtocolRpcErrorCode::InvalidRequest, "Task UI command is invalid");
+            if (cancellation.IsCancellationRequested()) return _error(ProtocolRpcErrorCode::RuntimeUnavailable, "Task UI command was cancelled");
+            const auto executed = service.Execute(decoded.Value, nullptr);
+            if (!executed.Succeeded()) return _error(_taskRpcCode(executed.Status), executed.Error);
+            const auto encoded = EncodeTaskUiCommandResult(executed.Result);
+            if (!encoded.Succeeded) return _error(ProtocolRpcErrorCode::InternalError, "Task command result could not be encoded");
+            RuntimeControlRouteResult result;
+            result.Succeeded = true;
+            result.ResultJson = encoded.Payload;
+            return result;
+        }
     }
 
     RuntimeProductRouter::RuntimeProductRouter(
         std::shared_ptr<RuntimeFoundationRouter> foundation,
-        std::shared_ptr<RuntimeRtaskCommandService> rtask) noexcept :
+        std::shared_ptr<RuntimeRtaskCommandService> rtask,
+        std::shared_ptr<RuntimeTaskProviderService> provider,
+        std::shared_ptr<RuntimeTaskProjectionService> tasks) noexcept :
         _foundation{ std::move(foundation) },
-        _rtask{ std::move(rtask) }
+        _rtask{ std::move(rtask) },
+        _provider{ std::move(provider) },
+        _tasks{ std::move(tasks) }
     {
         _valid = _foundation && _foundation->Valid() && _rtask && _rtask->Valid();
     }
@@ -159,7 +231,21 @@ namespace Microsoft::Terminal::TaskRuntime
             }
             if (request.Method == ControlMethod::SubmitCommand)
             {
-                return _routeRtask(*_rtask, client, request, cancellation);
+                if (client.ClientKind == ProtocolClientKind::TaskCtl)
+                {
+                    return _routeRtask(*_rtask, client, request, cancellation);
+                }
+                if (DecodeRtaskCommandRequest(request.PayloadJson).Succeeded())
+                {
+                    return _error(ProtocolRpcErrorCode::CapabilityRequired, "Agent-scoped rtask commands require TaskCtl");
+                }
+                return _tasks ? _routeTaskCommand(*_tasks, client, request, cancellation) :
+                                _error(ProtocolRpcErrorCode::RuntimeUnavailable, "Runtime Task command service is unavailable");
+            }
+            if (request.Method == ControlMethod::QueryTask)
+            {
+                return _tasks ? _routeTaskQuery(*_tasks, client, request, cancellation) :
+                                _error(ProtocolRpcErrorCode::RuntimeUnavailable, "Runtime Task projection service is unavailable");
             }
             return _foundation->Route(client, request, cancellation);
         }
@@ -174,5 +260,15 @@ namespace Microsoft::Terminal::TaskRuntime
     std::shared_ptr<RuntimeRtaskCommandService> RuntimeProductRouter::Rtask() const noexcept
     {
         return _rtask;
+    }
+
+    std::shared_ptr<RuntimeTaskProviderService> RuntimeProductRouter::Provider() const noexcept
+    {
+        return _provider;
+    }
+
+    std::shared_ptr<RuntimeTaskProjectionService> RuntimeProductRouter::Tasks() const noexcept
+    {
+        return _tasks;
     }
 }

@@ -64,6 +64,7 @@
     <ClCompile Include="SqliteTaskStoreGitCheckpoints.cpp" />
     <ClCompile Include="SqliteTaskStoreGitFinalization.cpp" />
     <ClCompile Include="SqliteTaskStoreRuns.cpp" />
+    <ClCompile Include="SqliteTaskStoreProvider.cpp" />
     <ClCompile Include="SqliteTaskStoreTasks.cpp" />
     <ClCompile Include="SqliteTaskStoreTerminals.cpp" />
     <ClCompile Include="TaskRecordValidation.cpp" />

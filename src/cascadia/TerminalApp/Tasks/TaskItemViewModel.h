@@ -32,6 +32,8 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring AutomationName() const;
         bool HasActiveRun() const noexcept;
         bool HasResult() const noexcept;
+        bool HasQueuedMessages() const noexcept;
+        bool HasRunDetails() const noexcept;
         bool CanStart() const noexcept;
         bool CanStop() const noexcept;
         bool CanOpenTerminal() const noexcept;
@@ -40,6 +42,9 @@ namespace winrt::TerminalApp::implementation
         bool CanReopen() const noexcept;
         Windows::Foundation::Collections::IObservableVector<winrt::hstring> AcceptanceItems() const noexcept;
         Windows::Foundation::Collections::IObservableVector<winrt::hstring> RunItems() const noexcept;
+        Windows::Foundation::Collections::IObservableVector<winrt::hstring> QueuedMessageItems() const noexcept;
+        Windows::Foundation::Collections::IObservableVector<winrt::hstring> RunDetailItems() const noexcept;
+        uint64_t Version() const noexcept;
 
         tasks::TaskStatus NativeStatus() const noexcept;
 
@@ -47,6 +52,8 @@ namespace winrt::TerminalApp::implementation
         tasks::TaskProjection _projection;
         Windows::Foundation::Collections::IObservableVector<winrt::hstring> _acceptanceItems;
         Windows::Foundation::Collections::IObservableVector<winrt::hstring> _runItems;
+        Windows::Foundation::Collections::IObservableVector<winrt::hstring> _queuedMessageItems;
+        Windows::Foundation::Collections::IObservableVector<winrt::hstring> _runDetailItems;
 
         void _BuildCollections();
     };

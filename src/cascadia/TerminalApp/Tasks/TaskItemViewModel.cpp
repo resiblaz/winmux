@@ -12,7 +12,9 @@ namespace winrt::TerminalApp::implementation
 {
     TaskItemViewModel::TaskItemViewModel() :
         _acceptanceItems{ winrt::single_threaded_observable_vector<winrt::hstring>() },
-        _runItems{ winrt::single_threaded_observable_vector<winrt::hstring>() }
+        _runItems{ winrt::single_threaded_observable_vector<winrt::hstring>() },
+        _queuedMessageItems{ winrt::single_threaded_observable_vector<winrt::hstring>() },
+        _runDetailItems{ winrt::single_threaded_observable_vector<winrt::hstring>() }
     {
     }
 
@@ -127,6 +129,8 @@ namespace winrt::TerminalApp::implementation
             return RS_(L"TaskPage_TerminalReady");
         case tasks::TaskTerminalState::Busy:
             return RS_(L"TaskPage_TerminalBusy");
+        case tasks::TaskTerminalState::Exited:
+            return RS_(L"TaskPage_TerminalExited");
         case tasks::TaskTerminalState::Suspended:
             return RS_(L"TaskPage_TerminalSuspended");
         case tasks::TaskTerminalState::Closed:
@@ -177,6 +181,16 @@ namespace winrt::TerminalApp::implementation
         return !_projection.Result.empty();
     }
 
+    bool TaskItemViewModel::HasQueuedMessages() const noexcept
+    {
+        return !_projection.QueuedMessages.empty();
+    }
+
+    bool TaskItemViewModel::HasRunDetails() const noexcept
+    {
+        return !_projection.RunDetails.empty();
+    }
+
     bool TaskItemViewModel::CanStart() const noexcept
     {
         return !_projection.HasActiveRun &&
@@ -192,12 +206,14 @@ namespace winrt::TerminalApp::implementation
 
     bool TaskItemViewModel::CanOpenTerminal() const noexcept
     {
-        return _projection.TerminalState != tasks::TaskTerminalState::NotCreated;
+        return _projection.SupportsTerminalSurface &&
+               _projection.TerminalState != tasks::TaskTerminalState::NotCreated;
     }
 
     bool TaskItemViewModel::CanCloseTerminal() const noexcept
     {
-        return _projection.TerminalState != tasks::TaskTerminalState::NotCreated &&
+        return _projection.SupportsTerminalSurface &&
+               _projection.TerminalState != tasks::TaskTerminalState::NotCreated &&
                _projection.TerminalState != tasks::TaskTerminalState::Closed;
     }
 
@@ -221,6 +237,21 @@ namespace winrt::TerminalApp::implementation
         return _runItems;
     }
 
+    Windows::Foundation::Collections::IObservableVector<winrt::hstring> TaskItemViewModel::QueuedMessageItems() const noexcept
+    {
+        return _queuedMessageItems;
+    }
+
+    Windows::Foundation::Collections::IObservableVector<winrt::hstring> TaskItemViewModel::RunDetailItems() const noexcept
+    {
+        return _runDetailItems;
+    }
+
+    uint64_t TaskItemViewModel::Version() const noexcept
+    {
+        return _projection.Version;
+    }
+
     tasks::TaskStatus TaskItemViewModel::NativeStatus() const noexcept
     {
         return _projection.Status;
@@ -238,6 +269,18 @@ namespace winrt::TerminalApp::implementation
         for (const auto& run : _projection.Runs)
         {
             _runItems.Append(winrt::hstring{ run });
+        }
+
+        _queuedMessageItems.Clear();
+        for (const auto& message : _projection.QueuedMessages)
+        {
+            _queuedMessageItems.Append(winrt::hstring{ message });
+        }
+
+        _runDetailItems.Clear();
+        for (const auto& event : _projection.RunDetails)
+        {
+            _runDetailItems.Append(winrt::hstring{ event });
         }
     }
 }

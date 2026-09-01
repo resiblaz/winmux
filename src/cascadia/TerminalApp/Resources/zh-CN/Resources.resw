@@ -1490,4 +1490,19 @@
   <data name="TaskPage_SampleDoneResult" xml:space="preserve"><value>Workspace Sidebar 已保持 Workspace-only。</value></data>
   <data name="TaskPage_SampleDoneAcceptanceWorkspaceOnly" xml:space="preserve"><value>Sidebar 保持 Workspace-only</value></data>
   <data name="TaskPage_SampleDoneAcceptanceNoCount" xml:space="preserve"><value>不显示 Surface 数量</value></data>
+  <data name="TaskPage_TerminalExited" xml:space="preserve"><value>已退出</value></data>
+  <data name="TaskPage_WorktreePreparing" xml:space="preserve"><value>首次运行时准备</value></data>
+  <data name="TaskPage_RunStateQueued" xml:space="preserve"><value>已排队</value></data>
+  <data name="TaskPage_RunStatePreparing" xml:space="preserve"><value>准备中</value></data>
+  <data name="TaskPage_RunStateWaiting" xml:space="preserve"><value>等待目录</value></data>
+  <data name="TaskPage_RunStateStarting" xml:space="preserve"><value>启动中</value></data>
+  <data name="TaskPage_RunStateRunning" xml:space="preserve"><value>运行中</value></data>
+  <data name="TaskPage_RunStateCompleted" xml:space="preserve"><value>已完成</value></data>
+  <data name="TaskPage_RunStateFailed" xml:space="preserve"><value>失败</value></data>
+  <data name="TaskPage_RunStateCancelled" xml:space="preserve"><value>已取消</value></data>
+  <data name="TaskPage_RunStateInterrupted" xml:space="preserve"><value>已中断</value></data>
+  <data name="TaskPageQueuedMessagesTitle.Text" xml:space="preserve"><value>排队中的后续消息</value></data>
+  <data name="TaskPageRunDetailsTitle.Text" xml:space="preserve"><value>运行详情</value></data>
+  <data name="TaskPageRunDetailsEmpty.Text" xml:space="preserve"><value>此运行尚未记录结构化事件。</value></data>
+  <data name="TaskPageLoadingTasks.Text" xml:space="preserve"><value>正在从后台 Runtime 加载任务…</value></data>
 </root>

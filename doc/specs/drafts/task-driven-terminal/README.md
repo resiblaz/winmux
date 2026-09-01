@@ -47,9 +47,10 @@ The following conditions remain mandatory for every later milestone:
 Current implementation position:
 
 - M0 design baseline: complete;
-- M5 native UI skeleton: complete as a projection-only shell;
-- M1 TaskCore state and persistence: current milestone;
-- real Runtime, Git, Codex, task Surface, and orchestration: not implemented.
+- M1-M3 domain, Runtime, transport, and Git foundations: complete;
+- M4 Codex App Server adapter and shared Runtime Provider: complete;
+- M5 Runtime-backed fixed Tasks page and projection coordinator: complete;
+- M6 task-owned Surface and M7 orchestration: next; not implemented yet.
 
 ## Reference-first rule
 

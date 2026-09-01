@@ -29,6 +29,8 @@ namespace Microsoft::Terminal::TaskCore
         [[nodiscard]] TaskStoreCommandResult CreateTask(const CreateTaskCommand& command) override;
         [[nodiscard]] TaskStoreCommandResult ChangeTaskStatus(const ChangeTaskStatusCommand& command) override;
         [[nodiscard]] TaskStoreCommandResult CreateTaskRun(const CreateTaskRunCommand& command) override;
+        [[nodiscard]] TaskStoreCommandResult RecordTaskAgentSession(const RecordTaskAgentSessionCommand& command) override;
+        [[nodiscard]] TaskStoreCommandResult AppendTaskProviderEvent(const AppendTaskProviderEventCommand& command) override;
         [[nodiscard]] TaskStoreCommandResult InitializeTaskGitWorktree(const InitializeTaskGitWorktreeCommand& command) override;
         [[nodiscard]] TaskStoreCommandResult AdvanceTaskGitWorktree(const AdvanceTaskGitWorktreeCommand& command) override;
         [[nodiscard]] TaskStoreCommandResult AdvanceTaskGitWorktreeFinalization(const AdvanceTaskGitWorktreeFinalizationCommand& command) override;

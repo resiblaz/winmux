@@ -5,6 +5,7 @@
 
 #include "RuntimeProductHost.h"
 #include "RuntimeProductRouter.h"
+#include "RuntimeTaskProviderService.h"
 
 #include "ITaskStore.h"
 
@@ -21,6 +22,7 @@ namespace Microsoft::Terminal::TaskRuntime
         std::string InstanceId;
         std::shared_ptr<RuntimeProductRouter> Router;
         std::shared_ptr<Microsoft::Terminal::TaskCore::ITaskStore> Store;
+        std::shared_ptr<RuntimeTaskProviderService> Provider;
         RuntimeControlServer Server;
         RuntimeProductHostIdleConfiguration IdleConfiguration;
 
@@ -34,6 +36,7 @@ namespace Microsoft::Terminal::TaskRuntime
             std::string instanceId,
             std::shared_ptr<RuntimeProductRouter> router,
             std::shared_ptr<Microsoft::Terminal::TaskCore::ITaskStore> store,
+            std::shared_ptr<RuntimeTaskProviderService> provider,
             RuntimeProductHostIdleConfiguration idleConfiguration);
         ~Impl();
 

@@ -12,11 +12,14 @@ namespace winrt::TerminalApp::implementation
     struct TaskPageViewModel : TaskPageViewModelT<TaskPageViewModel>
     {
         TaskPageViewModel();
+        ~TaskPageViewModel();
 
         Windows::Foundation::Collections::IObservableVector<TerminalApp::TaskItemViewModel> Tasks() const noexcept;
         TerminalApp::TaskItemViewModel SelectedTask() const noexcept;
         winrt::hstring TaskCountText() const;
         bool IsEmpty() const noexcept;
+        bool IsLoading() const noexcept;
+        bool ShowEmptyState() const noexcept;
         bool HasSelection() const noexcept;
         bool IsSourceAttached() const noexcept;
 

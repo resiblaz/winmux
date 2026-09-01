@@ -13,6 +13,8 @@ namespace TerminalApp
         TaskItemViewModel SelectedTask { get; };
         String TaskCountText { get; };
         Boolean IsEmpty { get; };
+        Boolean IsLoading { get; };
+        Boolean ShowEmptyState { get; };
         Boolean HasSelection { get; };
         Boolean IsSourceAttached { get; };
     }

@@ -37,6 +37,10 @@
     <ClInclude Include="RuntimeProductHost.h" />
     <ClInclude Include="RuntimeProductHostInternal.h" />
     <ClInclude Include="RuntimeProductRouter.h" />
+    <ClInclude Include="RuntimeCodexDiscovery.h" />
+    <ClInclude Include="RuntimeTaskProviderService.h" />
+    <ClInclude Include="RuntimeTaskProviderSink.h" />
+    <ClInclude Include="RuntimeTaskProjectionService.h" />
     <ClInclude Include="RuntimeRtaskCommandService.h" />
     <ClInclude Include="RuntimeRtaskCapabilityRegistry.h" />
     <ClInclude Include="RuntimeRtaskCapabilityToken.h" />
@@ -75,6 +79,11 @@
     <ClCompile Include="RuntimeProductHost.cpp" />
     <ClCompile Include="RuntimeProductHostIdle.cpp" />
     <ClCompile Include="RuntimeProductRouter.cpp" />
+    <ClCompile Include="RuntimeCodexDiscovery.cpp" />
+    <ClCompile Include="RuntimeTaskProviderService.cpp" />
+    <ClCompile Include="RuntimeTaskProviderSink.cpp" />
+    <ClCompile Include="RuntimeTaskProjectionQuery.cpp" />
+    <ClCompile Include="RuntimeTaskProjectionCommands.cpp" />
     <ClCompile Include="RuntimeRtaskCommandService.cpp" />
     <ClCompile Include="RuntimeRtaskCapabilityRegistry.cpp" />
     <ClCompile Include="RuntimeRtaskCapabilityToken.cpp" />
@@ -97,6 +106,9 @@
     <ProjectReference Include="..\TaskGit\TaskGit.vcxproj">
       <Project>{459E0D99-14B3-4184-82A9-59E23D5393A8}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\TaskProvider\TaskProvider.vcxproj">
+      <Project>{115B1D59-F662-4E52-8051-0F4CB035E004}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">
       <Project>{C227632F-A428-48E3-AB9B-DB3D170DDAAC}</Project>
     </ProjectReference>
@@ -106,7 +118,7 @@
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\cascadia\TaskExecution;$(SolutionDir)src\cascadia\TaskGit;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\cascadia\TaskExecution;$(SolutionDir)src\cascadia\TaskGit;$(SolutionDir)src\cascadia\TaskProvider;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>

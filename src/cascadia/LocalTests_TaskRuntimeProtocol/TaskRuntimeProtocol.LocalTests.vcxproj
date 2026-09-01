@@ -32,6 +32,7 @@
     <ClCompile Include="SnapshotAndSubscribeTests.cpp" />
     <ClCompile Include="SubscriptionCursorTests.cpp" />
     <ClCompile Include="TerminalFrameTests.cpp" />
+    <ClCompile Include="TaskProjectionRpcTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj">

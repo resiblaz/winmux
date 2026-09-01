@@ -1623,4 +1623,19 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="TaskPage_SampleDoneResult" xml:space="preserve"><value>Workspace Sidebar remains workspace-only.</value></data>
   <data name="TaskPage_SampleDoneAcceptanceWorkspaceOnly" xml:space="preserve"><value>Sidebar remains workspace-only</value></data>
   <data name="TaskPage_SampleDoneAcceptanceNoCount" xml:space="preserve"><value>Surface counts are not shown</value></data>
+  <data name="TaskPage_TerminalExited" xml:space="preserve"><value>Exited</value></data>
+  <data name="TaskPage_WorktreePreparing" xml:space="preserve"><value>Preparing after the first run starts</value></data>
+  <data name="TaskPage_RunStateQueued" xml:space="preserve"><value>Queued</value></data>
+  <data name="TaskPage_RunStatePreparing" xml:space="preserve"><value>Preparing</value></data>
+  <data name="TaskPage_RunStateWaiting" xml:space="preserve"><value>Waiting for directory</value></data>
+  <data name="TaskPage_RunStateStarting" xml:space="preserve"><value>Starting</value></data>
+  <data name="TaskPage_RunStateRunning" xml:space="preserve"><value>Running</value></data>
+  <data name="TaskPage_RunStateCompleted" xml:space="preserve"><value>Completed</value></data>
+  <data name="TaskPage_RunStateFailed" xml:space="preserve"><value>Failed</value></data>
+  <data name="TaskPage_RunStateCancelled" xml:space="preserve"><value>Cancelled</value></data>
+  <data name="TaskPage_RunStateInterrupted" xml:space="preserve"><value>Interrupted</value></data>
+  <data name="TaskPageQueuedMessagesTitle.Text" xml:space="preserve"><value>Queued follow-up messages</value></data>
+  <data name="TaskPageRunDetailsTitle.Text" xml:space="preserve"><value>Run details</value></data>
+  <data name="TaskPageRunDetailsEmpty.Text" xml:space="preserve"><value>No structured events have been recorded for this run.</value></data>
+  <data name="TaskPageLoadingTasks.Text" xml:space="preserve"><value>Loading tasks from the background Runtime…</value></data>
 </root>

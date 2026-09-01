@@ -10,6 +10,7 @@
 #include "ProtocolCapabilities.h"
 #include "ProtocolValidation.h"
 #include "RuntimeFoundationRpc.h"
+#include "TaskProjectionRpc.h"
 
 using namespace WEX::TestExecution;
 using namespace Microsoft::Terminal::TaskRuntime;
@@ -65,6 +66,7 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(SecondIdentityInstanceExitsThreeWithoutDisruptingOwner);
         TEST_METHOD(MalformedPeerIsIsolatedFromHealthyPeers);
         TEST_METHOD(ShutdownEventStopsGracefullyAndReleasesIdentityResources);
+        TEST_METHOD(RealRuntimePersistsTerminalUiCreateAndQuery);
     };
 
     void RuntimeProductHostProcessTests::RealServeAcceptsHelloWithNegotiatedContract()
@@ -83,6 +85,7 @@ namespace TaskRuntimeLocalTests
         VERIFY_ARE_EQUAL(CurrentProtocolMinor, client.Handshake.ProtocolMinor);
         VERIFY_ARE_EQUAL(
             static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle) |
+                static_cast<uint64_t>(ProtocolCapability::TaskQueries) |
                 static_cast<uint64_t>(ProtocolCapability::TaskCommands),
             client.Handshake.Capabilities);
         VERIFY_IS_TRUE(client.Handshake.MaximumControlFrameBytes >= MinimumControlFrameBytes);
@@ -246,5 +249,61 @@ namespace TaskRuntimeLocalTests
             restartedExitCode));
         VERIFY_ARE_EQUAL(DWORD{ 0 }, restartedExitCode);
         VERIFY_IS_FALSE(restarted.ForcedCleanup());
+    }
+
+    void RuntimeProductHostProcessTests::RealRuntimePersistsTerminalUiCreateAndQuery()
+    {
+        ProductRuntimeTestIdentity identity;
+        TaskRuntimeProcess process{ identity };
+        _verifyReady(process);
+        auto client = RequireProductControlClient(
+            identity,
+            "71000000-0000-4000-8000-000000000010");
+
+        TaskUiCommandRequest create;
+        create.CommandId = "73000000-0000-4000-8000-000000000001";
+        create.TaskId = "74000000-0000-4000-8000-000000000001";
+        create.Operation = TaskUiCommandOperation::Create;
+        create.Draft = TaskUiCreateDraft{};
+        create.Draft->WorkspaceId = "75000000-0000-4000-8000-000000000001";
+        create.Draft->Title = "Real Runtime Task";
+        const auto source = identity.SettingsRoot().u8string();
+        create.Draft->SourceRoot.assign(
+            reinterpret_cast<const char*>(source.data()),
+            source.size());
+        create.Draft->ExecutionMode = TaskProjectionExecutionMode::Direct;
+        const auto encodedCreate = EncodeTaskUiCommandRequest(create);
+        VERIFY_IS_TRUE(encodedCreate.Succeeded);
+        ControlRequest request;
+        request.RequestId = "72000000-0000-4000-8000-000000000011";
+        request.Method = ControlMethod::SubmitCommand;
+        request.PayloadJson = encodedCreate.Payload;
+        VERIFY_IS_TRUE(client.Channel.Send(EncodeControlRequest(request).Payload, ProductControlTimeoutMilliseconds).Succeeded());
+        const auto received = client.Channel.Receive(ProductControlTimeoutMilliseconds);
+        VERIFY_IS_TRUE(received.Succeeded());
+        const auto createdEnvelope = DecodeControlResponse(received.Payload);
+        VERIFY_IS_TRUE(createdEnvelope.Succeeded());
+        VERIFY_IS_TRUE(createdEnvelope.Value.Succeeded);
+        const auto created = DecodeTaskUiCommandResult(createdEnvelope.Value.ResultJson);
+        VERIFY_IS_TRUE(created.Succeeded());
+        VERIFY_ARE_EQUAL(create.TaskId, created.Value.TaskId);
+
+        TaskProjectionQueryRequest query;
+        query.TaskId = create.TaskId;
+        query.IncludeCompleted = true;
+        query.EventLimit = 16;
+        request.RequestId = "72000000-0000-4000-8000-000000000012";
+        request.Method = ControlMethod::QueryTask;
+        request.PayloadJson = EncodeTaskProjectionQueryRequest(query).Payload;
+        VERIFY_IS_TRUE(client.Channel.Send(EncodeControlRequest(request).Payload, ProductControlTimeoutMilliseconds).Succeeded());
+        const auto queryWire = client.Channel.Receive(ProductControlTimeoutMilliseconds);
+        VERIFY_IS_TRUE(queryWire.Succeeded());
+        const auto queryEnvelope = DecodeControlResponse(queryWire.Payload);
+        VERIFY_IS_TRUE(queryEnvelope.Succeeded());
+        VERIFY_IS_TRUE(queryEnvelope.Value.Succeeded);
+        const auto projected = DecodeTaskProjectionQueryResult(queryEnvelope.Value.ResultJson);
+        VERIFY_IS_TRUE(projected.Succeeded());
+        VERIFY_ARE_EQUAL(size_t{ 1 }, projected.Value.Tasks.size());
+        VERIFY_ARE_EQUAL(std::string{ "Real Runtime Task" }, projected.Value.Tasks.front().Title);
     }
 }

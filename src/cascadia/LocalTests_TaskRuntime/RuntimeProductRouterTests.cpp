@@ -8,6 +8,7 @@
 
 #include "RuntimeFoundationRpc.h"
 #include "RtaskCommandJson.h"
+#include "TaskProjectionRpc.h"
 
 using namespace WEX::TestExecution;
 using namespace Microsoft::Terminal::TaskRuntime;
@@ -35,7 +36,12 @@ namespace TaskRuntimeLocalTests
                     std::string{ RuntimeIdentity },
                     std::string{ RuntimeInstanceId },
                     42),
-                fixture.Service);
+                fixture.Service,
+                nullptr,
+                std::make_shared<RuntimeTaskProjectionService>(
+                    fixture.Store,
+                    nullptr,
+                    LR"(C:\runtime-router-tests)"));
         }
 
         RuntimeControlCancellationToken _cancellation(const bool cancelled = false)
@@ -51,6 +57,7 @@ namespace TaskRuntimeLocalTests
                 std::string{ ClientId },
                 kind,
                 static_cast<uint64_t>(ProtocolCapability::TaskCommands) |
+                    static_cast<uint64_t>(ProtocolCapability::TaskQueries) |
                     static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle),
             };
         }
@@ -63,6 +70,7 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(RoutesTaskCtlSubmitCommandToDurableService);
         TEST_METHOD(RejectsUiCancelledMalformedAndUnauthorizedSubmit);
         TEST_METHOD(PreservesFoundationPingAndRuntimeStatusRoutes);
+        TEST_METHOD(RoutesTerminalUiCreateAndQueryToTaskProjectionService);
     };
 
     void RuntimeProductRouterTests::RoutesTaskCtlSubmitCommandToDurableService()
@@ -177,5 +185,46 @@ namespace TaskRuntimeLocalTests
         const auto decodedStatus = DecodeRuntimeStatusResult(status.ResultJson);
         VERIFY_IS_TRUE(decodedStatus.Succeeded());
         VERIFY_ARE_EQUAL(std::string{ RuntimeIdentity }, decodedStatus.Value.RuntimeIdentity);
+    }
+
+    void RuntimeProductRouterTests::RoutesTerminalUiCreateAndQueryToTaskProjectionService()
+    {
+        Fixture fixture;
+        const auto router = _router(fixture);
+        TaskUiCommandRequest create;
+        create.CommandId = MakeId<Microsoft::Terminal::TaskCore::CommandId>(9100).Value();
+        create.TaskId = MakeId<Microsoft::Terminal::TaskCore::TaskId>(9101).Value();
+        create.Operation = TaskUiCommandOperation::Create;
+        create.Draft = TaskUiCreateDraft{};
+        create.Draft->WorkspaceId = MakeId<Microsoft::Terminal::TaskCore::WorkspaceId>(9102).Value();
+        create.Draft->Title = "Routed Task";
+        create.Draft->SourceRoot = "C:/src/routed";
+        create.Draft->ExecutionMode = TaskProjectionExecutionMode::Direct;
+        ControlRequest control;
+        control.RequestId = MakeId<Microsoft::Terminal::TaskCore::CommandId>(9103).Value();
+        control.Method = ControlMethod::SubmitCommand;
+        control.PayloadJson = EncodeTaskUiCommandRequest(create).Payload;
+        auto routed = router->Route(_client(ProtocolClientKind::TerminalUi), control, _cancellation());
+        VERIFY_IS_TRUE(routed.Succeeded);
+        const auto created = DecodeTaskUiCommandResult(routed.ResultJson);
+        VERIFY_IS_TRUE(created.Succeeded());
+        VERIFY_ARE_EQUAL(create.TaskId, created.Value.TaskId);
+
+        TaskProjectionQueryRequest query;
+        query.TaskId = create.TaskId;
+        query.IncludeCompleted = true;
+        query.EventLimit = 16;
+        control.Method = ControlMethod::QueryTask;
+        control.PayloadJson = EncodeTaskProjectionQueryRequest(query).Payload;
+        routed = router->Route(_client(ProtocolClientKind::TerminalUi), control, _cancellation());
+        VERIFY_IS_TRUE(routed.Succeeded);
+        const auto projected = DecodeTaskProjectionQueryResult(routed.ResultJson);
+        VERIFY_IS_TRUE(projected.Succeeded());
+        VERIFY_ARE_EQUAL(size_t{ 1 }, projected.Value.Tasks.size());
+        VERIFY_ARE_EQUAL(std::string{ "Routed Task" }, projected.Value.Tasks.front().Title);
+
+        routed = router->Route(_client(ProtocolClientKind::TaskCtl), control, _cancellation());
+        VERIFY_IS_FALSE(routed.Succeeded);
+        VERIFY_IS_TRUE(routed.Error->Code == ProtocolRpcErrorCode::CapabilityRequired);
     }
 }

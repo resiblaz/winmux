@@ -54,6 +54,9 @@
     <ClCompile Include="RuntimeProductHostProcessTests.cpp" />
     <ClCompile Include="RuntimeProductHostIdleProcessTests.cpp" />
     <ClCompile Include="RuntimeProductRouterTests.cpp" />
+    <ClCompile Include="RuntimeTaskProviderSinkTests.cpp" />
+    <ClCompile Include="RuntimeTaskProjectionServiceTests.cpp" />
+    <ClCompile Include="RuntimeCodexDiscoveryTests.cpp" />
     <ClCompile Include="RuntimeRtaskCapabilityRegistryTests.cpp" />
     <ClCompile Include="RuntimeRtaskCommandServiceTests.cpp" />
     <ClCompile Include="RuntimeRtaskEndToEndTests.cpp" />
@@ -94,13 +97,16 @@
     <ProjectReference Include="..\TaskRuntime\TaskRuntimeHost.vcxproj">
       <Project>{C87CE61D-7EE5-4CF8-8BCD-B5EE2817B4A9}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\TaskProvider\TaskProvider.vcxproj">
+      <Project>{115B1D59-F662-4E52-8051-0F4CB035E004}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj">
       <Project>{6FC3F6B2-4AA9-4A8B-8784-3AFF0E4B90EF}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\Rtask;$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\cascadia\LocalTests_TaskCore;$(SolutionDir)src\cascadia\TaskGit;$(SolutionDir)src\cascadia\LocalTests_TaskGit;$(SolutionDir)src\cascadia\TaskExecution;$(SolutionDir)src\cascadia\TaskRuntimeActivation;$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\Rtask;$(SolutionDir)src\cascadia\TaskRuntime;$(SolutionDir)src\cascadia\TaskCore;$(SolutionDir)src\cascadia\LocalTests_TaskCore;$(SolutionDir)src\cascadia\TaskGit;$(SolutionDir)src\cascadia\LocalTests_TaskGit;$(SolutionDir)src\cascadia\TaskProvider;$(SolutionDir)src\cascadia\TaskExecution;$(SolutionDir)src\cascadia\TaskRuntimeActivation;$(SolutionDir)src\cascadia\TaskRuntimeClient;$(SolutionDir)src\cascadia\TaskRuntimeTransport;$(SolutionDir)src\cascadia\TaskRuntimeProtocol;$(SolutionDir)src\inc;$(SolutionDir)src\inc\test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>

@@ -152,6 +152,9 @@
     </ClInclude>
     <ClInclude Include="Tasks\TaskProjection.h" />
     <ClInclude Include="Tasks\ITaskProjectionSource.h" />
+    <ClInclude Include="Tasks\TaskProjectionCoordinator.h" />
+    <ClInclude Include="Tasks\TaskProjectionMapper.h" />
+    <ClInclude Include="Tasks\RuntimeTaskProjectionSource.h" />
     <ClInclude Include="ConclusionMarkdownView.h">
       <DependentUpon>ConclusionMarkdownView.idl</DependentUpon>
     </ClInclude>
@@ -355,6 +358,9 @@
       <DependentUpon>TaskItemViewModel.idl</DependentUpon>
     </ClCompile>
     <ClCompile Include="Tasks\PrototypeTaskProjectionSource.cpp" />
+    <ClCompile Include="Tasks\TaskProjectionCoordinator.cpp" />
+    <ClCompile Include="Tasks\TaskProjectionMapper.cpp" />
+    <ClCompile Include="Tasks\RuntimeTaskProjectionSource.cpp" />
     <ClCompile Include="ConclusionMarkdownView.cpp">
       <DependentUpon>ConclusionMarkdownView.idl</DependentUpon>
     </ClCompile>
@@ -604,6 +610,18 @@
       <Private>true</Private>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
+    <ProjectReference Include="$(OpenConsoleDir)src\cascadia\TaskRuntimeClient\TaskRuntimeClient.vcxproj">
+      <Project>{7B6394DD-3816-4A08-86F2-242DAA6334E4}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(OpenConsoleDir)src\cascadia\TaskRuntimeActivation\TaskRuntimeActivation.vcxproj">
+      <Project>{A65B7A0A-46CB-4E3D-9D7F-90A31D8D7A21}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(OpenConsoleDir)src\cascadia\TaskRuntimeTransport\TaskRuntimeTransport.vcxproj">
+      <Project>{C227632F-A428-48E3-AB9B-DB3D170DDAAC}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(OpenConsoleDir)src\cascadia\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj">
+      <Project>{6FC3F6B2-4AA9-4A8B-8784-3AFF0E4B90EF}</Project>
+    </ProjectReference>
 
   </ItemGroup>
   <PropertyGroup>
@@ -666,7 +684,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(GeneratedFilesDir)Tasks;..;%(AdditionalIncludeDirectories);</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(GeneratedFilesDir)Tasks;$(OpenConsoleDir)src\cascadia\TaskRuntimeClient;$(OpenConsoleDir)src\cascadia\TaskRuntimeActivation;$(OpenConsoleDir)src\cascadia\TaskRuntimeTransport;$(OpenConsoleDir)src\cascadia\TaskRuntimeProtocol;..;%(AdditionalIncludeDirectories);</AdditionalIncludeDirectories>
       <!-- Manually disable unreachable code warning, because jconcpp has a ton of that. -->
       <DisableSpecificWarnings>4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>

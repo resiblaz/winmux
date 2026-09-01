@@ -38,6 +38,9 @@ namespace winrt::TerminalApp::implementation
         TerminalApp::TaskPageViewModel _viewModel;
         std::shared_ptr<tasks::ITaskProjectionSource> _source;
         std::wstring _currentWorkspaceKey{ L"win_terminal" };
+        std::wstring _currentWorkspaceId;
+        std::wstring _currentRepositoryRoot;
+        std::wstring _currentWorkingDirectory;
         bool _syncingSelection{};
 
         implementation::TaskPageViewModel* _ViewModelImpl() const noexcept;

@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-29
 last updated: 2026-08-31
-status: active staged implementation; M1-M3 complete, M4 provider adapter next
+status: active staged implementation; M1-M5 complete, M6 task Surface next
 ---
 
 # Task-driven Terminal: Proposed Implementation Plan
@@ -28,6 +28,17 @@ foundational contracts required to avoid disposable data/process designs.
 - The M5 native fixed-page skeleton is implemented early as an isolated
   projection-only shell. It contains no Runtime, SQLite, Git, or Codex business
   logic and does not make M5 complete.
+- M4 is complete on `feature/task-runtime-foundation`: the provider-neutral
+  adapter, real Codex App Server v2 transport, structured event/approval
+  normalization, shared-process coordinator, ClosePending policy, durable
+  AgentSession/event sink, Runtime-owned event pump, deterministic fake suite,
+  and opt-in installed-CLI smoke are implemented.
+- M5 is complete on the same branch: strict Task projection/command DTOs,
+  Runtime-backed query/create/action routing, immutable epoch-aware UI
+  snapshots, active-only bounded refresh, in-page Save/Save and Run, execution
+  log/queued messages/responsive Run Details, localization, focus/Escape, and
+  high-contrast inheritance are implemented and verified. Task Surface attach
+  remains intentionally in M6 and queued-run scheduling remains in M7.
 - M1 is implementation-complete on `feature/task-core-foundation`: TaskCore
   domain/state policies, versioned SQLite persistence, transactional commands,
   durable message scheduling, recovery intents, deletion tombstones, and

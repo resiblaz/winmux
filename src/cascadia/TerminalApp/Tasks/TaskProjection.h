@@ -27,6 +27,7 @@ namespace winrt::TerminalApp::implementation::tasks
         Starting,
         Ready,
         Busy,
+        Exited,
         Suspended,
         Closed,
         Error,
@@ -72,17 +73,28 @@ namespace winrt::TerminalApp::implementation::tasks
         std::wstring Branch;
         std::wstring Result;
         std::wstring ActiveRunSummary;
+        uint64_t Version{ 1 };
+        uint64_t LastEventSequence{};
+        int64_t UpdatedAtUnixMilliseconds{};
         bool HasActiveRun{};
+        bool SupportsTerminalSurface{ true };
         std::vector<TaskAcceptanceProjection> Acceptance;
         std::vector<std::wstring> Runs;
+        std::vector<std::wstring> QueuedMessages;
+        std::vector<std::wstring> RunDetails;
     };
 
     struct TaskDraft
     {
+        std::wstring WorkspaceId;
         std::wstring Workspace;
         std::wstring Title;
         std::wstring Description;
         std::vector<std::wstring> Acceptance;
+        std::wstring SourceRoot;
+        std::wstring RelativeWorkingDirectory;
+        std::wstring Model;
+        std::wstring Instructions;
         bool UseWorktree{ true };
     };
 }

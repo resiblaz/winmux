@@ -489,6 +489,10 @@
       <Build Solution="Fuzzing|x86" Project="false" />
     </Project>
     <Project Path="src/cascadia/TerminalApp/TerminalAppLib.vcxproj" Id="ca5cad1a-9a12-429c-b551-8562ec954746">
+      <BuildDependency Project="src/cascadia/TaskRuntimeActivation/TaskRuntimeActivation.vcxproj" />
+      <BuildDependency Project="src/cascadia/TaskRuntimeClient/TaskRuntimeClient.vcxproj" />
+      <BuildDependency Project="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" />
+      <BuildDependency Project="src/cascadia/TaskRuntimeTransport/TaskRuntimeTransport.vcxproj" />
       <BuildDependency Project="src/cascadia/TerminalControl/dll/TerminalControl.vcxproj" />
       <BuildDependency Project="src/cascadia/TerminalSettingsEditor/Microsoft.Terminal.Settings.Editor.vcxproj" />
       <BuildDependency Project="src/cascadia/TerminalSettingsModel/dll/Microsoft.Terminal.Settings.Model.vcxproj" />
@@ -653,6 +657,16 @@
       <Build Solution="Fuzzing|x64" Project="false" />
       <Build Solution="Fuzzing|x86" Project="false" />
     </Project>
+    <Project Path="src/cascadia/TaskProvider/TaskProvider.vcxproj" Id="115b1d59-f662-4e52-8051-0f4cb035e004">
+      <Platform Solution="*|Any CPU" Project="Win32" />
+      <Build Solution="*|Any CPU" Project="false" />
+      <Build Solution="AuditMode|ARM64" Project="false" />
+      <Build Solution="AuditMode|x64" Project="false" />
+      <Build Solution="AuditMode|x86" Project="false" />
+      <Build Solution="Fuzzing|ARM64" Project="false" />
+      <Build Solution="Fuzzing|x64" Project="false" />
+      <Build Solution="Fuzzing|x86" Project="false" />
+    </Project>
     <Project Path="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" Id="6fc3f6b2-4aa9-4a8b-8784-3aff0e4b90ef">
       <Platform Solution="*|Any CPU" Project="Win32" />
       <Build Solution="*|Any CPU" Project="false" />
@@ -702,6 +716,7 @@
       <BuildDependency Project="src/cascadia/TaskCore/TaskCore.vcxproj" />
       <BuildDependency Project="src/cascadia/TaskExecution/TaskExecution.vcxproj" />
       <BuildDependency Project="src/cascadia/TaskGit/TaskGit.vcxproj" />
+      <BuildDependency Project="src/cascadia/TaskProvider/TaskProvider.vcxproj" />
       <BuildDependency Project="src/cascadia/TaskRuntimeProtocol/TaskRuntimeProtocol.vcxproj" />
       <BuildDependency Project="src/cascadia/TaskRuntimeTransport/TaskRuntimeTransport.vcxproj" />
       <Platform Solution="*|Any CPU" Project="Win32" />
@@ -776,6 +791,17 @@
     </Project>
     <Project Path="src/cascadia/LocalTests_TaskGit/TaskGit.LocalTests.vcxproj" Id="013da5f2-0eab-4ce6-9a55-f350ac045088">
       <BuildDependency Project="src/cascadia/TaskGit/TaskGit.vcxproj" />
+      <Platform Solution="*|Any CPU" Project="Win32" />
+      <Build Solution="*|Any CPU" Project="false" />
+      <Build Solution="AuditMode|ARM64" Project="false" />
+      <Build Solution="AuditMode|x64" Project="false" />
+      <Build Solution="AuditMode|x86" Project="false" />
+      <Build Solution="Fuzzing|ARM64" Project="false" />
+      <Build Solution="Fuzzing|x64" Project="false" />
+      <Build Solution="Fuzzing|x86" Project="false" />
+    </Project>
+    <Project Path="src/cascadia/LocalTests_TaskProvider/TaskProvider.LocalTests.vcxproj" Id="21c3c4cc-28e8-4e41-829d-02c602738c58">
+      <BuildDependency Project="src/cascadia/TaskProvider/TaskProvider.vcxproj" />
       <Platform Solution="*|Any CPU" Project="Win32" />
       <Build Solution="*|Any CPU" Project="false" />
       <Build Solution="AuditMode|ARM64" Project="false" />

@@ -19,6 +19,7 @@ namespace Microsoft::Terminal::TaskCore
     inline constexpr size_t MaximumTaskMessageBytes{ 64 * 1024 };
     inline constexpr size_t MaximumUnclaimedTaskMessages{ 256 };
     inline constexpr size_t MaximumTaskMessagesPerRun{ 256 };
+    inline constexpr size_t MaximumTaskProviderEventTypeBytes{ 128 };
 
     struct TaskCommandMetadata
     {
@@ -51,6 +52,21 @@ namespace Microsoft::Terminal::TaskCore
     {
         TaskCommandMetadata Metadata;
         TaskRunRecord Run;
+    };
+
+    struct RecordTaskAgentSessionCommand
+    {
+        TaskCommandMetadata Metadata;
+        AgentSessionRecord Session;
+    };
+
+    struct AppendTaskProviderEventCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskId Task;
+        std::optional<TaskRunId> Run;
+        uint64_t ProviderSequence{};
+        std::string EventType;
     };
 
     struct InitializeTaskGitWorktreeCommand

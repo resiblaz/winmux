@@ -6,8 +6,14 @@
 
 #include "RuntimeCrypto.h"
 #include "RuntimeFoundationRouter.h"
+#include "RuntimeCodexDiscovery.h"
 #include "RuntimeRtaskCapabilityRegistry.h"
 #include "RuntimeRtaskCapabilityToken.h"
+#include "RuntimeTaskProviderService.h"
+#include "RuntimeTaskProviderSink.h"
+#include "RuntimeTaskProjectionService.h"
+
+#include "CodexAppServerAdapter.h"
 
 #include "SqliteTaskStore.h"
 
@@ -29,6 +35,7 @@ namespace Microsoft::Terminal::TaskRuntime
             handshake.RuntimeInstanceId = runtimeInstanceId;
             handshake.Capabilities =
                 static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle) |
+                static_cast<uint64_t>(ProtocolCapability::TaskQueries) |
                 static_cast<uint64_t>(ProtocolCapability::TaskCommands);
             return handshake;
         }
@@ -39,11 +46,13 @@ namespace Microsoft::Terminal::TaskRuntime
         std::string instanceId,
         std::shared_ptr<RuntimeProductRouter> router,
         std::shared_ptr<Microsoft::Terminal::TaskCore::ITaskStore> store,
+        std::shared_ptr<RuntimeTaskProviderService> provider,
         RuntimeProductHostIdleConfiguration idleConfiguration) :
         Bootstrap{ std::move(bootstrap) },
         InstanceId{ std::move(instanceId) },
         Router{ std::move(router) },
         Store{ std::move(store) },
+        Provider{ std::move(provider) },
         IdleConfiguration{ std::move(idleConfiguration) }
     {
     }
@@ -54,6 +63,10 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             std::scoped_lock lock{ LifecycleMutex };
             Server.Stop();
+            if (Provider)
+            {
+                Provider->Stop();
+            }
             // A callback-thread Stop is intentionally non-blocking. Retain
             // single-instance ownership until an external owner observes that
             // the acceptor and every client session have actually stopped.
@@ -240,9 +253,28 @@ namespace Microsoft::Terminal::TaskRuntime
             auto rtask = std::make_shared<RuntimeRtaskCommandService>(
                 store,
                 std::move(capabilities));
+            auto providerSink = std::make_shared<RuntimeTaskProviderSink>(store);
+            auto provider = std::make_shared<RuntimeTaskProviderService>(
+                [] {
+                    const auto executable = DiscoverCodexExecutable();
+                    return Microsoft::Terminal::TaskProvider::MakeCodexAppServerAdapter(
+                        executable.value_or(std::filesystem::path{}));
+                },
+                std::move(providerSink));
+            if (!provider->Valid())
+            {
+                result.Status = RuntimeProductHostStartStatus::TaskStoreFailure;
+                result.Error = "Runtime provider service could not initialize";
+                return result;
+            }
             auto router = std::make_shared<RuntimeProductRouter>(
                 std::move(foundation),
-                std::move(rtask));
+                std::move(rtask),
+                provider,
+                std::make_shared<RuntimeTaskProjectionService>(
+                    store,
+                    provider,
+                    bootstrap.Identity.SettingsRoot));
             if (!router->Valid())
             {
                 result.Status = RuntimeProductHostStartStatus::TaskStoreFailure;
@@ -255,6 +287,7 @@ namespace Microsoft::Terminal::TaskRuntime
                 std::move(*instanceId),
                 std::move(router),
                 std::move(store),
+                std::move(provider),
                 std::move(idleConfiguration));
             configuration.Handshake = _foundationHandshake(
                 impl->Bootstrap.Identity,

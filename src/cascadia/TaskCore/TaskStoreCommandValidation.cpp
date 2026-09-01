@@ -11,6 +11,7 @@
 #include "TaskStoreResults.h"
 
 #include <limits>
+#include <cctype>
 #include <type_traits>
 
 namespace Microsoft::Terminal::TaskCore::details
@@ -149,6 +150,57 @@ namespace Microsoft::Terminal::TaskCore::details
             run.CreatedAtUnixMilliseconds > command.Metadata.TimestampUnixMilliseconds)
         {
             error = "New TaskRun is not in its canonical queued state";
+            return false;
+        }
+        return true;
+    }
+
+    bool ValidateRecordTaskAgentSessionCommand(
+        const RecordTaskAgentSessionCommand& command,
+        std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error))
+        {
+            return false;
+        }
+        const auto& session = command.Session;
+        if (command.Metadata.ExpectedTaskVersion == 0 ||
+            !IsCanonicalUuid(session.Id.Value()) ||
+            !IsCanonicalUuid(session.Task.Value()) ||
+            session.Provider.empty() || session.Provider.size() > MaximumProviderIdentifierBytes ||
+            session.ProviderSessionId.empty() || session.ProviderSessionId.size() > MaximumProviderIdentifierBytes ||
+            session.Provider.find('\0') != std::string::npos ||
+            session.ProviderSessionId.find('\0') != std::string::npos ||
+            !_enumInRange(session.State, AgentSessionState::Closed) ||
+            session.CreatedAtUnixMilliseconds < 0 ||
+            session.UpdatedAtUnixMilliseconds < session.CreatedAtUnixMilliseconds ||
+            session.UpdatedAtUnixMilliseconds > command.Metadata.TimestampUnixMilliseconds)
+        {
+            error = "AgentSession record command is invalid";
+            return false;
+        }
+        return true;
+    }
+
+    bool ValidateAppendTaskProviderEventCommand(
+        const AppendTaskProviderEventCommand& command,
+        std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error))
+        {
+            return false;
+        }
+        const auto validType = !command.EventType.empty() &&
+                               command.EventType.size() <= MaximumTaskProviderEventTypeBytes &&
+                               std::ranges::all_of(command.EventType, [](const unsigned char value) {
+                                   return std::isalnum(value) || value == '_' || value == '-' || value == '.';
+                               });
+        if (command.Metadata.ExpectedTaskVersion == 0 ||
+            !IsCanonicalUuid(command.Task.Value()) ||
+            (command.Run && !IsCanonicalUuid(command.Run->Value())) ||
+            command.ProviderSequence == 0 || !validType)
+        {
+            error = "Task provider event command is invalid";
             return false;
         }
         return true;

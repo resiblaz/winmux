@@ -12,7 +12,6 @@
              xmlns:mux="using:Microsoft.UI.Xaml.Controls"
              d:DesignHeight="720"
              d:DesignWidth="1280"
-             RequestedTheme="Dark"
              mc:Ignorable="d">
 
     <UserControl.Resources>
@@ -281,7 +280,7 @@
                     <StackPanel HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 Spacing="8"
-                                Visibility="{x:Bind mtu:Converters.BooleanToVisibility(ViewModel.IsEmpty), Mode=OneWay}">
+                                Visibility="{x:Bind mtu:Converters.BooleanToVisibility(ViewModel.ShowEmptyState), Mode=OneWay}">
                         <FontIcon HorizontalAlignment="Center"
                                   Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
                                   FontFamily="{ThemeResource SymbolThemeFontFamily}"
@@ -296,6 +295,14 @@
                                    Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
                                    TextAlignment="Center"
                                    TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="10"
+                                Visibility="{x:Bind mtu:Converters.BooleanToVisibility(ViewModel.IsLoading), Mode=OneWay}">
+                        <ProgressRing Width="28" Height="28" IsActive="True" />
+                        <TextBlock x:Uid="TaskPageLoadingTasks"
+                                   Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}" />
                     </StackPanel>
                 </Grid>
             </SplitView.Content>
@@ -339,9 +346,9 @@
                                   x:Uid="TaskPageDraftWorkspace"
                                   HorizontalAlignment="Stretch"
                                   SelectedIndex="0">
-                            <ComboBoxItem Content="win_terminal" />
-                            <ComboBoxItem Content="richerlife-api" />
-                            <ComboBoxItem Content="website" />
+                            <ComboBoxItem x:Name="DraftCurrentWorkspaceItem" Content="win_terminal" />
+                            <ComboBoxItem x:Name="DraftPrototypeWorkspaceItemOne" Content="richerlife-api" />
+                            <ComboBoxItem x:Name="DraftPrototypeWorkspaceItemTwo" Content="website" />
                         </ComboBox>
                         <ComboBox x:Name="DraftExecutionMode"
                                   x:Uid="TaskPageDraftExecutionMode"

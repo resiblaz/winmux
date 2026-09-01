@@ -27,6 +27,7 @@
     <ClCompile Include="TaskCoreGitWorktreeTransitionTests.cpp" />
     <ClCompile Include="TaskCoreIntentPolicyTests.cpp" />
     <ClCompile Include="TaskCoreMessageTests.cpp" />
+    <ClCompile Include="TaskCoreProviderStoreTests.cpp" />
     <ClCompile Include="TaskCoreRecordValidationTests.cpp" />
     <ClCompile Include="TaskCoreRecoveryTests.cpp" />
     <ClCompile Include="TaskCoreRuntimeActivityTests.cpp" />

@@ -79,7 +79,17 @@ namespace winrt::TerminalApp::implementation
                                        const winrt::hstring& repositoryRoot,
                                        const winrt::hstring& workingDirectory)
     {
-        const auto id = std::wstring{ winrt::to_hstring(workspaceId) };
+        auto id = std::wstring{ winrt::to_hstring(workspaceId) };
+        if (id.size() == 38 && id.front() == L'{' && id.back() == L'}')
+        {
+            id = id.substr(1, 36);
+        }
+        std::ranges::transform(id, id.begin(), [](const wchar_t value) {
+            return static_cast<wchar_t>(std::towlower(value));
+        });
+        _currentWorkspaceId = id;
+        _currentRepositoryRoot = repositoryRoot;
+        _currentWorkingDirectory = workingDirectory;
         _currentWorkspaceKey = _source ?
                                    _source->ResolveWorkspaceKey(id, std::wstring_view{ repositoryRoot }, std::wstring_view{ workingDirectory }) :
                                    id;
@@ -156,6 +166,15 @@ namespace winrt::TerminalApp::implementation
         {
             _ShowDraft(false);
             args.Handled(true);
+            return;
+        }
+        if (args.Key() == VirtualKey::Escape &&
+            TasksSplitView().DisplayMode() == SplitViewDisplayMode::Overlay &&
+            TasksSplitView().IsPaneOpen())
+        {
+            TasksSplitView().IsPaneOpen(false);
+            PaneToggle().Focus(FocusState::Programmatic);
+            args.Handled(true);
         }
     }
 
@@ -199,14 +218,26 @@ namespace winrt::TerminalApp::implementation
         }
 
         const auto workspaceIndex = DraftWorkspace().SelectedIndex();
-        if (workspaceIndex < 0)
+        if (workspaceIndex < 0 || (!_source->IsPrototype() && _currentWorkspaceId.empty()))
         {
             DraftWorkspace().Focus(FocusState::Programmatic);
             return;
         }
 
         tasks::TaskDraft draft;
-        draft.Workspace = workspaceIndex == 1 ? L"richerlife-api" : workspaceIndex == 2 ? L"website" : L"win_terminal";
+        if (_source->IsPrototype())
+        {
+            draft.Workspace = workspaceIndex == 1 ? L"richerlife-api" : workspaceIndex == 2 ? L"website" : L"win_terminal";
+            draft.WorkspaceId = draft.Workspace;
+        }
+        else
+        {
+            draft.WorkspaceId = _currentWorkspaceId;
+            const auto root = !_currentRepositoryRoot.empty() ? _currentRepositoryRoot : _currentWorkingDirectory;
+            draft.Workspace = std::filesystem::path{ root }.filename().wstring();
+            if (draft.Workspace.empty()) draft.Workspace = draft.WorkspaceId;
+            draft.SourceRoot = root;
+        }
         draft.Title = std::wstring{ title };
         draft.Description = std::wstring{ DraftDescription().Text() };
         draft.Acceptance = _lines(DraftAcceptance().Text());
@@ -251,6 +282,19 @@ namespace winrt::TerminalApp::implementation
 
     void TaskPage::_SyncDraftWorkspace()
     {
+        if (_source && !_source->IsPrototype())
+        {
+            const auto root = !_currentRepositoryRoot.empty() ? _currentRepositoryRoot : _currentWorkingDirectory;
+            auto label = std::filesystem::path{ root }.filename().wstring();
+            if (label.empty()) label = _currentWorkspaceId;
+            DraftCurrentWorkspaceItem().Content(box_value(winrt::hstring{ label }));
+            DraftPrototypeWorkspaceItemOne().Visibility(Visibility::Collapsed);
+            DraftPrototypeWorkspaceItemTwo().Visibility(Visibility::Collapsed);
+            DraftWorkspace().SelectedIndex(0);
+            return;
+        }
+        DraftPrototypeWorkspaceItemOne().Visibility(Visibility::Visible);
+        DraftPrototypeWorkspaceItemTwo().Visibility(Visibility::Visible);
         int32_t index = -1;
         if (_currentWorkspaceKey == L"win_terminal")
         {

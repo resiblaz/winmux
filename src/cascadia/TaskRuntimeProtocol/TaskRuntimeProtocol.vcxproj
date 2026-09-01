@@ -29,6 +29,7 @@
     <ClInclude Include="SnapshotAndSubscribe.h" />
     <ClInclude Include="SubscriptionCursor.h" />
     <ClInclude Include="TerminalFrame.h" />
+    <ClInclude Include="TaskProjectionRpc.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -49,6 +50,9 @@
     <ClCompile Include="SnapshotAndSubscribe.cpp" />
     <ClCompile Include="SubscriptionCursor.cpp" />
     <ClCompile Include="TerminalFrame.cpp" />
+    <ClCompile Include="TaskProjectionJson.cpp" />
+    <ClCompile Include="TaskProjectionValidation.cpp" />
+    <ClCompile Include="TaskUiCommandJson.cpp" />
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>

@@ -33,6 +33,16 @@ namespace winrt::TerminalApp::implementation
     {
     }
 
+    TaskPageViewModel::~TaskPageViewModel()
+    {
+        if (_source)
+        {
+            _source->SetChangedHandler({});
+            _source->Stop();
+            _source.reset();
+        }
+    }
+
     Windows::Foundation::Collections::IObservableVector<TerminalApp::TaskItemViewModel> TaskPageViewModel::Tasks() const noexcept
     {
         return _tasks;
@@ -53,6 +63,16 @@ namespace winrt::TerminalApp::implementation
         return _tasks.Size() == 0;
     }
 
+    bool TaskPageViewModel::IsLoading() const noexcept
+    {
+        return _source && _source->IsLoading();
+    }
+
+    bool TaskPageViewModel::ShowEmptyState() const noexcept
+    {
+        return IsEmpty() && !IsLoading();
+    }
+
     bool TaskPageViewModel::HasSelection() const noexcept
     {
         return _selectedTask != nullptr;
@@ -71,6 +91,18 @@ namespace winrt::TerminalApp::implementation
         }
 
         _source = std::move(source);
+        if (_source)
+        {
+            const auto weakThis = get_weak();
+            _source->SetChangedHandler([weakThis] {
+                if (const auto self = weakThis.get()) self->Reload();
+            });
+            if (!_source->Start())
+            {
+                _source->SetChangedHandler({});
+                _source.reset();
+            }
+        }
         Reload();
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"IsSourceAttached" });
     }
@@ -82,7 +114,9 @@ namespace winrt::TerminalApp::implementation
             return;
         }
 
-        _source.reset();
+        auto source = std::move(_source);
+        source->SetChangedHandler({});
+        source->Stop();
         _snapshot.clear();
         _ApplyFilters();
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"IsSourceAttached" });
@@ -104,6 +138,7 @@ namespace winrt::TerminalApp::implementation
 
         _selectedTask = task;
         _selectedTaskId = std::move(nextId);
+        if (_source) _source->SelectTask(_selectedTaskId);
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"SelectedTask" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"HasSelection" });
     }
@@ -218,6 +253,7 @@ namespace winrt::TerminalApp::implementation
                 _selectedTaskId.clear();
             }
         }
+        if (_source) _source->SelectTask(_selectedTaskId);
         _RaisePageState();
     }
 
@@ -227,6 +263,8 @@ namespace winrt::TerminalApp::implementation
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"SelectedTask" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"TaskCountText" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"IsEmpty" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"IsLoading" });
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"ShowEmptyState" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"HasSelection" });
     }
 

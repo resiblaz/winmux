@@ -4,6 +4,7 @@
 
 #include "pch.h"
 #include "TerminalPage.h"
+#include "Tasks/RuntimeTaskProjectionSource.h"
 
 #include <TerminalCore/ControlKeyStates.hpp>
 #include <TerminalThemeHelpers.h>
@@ -219,7 +220,16 @@ namespace winrt::TerminalApp::implementation
         _tabView = _tabRow.TabView();
         _workspaceSidebar = this->WorkspaceSidebar();
         _taskPage = this->TasksPage();
-        winrt::get_self<implementation::TaskPage>(_taskPage)->AttachProjectionSource(tasks::MakePrototypeTaskProjectionSource());
+        auto taskSource = tasks::MakeRuntimeTaskProjectionSource();
+        std::array<wchar_t, 8> prototypeFlag{};
+        if (!taskSource && GetEnvironmentVariableW(
+                               L"RICHER_TASKS_USE_PROTOTYPE",
+                               prototypeFlag.data(),
+                               static_cast<DWORD>(prototypeFlag.size())) == 1 && prototypeFlag[0] == L'1')
+        {
+            taskSource = tasks::MakePrototypeTaskProjectionSource();
+        }
+        winrt::get_self<implementation::TaskPage>(_taskPage)->AttachProjectionSource(std::move(taskSource));
         _conclusionSidebar = this->ConclusionSidebar();
         winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->SetTabContentMode(true);
         _workspaceFeatures->History().Attach(_conclusionSidebar);

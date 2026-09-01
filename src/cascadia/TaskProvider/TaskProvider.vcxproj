@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{115B1D59-F662-4E52-8051-0F4CB035E004}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>Microsoft.Terminal.TaskProvider</RootNamespace>
+    <ProjectName>TaskProvider</ProjectName>
+    <TargetName>TaskProvider</TargetName>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <OpenConsoleUniversalApp>false</OpenConsoleUniversalApp>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\common.build.pre.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.props" />
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="CodexAppServerAdapter.h" />
+    <ClInclude Include="CodexAppServerContract.h" />
+    <ClInclude Include="CodexAppServerEventParser.h" />
+    <ClInclude Include="CodexAppServerJsonRpc.h" />
+    <ClInclude Include="CodexAppServerTransport.h" />
+    <ClInclude Include="ITaskProviderAdapter.h" />
+    <ClInclude Include="TaskProviderCoordinator.h" />
+    <ClInclude Include="TaskProviderFailurePolicy.h" />
+    <ClInclude Include="TaskProviderRunContext.h" />
+    <ClInclude Include="TaskProviderTypes.h" />
+    <ClInclude Include="TaskProviderVtRenderer.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="CodexAppServerAdapter.cpp" />
+    <ClCompile Include="CodexAppServerContract.cpp" />
+    <ClCompile Include="CodexAppServerEventParser.cpp" />
+    <ClCompile Include="CodexAppServerJsonRpc.cpp" />
+    <ClCompile Include="CodexAppServerProcessTransport.cpp" />
+    <ClCompile Include="TaskProviderCoordinator.cpp" />
+    <ClCompile Include="TaskProviderFailurePolicy.cpp" />
+    <ClCompile Include="TaskProviderRunContext.cpp" />
+    <ClCompile Include="TaskProviderTypes.cpp" />
+    <ClCompile Include="TaskProviderVtRenderer.cpp" />
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\cascadia\TaskProvider;$(SolutionDir)src\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\common.build.post.props" />
+  <Import Project="$(SolutionDir)src\common.nugetversions.targets" />
+</Project>

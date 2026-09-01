@@ -26,6 +26,8 @@ namespace TerminalApp
         String AutomationName { get; };
         Boolean HasActiveRun { get; };
         Boolean HasResult { get; };
+        Boolean HasQueuedMessages { get; };
+        Boolean HasRunDetails { get; };
         Boolean CanStart { get; };
         Boolean CanStop { get; };
         Boolean CanOpenTerminal { get; };
@@ -34,5 +36,8 @@ namespace TerminalApp
         Boolean CanReopen { get; };
         Windows.Foundation.Collections.IObservableVector<String> AcceptanceItems { get; };
         Windows.Foundation.Collections.IObservableVector<String> RunItems { get; };
+        Windows.Foundation.Collections.IObservableVector<String> QueuedMessageItems { get; };
+        Windows.Foundation.Collections.IObservableVector<String> RunDetailItems { get; };
+        UInt64 Version { get; };
     }
 }

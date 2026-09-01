@@ -11,7 +11,6 @@
              xmlns:mtu="using:Microsoft.Terminal.UI"
              d:DesignHeight="720"
              d:DesignWidth="960"
-             RequestedTheme="Dark"
              mc:Ignorable="d">
 
     <UserControl.Resources>
@@ -49,6 +48,7 @@
                                 <VisualState.Setters>
                                     <Setter Target="DetailsAside.Visibility" Value="Collapsed" />
                                     <Setter Target="DetailsAsideColumn.Width" Value="0" />
+                                    <Setter Target="InlineRunDetails.Visibility" Value="Visible" />
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="WideDetails">
@@ -58,6 +58,7 @@
                                 <VisualState.Setters>
                                     <Setter Target="DetailsAside.Visibility" Value="Visible" />
                                     <Setter Target="DetailsAsideColumn.Width" Value="290" />
+                                    <Setter Target="InlineRunDetails.Visibility" Value="Collapsed" />
                                 </VisualState.Setters>
                             </VisualState>
                         </VisualStateGroup>
@@ -143,6 +144,49 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Style="{StaticResource TaskCardStyle}"
+                                Visibility="{x:Bind mtu:Converters.BooleanToVisibility(HasQueuedMessages), Mode=OneTime}">
+                            <StackPanel>
+                                <TextBlock x:Uid="TaskPageQueuedMessagesTitle" Style="{StaticResource TaskSectionTitleStyle}" />
+                                <ItemsControl ItemsSource="{x:Bind QueuedMessageItems, Mode=OneTime}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,3" Padding="10"
+                                                    Background="{ThemeResource WorkspaceChromeStatusFillBrush}"
+                                                    CornerRadius="6">
+                                                <TextBlock Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}"
+                                                           Text="{Binding}"
+                                                           TextWrapping="Wrap" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <Border x:Name="InlineRunDetails"
+                                Style="{StaticResource TaskCardStyle}"
+                                Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock x:Uid="TaskPageRunDetailsTitle" Style="{StaticResource TaskSectionTitleStyle}" />
+                                <ItemsControl ItemsSource="{x:Bind RunDetailItems, Mode=OneTime}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Margin="0,4"
+                                                       FontFamily="Consolas"
+                                                       FontSize="12"
+                                                       Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}"
+                                                       Text="{Binding}"
+                                                       TextWrapping="Wrap" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock x:Uid="TaskPageRunDetailsEmpty"
+                                           Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                                           Visibility="{x:Bind mtu:Converters.InvertedBooleanToVisibility(HasRunDetails), Mode=OneTime}" />
+                            </StackPanel>
+                        </Border>
+
                         <Border Style="{StaticResource TaskCardStyle}">
                             <StackPanel>
                                 <TextBlock x:Uid="TaskPageAcceptanceTitle" Style="{StaticResource TaskSectionTitleStyle}" />
@@ -220,6 +264,30 @@
                                 <TextBlock Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}" Text="{x:Bind Branch, Mode=OneTime}" TextWrapping="Wrap" />
                                 <TextBlock x:Uid="TaskPageDirectoryProperty" Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}" />
                                 <TextBlock Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}" Text="{x:Bind WorkingDirectory, Mode=OneTime}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource TaskCardStyle}">
+                            <StackPanel>
+                                <TextBlock x:Uid="TaskPageRunDetailsTitle" Style="{StaticResource TaskSectionTitleStyle}" />
+                                <ScrollViewer MaxHeight="420"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{x:Bind RunDetailItems, Mode=OneTime}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Margin="0,4"
+                                                           FontFamily="Consolas"
+                                                           FontSize="11"
+                                                           Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}"
+                                                           Text="{Binding}"
+                                                           TextWrapping="Wrap" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                                <TextBlock x:Uid="TaskPageRunDetailsEmpty"
+                                           Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                                           Visibility="{x:Bind mtu:Converters.InvertedBooleanToVisibility(HasRunDetails), Mode=OneTime}" />
                             </StackPanel>
                         </Border>
                     </StackPanel>

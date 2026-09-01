@@ -5,6 +5,8 @@
 #include "../TerminalApp/Tasks/TaskDetailsPane.h"
 #include "../TerminalApp/Tasks/TaskPage.h"
 #include "../TerminalApp/Tasks/TaskPageViewModel.h"
+#include "../TerminalApp/Tasks/TaskProjectionCoordinator.h"
+#include "../TerminalApp/Tasks/TaskProjectionMapper.h"
 #include "CppWinrtTailored.h"
 
 using namespace WEX::TestExecution;
@@ -21,6 +23,7 @@ namespace TerminalAppLocalTests
         std::optional<tasks::TaskCommand> LastCommand;
         std::optional<tasks::TaskDraft> LastDraft;
         bool LastStartImmediately{};
+        ChangedHandler Handler;
 
         std::vector<tasks::TaskProjection> Snapshot() const override
         {
@@ -52,6 +55,16 @@ namespace TerminalAppLocalTests
             const auto task = std::find_if(Items.begin(), Items.end(), [&](const auto& item) { return item.Id == taskId; });
             return task == Items.end() ? std::nullopt : std::optional<tasks::TaskProjection>{ *task };
         }
+
+        void SetChangedHandler(ChangedHandler handler) override
+        {
+            Handler = std::move(handler);
+        }
+
+        void TriggerChanged() const
+        {
+            if (Handler) Handler();
+        }
     };
 
     class TaskPageViewModelTests
@@ -67,6 +80,9 @@ namespace TerminalAppLocalTests
         TEST_METHOD(CreatesTaskPageXamlTypes);
         TEST_METHOD(PageFilteringPreservesSelectionByTaskId);
         TEST_METHOD(PrototypeResolvesStableWorkspaceKey);
+        TEST_METHOD(ProjectionCoordinatorRejectsStaleGenerationAndAcceptsNewEpoch);
+        TEST_METHOD(SourceChangeBatchesReloadAndPreservesSelection);
+        TEST_METHOD(RuntimeProjectionMapsRunsMessagesAndDetails);
     };
 
     tasks::TaskProjection _task(std::wstring id,
@@ -273,6 +289,94 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(std::wstring{ L"richerlife-api" }, source->ResolveWorkspaceKey(L"workspace-id", L"", LR"(F:\RicherLife\codes\richerlife-api\src)"));
             VERIFY_ARE_EQUAL(std::wstring{ L"win_terminal" }, source->ResolveWorkspaceKey(L"workspace-id", LR"(F:\RicherLife\task-worktrees\rwt-42)", LR"(F:\RicherLife\task-worktrees\rwt-42\src)"));
             VERIFY_ARE_EQUAL(std::wstring{ L"win_terminal" }, source->ResolveWorkspaceKey(L"workspace-id", L"", LR"(C:\Users\u1s1)"));
+        });
+        VERIFY_SUCCEEDED(result);
+    }
+
+    void TaskPageViewModelTests::ProjectionCoordinatorRejectsStaleGenerationAndAcceptsNewEpoch()
+    {
+        tasks::TaskProjectionCoordinator coordinator;
+        auto first = _task(L"RWT-1", L"workspace", tasks::TaskStatus::Todo);
+        first.UpdatedAtUnixMilliseconds = 10;
+        VERIFY_IS_TRUE(coordinator.Apply("runtime-a", 2, { first }));
+        VERIFY_IS_FALSE(coordinator.Apply("runtime-a", 1, { _task(L"stale", L"workspace", tasks::TaskStatus::Todo) }));
+        VERIFY_ARE_EQUAL(size_t{ 1 }, coordinator.Size());
+        VERIFY_ARE_EQUAL(std::wstring{ L"RWT-1" }, coordinator.Snapshot().front().Id);
+        auto detail = first;
+        detail.Title = L"Detailed title";
+        VERIFY_IS_TRUE(coordinator.Merge("runtime-a", 2, detail));
+        VERIFY_ARE_EQUAL(std::wstring{ L"Detailed title" }, coordinator.Snapshot().front().Title);
+        VERIFY_IS_FALSE(coordinator.Merge("runtime-a", 1, detail));
+
+        auto restarted = _task(L"RWT-2", L"workspace", tasks::TaskStatus::InProgress);
+        restarted.UpdatedAtUnixMilliseconds = 20;
+        VERIFY_IS_TRUE(coordinator.Apply("runtime-b", 1, { restarted }));
+        VERIFY_ARE_EQUAL(uint64_t{ 1 }, coordinator.Generation());
+        VERIFY_ARE_EQUAL(std::wstring{ L"RWT-2" }, coordinator.Snapshot().front().Id);
+
+        std::vector<tasks::TaskProjection> oversized(513, restarted);
+        VERIFY_IS_FALSE(coordinator.Apply("runtime-b", 2, std::move(oversized)));
+    }
+
+    void TaskPageViewModelTests::SourceChangeBatchesReloadAndPreservesSelection()
+    {
+        const auto result = RunOnUIThread([]() {
+            const auto source = std::make_shared<RecordingTaskProjectionSource>();
+            source->Items = {
+                _task(L"RWT-1", L"win_terminal", tasks::TaskStatus::Todo),
+                _task(L"RWT-2", L"win_terminal", tasks::TaskStatus::InReview),
+            };
+            const auto viewModel = winrt::make_self<winrt::TerminalApp::implementation::TaskPageViewModel>();
+            viewModel->AttachSource(source);
+            viewModel->SelectTask(viewModel->Tasks().GetAt(1));
+            source->Items.insert(source->Items.begin(), _task(L"RWT-3", L"win_terminal", tasks::TaskStatus::Todo));
+            source->TriggerChanged();
+            VERIFY_ARE_EQUAL(3u, viewModel->Tasks().Size());
+            VERIFY_ARE_EQUAL(L"RWT-2", viewModel->SelectedTask().Id());
+            viewModel->DetachSource();
+            VERIFY_IS_FALSE(static_cast<bool>(source->Handler));
+        });
+        VERIFY_SUCCEEDED(result);
+    }
+
+    void TaskPageViewModelTests::RuntimeProjectionMapsRunsMessagesAndDetails()
+    {
+        const auto result = RunOnUIThread([]() {
+            namespace protocol = ::Microsoft::Terminal::TaskRuntimeProtocol;
+            protocol::TaskProjectionRecord source;
+            source.Id = "10000000-0000-4000-8000-000000000001";
+            source.WorkspaceId = "20000000-0000-4000-8000-000000000002";
+            source.Title = "Mapped task";
+            source.Description = "Mapped details";
+            source.Status = protocol::TaskProjectionStatus::InProgress;
+            source.Priority = protocol::TaskProjectionPriority::High;
+            source.Version = 4;
+            source.CreatedAtUnixMilliseconds = 1000;
+            source.UpdatedAtUnixMilliseconds = 2000;
+            source.Execution.Id = "30000000-0000-4000-8000-000000000003";
+            source.Execution.Revision = 1;
+            source.Execution.SourceRoot = "C:/src";
+            source.Execution.RuntimeRoot = "C:/src";
+            source.Execution.Provider = "codex";
+            source.Terminal.State = protocol::TaskProjectionTerminalState::Exited;
+            protocol::TaskProjectionRunRecord run;
+            run.Id = "40000000-0000-4000-8000-000000000004";
+            run.ExecutionContextId = source.Execution.Id;
+            run.State = protocol::TaskProjectionRunState::Running;
+            run.Sequence = 1;
+            run.CreatedAtUnixMilliseconds = 1500;
+            source.Runs.push_back(run);
+            source.Messages.push_back({ "50000000-0000-4000-8000-000000000005", 0, 1, 1, "queued follow-up", std::nullopt, 1600, 1600 });
+            source.Events.push_back({ "60000000-0000-4000-8000-000000000006", run.Id, 2, 1, "Provider_tool_progress", R"({"text":"building"})", 1700 });
+            source.LastEventSequence = 2;
+            const auto mapped = tasks::MapTaskProjection(source);
+            VERIFY_IS_TRUE(mapped.has_value());
+            VERIFY_IS_TRUE(mapped->HasActiveRun);
+            VERIFY_ARE_EQUAL(size_t{ 1 }, mapped->Runs.size());
+            VERIFY_ARE_EQUAL(size_t{ 1 }, mapped->QueuedMessages.size());
+            VERIFY_ARE_EQUAL(size_t{ 1 }, mapped->RunDetails.size());
+            VERIFY_IS_TRUE(mapped->RunDetails.front().find(L"building") != std::wstring::npos);
+            VERIFY_ARE_EQUAL(uint64_t{ 4 }, mapped->Version);
         });
         VERIFY_SUCCEEDED(result);
     }

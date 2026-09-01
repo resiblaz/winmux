@@ -27,6 +27,7 @@ $hookTests = Join-Path $repoRoot '.codex\hooks\test-workspace-history.ps1'
 $taskCoreTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
 $taskExecutionTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
 $taskGitTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
+$taskProviderTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
 $taskProtocolTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
 $taskActivationTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
 $taskClientTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
@@ -40,6 +41,7 @@ $taskTestTargets = @(
     'Terminal\Tests\TaskExecutionLockChild',
     'Terminal\Tests\GitTestChild',
     'Terminal\Tests\TaskGit_LocalTests',
+    'Terminal\Tests\TaskProvider_LocalTests',
     'Terminal\Tests\TaskRuntimeProtocol_LocalTests',
     'Terminal\Tests\TaskRuntimeActivation_LocalTests',
     'Terminal\Tests\TaskRuntimeClient_LocalTests',
@@ -48,6 +50,7 @@ $taskTestTargets = @(
     'Terminal\Task\TaskRuntime',
     'Terminal\Task\TaskExecution',
     'Terminal\Task\TaskGit',
+    'Terminal\Task\TaskProvider',
     'Terminal\Task\Rtask')
 $productTestTargets = @(
     'Terminal\Tests\TerminalApp_LocalTests',
@@ -250,6 +253,8 @@ try
             'src\cascadia\LocalTests_TaskExecution\GitTestChild\GitTestChild.vcxproj',
             'src\cascadia\TaskGit\TaskGit.vcxproj',
             'src\cascadia\LocalTests_TaskGit\TaskGit.LocalTests.vcxproj',
+            'src\cascadia\TaskProvider\TaskProvider.vcxproj',
+            'src\cascadia\LocalTests_TaskProvider\TaskProvider.LocalTests.vcxproj',
             'src\cascadia\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj',
             'src\cascadia\LocalTests_TaskRuntimeProtocol\TaskRuntimeProtocol.LocalTests.vcxproj',
             'src\cascadia\TaskRuntimeActivation\TaskRuntimeActivation.vcxproj',
@@ -346,6 +351,7 @@ try
         $taskExecutionLockChild = Join-Path $taskExecutionTestDirectory 'TaskExecutionLockChild.exe'
         $taskExecutionGitTestChild = Join-Path $taskExecutionTestDirectory 'TaskExecutionGitTestChild.exe'
         $taskGitTests = Join-Path $taskGitTestDirectory 'TaskGit.LocalTests.dll'
+        $taskProviderTests = Join-Path $taskProviderTestDirectory 'TaskProvider.LocalTests.dll'
         $taskProtocolTests = Join-Path $taskProtocolTestDirectory 'TaskRuntimeProtocol.LocalTests.dll'
         $taskActivationTests = Join-Path $taskActivationTestDirectory 'TaskRuntimeActivation.LocalTests.dll'
         $taskClientTests = Join-Path $taskClientTestDirectory 'TaskRuntimeClient.LocalTests.dll'
@@ -368,6 +374,7 @@ try
             -not (Test-Path -LiteralPath $taskExecutionLockChild -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskExecutionGitTestChild -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskGitTests -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $taskProviderTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskProtocolTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskActivationTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskClientTests -PathType Leaf) -or
@@ -405,6 +412,16 @@ try
         try
         {
             Invoke-TaefSelection -Taef $taef -TestDll $taskGitTests -Pattern '*TaskGit*'
+        }
+        finally
+        {
+            Pop-Location
+        }
+
+        Push-Location $taskProviderTestDirectory
+        try
+        {
+            Invoke-TaefSelection -Taef $taef -TestDll $taskProviderTests -Pattern '*TaskProviderLocalTests*'
         }
         finally
         {

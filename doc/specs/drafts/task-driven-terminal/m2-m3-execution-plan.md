@@ -1,8 +1,8 @@
 ---
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
-last updated: 2026-08-31
-status: active execution queue; M2 closure and M3A-M3D complete, M3E next
+last updated: 2026-09-01
+status: active execution queue; M2 closure and M3A-M3E complete, M3F next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -116,7 +116,7 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
 | M3B (complete) | Canonical directory identity, Direct FIFO lease, Git common-dir mutex | Unicode/alias/reparse, cancellation, abandoned owner, two Runtime identities/processes |
 | M3C (complete) | Structured Windows Git runner and repository inspector | argv/env injection, timeout/cancel/tree kill, output/UTF-8 bounds, linked/detached/SHA-1/SHA-256 |
 | M3D (complete) | Read-only faithful source-state capture | clean/staged/unstaged/untracked/ignored, 2,000/200 MiB bounds, symlink/vanish, digest race, source unchanged |
-| M3E | Worktree provision, replay, verification, baseline and setup recovery | deterministic collisions, every crash phase, hook/sign/identity/lock/copy/persist failure, no fallback |
+| M3E (complete) | Worktree provision, replay, verification, baseline and setup recovery | deterministic collisions, every crash phase, hook/sign/identity/lock/copy/persist failure, no fallback |
 | M3F | Per-TaskRun checkpoint and fake-run integration | preserve Agent commits, add-A, no empty commit, all terminal outcomes, exactly-once recovery, Worktree reuse |
 | M3G | Explicit finalize/cleanup, Delete guard and recovery | exact path/ref proof, empty/produced branch, failure preservation, crash resume, late-event tombstone |
 | M3H | Cross-process concurrency, soak and milestone gate | Direct FIFO, same-repo Git serialization, different-repo parallelism, abandoned mutex, repeated restart/finalize |
@@ -313,6 +313,60 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
   `CB8F02B1126B289A92D0E0F0215927CC546E7D27EA629C8B4D913E624844E75C`;
   the portable ZIP is 11,995,698 bytes with SHA256
   `622D4BD59C4C4DC8F5CFA0312BA44622CBB4BF77C9077B14927CBD1B6FAA7ECC`.
+
+### 4.6 M3E closure evidence
+
+- TaskCore persists the monotonic setup phases `Planning -> CapturingSource ->
+  Provisioning -> RestoringSource -> CreatingBaseline -> Ready`, plus explicit
+  Failed evidence. Runtime advances at most one durable phase per call, so a
+  restart repeats only the idempotent external operation for the recorded phase.
+- Deterministic layouts use
+  `<runtime-data>/task-worktrees/v1/<task-id>` and versioned `.state` files. The
+  ownership marker and immutable source journal are checksum-protected and bind
+  TaskId, ownership nonce, repository identity, source HEAD/ref, tracked trees,
+  stash object, status/snapshot digests, and the bounded untracked manifest.
+  Journal publication precedes marker publication; recovery can therefore
+  restore a missing marker without recapturing changed source state, while an
+  orphan marker fails closed.
+- Preflight holds the common-directory Mutex and rejects sparse checkout,
+  submodules in any captured tree, LFS/required clean-smudge filters, promisor
+  or partial-clone material, missing objects, unsafe paths, and deterministic
+  branch/path collisions. Existing resources are reused only when persisted
+  ownership proof and exact detached/branch registration agree; no timestamp
+  branch, broad prune, force cleanup, or Direct fallback exists.
+- Provision creates a detached Worktree first, verifies its exact registration,
+  then attaches `refs/heads/wt-task/<task-id>`. A crash or injected branch-switch
+  failure preserves the detached Worktree and resumes it on the next call.
+  User checkout hooks are proven active in tests and bypassed command-locally
+  for managed setup.
+- Tracked state is restored with `stash apply --index`; non-ignored untracked
+  files use handle-verified source/destination paths, exclusive source reads,
+  SHA-256 before and after copy, a versioned Runtime staging file outside the
+  Worktree, atomic no-replace move, and idempotent identical-file reuse. Real
+  source, destination-parent, staging, and runtime-root reparse cases fail
+  closed. Final tracked tree, index tree, manifest, ownership, and every file
+  digest are verified twice.
+- Clean snapshots use source HEAD directly and cannot create an empty baseline
+  commit. Dirty snapshots use `git add -A`, disabled hooks and `--no-verify`,
+  preserve configured signing, and use the Runtime identity only when both
+  configured name and email are absent. Incomplete identity and signing
+  failures preserve the staged candidate. A nonce-bound subject, exact parent,
+  tree diff, clean status, and marker CAS allow recovery after commit succeeds
+  but marker replacement or SQLite persistence fails.
+- The Runtime integration test injects a transactional event-write rollback
+  after each successful external phase (capture, provision, replay, baseline),
+  proves the database remains at the prior phase, then reaches Ready through
+  idempotent recovery. Cancellation is durably classified as Failed and
+  requires an explicit retry transition.
+- `TaskGit.LocalTests` passes 55/55 and the complete Runtime suite passes with
+  the two new setup-recovery cases. Hook tests pass 246 assertions. The unified
+  Release/MSIX build and complete native gate passed; the initial CLI check met
+  a transient live-instance exit code 8, then the formal CLI-only gate passed
+  without terminating or restarting the user's Terminal process.
+- The resulting MSIX is 8,116,550 bytes with SHA256
+  `F8009895498892BAC42D3DB1918D3AD9149F7D8F349C87DE605BB60E3FBF058C`;
+  portable `-SkipBuild -NoLaunch` produced an 11,998,934-byte ZIP with SHA256
+  `0363D6B7D770EC98CB34421AB31BD8605A78D30E219D44E4FE538BB25C51ADAE`.
 
 ## 5. Verification discipline
 

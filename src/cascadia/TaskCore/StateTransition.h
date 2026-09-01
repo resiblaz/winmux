@@ -19,6 +19,7 @@ namespace Microsoft::Terminal::TaskCore
         ActiveIntentConflict,
         IntentRevisionMismatch,
         GitWorktreeRevisionMismatch,
+        GitCheckpointRevisionMismatch,
         MessageRevisionMismatch,
         UndeliveredWork,
     };

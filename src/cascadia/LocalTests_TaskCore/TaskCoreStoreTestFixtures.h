@@ -234,6 +234,57 @@ namespace TaskCoreLocalTests::TestFixtures
         return command;
     }
 
+    inline BeginTaskRunGitCheckpointCommand MakeBeginGitCheckpointCommand(
+        const CreateTaskRunCommand& run,
+        const uint64_t checkpointSeed,
+        const uint64_t commandSeed,
+        const uint64_t expectedTaskVersion,
+        const int64_t timestamp,
+        std::string startCommit = std::string(40, 'd'))
+    {
+        BeginTaskRunGitCheckpointCommand command;
+        command.Metadata = MakeMetadata(
+            commandSeed,
+            expectedTaskVersion,
+            timestamp);
+        command.Checkpoint.Id = MakeId<GitCheckpointId>(6000 + checkpointSeed);
+        command.Checkpoint.Task = run.Run.Task;
+        command.Checkpoint.Run = run.Run.Id;
+        command.Checkpoint.Revision = 1;
+        command.Checkpoint.State = TaskGitCheckpointState::Pending;
+        command.Checkpoint.StartCommit = std::move(startCommit);
+        command.Checkpoint.ChangedPathsJson = "[]";
+        command.Checkpoint.DiffSummaryJson =
+            "{\"startStateDigest\":\"" + std::string(64, 'e') + "\"}";
+        command.Checkpoint.CreatedAtUnixMilliseconds = timestamp;
+        command.Checkpoint.UpdatedAtUnixMilliseconds = timestamp;
+        return command;
+    }
+
+    inline AdvanceTaskRunGitCheckpointCommand MakeAdvanceGitCheckpointCommand(
+        const BeginTaskRunGitCheckpointCommand& begin,
+        const uint64_t commandSeed,
+        const uint64_t expectedTaskVersion,
+        const uint64_t expectedCheckpointRevision,
+        const uint64_t expectedWorktreeRevision,
+        const int64_t timestamp,
+        const TaskGitCheckpointState state)
+    {
+        AdvanceTaskRunGitCheckpointCommand command;
+        command.Metadata = MakeMetadata(
+            commandSeed,
+            expectedTaskVersion,
+            timestamp);
+        command.Task = begin.Checkpoint.Task;
+        command.Run = begin.Checkpoint.Run;
+        command.Checkpoint = begin.Checkpoint.Id;
+        command.ExpectedCheckpointRevision = expectedCheckpointRevision;
+        command.ExpectedWorktreeRevision = expectedWorktreeRevision;
+        command.RequestedState = state;
+        command.DiffSummaryJson = begin.Checkpoint.DiffSummaryJson;
+        return command;
+    }
+
     inline ApplyTaskAgentMutationCommand MakeAgentMutationCommand(
         const CreateTaskRunCommand& run,
         const uint64_t commandSeed,

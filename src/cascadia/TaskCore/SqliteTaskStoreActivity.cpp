@@ -26,7 +26,8 @@ SELECT
     EXISTS(SELECT 1 FROM task_intent WHERE stage NOT IN (7,8)),
     EXISTS(SELECT 1 FROM task_message WHERE state IN (0,1)),
     EXISTS(SELECT 1 FROM task_terminal WHERE state IN (1,2,3)),
-    EXISTS(SELECT 1 FROM task_git_worktree WHERE state IN (0,1,2,3,4,6));
+    EXISTS(SELECT 1 FROM task_git_worktree WHERE state IN (0,1,2,3,4,6)) OR
+    EXISTS(SELECT 1 FROM git_checkpoint WHERE state IN (0,1,2,5));
 )SQL";
         details::SqliteStatement statement{ _impl->Database, sql, error };
         if (!statement)

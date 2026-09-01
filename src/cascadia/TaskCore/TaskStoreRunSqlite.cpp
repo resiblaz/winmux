@@ -5,6 +5,7 @@
 #include "TaskStoreRunSqlite.h"
 
 #include "TaskStoreCommandSqlite.h"
+#include "TaskStoreGitCheckpointSqlite.h"
 #include "TaskStoreSqlite.h"
 
 namespace Microsoft::Terminal::TaskCore::details
@@ -72,6 +73,20 @@ WHERE id=?1 AND task_id=?2 AND identity_frozen=0;
         const TaskRunRecord& run,
         std::string& error)
     {
+        bool incompleteCheckpoint{};
+        if (!TaskHasIncompleteGitCheckpoint(
+                database,
+                run.Task,
+                incompleteCheckpoint,
+                error))
+        {
+            return TaskRunReferenceValidation::StorageError;
+        }
+        if (incompleteCheckpoint)
+        {
+            error = "A previous TaskRun Git checkpoint requires recovery";
+            return TaskRunReferenceValidation::Invalid;
+        }
         const auto executionContext = _referenceBelongsToTask(
             database,
             "SELECT EXISTS(SELECT 1 FROM execution_context WHERE id=?1 AND task_id=?2);",

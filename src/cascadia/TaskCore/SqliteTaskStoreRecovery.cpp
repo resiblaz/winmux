@@ -150,6 +150,28 @@ LIMIT ?1;
             return result;
         }
 
+        constexpr auto gitCheckpointsSql = R"SQL(
+SELECT id, task_id, run_id, revision, state, start_commit, end_commit,
+       checkpoint_commit, auto_checkpointed, changed_paths_json,
+       diff_summary_json, preserved_path, reason_code, created_at, updated_at
+FROM git_checkpoint
+WHERE state IN (0,1,2,5)
+ORDER BY updated_at, task_id, run_id
+LIMIT ?1;
+)SQL";
+        if (!_loadBoundedRows(
+                _impl->Database,
+                gitCheckpointsSql,
+                boundedLimit,
+                result.Snapshot.RecoverableGitCheckpoints,
+                result.Snapshot.HasMoreRecoverableGitCheckpoints,
+                details::ReadTaskRunGitCheckpointRow,
+                error))
+        {
+            result.Error = std::move(error);
+            return result;
+        }
+
         constexpr auto messagesSql = R"SQL(
 SELECT id, task_id, author, state, revision, content, claimed_by_run_id, created_at, updated_at
 FROM task_message

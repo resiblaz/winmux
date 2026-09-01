@@ -5,6 +5,7 @@
 #include "TaskStoreCommandValidation.h"
 
 #include "TaskRecordValidation.h"
+#include "TaskGitCheckpointStatePolicy.h"
 #include "TaskGitWorktreeStatePolicy.h"
 #include "TaskRunStatePolicy.h"
 #include "TaskStoreResults.h"
@@ -266,6 +267,121 @@ namespace Microsoft::Terminal::TaskCore::details
             break;
         default:
             error = "Requested Git Worktree state is not a setup phase";
+            return false;
+        }
+        return true;
+    }
+
+    bool ValidateBeginTaskRunGitCheckpointCommand(
+        const BeginTaskRunGitCheckpointCommand& command,
+        std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error))
+        {
+            return false;
+        }
+        const auto& checkpoint = command.Checkpoint;
+        if (!ValidateTaskRunGitCheckpointRecord(checkpoint).empty() ||
+            command.Metadata.ExpectedTaskVersion == 0 ||
+            checkpoint.Revision != 1 ||
+            checkpoint.State != TaskGitCheckpointState::Pending ||
+            checkpoint.StartCommit.empty() || !checkpoint.EndCommit.empty() ||
+            !checkpoint.CheckpointCommit.empty() || checkpoint.AutoCheckpointed ||
+            checkpoint.ChangedPathsJson != "[]" ||
+            checkpoint.DiffSummaryJson.empty() ||
+            !checkpoint.PreservedPath.empty() || !checkpoint.ReasonCode.empty() ||
+            checkpoint.CreatedAtUnixMilliseconds !=
+                command.Metadata.TimestampUnixMilliseconds ||
+            checkpoint.UpdatedAtUnixMilliseconds !=
+                command.Metadata.TimestampUnixMilliseconds)
+        {
+            error = "Initial TaskRun Git checkpoint state is invalid";
+            return false;
+        }
+        return true;
+    }
+
+    bool ValidateAdvanceTaskRunGitCheckpointCommand(
+        const AdvanceTaskRunGitCheckpointCommand& command,
+        std::string& error)
+    {
+        if (!ValidateCommandMetadata(command.Metadata, error))
+        {
+            return false;
+        }
+        if (command.Metadata.ExpectedTaskVersion == 0 ||
+            command.ExpectedCheckpointRevision == 0 ||
+            command.ExpectedWorktreeRevision == 0 ||
+            !IsCanonicalUuid(command.Task.Value()) ||
+            !IsCanonicalUuid(command.Run.Value()) ||
+            !IsCanonicalUuid(command.Checkpoint.Value()) ||
+            command.RequestedState == TaskGitCheckpointState::Pending ||
+            command.RequestedState > TaskGitCheckpointState::Failed ||
+            (!command.EndCommit.empty() && !_isGitObjectId(command.EndCommit)) ||
+            (!command.CheckpointCommit.empty() &&
+             !_isGitObjectId(command.CheckpointCommit)) ||
+            command.ChangedPathsJson.size() > MaximumTaskGitJsonBytes ||
+            command.DiffSummaryJson.empty() ||
+            command.DiffSummaryJson.size() > MaximumTaskGitJsonBytes ||
+            command.PreservedPath.size() > MaximumTaskPathBytes ||
+            command.ReasonCode.size() > MaximumTaskGitReasonCodeBytes)
+        {
+            error = "TaskRun Git checkpoint advance command is invalid";
+            return false;
+        }
+
+        switch (command.RequestedState)
+        {
+        case TaskGitCheckpointState::Inspecting:
+            if (!command.EndCommit.empty() || !command.CheckpointCommit.empty() ||
+                command.AutoCheckpointed || command.ChangedPathsJson != "[]" ||
+                !command.PreservedPath.empty() || !command.ReasonCode.empty())
+            {
+                error = "Checkpoint inspection must retain only start evidence";
+                return false;
+            }
+            break;
+        case TaskGitCheckpointState::Committing:
+            if (command.EndCommit.empty() || !command.CheckpointCommit.empty() ||
+                command.AutoCheckpointed || command.ChangedPathsJson == "[]" ||
+                !command.HasUndeliveredWork || !command.PreservedPath.empty() ||
+                !command.ReasonCode.empty())
+            {
+                error = "Committing checkpoint evidence is incomplete";
+                return false;
+            }
+            break;
+        case TaskGitCheckpointState::Succeeded:
+            if (command.EndCommit.empty() ||
+                command.CheckpointCommit != command.EndCommit ||
+                !command.AutoCheckpointed || command.ChangedPathsJson == "[]" ||
+                !command.HasUndeliveredWork || !command.PreservedPath.empty() ||
+                !command.ReasonCode.empty())
+            {
+                error = "Succeeded checkpoint evidence is inconsistent";
+                return false;
+            }
+            break;
+        case TaskGitCheckpointState::NotNeeded:
+            if (command.EndCommit.empty() || !command.CheckpointCommit.empty() ||
+                command.AutoCheckpointed || !command.PreservedPath.empty() ||
+                !command.ReasonCode.empty())
+            {
+                error = "No-op checkpoint evidence is inconsistent";
+                return false;
+            }
+            break;
+        case TaskGitCheckpointState::Failed:
+            if (!command.CheckpointCommit.empty() || command.AutoCheckpointed ||
+                !command.HasUndeliveredWork || command.PreservedPath.empty() ||
+                command.ReasonCode.empty())
+            {
+                error = "Failed checkpoint must preserve undelivered work";
+                return false;
+            }
+            break;
+        default:
+            error = "Requested Git checkpoint state is unsupported";
             return false;
         }
         return true;

@@ -72,12 +72,14 @@ namespace Microsoft::Terminal::TaskCore
         std::vector<TaskIntentRecord> PendingIntents;
         std::vector<TaskTerminalRecord> RecoverableTerminals;
         std::vector<TaskGitWorktreeRecord> RecoverableGitWorktrees;
+        std::vector<TaskRunGitCheckpointRecord> RecoverableGitCheckpoints;
         std::vector<TaskMessageRecord> UnclaimedMessages;
         std::vector<DeleteTombstoneRecord> Tombstones;
         bool HasMoreActiveRuns{};
         bool HasMorePendingIntents{};
         bool HasMoreRecoverableTerminals{};
         bool HasMoreRecoverableGitWorktrees{};
+        bool HasMoreRecoverableGitCheckpoints{};
         bool HasMoreUnclaimedMessages{};
         bool HasMoreTombstones{};
     };

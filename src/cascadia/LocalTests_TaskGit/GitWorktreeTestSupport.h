@@ -5,6 +5,7 @@
 
 #include "GitSourceCapture.h"
 #include "GitWorktreePreflight.h"
+#include "GitWorktreeBaseline.h"
 #include "GitWorktreeProvision.h"
 #include "GitWorktreeReplay.h"
 #include "TaskGitTestSupport.h"
@@ -156,5 +157,29 @@ namespace TaskGitLocalTests::TestSupport
         VERIFY_IS_TRUE(journal.Succeeded());
         prepared.SourceSnapshot = *snapshot.Snapshot;
         prepared.Journal = *journal.Journal;
+    }
+
+    inline void PrepareReadyTaskWorktree(
+        const GitFixture& fixture,
+        PreparedTaskWorktree& prepared)
+    {
+        PersistTaskWorktreeEvidence(prepared);
+        VERIFY_IS_TRUE(ProvisionTaskWorktree(
+                           fixture,
+                           prepared,
+                           Microsoft::Terminal::TaskGit::GitWorktreePreflightMode::RequireUnoccupied)
+                           .Succeeded());
+        VERIFY_IS_TRUE(ReplayTaskWorktree(fixture, prepared).Succeeded());
+        Microsoft::Terminal::TaskGit::GitWorktreeBaselineCreator baseline{
+            fixture.GitExecutable
+        };
+        const auto created = baseline.Create(
+            prepared.Layout,
+            prepared.Marker,
+            prepared.Journal,
+            fixture.Cancellation.Get());
+        VERIFY_IS_TRUE(created.Succeeded());
+        VERIFY_IS_TRUE(created.Marker.has_value());
+        prepared.Marker = *created.Marker;
     }
 }

@@ -21,6 +21,7 @@
     <ClInclude Include="TaskIdentifiers.h" />
     <ClInclude Include="TaskIntentStatePolicy.h" />
     <ClInclude Include="TaskGitWorktreeStatePolicy.h" />
+    <ClInclude Include="TaskGitCheckpointStatePolicy.h" />
     <ClInclude Include="TaskRecords.h" />
     <ClInclude Include="TaskRecordValidation.h" />
     <ClInclude Include="TaskRunStatePolicy.h" />
@@ -30,6 +31,7 @@
     <ClInclude Include="TaskStoreCommandValidation.h" />
     <ClInclude Include="TaskStoreMessageSqlite.h" />
     <ClInclude Include="TaskStoreGitSqlite.h" />
+    <ClInclude Include="TaskStoreGitCheckpointSqlite.h" />
     <ClInclude Include="TaskStoreResults.h" />
     <ClInclude Include="TaskStoreRunSqlite.h" />
     <ClInclude Include="TaskStoreRowSqlite.h" />
@@ -45,6 +47,7 @@
     <ClCompile Include="TaskIdentifiers.cpp" />
     <ClCompile Include="TaskIntentStatePolicy.cpp" />
     <ClCompile Include="TaskGitWorktreeStatePolicy.cpp" />
+    <ClCompile Include="TaskGitCheckpointStatePolicy.cpp" />
     <ClCompile Include="SqliteTaskStore.cpp" />
     <ClCompile Include="SqliteTaskStoreDeletion.cpp" />
     <ClCompile Include="SqliteTaskStoreHolds.cpp" />
@@ -58,6 +61,7 @@
     <ClCompile Include="SqliteTaskStoreActivity.cpp" />
     <ClCompile Include="SqliteTaskStoreGit.cpp" />
     <ClCompile Include="SqliteTaskStoreGitTransitions.cpp" />
+    <ClCompile Include="SqliteTaskStoreGitCheckpoints.cpp" />
     <ClCompile Include="SqliteTaskStoreRuns.cpp" />
     <ClCompile Include="SqliteTaskStoreTasks.cpp" />
     <ClCompile Include="SqliteTaskStoreTerminals.cpp" />
@@ -67,6 +71,7 @@
     <ClCompile Include="TaskStoreCommandValidation.cpp" />
     <ClCompile Include="TaskStoreMessageSqlite.cpp" />
     <ClCompile Include="TaskStoreGitSqlite.cpp" />
+    <ClCompile Include="TaskStoreGitCheckpointSqlite.cpp" />
     <ClCompile Include="TaskStoreCommandSqlite.cpp" />
     <ClCompile Include="TaskStoreReceiptSqlite.cpp" />
     <ClCompile Include="TaskStoreRowSqlite.cpp" />

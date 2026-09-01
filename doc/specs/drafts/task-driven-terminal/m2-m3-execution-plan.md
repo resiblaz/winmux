@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-09-01
-status: active execution queue; M2 closure and M3A-M3E complete, M3F next
+status: active execution queue; M2 closure and M3A-M3F complete, M3G next
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -117,7 +117,7 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
 | M3C (complete) | Structured Windows Git runner and repository inspector | argv/env injection, timeout/cancel/tree kill, output/UTF-8 bounds, linked/detached/SHA-1/SHA-256 |
 | M3D (complete) | Read-only faithful source-state capture | clean/staged/unstaged/untracked/ignored, 2,000/200 MiB bounds, symlink/vanish, digest race, source unchanged |
 | M3E (complete) | Worktree provision, replay, verification, baseline and setup recovery | deterministic collisions, every crash phase, hook/sign/identity/lock/copy/persist failure, no fallback |
-| M3F | Per-TaskRun checkpoint and fake-run integration | preserve Agent commits, add-A, no empty commit, all terminal outcomes, exactly-once recovery, Worktree reuse |
+| M3F (complete) | Per-TaskRun checkpoint and fake-run integration | preserve Agent commits, add-A, no empty commit, all terminal outcomes, exactly-once recovery, Worktree reuse |
 | M3G | Explicit finalize/cleanup, Delete guard and recovery | exact path/ref proof, empty/produced branch, failure preservation, crash resume, late-event tombstone |
 | M3H | Cross-process concurrency, soak and milestone gate | Direct FIFO, same-repo Git serialization, different-repo parallelism, abandoned mutex, repeated restart/finalize |
 
@@ -367,6 +367,42 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
   `F8009895498892BAC42D3DB1918D3AD9149F7D8F349C87DE605BB60E3FBF058C`;
   portable `-SkipBuild -NoLaunch` produced an 11,998,934-byte ZIP with SHA256
   `0363D6B7D770EC98CB34421AB31BD8605A78D30E219D44E4FE538BB25C51ADAE`.
+
+### 4.7 M3F closure evidence
+
+- TaskCore now owns idempotent begin/advance commands for one checkpoint per
+  TaskRun. Checkpoint and Worktree revisions advance in the same SQLite
+  transaction, and event/receipt failure rolls both records and the Task
+  version back together. Pending, Inspecting, Committing, Succeeded,
+  NotNeeded, and Failed evidence is bounded and included in recovery/activity
+  queries; a failed or incomplete prior checkpoint blocks the next TaskRun.
+- Start capture records the managed branch HEAD and a SHA-256 dirty-state
+  digest and requires the persistent Worktree to be clean. End inspection
+  verifies that start history remains an ancestor, uses `git add -A`, captures
+  bounded UTF-8 changed paths and numeric diff statistics, and creates no
+  commit when the index already equals HEAD.
+- Runtime checkpoint commits use a deterministic Run-bound subject, disabled
+  hooks plus `--no-verify`, configured identity when complete, bounded fallback
+  identity only when both fields are absent, and unchanged signing policy.
+  Exact parent, branch ref, non-empty tree diff, and clean status prove the
+  commit without amending, rebasing, squashing, merging, pushing, or rewriting
+  Agent commits.
+- Commit recovery recognizes the exact already-created checkpoint when Git
+  succeeds before SQLite publication. Tests inject rollback after start
+  capture, staged inspection, and commit publication; every retry converges
+  without a duplicate commit. Signing failure preserves the staged Worktree,
+  blocks a new Run, and resumes only through explicit retry.
+- Fake-run integration covers Completed, Failed, Cancelled, and Interrupted,
+  preserves an Agent-authored commit beneath the Runtime checkpoint, and runs
+  a second no-change TaskRun against the same Worktree path and branch. SHA-1,
+  SHA-256, Unicode paths, active failing hooks, missing identity, signing
+  failure, and post-commit observation failure are covered.
+- Focused suites pass with TaskGit 60/60 and TaskRuntime 188/188; the four new
+  TaskCore checkpoint transaction/policy tests also pass. The complete
+  Task-only unified incremental Release gate passed with all TaskCore,
+  TaskExecution, TaskGit, protocol, activation, client, and Runtime tests plus
+  Runtime/rtask command-line checks. No build cache or user process was
+  cleaned, stopped, or restarted.
 
 ## 5. Verification discipline
 

@@ -21,6 +21,7 @@
     <ClInclude Include="RuntimeOnDemandActivationTestSupport.h" />
     <ClInclude Include="RuntimeRtaskCommandTestSupport.h" />
     <ClInclude Include="RuntimeTerminalSessionTestSupport.h" />
+    <ClInclude Include="RuntimeGitWorktreeTestSupport.h" />
     <ClInclude Include="TaskRuntimeProcessTestFixtures.h" />
     <ClInclude Include="TaskRuntimeProcessOptions.h" />
     <ClInclude Include="TaskRuntimeProcessWin32Support.h" />
@@ -46,6 +47,7 @@
     <ClCompile Include="RuntimeCryptoTests.cpp" />
     <ClCompile Include="RuntimeFoundationRouterTests.cpp" />
     <ClCompile Include="RuntimeGitWorktreeSetupTests.cpp" />
+    <ClCompile Include="RuntimeGitWorktreeCheckpointTests.cpp" />
     <ClCompile Include="RuntimeHelperIdleStateTests.cpp" />
     <ClCompile Include="RuntimeProductHostProcessTests.cpp" />
     <ClCompile Include="RuntimeProductHostIdleProcessTests.cpp" />

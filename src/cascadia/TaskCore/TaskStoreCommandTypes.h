@@ -73,6 +73,31 @@ namespace Microsoft::Terminal::TaskCore
         std::string FailureReasonCode;
     };
 
+    struct BeginTaskRunGitCheckpointCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskRunGitCheckpointRecord Checkpoint;
+    };
+
+    struct AdvanceTaskRunGitCheckpointCommand
+    {
+        TaskCommandMetadata Metadata;
+        TaskId Task;
+        TaskRunId Run;
+        GitCheckpointId Checkpoint;
+        uint64_t ExpectedCheckpointRevision{};
+        uint64_t ExpectedWorktreeRevision{};
+        TaskGitCheckpointState RequestedState{ TaskGitCheckpointState::Pending };
+        std::string EndCommit;
+        std::string CheckpointCommit;
+        bool AutoCheckpointed{};
+        std::string ChangedPathsJson{ "[]" };
+        std::string DiffSummaryJson{ "{}" };
+        bool HasUndeliveredWork{};
+        std::string PreservedPath;
+        std::string ReasonCode;
+    };
+
     struct ChangeTaskRunStateCommand
     {
         TaskCommandMetadata Metadata;

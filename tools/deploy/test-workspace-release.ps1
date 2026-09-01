@@ -11,7 +11,9 @@ param(
 
     [switch]$SkipHookTests,
 
-    [switch]$SkipCliSmoke
+    [switch]$SkipCliSmoke,
+
+    [switch]$TaskOnly
 )
 
 Set-StrictMode -Version Latest
@@ -32,7 +34,7 @@ $taskRuntimeTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration"
 $testHostDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\TestHostApp"
 $settingsTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_SettingsModel"
 $wt = Join-Path $repoRoot "src\cascadia\CascadiaPackage\bin\$Platform\$configuration\wtd.exe"
-$workspaceTestTargets = @(
+$taskTestTargets = @(
     'Terminal\Tests\TaskCore_LocalTests',
     'Terminal\Tests\TaskExecution_LocalTests',
     'Terminal\Tests\TaskExecutionLockChild',
@@ -46,10 +48,13 @@ $workspaceTestTargets = @(
     'Terminal\Task\TaskRuntime',
     'Terminal\Task\TaskExecution',
     'Terminal\Task\TaskGit',
-    'Terminal\Task\Rtask',
+    'Terminal\Task\Rtask')
+$productTestTargets = @(
     'Terminal\Tests\TerminalApp_LocalTests',
     'Terminal\Tests\TestHostApp',
     'Terminal\Tests\SettingsModel_UnitTests')
+$workspaceTestTargets = @($taskTestTargets) + @($productTestTargets)
+$selectedTestTargets = if ($TaskOnly) { $taskTestTargets } else { $workspaceTestTargets }
 $oldClMpCount = $env:CL_MPCount
 
 function Invoke-CheckedCommand
@@ -213,6 +218,10 @@ function Invoke-RtaskExpectedExitCode
 Push-Location $repoRoot
 try
 {
+    if ($TaskOnly -and -not $SkipPackageBuild)
+    {
+        throw '-TaskOnly requires -SkipPackageBuild so package validation remains complete.'
+    }
     Write-Host 'Running static release checks...' -ForegroundColor Cyan
     $git = (Get-Command git.exe -ErrorAction Stop).Source
     Invoke-CheckedCommand -Executable $git -Arguments @('-c', 'core.whitespace=cr-at-eol', 'diff', '--check')
@@ -311,12 +320,13 @@ try
 
     if ($SkipPackageBuild -and -not $SkipTestBuild)
     {
-        Write-Host 'Building Workspace/History native tests...' -ForegroundColor Cyan
+        $buildDescription = if ($TaskOnly) { 'Task native tests' } else { 'Workspace/History native tests' }
+        Write-Host "Building $buildDescription..." -ForegroundColor Cyan
         $env:CL_MPCount = '1'
         $msbuild = (Get-Command msbuild.exe -ErrorAction Stop).Source
         $buildArguments = @(
             (Join-Path $repoRoot 'OpenConsole.slnx'),
-            "/t:$($workspaceTestTargets -join ';')",
+            "/t:$($selectedTestTargets -join ';')",
             "/p:Configuration=$configuration",
             "/p:Platform=$Platform",
             '/p:WindowsTerminalBranding=Dev',
@@ -364,8 +374,9 @@ try
             -not (Test-Path -LiteralPath $taskRuntimeTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $taskRuntimeExecutable -PathType Leaf) -or
             -not (Test-Path -LiteralPath $rtaskExecutable -PathType Leaf) -or
-            -not (Test-Path -LiteralPath $terminalAppTests -PathType Leaf) -or
-            -not (Test-Path -LiteralPath $settingsTests -PathType Leaf))
+            (-not $TaskOnly -and (
+                -not (Test-Path -LiteralPath $terminalAppTests -PathType Leaf) -or
+                -not (Test-Path -LiteralPath $settingsTests -PathType Leaf))))
         {
             throw 'Native test outputs are missing. Run without -SkipTestBuild.'
         }
@@ -458,45 +469,48 @@ try
             Pop-Location
         }
 
-        Push-Location $testHostDirectory
-        try
+        if (-not $TaskOnly)
         {
-            foreach ($pattern in @(
-                    '*AgentHistoryStoreTests*',
-                    '*CodexAppServerTests*',
-                    '*WorkspaceGitMetadataTests*',
-                    '*TaskPageViewModelTests*',
-                    '*WorkspaceSidebarAdaptsToWindowModes*',
-                    '*WorkspaceSurfaceShortcutActions*',
-                    '*TabTests*WorkspaceSnapshot*',
-                    '*WorkspaceLayoutPersistsMetadata*'))
+            Push-Location $testHostDirectory
+            try
             {
-                Invoke-TaefSelection -Taef $taef -TestDll $terminalAppTests -Pattern $pattern
+                foreach ($pattern in @(
+                        '*AgentHistoryStoreTests*',
+                        '*CodexAppServerTests*',
+                        '*WorkspaceGitMetadataTests*',
+                        '*TaskPageViewModelTests*',
+                        '*WorkspaceSidebarAdaptsToWindowModes*',
+                        '*WorkspaceSurfaceShortcutActions*',
+                        '*TabTests*WorkspaceSnapshot*',
+                        '*WorkspaceLayoutPersistsMetadata*'))
+                {
+                    Invoke-TaefSelection -Taef $taef -TestDll $terminalAppTests -Pattern $pattern
+                }
             }
-        }
-        finally
-        {
-            Pop-Location
-        }
+            finally
+            {
+                Pop-Location
+            }
 
-        Push-Location $settingsTestDirectory
-        try
-        {
-            foreach ($pattern in @(
-                    '*ApplicationStateTests*',
-                    '*WorkspaceSnapshotStoreTests*',
-                    '*WorkspaceSnapshotExchangeTests*',
-                    '*WorkspaceCommandlineTests*',
-                    '*WorkspaceActionsCanBeCustomized*',
-                    '*DefaultWorkspaceSurfaceBindings*',
-                    '*AgentHistoryRetentionSettings*'))
+            Push-Location $settingsTestDirectory
+            try
             {
-                Invoke-TaefSelection -Taef $taef -TestDll $settingsTests -Pattern $pattern
+                foreach ($pattern in @(
+                        '*ApplicationStateTests*',
+                        '*WorkspaceSnapshotStoreTests*',
+                        '*WorkspaceSnapshotExchangeTests*',
+                        '*WorkspaceCommandlineTests*',
+                        '*WorkspaceActionsCanBeCustomized*',
+                        '*DefaultWorkspaceSurfaceBindings*',
+                        '*AgentHistoryRetentionSettings*'))
+                {
+                    Invoke-TaefSelection -Taef $taef -TestDll $settingsTests -Pattern $pattern
+                }
             }
-        }
-        finally
-        {
-            Pop-Location
+            finally
+            {
+                Pop-Location
+            }
         }
     }
 

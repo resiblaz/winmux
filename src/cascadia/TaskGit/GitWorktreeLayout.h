@@ -24,6 +24,7 @@ namespace Microsoft::Terminal::TaskGit
 
     struct GitWorktreeLayout
     {
+        Microsoft::Terminal::TaskCore::TaskId Task;
         Microsoft::Terminal::TaskExecution::CanonicalDirectoryIdentity RuntimeRoot;
         Microsoft::Terminal::TaskExecution::CanonicalDirectoryIdentity ManagedRoot;
         Microsoft::Terminal::TaskExecution::CanonicalDirectoryIdentity StateRoot;

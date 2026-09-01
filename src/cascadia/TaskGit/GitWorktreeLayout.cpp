@@ -175,6 +175,7 @@ namespace Microsoft::Terminal::TaskGit
             GitWorktreeLayoutResult result;
             result.Status = GitWorktreeLayoutStatus::Succeeded;
             result.Layout.emplace();
+            result.Layout->Task = task;
             result.Layout->RuntimeRoot = *runtimeRoot.Identity;
             result.Layout->ManagedRoot = *versionRoot.Identity;
             result.Layout->StateRoot = *stateRoot.Identity;

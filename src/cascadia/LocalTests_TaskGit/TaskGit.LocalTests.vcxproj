@@ -25,6 +25,7 @@
     <ClCompile Include="GitSourceCaptureTests.cpp" />
     <ClCompile Include="GitSourceStatusTests.cpp" />
     <ClCompile Include="GitWorktreeLayoutTests.cpp" />
+    <ClCompile Include="GitWorktreeMarkerTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskGit\TaskGit.vcxproj">

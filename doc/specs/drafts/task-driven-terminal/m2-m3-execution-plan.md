@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-30
 last updated: 2026-09-01
-status: active execution queue; M2 closure and M3A-M3G complete, M3H next
+status: M2 and M3 closure passed on feature/task-runtime-foundation; awaiting review, not merged
 ---
 
 # Task-driven Terminal: M2 and M3 Execution Queue
@@ -119,7 +119,7 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
 | M3E (complete) | Worktree provision, replay, verification, baseline and setup recovery | deterministic collisions, every crash phase, hook/sign/identity/lock/copy/persist failure, no fallback |
 | M3F (complete) | Per-TaskRun checkpoint and fake-run integration | preserve Agent commits, add-A, no empty commit, all terminal outcomes, exactly-once recovery, Worktree reuse |
 | M3G (complete) | Explicit finalize/cleanup, Delete guard and recovery | exact path/ref proof, empty/produced branch, failure preservation, crash resume, late-event tombstone |
-| M3H | Cross-process concurrency, soak and milestone gate | Direct FIFO, same-repo Git serialization, different-repo parallelism, abandoned mutex, repeated restart/finalize |
+| M3H (complete) | Cross-process concurrency, soak and milestone gate | Direct FIFO, same-repo Git serialization, different-repo parallelism, abandoned mutex, repeated restart/finalize |
 
 ### 4.1 Frozen M3 decisions
 
@@ -444,6 +444,40 @@ depend on Runtime transport, XAML, TerminalApp, or provider code.
   TaskGit 66/66 and TaskRuntime 193/193 plus all TaskCore, TaskExecution,
   protocol, activation, client, and command-line checks. No cache or user
   process was cleaned, stopped, or restarted.
+
+### 4.9 M3H closure evidence
+
+- The existing TaskExecution matrix remains the lock-system authority: Direct
+  waiters are strict FIFO, middle cancellation does not reorder successors,
+  Direct and Git locks report abandoned ownership safely, and different
+  directory identities progress independently. Two real child-process tests
+  prove that registered and portable Runtime labels still contend on the same
+  current-user Direct/Git Mutexes.
+- New checkpoint-level concurrency tests pause inside the actual locked Git
+  critical section. A second checkpoint for the same common directory cannot
+  enter until the first releases; checkpoints for two different repositories
+  reach a barrier concurrently. This verifies orchestration behavior rather
+  than only the raw Mutex primitive.
+- The restart lifecycle test repeatedly destroys each service, closes and
+  reopens SQLite between durable phases, observes the incomplete checkpoint in
+  `LoadRecoverySnapshot`, then resumes through Succeeded and Finalized. Each
+  invocation runs three fresh setup/checkpoint/finalize lifecycles and verifies
+  no recoverable rows or process-handle growth remain.
+- The targeted soak passed 10/10 real cross-process rounds (20/20 selected
+  tests and 40 child processes), 5/5 Git concurrency rounds (10/10 selected
+  tests), and 3/3 outer restart rounds containing nine complete lifecycles.
+- The final unified Release/MSIX gate passed with Hook 246 assertions,
+  TaskCore 80/80, TaskExecution 27/27, TaskGit 68/68,
+  TaskRuntimeProtocol 71/71, TaskRuntimeActivation 66/66,
+  TaskRuntimeClient 132/132, TaskRuntime 194/194, the complete TerminalApp and
+  Settings native selections, and workspace CLI smoke. Existing PRI/XAML
+  localization warnings remained warnings; no new failure was suppressed.
+- The final MSIX is 8,127,686 bytes with SHA256
+  `36867FDDFB9522DCA0E041B2E8F84477B7671F31527BD51AB5DED7E6A7D539A2`.
+  Portable `-SkipBuild -NoLaunch` produced a 12,009,951-byte ZIP with SHA256
+  `9E87BB36B998C9729BFA4162786E97923195AEA2D8776B2078CA5EFDDECA103D`.
+  No application was launched, stopped, or restarted, and all build caches
+  were preserved.
 
 ## 5. Verification discipline
 

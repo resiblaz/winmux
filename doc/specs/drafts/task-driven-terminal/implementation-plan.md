@@ -2,7 +2,7 @@
 author: RicherLife / Codex collaboration
 created on: 2026-08-29
 last updated: 2026-08-31
-status: active staged implementation; M1 complete, M2 Runtime foundation active
+status: active staged implementation; M1-M3 complete, M4 provider adapter next
 ---
 
 # Task-driven Terminal: Proposed Implementation Plan
@@ -315,6 +315,10 @@ Tests:
 - parent UI exit while Runtime remains alive.
 
 ### M3: execution context, locks, and Git
+
+Status: **complete on `feature/task-runtime-foundation`**; closure evidence is
+recorded in `m2-m3-execution-plan.md` and `m3-closure-report.md`. The branch is
+intentionally not merged pending review.
 
 Deliverables:
 

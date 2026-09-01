@@ -54,11 +54,33 @@ namespace winrt::TerminalApp::implementation
     {
         InitializeComponent();
         const auto weakThis = get_weak();
-        winrt::get_self<implementation::TaskDetailsPane>(DetailsPane())->SetCommandHandler([weakThis](const auto command) {
+        const auto details = winrt::get_self<implementation::TaskDetailsPane>(DetailsPane());
+        details->SetCommandHandler([weakThis](const auto command) {
             if (const auto self = weakThis.get())
             {
                 self->_Execute(command);
             }
+        });
+        details->SetMessageHandler([weakThis](const winrt::hstring& message) {
+            if (const auto self = weakThis.get())
+            {
+                return self->_ViewModelImpl()->QueueSelectedMessage(message);
+            }
+            return false;
+        });
+        details->SetMessageMutationHandler([weakThis](
+                                               const uint32_t index,
+                                               const std::optional<std::wstring>& replacement) {
+            if (const auto self = weakThis.get())
+            {
+                const auto selected = self->_viewModel.SelectedTask();
+                if (!selected)
+                    return false;
+                const auto identity = winrt::get_self<implementation::TaskItemViewModel>(selected)->QueuedMessageIdentityAt(index);
+                return identity && self->_ViewModelImpl()->ReviseSelectedMessage(
+                                       identity->first, identity->second, replacement);
+            }
+            return false;
         });
         _SyncSelection();
     }
@@ -72,7 +94,20 @@ namespace winrt::TerminalApp::implementation
     {
         PrototypeSourceInfo().Visibility(source && source->IsPrototype() ? Visibility::Visible : Visibility::Collapsed);
         _source = std::move(source);
+        if (_source)
+        {
+            _source->SetSurfaceHandler(_surfaceHandler);
+        }
         _ApplyViewModelUpdate([&]() { _ViewModelImpl()->AttachSource(_source); });
+    }
+
+    void TaskPage::SetSurfaceHandler(tasks::ITaskProjectionSource::SurfaceHandler handler)
+    {
+        _surfaceHandler = std::move(handler);
+        if (_source)
+        {
+            _source->SetSurfaceHandler(_surfaceHandler);
+        }
     }
 
     void TaskPage::SetCurrentWorkspace(const winrt::guid& workspaceId,
@@ -227,7 +262,8 @@ namespace winrt::TerminalApp::implementation
         tasks::TaskDraft draft;
         if (_source->IsPrototype())
         {
-            draft.Workspace = workspaceIndex == 1 ? L"richerlife-api" : workspaceIndex == 2 ? L"website" : L"win_terminal";
+            draft.Workspace = workspaceIndex == 1 ? L"richerlife-api" : workspaceIndex == 2 ? L"website" :
+                                                                                              L"win_terminal";
             draft.WorkspaceId = draft.Workspace;
         }
         else
@@ -235,7 +271,8 @@ namespace winrt::TerminalApp::implementation
             draft.WorkspaceId = _currentWorkspaceId;
             const auto root = !_currentRepositoryRoot.empty() ? _currentRepositoryRoot : _currentWorkingDirectory;
             draft.Workspace = std::filesystem::path{ root }.filename().wstring();
-            if (draft.Workspace.empty()) draft.Workspace = draft.WorkspaceId;
+            if (draft.Workspace.empty())
+                draft.Workspace = draft.WorkspaceId;
             draft.SourceRoot = root;
         }
         draft.Title = std::wstring{ title };
@@ -253,6 +290,25 @@ namespace winrt::TerminalApp::implementation
 
     safe_void_coroutine TaskPage::_Execute(const tasks::TaskCommand command)
     {
+        if (command == tasks::TaskCommand::Delete)
+        {
+            ContentDialog dialog{};
+            dialog.Title(box_value(RS_(L"TaskPage_DeleteTitle")));
+            dialog.Content(box_value(RS_(L"TaskPage_DeleteBody")));
+            dialog.PrimaryButtonText(RS_(L"TaskPage_DeleteConfirm"));
+            dialog.CloseButtonText(RS_(L"TaskPage_DeleteCancel"));
+            dialog.DefaultButton(ContentDialogButton::Close);
+            const auto weakThis = get_weak();
+            if (co_await dialog.ShowAsync() != ContentDialogResult::Primary)
+            {
+                co_return;
+            }
+            if (const auto self = weakThis.get())
+            {
+                self->_ApplyViewModelUpdate([&]() { self->_ViewModelImpl()->ExecuteSelected(command); });
+            }
+            co_return;
+        }
         if (command == tasks::TaskCommand::CloseTerminal)
         {
             const auto selected = _viewModel.SelectedTask();
@@ -286,7 +342,8 @@ namespace winrt::TerminalApp::implementation
         {
             const auto root = !_currentRepositoryRoot.empty() ? _currentRepositoryRoot : _currentWorkingDirectory;
             auto label = std::filesystem::path{ root }.filename().wstring();
-            if (label.empty()) label = _currentWorkspaceId;
+            if (label.empty())
+                label = _currentWorkspaceId;
             DraftCurrentWorkspaceItem().Content(box_value(winrt::hstring{ label }));
             DraftPrototypeWorkspaceItemOne().Visibility(Visibility::Collapsed);
             DraftPrototypeWorkspaceItemTwo().Visibility(Visibility::Collapsed);

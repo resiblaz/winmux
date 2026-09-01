@@ -147,6 +147,8 @@ namespace TaskRuntimeClientLocalTests
         VERIFY_IS_TRUE(WaitReady(second));
         VERIFY_IS_TRUE(second.Completion.get().Outcome == RuntimeClientRequestOutcome::Succeeded);
         VERIFY_IS_TRUE(client.State() == TaskRuntimeClientState::Ready);
+        VERIFY_ARE_EQUAL(CurrentProtocolMinor, client.ProtocolMinor());
+        VERIFY_ARE_EQUAL(AllProtocolCapabilities, client.NegotiatedCapabilities());
 
         VERIFY_IS_TRUE(StopAndWait(client));
         VERIFY_IS_TRUE(CancelPrecedesClose(*connection));

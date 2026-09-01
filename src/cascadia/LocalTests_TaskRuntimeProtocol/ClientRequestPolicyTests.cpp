@@ -54,7 +54,8 @@ namespace TaskRuntimeProtocolLocalTests
         for (const auto method : {
                  ControlMethod::SubmitCommand,
                  ControlMethod::AcquireInputLease,
-                 ControlMethod::ReleaseInputLease })
+                 ControlMethod::ReleaseInputLease,
+                 ControlMethod::DrainRuntime })
         {
             VERIFY_IS_FALSE(IsReadOnlyControlMethod(method));
             VERIFY_IS_TRUE(EvaluateClientDisconnect(method, ClientRequestTransmission::NotSent) ==

@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <functional>
 
 namespace winrt::TerminalApp::implementation::tasks
 {
@@ -48,6 +49,11 @@ namespace winrt::TerminalApp::implementation::tasks
         CloseTerminal,
         MarkDone,
         Reopen,
+        Retry,
+        Cancel,
+        FinalizeWorktree,
+        Delete,
+        RestartProvider,
     };
 
     struct TaskAcceptanceProjection
@@ -65,6 +71,7 @@ namespace winrt::TerminalApp::implementation::tasks
         std::wstring Description;
         TaskStatus Status{ TaskStatus::Todo };
         TaskTerminalState TerminalState{ TaskTerminalState::NotCreated };
+        uint64_t TerminalGeneration{};
         TaskPriority Priority{ TaskPriority::Medium };
         std::wstring UpdatedLabel;
         std::wstring ExecutionMode;
@@ -78,9 +85,13 @@ namespace winrt::TerminalApp::implementation::tasks
         int64_t UpdatedAtUnixMilliseconds{};
         bool HasActiveRun{};
         bool SupportsTerminalSurface{ true };
+        bool HasGitWorktree{};
+        std::wstring LatestTerminalRunId;
         std::vector<TaskAcceptanceProjection> Acceptance;
         std::vector<std::wstring> Runs;
         std::vector<std::wstring> QueuedMessages;
+        std::vector<std::wstring> QueuedMessageIds;
+        std::vector<uint64_t> QueuedMessageRevisions;
         std::vector<std::wstring> RunDetails;
     };
 
@@ -96,5 +107,26 @@ namespace winrt::TerminalApp::implementation::tasks
         std::wstring Model;
         std::wstring Instructions;
         bool UseWorktree{ true };
+    };
+
+    enum class TaskSurfaceAction : uint8_t
+    {
+        OpenOrActivate,
+        CloseAuthorized,
+    };
+
+    struct TaskSurfaceDescriptor
+    {
+        TaskSurfaceAction Action{ TaskSurfaceAction::OpenOrActivate };
+        std::wstring TaskId;
+        std::wstring WorkspaceId;
+        std::wstring Title;
+        std::string RuntimeIdentity;
+        std::string RuntimeInstanceId;
+        std::string ClientInstanceId;
+        std::string TerminalSessionId;
+        std::wstring PipeName;
+        uint64_t Generation{};
+        bool OwnedElsewhere{};
     };
 }

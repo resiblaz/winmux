@@ -24,39 +24,6 @@ namespace winrt::TerminalApp::implementation::tasks
             return NewRuntimeUuid();
         }
 
-        std::wstring _resource(const wchar_t* key)
-        {
-            const auto value = RS_(key);
-            return std::wstring{ std::wstring_view{ value } };
-        }
-
-        TaskProjection _optimistic(
-            const TaskDraft& draft,
-            const std::string_view id,
-            const bool startImmediately)
-        {
-            TaskProjection result;
-            result.Id = til::u8u16(id);
-            result.WorkspaceKey = draft.WorkspaceId;
-            result.Workspace = draft.Workspace.empty() ? draft.WorkspaceId : draft.Workspace;
-            result.Title = draft.Title;
-            result.Description = draft.Description;
-            result.Status = TaskStatus::Todo;
-            result.TerminalState = TaskTerminalState::NotCreated;
-            result.Priority = TaskPriority::Medium;
-            result.UpdatedLabel = _resource(L"TaskPage_UpdatedJustNow");
-            result.ExecutionMode = _resource(draft.UseWorktree ? L"TaskPage_WorktreeExecutionMode" : L"TaskPage_DirectExecutionMode");
-            result.WorkingDirectory = draft.SourceRoot;
-            result.Worktree = draft.UseWorktree ? _resource(L"TaskPage_WorktreePreparing") : _resource(L"TaskPage_NotApplicable");
-            result.Branch = draft.UseWorktree ? _resource(L"TaskPage_WorktreePreparing") : _resource(L"TaskPage_CurrentBranch");
-            result.Version = 1;
-            result.SupportsTerminalSurface = false;
-            result.HasActiveRun = startImmediately;
-            result.ActiveRunSummary = startImmediately ? _resource(L"TaskPage_NewTaskRunQueued") : std::wstring{};
-            for (const auto& item : draft.Acceptance) result.Acceptance.push_back({ item, false });
-            return result;
-        }
-
         std::optional<TaskRuntimeClientConfiguration> _configuration()
         {
             try
@@ -66,10 +33,12 @@ namespace winrt::TerminalApp::implementation::tasks
                 }.parent_path();
                 auto identity = BuildCurrentUserRuntimeIdentity(L"dev", settingsRoot);
                 const auto clientId = _uuid();
-                if (!identity.Succeeded() || !clientId) return std::nullopt;
+                if (!identity.Succeeded() || !clientId)
+                    return std::nullopt;
                 const auto module = std::filesystem::path{ wil::GetModuleFileNameW<std::wstring>(nullptr) };
                 const auto runtime = module.parent_path() / L"TaskRuntime.exe";
-                if (!std::filesystem::is_regular_file(runtime)) return std::nullopt;
+                if (!std::filesystem::is_regular_file(runtime))
+                    return std::nullopt;
                 TaskRuntimeClientConfiguration configuration;
                 configuration.Identity = std::move(identity.Identity);
                 configuration.Hello.ClientInstanceId = *clientId;
@@ -79,7 +48,12 @@ namespace winrt::TerminalApp::implementation::tasks
                     static_cast<uint64_t>(ProtocolCapability::TaskQueries) |
                     static_cast<uint64_t>(ProtocolCapability::TaskCommands);
                 configuration.Hello.OptionalCapabilities =
-                    static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle);
+                    static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle) |
+                    static_cast<uint64_t>(ProtocolCapability::TerminalStream) |
+                    static_cast<uint64_t>(ProtocolCapability::InputControllerLease) |
+                    static_cast<uint64_t>(ProtocolCapability::TaskTerminalSurfaces) |
+                    static_cast<uint64_t>(ProtocolCapability::TaskOrchestration) |
+                    static_cast<uint64_t>(ProtocolCapability::RuntimeDrain);
                 configuration.Activation = TaskRuntimeClientActivationConfiguration{
                     runtime,
                     module.parent_path(),
@@ -95,9 +69,13 @@ namespace winrt::TerminalApp::implementation::tasks
 
     RuntimeTaskProjectionSource::RuntimeTaskProjectionSource(
         TaskRuntimeClientConfiguration configuration,
-        Windows::UI::Core::CoreDispatcher dispatcher) :
+        Windows::UI::Core::CoreDispatcher dispatcher,
+        std::shared_ptr<TaskAgentSessionRegistry> agentSessions) :
+        _identity{ configuration.Identity },
+        _clientInstanceId{ configuration.Hello.ClientInstanceId },
         _client{ std::make_shared<TaskRuntimeClient>(std::move(configuration)) },
-        _dispatcher{ std::move(dispatcher) }
+        _dispatcher{ std::move(dispatcher) },
+        _agentSessions{ std::move(agentSessions) }
     {
     }
 
@@ -117,11 +95,19 @@ namespace winrt::TerminalApp::implementation::tasks
         _changed = std::move(handler);
     }
 
+    void RuntimeTaskProjectionSource::SetSurfaceHandler(SurfaceHandler handler)
+    {
+        const std::scoped_lock lock{ _mutex };
+        _surfaceChanged = std::move(handler);
+    }
+
     bool RuntimeTaskProjectionSource::Start()
     {
         const std::scoped_lock lock{ _mutex };
-        if (_started) return true;
-        if (_stopping || !_client || !_client->Valid() || !_client->Start()) return false;
+        if (_started)
+            return true;
+        if (_stopping || !_client || !_client->Valid() || !_client->Start())
+            return false;
         try
         {
             _work.push_back({ WorkKind::Refresh, std::nullopt, std::nullopt });
@@ -148,21 +134,27 @@ namespace winrt::TerminalApp::implementation::tasks
     {
         {
             const std::scoped_lock lock{ _mutex };
-            if (_stopping) return;
+            if (_stopping)
+                return;
             _stopping = true;
             _changed = {};
+            _surfaceChanged = {};
             _work.clear();
         }
         _condition.notify_all();
-        if (_client) _client->RequestStop();
-        if (_worker.joinable()) _worker.join();
-        if (_client) static_cast<void>(_client->WaitForStopped());
+        if (_client)
+            _client->RequestStop();
+        if (_worker.joinable())
+            _worker.join();
+        if (_client)
+            static_cast<void>(_client->WaitForStopped());
     }
 
     bool RuntimeTaskProjectionSource::_enqueue(WorkItem item)
     {
         const std::scoped_lock lock{ _mutex };
-        if (!_started || _stopping || _work.size() >= 256) return false;
+        if (!_started || _stopping || _work.size() >= 256)
+            return false;
         _work.emplace_back(std::move(item));
         _condition.notify_one();
         return true;
@@ -181,81 +173,14 @@ namespace winrt::TerminalApp::implementation::tasks
         }
         {
             const std::scoped_lock lock{ _mutex };
-            if (!_started || _stopping || selected == _selectedTaskId) return;
+            if (!_started || _stopping || selected == _selectedTaskId)
+                return;
             _selectedTaskId = selected;
-            if (_work.size() >= 256) return;
+            if (_work.size() >= 256)
+                return;
             _work.push_back({ WorkKind::Refresh, std::nullopt, selected.empty() ? std::nullopt : std::optional<std::string>{ selected } });
         }
         _condition.notify_one();
-    }
-
-    TaskProjection RuntimeTaskProjectionSource::CreateTask(
-        const TaskDraft& draft,
-        const bool startImmediately)
-    {
-        const auto taskId = _uuid();
-        const auto createId = _uuid();
-        if (!taskId || !createId || draft.WorkspaceId.empty() || draft.SourceRoot.empty()) return {};
-        TaskUiCommandRequest create;
-        create.CommandId = *createId;
-        create.Operation = TaskUiCommandOperation::Create;
-        create.TaskId = *taskId;
-        create.Draft = TaskUiCreateDraft{};
-        create.Draft->WorkspaceId = til::u16u8(draft.WorkspaceId);
-        create.Draft->Title = til::u16u8(draft.Title);
-        create.Draft->Description = til::u16u8(draft.Description);
-        for (const auto& item : draft.Acceptance) create.Draft->Acceptance.emplace_back(til::u16u8(item));
-        create.Draft->ExecutionMode = draft.UseWorktree ? TaskProjectionExecutionMode::Worktree : TaskProjectionExecutionMode::Direct;
-        create.Draft->SourceRoot = til::u16u8(draft.SourceRoot);
-        create.Draft->RelativeWorkingDirectory = til::u16u8(draft.RelativeWorkingDirectory);
-        create.Draft->Model = til::u16u8(draft.Model);
-        create.Draft->Instructions = til::u16u8(draft.Instructions);
-        auto projection = _optimistic(draft, *taskId, startImmediately);
-        if (!_enqueue({ WorkKind::Command, create, std::nullopt })) return {};
-        _coordinator.UpsertOptimistic(projection);
-        if (startImmediately)
-        {
-            const auto startId = _uuid();
-            if (startId)
-            {
-                TaskUiCommandRequest start;
-                start.CommandId = *startId;
-                start.Operation = TaskUiCommandOperation::Start;
-                start.TaskId = *taskId;
-                start.ExpectedTaskVersion = 1;
-                static_cast<void>(_enqueue({ WorkKind::Command, start, std::nullopt }));
-            }
-        }
-        _notify();
-        return projection;
-    }
-
-    std::optional<TaskProjection> RuntimeTaskProjectionSource::Execute(
-        const std::wstring& taskId,
-        const TaskCommand command)
-    {
-        const auto snapshot = Snapshot();
-        const auto task = std::ranges::find(snapshot, taskId, &TaskProjection::Id);
-        if (task == snapshot.end()) return std::nullopt;
-        TaskUiCommandOperation operation;
-        switch (command)
-        {
-        case TaskCommand::Start: operation = TaskUiCommandOperation::Start; break;
-        case TaskCommand::Stop: operation = TaskUiCommandOperation::Stop; break;
-        case TaskCommand::CloseTerminal: operation = TaskUiCommandOperation::Close; break;
-        case TaskCommand::MarkDone: operation = TaskUiCommandOperation::MarkDone; break;
-        case TaskCommand::Reopen: operation = TaskUiCommandOperation::Reopen; break;
-        case TaskCommand::OpenTerminal:
-        default: return *task;
-        }
-        const auto commandId = _uuid();
-        if (!commandId) return std::nullopt;
-        TaskUiCommandRequest request;
-        request.CommandId = *commandId;
-        request.Operation = operation;
-        request.TaskId = til::u16u8(task->Id);
-        request.ExpectedTaskVersion = task->Version;
-        return _enqueue({ WorkKind::Command, request, std::nullopt }) ? std::optional<TaskProjection>{ *task } : std::nullopt;
     }
 
     std::wstring RuntimeTaskProjectionSource::ResolveWorkspaceKey(
@@ -277,7 +202,8 @@ namespace winrt::TerminalApp::implementation::tasks
                     lock,
                     std::chrono::seconds{ 2 },
                     [&] { return _stopping || !_work.empty(); });
-                if (_stopping) return;
+                if (_stopping)
+                    return;
                 if (signaled)
                 {
                     item = std::move(_work.front());
@@ -286,7 +212,8 @@ namespace winrt::TerminalApp::implementation::tasks
                 else
                 {
                     const auto snapshot = _coordinator.Snapshot();
-                    if (!std::ranges::any_of(snapshot, &TaskProjection::HasActiveRun)) continue;
+                    if (!std::ranges::any_of(snapshot, &TaskProjection::HasActiveRun))
+                        continue;
                     item = { WorkKind::Refresh, std::nullopt, std::nullopt };
                 }
             }
@@ -298,48 +225,88 @@ namespace winrt::TerminalApp::implementation::tasks
                     std::optional<std::string> selected;
                     {
                         const std::scoped_lock lock{ _mutex };
-                        if (!_selectedTaskId.empty()) selected = _selectedTaskId;
+                        if (!_selectedTaskId.empty())
+                            selected = _selectedTaskId;
                     }
-                    if (selected) _refresh(selected);
+                    if (selected)
+                        _refresh(selected);
                 }
             }
-            else if (item.Command) _submit(*item.Command);
+            else if (item.Command)
+                _submit(*item.Command);
         }
     }
 
     void RuntimeTaskProjectionSource::_submit(const TaskUiCommandRequest& command) noexcept
     {
         const auto payload = EncodeTaskUiCommandRequest(command);
-        if (!payload.Succeeded) return;
+        if (!payload.Succeeded)
+            return;
         auto request = _client->Submit(ControlMethod::SubmitCommand, payload.Payload);
-        if (!request.Accepted || !request.Completion.valid()) return;
-        static_cast<void>(request.Completion.get());
+        if (!request.Accepted || !request.Completion.valid())
+            return;
+        const auto completed = request.Completion.get();
+        if (completed.Outcome == RuntimeClientRequestOutcome::Succeeded &&
+            completed.Response && completed.Response->Succeeded)
+        {
+            const auto decoded = DecodeTaskUiCommandResult(completed.Response->ResultJson);
+            if (decoded.Succeeded())
+            {
+                _notifySurface(command, decoded.Value);
+            }
+        }
         _refresh();
         std::optional<std::string> selected;
         {
             const std::scoped_lock lock{ _mutex };
-            if (!_selectedTaskId.empty()) selected = _selectedTaskId;
+            if (!_selectedTaskId.empty())
+                selected = _selectedTaskId;
         }
-        if (selected) _refresh(selected);
+        if (selected)
+            _refresh(selected);
     }
 
     void RuntimeTaskProjectionSource::_refresh(const std::optional<std::string>& taskId) noexcept
     {
         const auto finishLoading = wil::scope_exit([&]() noexcept {
-            if (_loading.exchange(false, std::memory_order_acq_rel)) _notify();
+            if (_loading.exchange(false, std::memory_order_acq_rel))
+                _notify();
         });
+        if (!_drainSubmitted && _client->State() == TaskRuntimeClientState::Ready &&
+            _client->ProtocolMinor() < CurrentProtocolMinor &&
+            HasCapability(_client->NegotiatedCapabilities(), ProtocolCapability::RuntimeDrain))
+        {
+            _drainSubmitted = true;
+            auto drain = _client->Submit(ControlMethod::DrainRuntime, "{}", 1);
+            if (drain.Accepted && drain.Completion.valid())
+            {
+                static_cast<void>(drain.Completion.get());
+            }
+            return;
+        }
         TaskProjectionQueryRequest query;
         query.TaskId = taskId;
         query.IncludeCompleted = true;
         query.EventLimit = taskId ? 200 : 0;
         const auto payload = EncodeTaskProjectionQueryRequest(query);
-        if (!payload.Succeeded) return;
+        if (!payload.Succeeded)
+            return;
         auto request = _client->Submit(ControlMethod::QueryTask, payload.Payload);
-        if (!request.Accepted || !request.Completion.valid()) return;
+        if (!request.Accepted || !request.Completion.valid())
+            return;
         const auto completed = request.Completion.get();
-        if (completed.Outcome != RuntimeClientRequestOutcome::Succeeded || !completed.Response || !completed.Response->Succeeded) return;
+        if (completed.Outcome != RuntimeClientRequestOutcome::Succeeded || !completed.Response || !completed.Response->Succeeded)
+            return;
         const auto decoded = DecodeTaskProjectionQueryResult(completed.Response->ResultJson);
-        if (!decoded.Succeeded()) return;
+        if (!decoded.Succeeded())
+            return;
+        if (_agentSessions)
+        {
+            if (taskId && decoded.Value.Tasks.size() == 1)
+                _agentSessions->ReplaceTask(decoded.Value.Tasks.front());
+            else if (!taskId)
+                _agentSessions->ReplaceAll(decoded.Value.Tasks);
+        }
         auto mapped = MapTaskProjectionSnapshot(decoded.Value);
         _loading.store(false, std::memory_order_release);
         if (mapped)
@@ -356,46 +323,23 @@ namespace winrt::TerminalApp::implementation::tasks
         _notify();
     }
 
-    void RuntimeTaskProjectionSource::_notify() noexcept
-    {
-        ChangedHandler handler;
-        {
-            const std::scoped_lock lock{ _mutex };
-            if (_stopping) return;
-            handler = _changed;
-        }
-        if (!handler) return;
-        try
-        {
-            if (_dispatcher && !_dispatcher.HasThreadAccess())
-            {
-                static_cast<void>(_dispatcher.RunAsync(
-                    Windows::UI::Core::CoreDispatcherPriority::Normal,
-                    [handler = std::move(handler)] { handler(); }));
-            }
-            else
-            {
-                handler();
-            }
-        }
-        catch (...)
-        {
-        }
-    }
-
-    std::shared_ptr<ITaskProjectionSource> MakeRuntimeTaskProjectionSource()
+    std::shared_ptr<ITaskProjectionSource> MakeRuntimeTaskProjectionSource(
+        std::shared_ptr<TaskAgentSessionRegistry> agentSessions)
     {
         const auto configuration = _configuration();
-        if (!configuration) return {};
+        if (!configuration)
+            return {};
         Windows::UI::Core::CoreDispatcher dispatcher{ nullptr };
         try
         {
-            if (const auto window = Windows::UI::Xaml::Window::Current()) dispatcher = window.Dispatcher();
+            if (const auto window = Windows::UI::Xaml::Window::Current())
+                dispatcher = window.Dispatcher();
         }
         catch (...)
         {
         }
-        auto source = std::make_shared<RuntimeTaskProjectionSource>(*configuration, std::move(dispatcher));
+        auto source = std::make_shared<RuntimeTaskProjectionSource>(
+            *configuration, std::move(dispatcher), std::move(agentSessions));
         return source->Start() ? source : std::shared_ptr<ITaskProjectionSource>{};
     }
 }

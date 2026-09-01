@@ -220,7 +220,16 @@ namespace winrt::TerminalApp::implementation
         _tabView = _tabRow.TabView();
         _workspaceSidebar = this->WorkspaceSidebar();
         _taskPage = this->TasksPage();
-        auto taskSource = tasks::MakeRuntimeTaskProjectionSource();
+        _taskAgentSessions = std::make_shared<tasks::TaskAgentSessionRegistry>();
+        _workspaceFeatures->History().SetTaskSessionRegistry(_taskAgentSessions);
+        winrt::get_self<implementation::TaskPage>(_taskPage)->SetSurfaceHandler(
+            [weakThis{ get_weak() }](const tasks::TaskSurfaceDescriptor& descriptor) {
+                if (const auto page = weakThis.get())
+                {
+                    page->_HandleTaskSurface(descriptor);
+                }
+            });
+        auto taskSource = tasks::MakeRuntimeTaskProjectionSource(_taskAgentSessions);
         std::array<wchar_t, 8> prototypeFlag{};
         if (!taskSource && GetEnvironmentVariableW(
                                L"RICHER_TASKS_USE_PROTOTYPE",

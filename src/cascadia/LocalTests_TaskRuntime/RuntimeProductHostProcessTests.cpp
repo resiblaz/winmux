@@ -67,6 +67,7 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(MalformedPeerIsIsolatedFromHealthyPeers);
         TEST_METHOD(ShutdownEventStopsGracefullyAndReleasesIdentityResources);
         TEST_METHOD(RealRuntimePersistsTerminalUiCreateAndQuery);
+        TEST_METHOD(DrainStopsQuiescentRuntimeWithoutForcedCleanup);
     };
 
     void RuntimeProductHostProcessTests::RealServeAcceptsHelloWithNegotiatedContract()
@@ -86,7 +87,12 @@ namespace TaskRuntimeLocalTests
         VERIFY_ARE_EQUAL(
             static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle) |
                 static_cast<uint64_t>(ProtocolCapability::TaskQueries) |
-                static_cast<uint64_t>(ProtocolCapability::TaskCommands),
+                static_cast<uint64_t>(ProtocolCapability::TaskCommands) |
+                static_cast<uint64_t>(ProtocolCapability::TerminalStream) |
+                static_cast<uint64_t>(ProtocolCapability::InputControllerLease) |
+                static_cast<uint64_t>(ProtocolCapability::TaskTerminalSurfaces) |
+                static_cast<uint64_t>(ProtocolCapability::TaskOrchestration) |
+                static_cast<uint64_t>(ProtocolCapability::RuntimeDrain),
             client.Handshake.Capabilities);
         VERIFY_IS_TRUE(client.Handshake.MaximumControlFrameBytes >= MinimumControlFrameBytes);
         VERIFY_IS_TRUE(client.Handshake.MaximumTerminalFrameBytes != 0);
@@ -305,5 +311,30 @@ namespace TaskRuntimeLocalTests
         VERIFY_IS_TRUE(projected.Succeeded());
         VERIFY_ARE_EQUAL(size_t{ 1 }, projected.Value.Tasks.size());
         VERIFY_ARE_EQUAL(std::string{ "Real Runtime Task" }, projected.Value.Tasks.front().Title);
+    }
+
+    void RuntimeProductHostProcessTests::DrainStopsQuiescentRuntimeWithoutForcedCleanup()
+    {
+        ProductRuntimeTestIdentity identity;
+        TaskRuntimeProcess process{ identity };
+        _verifyReady(process);
+        auto client = RequireProductControlClient(
+            identity, "71000000-0000-4000-8000-000000000099");
+        ControlRequest request;
+        request.RequestId = "72000000-0000-4000-8000-000000000099";
+        request.Method = ControlMethod::DrainRuntime;
+        const auto encoded = EncodeControlRequest(request);
+        VERIFY_IS_TRUE(encoded.Succeeded);
+        VERIFY_IS_TRUE(client.Channel.Send(encoded.Payload, ProductControlTimeoutMilliseconds).Succeeded());
+        const auto received = client.Channel.Receive(ProductControlTimeoutMilliseconds);
+        VERIFY_IS_TRUE(received.Succeeded());
+        const auto response = DecodeControlResponse(received.Payload);
+        VERIFY_IS_TRUE(response.Succeeded());
+        VERIFY_IS_TRUE(response.Value.Succeeded);
+        client.Channel.Close();
+        DWORD exitCode{};
+        VERIFY_IS_TRUE(process.WaitForExit(ProductProcessExitTimeoutMilliseconds, exitCode));
+        VERIFY_ARE_EQUAL(DWORD{ 0 }, exitCode);
+        VERIFY_IS_FALSE(process.ForcedCleanup());
     }
 }

@@ -194,8 +194,11 @@ namespace Microsoft::Terminal::TaskRuntime
         }
     }
 
-    RuntimeTaskProviderSink::RuntimeTaskProviderSink(std::shared_ptr<ITaskStore> store) noexcept :
-        _store{ std::move(store) }
+    RuntimeTaskProviderSink::RuntimeTaskProviderSink(
+        std::shared_ptr<ITaskStore> store,
+        std::shared_ptr<RuntimeTaskTerminalService> terminals) noexcept :
+        _store{ std::move(store) },
+        _terminals{ std::move(terminals) }
     {
     }
 
@@ -341,6 +344,13 @@ namespace Microsoft::Terminal::TaskRuntime
             }
             const auto stored = _store->AppendTaskProviderEvent(command);
             if (stored.Status == TaskStoreCommandStatus::VersionConflict) continue;
+            if (stored.Succeeded())
+            {
+                if (const auto terminals = _terminals.lock())
+                {
+                    static_cast<void>(terminals->PublishEvent(session.TaskId, event));
+                }
+            }
             return _providerResult(stored);
         }
         return _failure(TaskProviderStatus::Conflict, "Runtime provider event changed concurrently");

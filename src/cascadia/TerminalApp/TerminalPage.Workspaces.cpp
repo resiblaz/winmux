@@ -617,9 +617,13 @@ namespace winrt::TerminalApp::implementation
     {
         if (item)
         {
+            const auto retainsTaskSurface = std::ranges::any_of(item.Surfaces(), [&](const auto& tab) {
+                return _IsTaskOwnedTab(tab);
+            });
             if (item.SurfaceCount() == 1)
             {
                 _HandleCloseTabRequested(item.SourceTab());
+                if (retainsTaskSurface) _SetWorkspaceToolPage(WorkspaceToolPage::Tasks);
                 return;
             }
             std::vector<TerminalApp::Tab> tabsToClose;
@@ -629,6 +633,7 @@ namespace winrt::TerminalApp::implementation
                 tabsToClose.emplace_back(tab);
             }
             _RemoveTabs(std::move(tabsToClose));
+            if (retainsTaskSurface) _SetWorkspaceToolPage(WorkspaceToolPage::Tasks);
         }
     }
 
@@ -637,6 +642,7 @@ namespace winrt::TerminalApp::implementation
         if (item)
         {
             std::vector<TerminalApp::Tab> tabsToClose;
+            bool retainsTaskSurface{};
             for (const auto& tab : _tabs)
             {
                 const auto belongsToWorkspace = std::ranges::any_of(item.Surfaces(), [&](const auto& surface) {
@@ -644,10 +650,12 @@ namespace winrt::TerminalApp::implementation
                 });
                 if (!belongsToWorkspace)
                 {
+                    retainsTaskSurface = retainsTaskSurface || _IsTaskOwnedTab(tab);
                     tabsToClose.emplace_back(tab);
                 }
             }
             _RemoveTabs(std::move(tabsToClose));
+            if (retainsTaskSurface) _SetWorkspaceToolPage(WorkspaceToolPage::Tasks);
         }
     }
 

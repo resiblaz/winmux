@@ -19,6 +19,10 @@ feature:
 - [Implementation plan](implementation-plan.md) defines the accepted first
   native slice, component placement, milestone order, current progress, and
   verification gates.
+- [M6 closure](m6-closure-report.md), [M7 closure](m7-closure-report.md), and
+  [M8 closure](m8-closure-report.md) record the final Surface, orchestration,
+  packaging, and verification evidence. [M8 release notes](m8-release-notes.md)
+  cover migration, rollback, security/privacy, and upstream sync.
 - The browser prototype under
   [`doc/prototypes/task-page`](../../../prototypes/task-page/README.md) is a
   non-normative interaction aid. When it disagrees with the specification, the
@@ -50,7 +54,14 @@ Current implementation position:
 - M1-M3 domain, Runtime, transport, and Git foundations: complete;
 - M4 Codex App Server adapter and shared Runtime Provider: complete;
 - M5 Runtime-backed fixed Tasks page and projection coordinator: complete;
-- M6 task-owned Surface and M7 orchestration: next; not implemented yet.
+- M6 task-owned Surface and close policy: complete;
+- M7 background orchestration, lifecycle intents, retries, and resource
+  suspension: complete;
+- M8 protocol drain, packaging hardening, documentation, and release review:
+  complete.
+
+All M0-M8 work remains on `feature/task-runtime-foundation` and is intentionally
+not merged into `main` pending review.
 
 ## Reference-first rule
 

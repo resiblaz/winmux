@@ -12,6 +12,9 @@ namespace Microsoft::Terminal::TaskRuntime
     {
         StopIdleMonitor();
         Server.Stop();
+        if (Orchestrator) Orchestrator->Stop();
+        if (Provider) Provider->Stop();
+        if (Terminals) Terminals->Stop();
     }
 
     bool RuntimeProductHost::Impl::StartIdleMonitor() noexcept
@@ -54,6 +57,17 @@ namespace Microsoft::Terminal::TaskRuntime
                 std::scoped_lock lock{ IdleMutex };
                 if (IdleStopRequested)
                 {
+                    return;
+                }
+            }
+
+            if (DrainRequested && DrainRequested->load(std::memory_order_acquire))
+            {
+                const auto storeActivity = Store ? Store->LoadRuntimeActivity() :
+                                                   Microsoft::Terminal::TaskCore::TaskStoreRuntimeActivityQueryResult{};
+                if (storeActivity.Succeeded && !storeActivity.Snapshot.Active())
+                {
+                    Server.Stop();
                     return;
                 }
             }

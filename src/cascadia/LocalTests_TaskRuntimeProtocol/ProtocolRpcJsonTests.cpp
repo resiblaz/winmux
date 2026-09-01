@@ -32,6 +32,7 @@ namespace TaskRuntimeProtocolLocalTests
     void ProtocolRpcJsonTests::MethodAndErrorNamesMapToCapabilities()
     {
         VERIFY_IS_TRUE(ControlMethodFromName("query_task") == std::optional{ ControlMethod::QueryTask });
+        VERIFY_IS_TRUE(ControlMethodFromName("drain_runtime") == std::optional{ ControlMethod::DrainRuntime });
         VERIFY_IS_FALSE(ControlMethodFromName("future_method").has_value());
         VERIFY_IS_FALSE(ControlMethodFromName("count").has_value());
         VERIFY_IS_TRUE(ControlMethodName(ControlMethod::Count).empty());
@@ -42,6 +43,8 @@ namespace TaskRuntimeProtocolLocalTests
             RequiredCapabilities(ControlMethod::AcquireInputLease) ==
             static_cast<uint64_t>(ProtocolCapability::InputControllerLease));
         VERIFY_ARE_EQUAL(uint64_t{ 0 }, RequiredCapabilities(ControlMethod::Ping));
+        VERIFY_IS_TRUE(RequiredCapabilities(ControlMethod::DrainRuntime) ==
+                       static_cast<uint64_t>(ProtocolCapability::RuntimeDrain));
         VERIFY_IS_TRUE(
             ProtocolRpcErrorCodeFromName("duplicate_request") ==
             std::optional{ ProtocolRpcErrorCode::DuplicateRequest });

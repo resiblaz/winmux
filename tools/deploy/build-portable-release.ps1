@@ -210,13 +210,31 @@ try
     foreach ($requiredEntry in @(
         "$($terminalRoot.Name)/.portable",
         "$($terminalRoot.Name)/settings/settings.json",
-        "$($terminalRoot.Name)/WindowsTerminal.exe"
+        "$($terminalRoot.Name)/WindowsTerminal.exe",
+        "$($terminalRoot.Name)/TaskRuntime.exe",
+        "$($terminalRoot.Name)/rtask.exe"
     ))
     {
         if ($archiveEntries -notcontains $requiredEntry)
         {
             throw "Configured ZIP validation failed; missing $requiredEntry."
         }
+    }
+    $configuredArchive = [System.IO.Compression.ZipFile]::OpenRead($temporaryZip)
+    try
+    {
+        foreach ($executable in @('WindowsTerminal.exe', 'TaskRuntime.exe', 'rtask.exe'))
+        {
+            $entry = $configuredArchive.GetEntry("$($terminalRoot.Name)/$executable")
+            if (-not $entry -or $entry.Length -le 0)
+            {
+                throw "Configured ZIP payload is missing or empty: $executable"
+            }
+        }
+    }
+    finally
+    {
+        $configuredArchive.Dispose()
     }
 
     Move-Item -LiteralPath $temporaryZip -Destination $configuredZip -Force
@@ -284,6 +302,15 @@ try
     if ($deployedSettings -notmatch '"tabLayout"\s*:\s*"workspaceSidebar"')
     {
         throw 'The deployed settings do not enable Workspace Sidebar.'
+    }
+    foreach ($runtimeFile in @('WindowsTerminal.exe', 'TaskRuntime.exe', 'rtask.exe'))
+    {
+        $runtimePath = Join-Path $deploymentPath $runtimeFile
+        if (-not (Test-Path -LiteralPath $runtimePath -PathType Leaf) -or
+            (Get-Item -LiteralPath $runtimePath).Length -le 0)
+        {
+            throw "The portable Task Runtime payload is missing or empty: $runtimeFile"
+        }
     }
 
     if (-not $NoLaunch)

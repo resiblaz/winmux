@@ -8,7 +8,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
 {
     namespace
     {
-        constexpr std::array<std::pair<ProtocolCapability, std::string_view>, 7> CapabilityMap{
+        constexpr std::array<std::pair<ProtocolCapability, std::string_view>, 10> CapabilityMap{
             std::pair{ ProtocolCapability::TaskQueries, "task_queries" },
             std::pair{ ProtocolCapability::TaskCommands, "task_commands" },
             std::pair{ ProtocolCapability::SnapshotAndSubscribe, "snapshot_and_subscribe" },
@@ -16,6 +16,9 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             std::pair{ ProtocolCapability::TerminalStream, "terminal_stream" },
             std::pair{ ProtocolCapability::InputControllerLease, "input_controller_lease" },
             std::pair{ ProtocolCapability::RuntimeLifecycle, "runtime_lifecycle" },
+            std::pair{ ProtocolCapability::TaskTerminalSurfaces, "task_terminal_surfaces" },
+            std::pair{ ProtocolCapability::TaskOrchestration, "task_orchestration" },
+            std::pair{ ProtocolCapability::RuntimeDrain, "runtime_drain" },
         };
     }
 

@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "RuntimeTaskProjectionService.h"
+#include "RuntimeTaskOrchestrator.h"
 
 #include "TaskRunStatePolicy.h"
 
@@ -116,9 +117,13 @@ namespace Microsoft::Terminal::TaskRuntime
     RuntimeTaskProjectionService::RuntimeTaskProjectionService(
         std::shared_ptr<ITaskStore> store,
         std::shared_ptr<RuntimeTaskProviderService> provider,
-        std::filesystem::path runtimeDataRoot) noexcept :
+        std::filesystem::path runtimeDataRoot,
+        std::shared_ptr<RuntimeTaskTerminalService> terminals,
+        std::shared_ptr<RuntimeTaskOrchestrator> orchestrator) noexcept :
         _store{ std::move(store) },
         _provider{ std::move(provider) },
+        _terminals{ std::move(terminals) },
+        _orchestrator{ std::move(orchestrator) },
         _runtimeDataRoot{ std::move(runtimeDataRoot) }
     {
     }

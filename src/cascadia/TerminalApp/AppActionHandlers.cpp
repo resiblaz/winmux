@@ -65,6 +65,11 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_HandleDuplicateTab(const IInspectable& /*sender*/,
                                            const ActionEventArgs& args)
     {
+        if (_IsTaskOwnedTab(_GetFocusedTab()))
+        {
+            args.Handled(true);
+            return;
+        }
         _DuplicateFocusedTab();
         args.Handled(true);
     }
@@ -229,6 +234,11 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_HandleMovePane(const IInspectable& /*sender*/,
                                        const ActionEventArgs& args)
     {
+        if (_IsTaskOwnedTab(_GetFocusedTab()))
+        {
+            args.Handled(true);
+            return;
+        }
         if (args == nullptr)
         {
             args.Handled(false);
@@ -284,6 +294,11 @@ namespace winrt::TerminalApp::implementation
             const auto& duplicateFromTab{ realArgs.SplitMode() == SplitType::Duplicate ? _GetFocusedTab() : nullptr };
 
             const auto& activeTab{ _senderOrFocusedTab(sender) };
+            if (_IsTaskOwnedTab(activeTab))
+            {
+                args.Handled(true);
+                return;
+            }
             const auto workspaceId = activeTab ? _WorkspaceIdForTab(*activeTab) : _ReserveWorkspaceIdForNewTab();
             if (workspaceId == winrt::guid{})
             {
@@ -926,7 +941,13 @@ namespace winrt::TerminalApp::implementation
     {
         if (const auto& realArgs = actionArgs.ActionArgs().try_as<MoveTabArgs>())
         {
-            const auto moved = _MoveTab(_senderOrFocusedTab(sender), realArgs);
+            const auto tab = _senderOrFocusedTab(sender);
+            if (_IsTaskOwnedTab(tab))
+            {
+                actionArgs.Handled(true);
+                return;
+            }
+            const auto moved = _MoveTab(tab, realArgs);
             actionArgs.Handled(moved);
         }
     }

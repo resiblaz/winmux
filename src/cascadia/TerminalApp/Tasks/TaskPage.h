@@ -17,6 +17,7 @@ namespace winrt::TerminalApp::implementation
 
         TerminalApp::TaskPageViewModel ViewModel() const noexcept;
         void AttachProjectionSource(std::shared_ptr<tasks::ITaskProjectionSource> source);
+        void SetSurfaceHandler(tasks::ITaskProjectionSource::SurfaceHandler handler);
         void SetCurrentWorkspace(const winrt::guid& workspaceId,
                                  const winrt::hstring& repositoryRoot,
                                  const winrt::hstring& workingDirectory);
@@ -42,6 +43,7 @@ namespace winrt::TerminalApp::implementation
         std::wstring _currentRepositoryRoot;
         std::wstring _currentWorkingDirectory;
         bool _syncingSelection{};
+        tasks::ITaskProjectionSource::SurfaceHandler _surfaceHandler;
 
         implementation::TaskPageViewModel* _ViewModelImpl() const noexcept;
         void _ApplyViewModelUpdate(const std::function<void()>& update);

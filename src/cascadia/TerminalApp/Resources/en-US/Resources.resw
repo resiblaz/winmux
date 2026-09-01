@@ -1525,6 +1525,10 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="TaskPageCloseTaskButton.Content" xml:space="preserve"><value>Close task terminal</value></data>
   <data name="TaskPageMarkDoneButton.Content" xml:space="preserve"><value>Confirm done</value></data>
   <data name="TaskPageReopenTaskButton.Content" xml:space="preserve"><value>Reopen</value></data>
+  <data name="TaskPageRetryTaskButton.Content" xml:space="preserve"><value>Retry</value></data>
+  <data name="TaskPageCancelTaskButton.Content" xml:space="preserve"><value>Cancel task</value></data>
+  <data name="TaskPageFinalizeWorktreeButton.Content" xml:space="preserve"><value>Finalize worktree</value></data>
+  <data name="TaskPageDeleteTaskButton.Content" xml:space="preserve"><value>Delete task</value></data>
   <data name="TaskPageActiveRunTitle.Text" xml:space="preserve"><value>Active TaskRun</value></data>
   <data name="TaskPageGoalTitle.Text" xml:space="preserve"><value>Goal and context</value></data>
   <data name="TaskPageAcceptanceTitle.Text" xml:space="preserve"><value>Acceptance criteria</value></data>
@@ -1532,7 +1536,14 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="TaskPageExecutionLogTitle.Text" xml:space="preserve"><value>Execution log</value></data>
   <data name="TaskPageFollowupInput.PlaceholderText" xml:space="preserve"><value>Add a requirement or tell Codex what to do next…</value></data>
   <data name="TaskPageQueueFollowupButton.Content" xml:space="preserve"><value>Send to Codex</value></data>
+  <data name="TaskPageQueuedMessageEditor.PlaceholderText" xml:space="preserve"><value>Select a queued message to edit it</value></data>
+  <data name="TaskPageEditQueuedMessageButton.Content" xml:space="preserve"><value>Save message</value></data>
+  <data name="TaskPageRemoveQueuedMessageButton.Content" xml:space="preserve"><value>Remove</value></data>
   <data name="TaskPageQueueFollowupButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>Follow-up delivery is enabled when Task Runtime is connected.</value></data>
+  <data name="TaskPage_DeleteTitle" xml:space="preserve"><value>Delete this task?</value></data>
+  <data name="TaskPage_DeleteBody" xml:space="preserve"><value>The Runtime will stop the task, safely deliver worktree changes, remove task history, and retain only a temporary replay-protection tombstone. This cannot be undone.</value></data>
+  <data name="TaskPage_DeleteConfirm" xml:space="preserve"><value>Delete task</value></data>
+  <data name="TaskPage_DeleteCancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="TaskPagePropertiesTitle.Text" xml:space="preserve"><value>Properties</value></data>
   <data name="TaskPageWorkspaceProperty.Text" xml:space="preserve"><value>Workspace</value></data>
   <data name="TaskPageExecutionModeProperty.Text" xml:space="preserve"><value>Execution mode</value></data>

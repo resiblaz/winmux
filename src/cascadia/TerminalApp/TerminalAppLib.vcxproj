@@ -155,6 +155,9 @@
     <ClInclude Include="Tasks\TaskProjectionCoordinator.h" />
     <ClInclude Include="Tasks\TaskProjectionMapper.h" />
     <ClInclude Include="Tasks\RuntimeTaskProjectionSource.h" />
+    <ClInclude Include="Tasks\TaskRuntimeConnection.h" />
+    <ClInclude Include="Tasks\TaskSurfacePolicy.h" />
+    <ClInclude Include="Tasks\TaskAgentSessionRegistry.h" />
     <ClInclude Include="ConclusionMarkdownView.h">
       <DependentUpon>ConclusionMarkdownView.idl</DependentUpon>
     </ClInclude>
@@ -299,6 +302,9 @@
       <DependentUpon>TerminalPage.xaml</DependentUpon>
       <SubType>Code</SubType>
     </ClCompile>
+    <ClCompile Include="TerminalPage.Tasks.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="TerminalPage.Panes.cpp">
       <DependentUpon>TerminalPage.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -361,6 +367,11 @@
     <ClCompile Include="Tasks\TaskProjectionCoordinator.cpp" />
     <ClCompile Include="Tasks\TaskProjectionMapper.cpp" />
     <ClCompile Include="Tasks\RuntimeTaskProjectionSource.cpp" />
+    <ClCompile Include="Tasks\RuntimeTaskProjectionCommands.cpp" />
+    <ClCompile Include="Tasks\RuntimeTaskProjectionNotifications.cpp" />
+    <ClCompile Include="Tasks\TaskRuntimeConnection.cpp" />
+    <ClCompile Include="Tasks\TaskSurfacePolicy.cpp" />
+    <ClCompile Include="Tasks\TaskAgentSessionRegistry.cpp" />
     <ClCompile Include="ConclusionMarkdownView.cpp">
       <DependentUpon>ConclusionMarkdownView.idl</DependentUpon>
     </ClCompile>

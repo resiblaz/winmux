@@ -245,6 +245,8 @@ namespace Microsoft::Terminal::TaskRuntime::details
         RuntimeClientLogicalSubscriptionId NextSubscriptionId{ 1 };
         uint32_t ConsecutiveFailures{};
         std::string CurrentRuntimeInstanceId;
+        Microsoft::Terminal::TaskRuntimeProtocol::ProtocolCapabilitySet CurrentCapabilities{};
+        uint16_t CurrentProtocolMinor{};
 
         explicit RuntimeClientSharedState(
             TaskRuntimeClientConfiguration configuration,
@@ -266,6 +268,8 @@ namespace Microsoft::Terminal::TaskRuntime::details
         [[nodiscard]] TaskRuntimeClientState State() const noexcept;
         [[nodiscard]] RuntimeClientEpoch ActiveEpoch() const noexcept;
         [[nodiscard]] std::string RuntimeInstanceId() const;
+        [[nodiscard]] Microsoft::Terminal::TaskRuntimeProtocol::ProtocolCapabilitySet NegotiatedCapabilities() const noexcept;
+        [[nodiscard]] uint16_t ProtocolMinor() const noexcept;
 
         void RunSupervisor() noexcept;
         void RunReader(std::shared_ptr<RuntimeClientEpochContext> epoch) noexcept;

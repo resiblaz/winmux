@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <string>
+#include <functional>
 
 namespace Microsoft::Terminal::TaskRuntime
 {
@@ -19,7 +20,8 @@ namespace Microsoft::Terminal::TaskRuntime
         RuntimeFoundationRouter(
             std::string runtimeIdentity,
             std::string runtimeInstanceId,
-            uint32_t processId);
+            uint32_t processId,
+            std::function<bool()> requestDrain = {});
 
         [[nodiscard]] bool Valid() const noexcept;
 
@@ -32,5 +34,6 @@ namespace Microsoft::Terminal::TaskRuntime
         std::string _runtimeIdentity;
         std::string _runtimeInstanceId;
         uint32_t _processId{};
+        std::function<bool()> _requestDrain;
     };
 }

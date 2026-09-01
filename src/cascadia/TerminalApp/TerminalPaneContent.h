@@ -49,6 +49,7 @@ namespace winrt::TerminalApp::implementation
                             const winrt::Microsoft::Terminal::Settings::Model::WindowSettings& windowSettings);
 
         void MarkAsDefterm();
+        void SuppressUserClose(bool value) noexcept { _suppressUserClose = value; }
 
         winrt::Microsoft::Terminal::Settings::Model::Profile GetProfile() const
         {
@@ -76,6 +77,7 @@ namespace winrt::TerminalApp::implementation
         winrt::Microsoft::Terminal::Settings::Model::Profile _profile{ nullptr };
         std::shared_ptr<TerminalSettingsCache> _cache{};
         bool _isDefTermSession{ false };
+        bool _suppressUserClose{ false };
 
         struct ControlEventTokens
         {

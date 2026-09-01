@@ -20,6 +20,7 @@ namespace TaskCoreLocalTests
         TEST_METHOD(TerminalGenerationAndActiveRunGuardsAreTransactional);
         TEST_METHOD(ActiveRunBlocksConflictingTaskStatus);
         TEST_METHOD(CrossTaskRunReferencesAreRejectedWithoutReceipt);
+        TEST_METHOD(ExplicitRunAtomicallyClearsManualHold);
     };
 
     void TaskCoreStoreRunTests::CreateRunAssignsSequenceAndRejectsSecondActiveRun()
@@ -211,5 +212,25 @@ namespace TaskCoreLocalTests
         VERIFY_IS_TRUE(snapshot.has_value());
         VERIFY_ARE_EQUAL(size_t{ 1 }, snapshot->Runs.size());
         VERIFY_ARE_EQUAL(2ull, snapshot->Task.Version);
+    }
+
+    void TaskCoreStoreRunTests::ExplicitRunAtomicallyClearsManualHold()
+    {
+        TemporaryDatabasePath path;
+        SqliteTaskStore store{ path.Path() };
+        const auto task = MakeCreateTaskCommand();
+        VERIFY_IS_TRUE(store.CreateTask(task).Succeeded());
+        VERIFY_IS_TRUE(store.ChangeTaskManualHold(
+                                  MakeManualHoldCommand(task, 80, 1, 1100, true))
+                           .Succeeded());
+        auto run = MakeCreateRunCommand(task, 81, 2, 2, 1200);
+        run.ClearManualHold = true;
+        const auto created = store.CreateTaskRun(run);
+        VERIFY_IS_TRUE(created.Succeeded());
+        const auto aggregate = store.LoadTask(task.Task.Id);
+        VERIFY_IS_TRUE(aggregate.has_value());
+        VERIFY_IS_FALSE(aggregate->Task.ManualHold);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, aggregate->Runs.size());
+        VERIFY_IS_TRUE(store.CreateTaskRun(run).Status == TaskStoreCommandStatus::Replayed);
     }
 }

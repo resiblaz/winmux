@@ -206,8 +206,7 @@ namespace winrt::TerminalApp::implementation
 
     bool TaskItemViewModel::CanOpenTerminal() const noexcept
     {
-        return _projection.SupportsTerminalSurface &&
-               _projection.TerminalState != tasks::TaskTerminalState::NotCreated;
+        return _projection.SupportsTerminalSurface;
     }
 
     bool TaskItemViewModel::CanCloseTerminal() const noexcept
@@ -225,6 +224,29 @@ namespace winrt::TerminalApp::implementation
     bool TaskItemViewModel::CanReopen() const noexcept
     {
         return _projection.Status == tasks::TaskStatus::Done || _projection.Status == tasks::TaskStatus::Cancelled;
+    }
+
+    bool TaskItemViewModel::CanRetry() const noexcept
+    {
+        return !_projection.HasActiveRun && !_projection.LatestTerminalRunId.empty() &&
+               _projection.Status != tasks::TaskStatus::Done &&
+               _projection.Status != tasks::TaskStatus::Cancelled;
+    }
+
+    bool TaskItemViewModel::CanCancel() const noexcept
+    {
+        return _projection.Status != tasks::TaskStatus::Done &&
+               _projection.Status != tasks::TaskStatus::Cancelled;
+    }
+
+    bool TaskItemViewModel::CanFinalizeWorktree() const noexcept
+    {
+        return _projection.HasGitWorktree && !_projection.HasActiveRun;
+    }
+
+    bool TaskItemViewModel::CanDelete() const noexcept
+    {
+        return true;
     }
 
     Windows::Foundation::Collections::IObservableVector<winrt::hstring> TaskItemViewModel::AcceptanceItems() const noexcept
@@ -255,6 +277,15 @@ namespace winrt::TerminalApp::implementation
     tasks::TaskStatus TaskItemViewModel::NativeStatus() const noexcept
     {
         return _projection.Status;
+    }
+
+    std::optional<std::pair<std::wstring, uint64_t>> TaskItemViewModel::QueuedMessageIdentityAt(const uint32_t index) const
+    {
+        return index < _projection.QueuedMessageIds.size() && index < _projection.QueuedMessageRevisions.size() ?
+                   std::optional<std::pair<std::wstring, uint64_t>>{
+                       std::pair{ _projection.QueuedMessageIds[index], _projection.QueuedMessageRevisions[index] }
+                   } :
+                   std::nullopt;
     }
 
     void TaskItemViewModel::_BuildCollections()

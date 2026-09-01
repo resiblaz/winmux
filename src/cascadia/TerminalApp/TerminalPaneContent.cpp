@@ -234,7 +234,7 @@ namespace winrt::TerminalApp::implementation
             co_return;
         }
 
-        if (_profile)
+        if (_profile && !_suppressUserClose)
         {
             const auto mode = _profile.CloseOnExit();
 
@@ -305,13 +305,19 @@ namespace winrt::TerminalApp::implementation
     void TerminalPaneContent::_closeTerminalRequestedHandler(const winrt::Windows::Foundation::IInspectable& /*sender*/,
                                                              const winrt::Windows::Foundation::IInspectable& /*args*/)
     {
-        CloseRequested.raise(nullptr, nullptr);
+        if (!_suppressUserClose)
+        {
+            CloseRequested.raise(nullptr, nullptr);
+        }
     }
 
     void TerminalPaneContent::_restartTerminalRequestedHandler(const winrt::Windows::Foundation::IInspectable& /*sender*/,
                                                                const winrt::Windows::Foundation::IInspectable& /*args*/)
     {
-        RestartTerminalRequested.raise(*this, nullptr);
+        if (!_suppressUserClose)
+        {
+            RestartTerminalRequested.raise(*this, nullptr);
+        }
     }
 
     void TerminalPaneContent::UpdateSettings(const CascadiaSettings& settings,

@@ -24,6 +24,7 @@ namespace TerminalAppLocalTests
         std::optional<tasks::TaskDraft> LastDraft;
         bool LastStartImmediately{};
         ChangedHandler Handler;
+        std::wstring LastMessage;
 
         std::vector<tasks::TaskProjection> Snapshot() const override
         {
@@ -54,6 +55,13 @@ namespace TerminalAppLocalTests
             LastCommand = command;
             const auto task = std::find_if(Items.begin(), Items.end(), [&](const auto& item) { return item.Id == taskId; });
             return task == Items.end() ? std::nullopt : std::optional<tasks::TaskProjection>{ *task };
+        }
+
+        bool QueueMessage(const std::wstring& taskId, const std::wstring& message) override
+        {
+            LastTaskId = taskId;
+            LastMessage = message;
+            return !message.empty();
         }
 
         void SetChangedHandler(ChangedHandler handler) override
@@ -168,6 +176,8 @@ namespace TerminalAppLocalTests
             VERIFY_IS_TRUE(source->LastCommand.has_value());
             VERIFY_IS_TRUE(source->LastCommand.value() == tasks::TaskCommand::Start);
             VERIFY_ARE_EQUAL(L"RWT-1", source->LastTaskId);
+            VERIFY_IS_TRUE(viewModel->QueueSelectedMessage(L"follow up"));
+            VERIFY_ARE_EQUAL(std::wstring{ L"follow up" }, source->LastMessage);
 
             tasks::TaskDraft draft;
             draft.Workspace = L"win_terminal";

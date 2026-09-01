@@ -315,6 +315,32 @@ try
         }
 
         Invoke-CheckedCommand -Executable (Get-Command pwsh.exe -ErrorAction Stop).Source -Arguments $buildArguments
+
+        $packageRoot = Join-Path $repoRoot 'src\cascadia\CascadiaPackage\AppPackages'
+        $latestPackage = Get-ChildItem -LiteralPath $packageRoot -Recurse -File -Filter '*.msix' |
+            Where-Object { $_.Directory.Name -like "*_${Platform}_Test" } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+        if (-not $latestPackage)
+        {
+            throw 'Release package validation could not find the generated MSIX.'
+        }
+        $packageArchive = [System.IO.Compression.ZipFile]::OpenRead($latestPackage.FullName)
+        try
+        {
+            foreach ($requiredEntry in @('WindowsTerminal.exe', 'TaskRuntime.exe', 'rtask.exe'))
+            {
+                $entry = $packageArchive.GetEntry($requiredEntry)
+                if (-not $entry -or $entry.Length -le 0)
+                {
+                    throw "Release package payload is missing or empty: $requiredEntry"
+                }
+            }
+        }
+        finally
+        {
+            $packageArchive.Dispose()
+        }
     }
 
     if (-not $SkipTestBuild -or -not $SkipNativeTests)
@@ -496,6 +522,8 @@ try
                         '*CodexAppServerTests*',
                         '*WorkspaceGitMetadataTests*',
                         '*TaskPageViewModelTests*',
+                        '*TaskSurfacePolicyTests*',
+                        '*TaskAgentSessionRegistryTests*',
                         '*WorkspaceSidebarAdaptsToWindowModes*',
                         '*WorkspaceSurfaceShortcutActions*',
                         '*TabTests*WorkspaceSnapshot*',

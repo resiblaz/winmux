@@ -26,6 +26,8 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             return "release_input_lease";
         case ControlMethod::RuntimeStatus:
             return "runtime_status";
+        case ControlMethod::DrainRuntime:
+            return "drain_runtime";
         case ControlMethod::Count:
             return {};
         default:
@@ -66,6 +68,8 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             return static_cast<uint64_t>(ProtocolCapability::InputControllerLease);
         case ControlMethod::RuntimeStatus:
             return static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle);
+        case ControlMethod::DrainRuntime:
+            return static_cast<uint64_t>(ProtocolCapability::RuntimeDrain);
         case ControlMethod::Count:
             return AllProtocolCapabilities;
         default:

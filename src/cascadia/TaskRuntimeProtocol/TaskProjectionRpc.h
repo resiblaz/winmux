@@ -185,9 +185,19 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         Create,
         Start,
         Stop,
+        OpenTerminal,
         Close,
         MarkDone,
         Reopen,
+        QueueMessage,
+        ReviseMessage,
+        RemoveMessage,
+        Retry,
+        Cancel,
+        FinalizeWorktree,
+        Delete,
+        Derive,
+        RestartProvider,
         Count,
     };
 
@@ -213,6 +223,19 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         std::string TaskId;
         uint64_t ExpectedTaskVersion{};
         std::optional<TaskUiCreateDraft> Draft;
+        std::optional<std::string> MessageId;
+        std::optional<uint64_t> ExpectedMessageRevision;
+        std::optional<std::string> Text;
+        std::optional<std::string> RelatedRunId;
+        std::optional<std::string> DerivedTaskId;
+    };
+
+    struct TaskUiSurfaceDescriptor
+    {
+        std::string TerminalSessionId;
+        std::string PipeName;
+        uint64_t Generation{};
+        bool OwnedElsewhere{};
     };
 
     struct TaskUiCommandResult
@@ -224,6 +247,9 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         uint64_t EventSequence{};
         bool Replayed{};
         bool Pending{};
+        std::optional<TaskUiSurfaceDescriptor> Surface;
+        bool SurfaceCloseAuthorized{};
+        uint32_t AffectedTaskCount{};
     };
 
     [[nodiscard]] bool ValidateTaskProjectionQuery(const TaskProjectionQueryRequest& value, std::string& error) noexcept;

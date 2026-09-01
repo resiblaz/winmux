@@ -55,6 +55,17 @@ namespace TaskRuntimeLocalTests
             VERIFY_IS_TRUE(store.IsReady());
             VERIFY_IS_TRUE(store.CreateTask(task).Succeeded());
             VERIFY_IS_TRUE(store.CreateTaskRun(run).Succeeded());
+            // M7 consumes queued runs immediately. Move this synthetic M2
+            // fixture to an unmanaged active phase so the test isolates the
+            // idle policy without asking the orchestrator to execute it.
+            VERIFY_IS_TRUE(store.ChangeTaskRunState(
+                                    MakeRunStateCommand(
+                                        run,
+                                        3,
+                                        2,
+                                        1200,
+                                        TaskRunState::Preparing))
+                               .Succeeded());
         }
     }
 

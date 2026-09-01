@@ -1,8 +1,8 @@
 ---
 author: RicherLife / Codex collaboration
 created on: 2026-08-29
-last updated: 2026-08-31
-status: active staged implementation; M1-M5 complete, M6 task Surface next
+last updated: 2026-09-01
+status: M0-M8 complete on feature/task-runtime-foundation; not merged
 ---
 
 # Task-driven Terminal: Proposed Implementation Plan
@@ -23,86 +23,23 @@ foundational contracts required to avoid disposable data/process designs.
 
 ### 1.1 Current progress
 
-- M0 is complete: accepted specification, ADRs, Multica evidence, and reviewed
-  browser prototype are committed.
-- The M5 native fixed-page skeleton is implemented early as an isolated
-  projection-only shell. It contains no Runtime, SQLite, Git, or Codex business
-  logic and does not make M5 complete.
-- M4 is complete on `feature/task-runtime-foundation`: the provider-neutral
-  adapter, real Codex App Server v2 transport, structured event/approval
-  normalization, shared-process coordinator, ClosePending policy, durable
-  AgentSession/event sink, Runtime-owned event pump, deterministic fake suite,
-  and opt-in installed-CLI smoke are implemented.
-- M5 is complete on the same branch: strict Task projection/command DTOs,
-  Runtime-backed query/create/action routing, immutable epoch-aware UI
-  snapshots, active-only bounded refresh, in-page Save/Save and Run, execution
-  log/queued messages/responsive Run Details, localization, focus/Escape, and
-  high-contrast inheritance are implemented and verified. Task Surface attach
-  remains intentionally in M6 and queued-run scheduling remains in M7.
-- M1 is implementation-complete on `feature/task-core-foundation`: TaskCore
-  domain/state policies, versioned SQLite persistence, transactional commands,
-  durable message scheduling, recovery intents, deletion tombstones, and
-  bounded maintenance are covered by deterministic native tests.
-- M2 is active on `feature/task-runtime-foundation`. M2A establishes the
-  process-neutral handshake, capability negotiation, strict control framing,
-  and binary terminal framing. M2B adds Runtime user identity,
-  single-instance ownership, current-user security descriptors, secure pipe
-  creation, and the bootstrap executable. M2C1 adds strict RPC envelopes,
-  Hello-first/capability-gated control-session state, and reconnect cursor
-  decisions. M2C2a adds bounded overlapped pipe accept/connect/read/write,
-  fail-closed transport decoding, and an integrated client/server Hello
-  exchange. M2C2b adds bounded multi-client acceptance, independent per-client
-  queues and slow-peer isolation, a Hello-first session driver, and a
-  cancellation-aware RPC router seam. M2C3 adds two-phase atomic subscription
-  planning, bounded Pending event buffering, targeted notification delivery,
-  strict ownership/sequence enforcement, and reconnect rebind paths. M2C4a
-  adds a single-parse client envelope variant, strict Snapshot/Unsubscribe
-  DTOs, and explicit disconnect replay/OutcomeUnknown policy. M2C4b adds a
-  shared `TaskRuntimeTransport` target, single-deadline Hello connector seam,
-  typed cancellation, and race-free accept/session shutdown. M2C4c1a adds the
-  independent Client target plus pure monotonic epoch and bounded request
-  correlation/replay state. M2C4c1b adds the reconnecting supervisor, one
-  reader and one writer per epoch, fresh-ID read retry, conservative mutation
-  outcomes, bounded backoff, deterministic Stop, and exactly-once futures.
-  M2C4c2a adds the bounded pure desired-subscription registry, snapshot/request
-  correlation, cursor/gap policy, removal transitions, and epoch recovery.
-  M2C4c2b1 adds bounded pull streams plus explicit internal request binding,
-  RPC-failure, and overflow transitions. M2C4c2b2 integrates logical
-  subscriptions with Reader/Writer/Supervisor, reserved request and aggregate
-  memory budgets, fresh-epoch resnapshot, failure ceilings, allocation-free
-  removal, and deterministic Stop/destruction terminal delivery. The virtual
-  scheduler then replaces reconnect wall-clock waits with absolute monotonic
-  deadlines, deterministic manual-time tests, Stop-priority wakeup, and
-  fail-closed invalid policy/scheduler handling. M2C4c3b adds negotiated
-  half-interval Ping, a strict full-silence deadline, valid-inbound rearming,
-  superseded ACK handling, reserved capacity, and reconnect-health reset.
-  M2D1 adds the long-running Runtime product host, a strict protocol-level
-  Ping/RuntimeStatus contract, stable per-process instance identity, graceful
-  console shutdown, callback-safe server termination, and real-child coverage
-  for reconnect, malformed peers, second-instance refusal, and resource
-  release. M2D2 adds strict connect-first on-demand activation, a current-user
-  cross-process launch mutex, a parent-independent suspended launch transaction,
-  `TaskRuntimeClient` product composition, crash restart, and real thread,
-  process, short-lived-parent, and Job-breakaway coverage. M2E1 adds
-  session/generation-bound terminal endpoints, current-user-secured
-  binary terminal pipes, sequence/generation/payload enforcement, terminal
-  Hello capability negotiation, cancellation, and executable control/data
-  head-of-line isolation evidence. M2E2 composes a bounded VT reconnect ring,
-  per-client queues, snapshot/replay/reset, one expiring versioned input lease,
-  and a deterministic terminal Backend. Stale queued input and Release carry
-  their captured lease revision and fail closed after lease reuse. M2F1 adds
-  exact DTOs for the four Agent-scoped commands plus a bounded, ten-minute,
-  random Run/method capability registry with strict text limits and redacted
-  diagnostics. M2F2 adds the packaged `rtask.exe`, exact local endpoint/context
-  validation, bounded stdin and exit codes, TaskCtl product routing, and an
-  atomic TaskCore Agent mutation/event/receipt transaction. M2G1 adds the
-  Runtime-owned five-minute terminal idle deadline, active-run/client
-  exclusion, deterministic attach/deadline arbitration, idempotent wake, and
-  monotonic generation recovery while keeping Closed fail-closed. M2G2 adds a
-  two-minute helper idle-exit grace, a lightweight TaskCore resident-work
-  query, deadline activity resampling, and real-process evidence that active
-  work survives every UI disconnect while quiescent helpers exit cleanly. Real
-  Codex, Git, and task-owned Surface integration remain later milestones.
+- M0-M3 are complete: the accepted product/architecture baseline, TaskCore,
+  secure per-user Runtime/protocol, execution contexts, locks, and recoverable
+  Git Worktree lifecycle are implemented and verified.
+- M4-M5 are complete: one Runtime-owned Codex App Server provider and durable
+  structured event sink back the fixed Tasks page, immutable projection
+  coordinator, in-page draft, execution log, queued messages, and Run Details.
+- M6 is complete: task-owned terminal pipes, generation-bound Surface ownership,
+  one input controller, reconnect, semantic Esc, Runtime-authorized close, and
+  window-exit detach are integrated without changing ordinary user terminals.
+- M7 is complete: the bounded background orchestrator executes Direct and
+  Worktree runs, folds/defer messages, retries allowlisted failures, processes
+  lifecycle intents, suspends idle terminal sessions, and excludes Task Codex
+  sessions from Summary.
+- M8 is complete: protocol 1.1 drain/update behavior, MSIX/portable payload
+  validation, prototype updates, user documentation, migration/rollback,
+  security/privacy, storage, and upstream-sync reviews are recorded.
+- Closure evidence is in the M2 through M8 closure reports in this directory.
 - Microsoft upstream synchronization work is isolated from Task milestones and
   is not merged into this branch.
 - The executable M2/M3 commit queue and frozen technical defaults are tracked
@@ -353,6 +290,9 @@ Tests use temporary repositories and cover:
 
 ### M4: Codex App Server adapter
 
+Status: **complete on `feature/task-runtime-foundation`**; see
+[`m4-closure-report.md`](./m4-closure-report.md).
+
 Deliverables:
 
 - provider-neutral adapter interface;
@@ -378,6 +318,9 @@ Real Codex/network access is never required for deterministic native CI.
 
 ### M5: Tasks UI without Task Surface
 
+Status: **complete on `feature/task-runtime-foundation`**; see
+[`m5-closure-report.md`](./m5-closure-report.md).
+
 Deliverables:
 
 - fixed Tasks page and tool-page selection enum;
@@ -397,6 +340,9 @@ Tests:
 - no regression to Summary or user Surface tabs.
 
 ### M6: task-owned Agent Surface and close policy
+
+Status: **complete on `feature/task-runtime-foundation`**; see
+[`m6-closure-report.md`](./m6-closure-report.md).
 
 Deliverables:
 
@@ -419,6 +365,9 @@ Tests:
 
 ### M7: orchestration completion
 
+Status: **complete on `feature/task-runtime-foundation`**; see
+[`m7-closure-report.md`](./m7-closure-report.md).
+
 Deliverables:
 
 - follow-up fold/defer queue and manual hold;
@@ -440,6 +389,10 @@ Tests:
 
 ### M8: release hardening
 
+Status: **complete on `feature/task-runtime-foundation`**; see
+[`m8-closure-report.md`](./m8-closure-report.md) and
+[`m8-release-notes.md`](./m8-release-notes.md).
+
 Deliverables:
 
 - updated interactive browser prototype matching native behavior;
@@ -453,7 +406,7 @@ Gate:
 
 ```powershell
 pwsh -NoLogo -NoProfile -File .\tools\deploy\test-workspace-release.ps1
-pwsh -NoLogo -NoProfile -File .\tools\deploy\build-portable-release.ps1 -SkipBuild
+pwsh -NoLogo -NoProfile -File .\tools\deploy\build-portable-release.ps1 -SkipBuild -NoLaunch
 ```
 
 Build outputs remain incremental under `AGENT.md`; no clean build unless its

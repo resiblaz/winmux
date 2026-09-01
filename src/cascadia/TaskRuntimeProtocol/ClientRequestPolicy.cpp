@@ -6,7 +6,7 @@
 
 namespace Microsoft::Terminal::TaskRuntimeProtocol
 {
-    static_assert(static_cast<uint8_t>(ControlMethod::Count) == 8,
+    static_assert(static_cast<uint8_t>(ControlMethod::Count) == 9,
                   "Review disconnect/replay policy whenever a control method is added");
 
     bool IsReadOnlyControlMethod(const ControlMethod method) noexcept
@@ -22,6 +22,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         case ControlMethod::SubmitCommand:
         case ControlMethod::AcquireInputLease:
         case ControlMethod::ReleaseInputLease:
+        case ControlMethod::DrainRuntime:
         case ControlMethod::Count:
             return false;
         default:
@@ -46,6 +47,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         case ControlMethod::SubmitCommand:
         case ControlMethod::AcquireInputLease:
         case ControlMethod::ReleaseInputLease:
+        case ControlMethod::DrainRuntime:
             switch (transmission)
             {
             case ClientRequestTransmission::NotSent:

@@ -121,6 +121,65 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             draft.Instructions = value["instructions"].asString();
             return true;
         }
+
+        Json::Value _arguments(const TaskUiCommandRequest& value)
+        {
+            Json::Value result{ Json::objectValue };
+            result["messageId"] = value.MessageId ? Json::Value{ *value.MessageId } : Json::Value{};
+            result["expectedMessageRevision"] = value.ExpectedMessageRevision ?
+                                                     Json::Value{ Json::UInt64{ *value.ExpectedMessageRevision } } :
+                                                     Json::Value{};
+            result["text"] = value.Text ? Json::Value{ *value.Text } : Json::Value{};
+            result["relatedRunId"] = value.RelatedRunId ? Json::Value{ *value.RelatedRunId } : Json::Value{};
+            result["derivedTaskId"] = value.DerivedTaskId ? Json::Value{ *value.DerivedTaskId } : Json::Value{};
+            return result;
+        }
+
+        bool _decodeArguments(const Json::Value& value, TaskUiCommandRequest& request)
+        {
+            if (!_exact(value, { "messageId", "expectedMessageRevision", "text", "relatedRunId", "derivedTaskId" }) ||
+                (!value["messageId"].isNull() && !value["messageId"].isString()) ||
+                (!value["expectedMessageRevision"].isNull() && !_unsigned(value["expectedMessageRevision"])) ||
+                (!value["text"].isNull() && !value["text"].isString()) ||
+                (!value["relatedRunId"].isNull() && !value["relatedRunId"].isString()) ||
+                (!value["derivedTaskId"].isNull() && !value["derivedTaskId"].isString()))
+            {
+                return false;
+            }
+            if (value["messageId"].isString()) request.MessageId = value["messageId"].asString();
+            if (!value["expectedMessageRevision"].isNull()) request.ExpectedMessageRevision = value["expectedMessageRevision"].asUInt64();
+            if (value["text"].isString()) request.Text = value["text"].asString();
+            if (value["relatedRunId"].isString()) request.RelatedRunId = value["relatedRunId"].asString();
+            if (value["derivedTaskId"].isString()) request.DerivedTaskId = value["derivedTaskId"].asString();
+            return true;
+        }
+
+        Json::Value _surface(const TaskUiSurfaceDescriptor& value)
+        {
+            Json::Value result{ Json::objectValue };
+            result["terminalSessionId"] = value.TerminalSessionId;
+            result["pipeName"] = value.PipeName;
+            result["generation"] = Json::UInt64{ value.Generation };
+            result["ownedElsewhere"] = value.OwnedElsewhere;
+            return result;
+        }
+
+        bool _decodeSurface(const Json::Value& value, TaskUiSurfaceDescriptor& surface)
+        {
+            if (!_exact(value, { "terminalSessionId", "pipeName", "generation", "ownedElsewhere" }) ||
+                !value["terminalSessionId"].isString() || !value["pipeName"].isString() || !_unsigned(value["generation"]) ||
+                !value["ownedElsewhere"].isBool())
+            {
+                return false;
+            }
+            surface.TerminalSessionId = value["terminalSessionId"].asString();
+            surface.PipeName = value["pipeName"].asString();
+            surface.Generation = value["generation"].asUInt64();
+            surface.OwnedElsewhere = value["ownedElsewhere"].asBool();
+            return IsCanonicalProtocolUuid(surface.TerminalSessionId) &&
+                   !surface.PipeName.empty() && surface.PipeName.size() <= 512 &&
+                   IsValidUtf8(surface.PipeName) && surface.Generation != 0;
+        }
     }
 
     ProtocolRpcJsonDecodeResult<TaskUiCommandRequest> DecodeTaskUiCommandRequest(const std::string_view payload)
@@ -128,7 +187,9 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         Json::Value root;
         ProtocolRpcJsonDecodeResult<TaskUiCommandRequest> result;
         if (!_root(payload, root, result)) return result;
-        if (!_exact(root, { "commandId", "operation", "taskId", "expectedTaskVersion", "draft" }) ||
+        const auto legacy = _exact(root, { "commandId", "operation", "taskId", "expectedTaskVersion", "draft" });
+        const auto extended = _exact(root, { "commandId", "operation", "taskId", "expectedTaskVersion", "draft", "arguments" });
+        if ((!legacy && !extended) ||
             !root["commandId"].isString() || !root["operation"].isString() || !root["taskId"].isString() ||
             !_unsigned(root["expectedTaskVersion"])) return _failure<TaskUiCommandRequest>(ProtocolRpcJsonStatus::InvalidSchema, "Task command envelope is invalid");
         const auto operation = TaskUiCommandOperationFromName(root["operation"].asString());
@@ -142,6 +203,10 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             TaskUiCreateDraft draft;
             if (!_decodeDraft(root["draft"], draft)) return _failure<TaskUiCommandRequest>(ProtocolRpcJsonStatus::InvalidSchema, "Task create draft schema is invalid");
             result.Value.Draft = std::move(draft);
+        }
+        if (extended && !_decodeArguments(root["arguments"], result.Value))
+        {
+            return _failure<TaskUiCommandRequest>(ProtocolRpcJsonStatus::InvalidSchema, "Task command arguments schema is invalid");
         }
         std::string error;
         if (!ValidateTaskUiCommand(result.Value, error)) return _failure<TaskUiCommandRequest>(ProtocolRpcJsonStatus::InvalidSchema, std::move(error));
@@ -159,6 +224,10 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         root["taskId"] = value.TaskId;
         root["expectedTaskVersion"] = Json::UInt64{ value.ExpectedTaskVersion };
         root["draft"] = value.Draft ? _draft(*value.Draft) : Json::Value{};
+        if (value.MessageId || value.ExpectedMessageRevision || value.Text || value.RelatedRunId || value.DerivedTaskId)
+        {
+            root["arguments"] = _arguments(value);
+        }
         return _encode(std::move(root));
     }
 
@@ -167,7 +236,9 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         Json::Value root;
         ProtocolRpcJsonDecodeResult<TaskUiCommandResult> result;
         if (!_root(payload, root, result)) return result;
-        if (!_exact(root, { "commandId", "taskId", "runId", "taskVersion", "eventSequence", "replayed", "pending" }) ||
+        const auto legacy = _exact(root, { "commandId", "taskId", "runId", "taskVersion", "eventSequence", "replayed", "pending" });
+        const auto extended = _exact(root, { "commandId", "taskId", "runId", "taskVersion", "eventSequence", "replayed", "pending", "surface", "surfaceCloseAuthorized", "affectedTaskCount" });
+        if ((!legacy && !extended) ||
             !root["commandId"].isString() || !root["taskId"].isString() ||
             (!root["runId"].isNull() && !root["runId"].isString()) || !_unsigned(root["taskVersion"]) ||
             !_unsigned(root["eventSequence"]) || !root["replayed"].isBool() || !root["pending"].isBool() ||
@@ -183,6 +254,25 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         result.Value.EventSequence = root["eventSequence"].asUInt64();
         result.Value.Replayed = root["replayed"].asBool();
         result.Value.Pending = root["pending"].asBool();
+        if (extended)
+        {
+            if ((!root["surface"].isNull() && !root["surface"].isObject()) ||
+                !root["surfaceCloseAuthorized"].isBool() || !_unsigned(root["affectedTaskCount"]))
+            {
+                return _failure<TaskUiCommandResult>(ProtocolRpcJsonStatus::InvalidSchema, "Task command result extension is invalid");
+            }
+            if (root["surface"].isObject())
+            {
+                TaskUiSurfaceDescriptor surface;
+                if (!_decodeSurface(root["surface"], surface))
+                {
+                    return _failure<TaskUiCommandResult>(ProtocolRpcJsonStatus::InvalidSchema, "Task Surface descriptor is invalid");
+                }
+                result.Value.Surface = std::move(surface);
+            }
+            result.Value.SurfaceCloseAuthorized = root["surfaceCloseAuthorized"].asBool();
+            result.Value.AffectedTaskCount = root["affectedTaskCount"].asUInt();
+        }
         result.Status = ProtocolRpcJsonStatus::Succeeded;
         return result;
     }
@@ -202,6 +292,18 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         root["eventSequence"] = Json::UInt64{ value.EventSequence };
         root["replayed"] = value.Replayed;
         root["pending"] = value.Pending;
+        if (value.Surface || value.SurfaceCloseAuthorized || value.AffectedTaskCount != 0)
+        {
+            if (value.Surface && (!IsCanonicalProtocolUuid(value.Surface->TerminalSessionId) ||
+                                  value.Surface->PipeName.empty() || value.Surface->PipeName.size() > 512 ||
+                                  !IsValidUtf8(value.Surface->PipeName) || value.Surface->Generation == 0))
+            {
+                return { false, {}, "Task Surface descriptor is invalid" };
+            }
+            root["surface"] = value.Surface ? _surface(*value.Surface) : Json::Value{};
+            root["surfaceCloseAuthorized"] = value.SurfaceCloseAuthorized;
+            root["affectedTaskCount"] = value.AffectedTaskCount;
+        }
         return _encode(std::move(root));
     }
 }

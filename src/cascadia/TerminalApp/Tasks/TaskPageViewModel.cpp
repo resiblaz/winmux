@@ -95,7 +95,8 @@ namespace winrt::TerminalApp::implementation
         {
             const auto weakThis = get_weak();
             _source->SetChangedHandler([weakThis] {
-                if (const auto self = weakThis.get()) self->Reload();
+                if (const auto self = weakThis.get())
+                    self->Reload();
             });
             if (!_source->Start())
             {
@@ -138,7 +139,8 @@ namespace winrt::TerminalApp::implementation
 
         _selectedTask = task;
         _selectedTaskId = std::move(nextId);
-        if (_source) _source->SelectTask(_selectedTaskId);
+        if (_source)
+            _source->SelectTask(_selectedTaskId);
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"SelectedTask" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"HasSelection" });
     }
@@ -210,6 +212,36 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    bool TaskPageViewModel::QueueSelectedMessage(const winrt::hstring& message)
+    {
+        if (!_source || !_selectedTask || message.empty())
+        {
+            return false;
+        }
+        const auto queued = _source->QueueMessage(
+            std::wstring{ _selectedTask.Id() },
+            std::wstring{ message });
+        if (queued)
+        {
+            Reload();
+        }
+        return queued;
+    }
+
+    bool TaskPageViewModel::ReviseSelectedMessage(
+        const std::wstring& messageId,
+        const uint64_t revision,
+        const std::optional<std::wstring>& replacement)
+    {
+        if (!_source || !_selectedTask || messageId.empty() || revision == 0)
+            return false;
+        const auto revised = _source->ReviseMessage(
+            std::wstring{ _selectedTask.Id() }, messageId, revision, replacement);
+        if (revised)
+            Reload();
+        return revised;
+    }
+
     void TaskPageViewModel::_ApplyFilters()
     {
         _tasks.Clear();
@@ -253,7 +285,8 @@ namespace winrt::TerminalApp::implementation
                 _selectedTaskId.clear();
             }
         }
-        if (_source) _source->SelectTask(_selectedTaskId);
+        if (_source)
+            _source->SelectTask(_selectedTaskId);
         _RaisePageState();
     }
 

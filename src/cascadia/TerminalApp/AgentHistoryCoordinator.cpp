@@ -204,6 +204,12 @@ namespace winrt::TerminalApp::implementation
         Stop();
     }
 
+    void AgentHistoryCoordinator::SetTaskSessionRegistry(
+        std::shared_ptr<tasks::TaskAgentSessionRegistry> registry) noexcept
+    {
+        _taskSessions = std::move(registry);
+    }
+
     void AgentHistoryCoordinator::Attach(const TerminalApp::ConclusionSidebar& sidebar)
     {
         assert(_page.Dispatcher().HasThreadAccess());
@@ -517,6 +523,7 @@ namespace winrt::TerminalApp::implementation
     {
         const auto weakThis = _page.get_weak();
         const auto dispatcher = _page.Dispatcher();
+        const auto taskSessions = _taskSessions;
         co_await winrt::resume_background();
 
         auto completionState = CodexHistoryUiState::Error;
@@ -540,6 +547,10 @@ namespace winrt::TerminalApp::implementation
                     bool rejected{};
                     for (const auto& summary : result.Threads)
                     {
+                        if (taskSessions && taskSessions->Contains(summary.Id))
+                        {
+                            continue;
+                        }
                         if (const auto record = _codexSessionRecord(summary, workspaceId, workspaceTitle, cwd, seenAt))
                         {
                             if (store.UpsertSessionSummary(record.value()))
@@ -574,6 +585,10 @@ namespace winrt::TerminalApp::implementation
                                                    const winrt::hstring& cwd,
                                                    const winrt::hstring& sessionId)
     {
+        if (_taskSessions && _taskSessions->Contains(sessionId))
+        {
+            return;
+        }
         if (_providerOperationInFlight ||
             workspaceId == winrt::guid{} ||
             cwd.empty() || cwd.size() > CodexAppServerClient::MaximumCwdCharacters ||
@@ -723,6 +738,10 @@ namespace winrt::TerminalApp::implementation
         }
 
         sessionId = WorkspaceAgentResume::NormalizeCodexSessionId(sessionId);
+        if (_taskSessions && _taskSessions->Contains(sessionId))
+        {
+            co_return;
+        }
         AgentResumeInfo info{};
         info.Version = WorkspaceAgentResume::CurrentVersion;
         info.WorkspaceId = workspaceId;

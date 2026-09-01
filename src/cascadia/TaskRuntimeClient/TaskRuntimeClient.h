@@ -57,6 +57,8 @@ namespace Microsoft::Terminal::TaskRuntime
         [[nodiscard]] TaskRuntimeClientState State() const noexcept;
         [[nodiscard]] RuntimeClientEpoch ActiveEpoch() const noexcept;
         [[nodiscard]] std::string RuntimeInstanceId() const;
+        [[nodiscard]] Microsoft::Terminal::TaskRuntimeProtocol::ProtocolCapabilitySet NegotiatedCapabilities() const noexcept;
+        [[nodiscard]] uint16_t ProtocolMinor() const noexcept;
 
     private:
         struct Impl;

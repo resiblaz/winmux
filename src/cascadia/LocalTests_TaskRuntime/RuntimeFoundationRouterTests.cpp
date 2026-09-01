@@ -119,6 +119,7 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(CancellationReturnsRuntimeUnavailable);
         TEST_METHOD(UnsupportedMethodReturnsInvalidRequest);
         TEST_METHOD(ConcurrentReadOnlyRoutesRemainIndependent);
+        TEST_METHOD(DrainRequestIsExplicitAndCallbackBound);
     };
 
     void RuntimeFoundationRouterTests::PingAndRuntimeStatusReturnExactFoundationFields()
@@ -153,6 +154,33 @@ namespace TaskRuntimeLocalTests
         VERIFY_ARE_EQUAL(std::string{ RuntimeInstanceId }, statusResult.Value.RuntimeInstanceId);
         VERIFY_ARE_EQUAL(RuntimeProcessId, statusResult.Value.ProcessId);
         VERIFY_ARE_EQUAL(std::string{ RuntimeFoundationReadyState }, statusResult.Value.State);
+    }
+
+    void RuntimeFoundationRouterTests::DrainRequestIsExplicitAndCallbackBound()
+    {
+        UniqueRuntimeRoot root;
+        const auto identity = RequireIdentity(root.Path());
+        bool requested{};
+        RuntimeFoundationRouter router{
+            identity.ProtocolIdentity,
+            std::string{ RuntimeInstanceId },
+            RuntimeProcessId,
+            [&] {
+                requested = true;
+                return true;
+            }
+        };
+        auto client = _client();
+        client.NegotiatedCapabilities |= static_cast<uint64_t>(ProtocolCapability::RuntimeDrain);
+        const auto result = router.Route(
+            client, _request(ControlMethod::DrainRuntime), _cancellation());
+        VERIFY_IS_TRUE(result.Succeeded);
+        VERIFY_IS_TRUE(requested);
+        VERIFY_ARE_EQUAL(std::string{ R"({"draining":true})" }, result.ResultJson);
+
+        auto rejected = _router(identity).Route(
+            client, _request(ControlMethod::DrainRuntime), _cancellation());
+        _verifyTypedError(rejected, ProtocolRpcErrorCode::Conflict);
     }
 
     void RuntimeFoundationRouterTests::NonEmptyOrMalformedParametersReturnInvalidRequest()

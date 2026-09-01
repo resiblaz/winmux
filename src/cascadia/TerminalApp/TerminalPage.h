@@ -21,6 +21,8 @@
 #include "WorkspaceSidebar.h"
 #include "ConclusionSidebar.h"
 #include "Tasks/TaskPage.h"
+#include "Tasks/TaskSurfacePolicy.h"
+#include "Tasks/TaskAgentSessionRegistry.h"
 #include "AgentHistoryInbox.h"
 #include "WorkspaceAgentResume.h"
 
@@ -332,6 +334,9 @@ namespace winrt::TerminalApp::implementation
         Windows::UI::Xaml::Controls::ListViewItem _workspaceTasksToolTab{ nullptr };
         Windows::UI::Xaml::Controls::ListViewItem _workspaceSummaryToolTab{ nullptr };
         WorkspaceToolPage _activeWorkspaceToolPage{ WorkspaceToolPage::None };
+        tasks::TaskSurfacePolicy _taskSurfacePolicy;
+        std::shared_ptr<tasks::TaskAgentSessionRegistry> _taskAgentSessions;
+        uint64_t _nextTaskSurfaceCloseAuthorization{ 1 };
         Microsoft::UI::Xaml::Controls::SplitButton _newTabButton{ nullptr };
         Microsoft::UI::Xaml::Controls::SplitButton _workspaceNewTabButton{ nullptr };
         Windows::UI::Xaml::Controls::Button _workspaceNotificationButton{ nullptr };
@@ -490,6 +495,14 @@ namespace winrt::TerminalApp::implementation
         void _Root_SizeChanged(const IInspectable& sender, const Windows::UI::Xaml::SizeChangedEventArgs& args);
         void _SyncWorkspaceSelection(const winrt::TerminalApp::Tab& tab);
         void _SetWorkspaceToolPage(WorkspaceToolPage page);
+        safe_void_coroutine _HandleTaskSurface(tasks::TaskSurfaceDescriptor descriptor);
+        void _CloseTaskSurface(std::wstring_view taskId,
+                               uint64_t generation,
+                               tasks::TaskSurfaceCloseOrigin origin);
+        [[nodiscard]] tasks::TaskSurfaceId _TaskSurfaceId(const winrt::TerminalApp::Tab& tab) const noexcept;
+        [[nodiscard]] tasks::TaskSurfaceId _TaskSurfaceId(const winrt::com_ptr<Tab>& tab) const noexcept;
+        [[nodiscard]] bool _IsTaskOwnedTab(const winrt::TerminalApp::Tab& tab) const noexcept;
+        [[nodiscard]] bool _IsTaskOwnedTab(const winrt::com_ptr<Tab>& tab) const noexcept;
         void _ApplyRestoredWorkspaceActiveSurfaces();
         bool _SelectWorkspace(const TerminalApp::WorkspaceItemViewModel& item);
         void _SynchronizeFlatTabOrder();

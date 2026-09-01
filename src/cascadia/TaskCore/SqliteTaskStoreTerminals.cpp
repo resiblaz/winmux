@@ -49,6 +49,32 @@ WHERE task_id=?4 AND state=?5 AND generation=?6;
             return true;
         }
 
+        bool _updateTaskForTerminal(
+            sqlite3* database,
+            const ChangeTaskTerminalStateCommand& command,
+            const uint64_t currentVersion,
+            const uint64_t committedVersion,
+            std::string& error)
+        {
+            if (!command.ClearManualHold)
+            {
+                return details::UpdateTaskVersion(
+                    database, command.Task, currentVersion, committedVersion,
+                    command.Metadata.TimestampUnixMilliseconds, error);
+            }
+            constexpr auto sql = R"SQL(
+UPDATE task SET manual_hold=0, version=?1, updated_at=?2
+WHERE id=?3 AND version=?4;
+)SQL";
+            details::SqliteStatement statement{ database, sql, error };
+            return statement &&
+                   details::BindInt64(database, statement.Get(), 1, static_cast<int64_t>(committedVersion), error) &&
+                   details::BindInt64(database, statement.Get(), 2, command.Metadata.TimestampUnixMilliseconds, error) &&
+                   details::BindText(database, statement.Get(), 3, command.Task.Value(), error) &&
+                   details::BindInt64(database, statement.Get(), 4, static_cast<int64_t>(currentVersion), error) &&
+                   details::StepDone(database, statement.Get(), error) && sqlite3_changes(database) == 1;
+        }
+
         TaskStoreCommandResult _success(
             const TaskCommandMetadata& metadata,
             const uint64_t committedVersion,
@@ -156,13 +182,8 @@ WHERE task_id=?4 AND state=?5 AND generation=?6;
         const auto committedVersion = task->Version + 1;
         if (!details::NextAggregateSequence(_impl->Database, command.Task, eventSequence, error) ||
             !_updateTerminalState(_impl->Database, command, terminal.value(), error) ||
-            !details::UpdateTaskVersion(
-                _impl->Database,
-                command.Task,
-                task->Version,
-                committedVersion,
-                command.Metadata.TimestampUnixMilliseconds,
-                error) ||
+            !_updateTaskForTerminal(
+                _impl->Database, command, task->Version, committedVersion, error) ||
             !details::AppendEvent(
                 _impl->Database,
                 command.Metadata,

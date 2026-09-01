@@ -5,6 +5,7 @@
 
 #include "ITaskStore.h"
 #include "TaskProviderCoordinator.h"
+#include "RuntimeTaskTerminalService.h"
 
 #include <memory>
 #include <mutex>
@@ -16,7 +17,8 @@ namespace Microsoft::Terminal::TaskRuntime
     {
     public:
         explicit RuntimeTaskProviderSink(
-            std::shared_ptr<Microsoft::Terminal::TaskCore::ITaskStore> store) noexcept;
+            std::shared_ptr<Microsoft::Terminal::TaskCore::ITaskStore> store,
+            std::shared_ptr<RuntimeTaskTerminalService> terminals = nullptr) noexcept;
 
         [[nodiscard]] bool Valid() const noexcept;
         [[nodiscard]] Microsoft::Terminal::TaskProvider::TaskProviderResult OnSessionStateChanged(
@@ -35,6 +37,7 @@ namespace Microsoft::Terminal::TaskRuntime
 
     private:
         std::shared_ptr<Microsoft::Terminal::TaskCore::ITaskStore> _store;
+        std::weak_ptr<RuntimeTaskTerminalService> _terminals;
         std::mutex _mutex;
     };
 }

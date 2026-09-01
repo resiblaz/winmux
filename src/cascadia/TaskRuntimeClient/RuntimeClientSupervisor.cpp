@@ -229,6 +229,8 @@ namespace Microsoft::Terminal::TaskRuntime::details
                             {
                                 Active = epoch;
                                 CurrentRuntimeInstanceId = epoch->Hello.RuntimeInstanceId;
+                                CurrentCapabilities = epoch->Hello.Capabilities;
+                                CurrentProtocolMinor = epoch->Hello.ProtocolMinor;
                                 ClientState = TaskRuntimeClientState::Ready;
                                 published = true;
                             }
@@ -355,6 +357,8 @@ namespace Microsoft::Terminal::TaskRuntime::details
                     {
                         Active.reset();
                         CurrentRuntimeInstanceId.clear();
+                        CurrentCapabilities = 0;
+                        CurrentProtocolMinor = 0;
                     }
 
                     if (protocolFault && !stopping)
@@ -470,6 +474,8 @@ namespace Microsoft::Terminal::TaskRuntime::details
                     Heartbeat.Retire();
                     Active.reset();
                     CurrentRuntimeInstanceId.clear();
+                    CurrentCapabilities = 0;
+                    CurrentProtocolMinor = 0;
                 }
                 AdmissionOpen = false;
                 ClientState = TaskRuntimeClientState::Faulted;

@@ -116,6 +116,14 @@
                                         Visibility="{x:Bind mtu:Converters.BooleanToVisibility(CanMarkDone), Mode=OneTime}" />
                                 <Button x:Uid="TaskPageReopenTaskButton" Click="_ReopenTask_Click"
                                         Visibility="{x:Bind mtu:Converters.BooleanToVisibility(CanReopen), Mode=OneTime}" />
+                                <Button x:Uid="TaskPageRetryTaskButton" Click="_RetryTask_Click"
+                                        Visibility="{x:Bind mtu:Converters.BooleanToVisibility(CanRetry), Mode=OneTime}" />
+                                <Button x:Uid="TaskPageCancelTaskButton" Click="_CancelTask_Click"
+                                        Visibility="{x:Bind mtu:Converters.BooleanToVisibility(CanCancel), Mode=OneTime}" />
+                                <Button x:Uid="TaskPageFinalizeWorktreeButton" Click="_FinalizeWorktree_Click"
+                                        Visibility="{x:Bind mtu:Converters.BooleanToVisibility(CanFinalizeWorktree), Mode=OneTime}" />
+                                <Button x:Uid="TaskPageDeleteTaskButton" Click="_DeleteTask_Click"
+                                        Visibility="{x:Bind mtu:Converters.BooleanToVisibility(CanDelete), Mode=OneTime}" />
                             </StackPanel>
                         </ScrollViewer>
 
@@ -148,8 +156,11 @@
                                 Visibility="{x:Bind mtu:Converters.BooleanToVisibility(HasQueuedMessages), Mode=OneTime}">
                             <StackPanel>
                                 <TextBlock x:Uid="TaskPageQueuedMessagesTitle" Style="{StaticResource TaskSectionTitleStyle}" />
-                                <ItemsControl ItemsSource="{x:Bind QueuedMessageItems, Mode=OneTime}">
-                                    <ItemsControl.ItemTemplate>
+                                <ListView x:Name="QueuedMessagesList"
+                                          ItemsSource="{x:Bind QueuedMessageItems, Mode=OneTime}"
+                                          SelectionMode="Single"
+                                          SelectionChanged="_QueuedMessages_SelectionChanged">
+                                    <ListView.ItemTemplate>
                                         <DataTemplate>
                                             <Border Margin="0,3" Padding="10"
                                                     Background="{ThemeResource WorkspaceChromeStatusFillBrush}"
@@ -159,8 +170,22 @@
                                                            TextWrapping="Wrap" />
                                             </Border>
                                         </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                                <TextBox x:Name="QueuedMessageEditor"
+                                         x:Uid="TaskPageQueuedMessageEditor"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                                    <Button x:Name="EditQueuedMessageButton"
+                                            x:Uid="TaskPageEditQueuedMessageButton"
+                                            IsEnabled="False"
+                                            Click="_EditQueuedMessage_Click" />
+                                    <Button x:Name="RemoveQueuedMessageButton"
+                                            x:Uid="TaskPageRemoveQueuedMessageButton"
+                                            IsEnabled="False"
+                                            Click="_RemoveQueuedMessage_Click" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
@@ -234,14 +259,18 @@
 
                         <Border Style="{StaticResource TaskCardStyle}">
                             <StackPanel Spacing="10">
-                                <TextBox x:Uid="TaskPageFollowupInput"
+                                <TextBox x:Name="FollowupInput"
+                                         x:Uid="TaskPageFollowupInput"
                                          AcceptsReturn="True"
                                          IsSpellCheckEnabled="True"
                                          MinHeight="76"
-                                         TextWrapping="Wrap" />
-                                <Button x:Uid="TaskPageQueueFollowupButton"
+                                         TextWrapping="Wrap"
+                                         TextChanged="_FollowupInput_TextChanged" />
+                                <Button x:Name="QueueFollowupButton"
+                                        x:Uid="TaskPageQueueFollowupButton"
                                         HorizontalAlignment="Right"
-                                        IsEnabled="False" />
+                                        IsEnabled="False"
+                                        Click="_QueueFollowup_Click" />
                             </StackPanel>
                         </Border>
                     </StackPanel>

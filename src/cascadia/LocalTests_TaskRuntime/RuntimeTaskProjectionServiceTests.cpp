@@ -5,12 +5,14 @@
 
 #include "RuntimeTaskProjectionService.h"
 #include "TaskCoreStoreTestFixtures.h"
+#include "TaskRuntimeTestFixtures.h"
 
 using namespace WEX::TestExecution;
 using namespace Microsoft::Terminal::TaskCore;
 using namespace Microsoft::Terminal::TaskRuntime;
 using namespace Microsoft::Terminal::TaskRuntimeProtocol;
 using namespace TaskCoreLocalTests::TestFixtures;
+using namespace TaskRuntimeLocalTests::TestFixtures;
 
 namespace TaskRuntimeLocalTests
 {
@@ -56,6 +58,8 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(QueryFiltersWorkspaceCompletionAndEventTail);
         TEST_METHOD(WorktreeDraftProjectsDeterministicFuturePath);
         TEST_METHOD(RejectsStaleAndInvalidCommandsWithoutMutation);
+        TEST_METHOD(MessageRetryAndDerivedTaskCommandsAreDurable);
+        TEST_METHOD(OpenTerminalCreatesOneGenerationAndEnforcesSurfaceOwner);
     };
 
     void RuntimeTaskProjectionServiceTests::CreateQueryStartStopAndCloseUseDurableReceipts()
@@ -97,13 +101,20 @@ namespace TaskRuntimeLocalTests
         result = service.Execute(stop, nullptr);
         VERIFY_IS_TRUE(result.Succeeded());
         auto aggregate = store->LoadTask(TaskId{ create.TaskId });
-        VERIFY_IS_TRUE(aggregate->Runs.front().State == TaskRunState::Cancelled);
+        VERIFY_IS_TRUE(aggregate->Runs.front().State == TaskRunState::Queued);
+        VERIFY_IS_TRUE(aggregate->Task.ManualHold);
+        VERIFY_IS_TRUE(aggregate->Intent.has_value());
+        VERIFY_IS_TRUE(aggregate->Intent->Kind == TaskIntentKind::Stop);
 
-        const auto close = _action(create, 4, TaskUiCommandOperation::Close, aggregate->Task.Version);
+        const auto closeTask = _create(5);
+        VERIFY_IS_TRUE(service.Execute(closeTask, nullptr).Succeeded());
+        const auto close = _action(closeTask, 6, TaskUiCommandOperation::Close, 1);
         result = service.Execute(close, nullptr);
         VERIFY_IS_TRUE(result.Succeeded());
-        aggregate = store->LoadTask(TaskId{ create.TaskId });
-        VERIFY_IS_TRUE(aggregate->Terminal.State == TaskTerminalState::Closed);
+        aggregate = store->LoadTask(TaskId{ closeTask.TaskId });
+        VERIFY_IS_TRUE(aggregate->Intent.has_value());
+        VERIFY_IS_TRUE(aggregate->Intent->Kind == TaskIntentKind::Close);
+        VERIFY_IS_TRUE(result.Result.Pending);
     }
 
     void RuntimeTaskProjectionServiceTests::QueryFiltersWorkspaceCompletionAndEventTail()
@@ -168,5 +179,110 @@ namespace TaskRuntimeLocalTests
         invalid.TaskId = create.TaskId;
         invalid.WorkspaceId = create.Draft->WorkspaceId;
         VERIFY_IS_TRUE(service.Query(invalid).Status == RuntimeTaskProjectionStatus::InvalidRequest);
+    }
+
+    void RuntimeTaskProjectionServiceTests::MessageRetryAndDerivedTaskCommandsAreDurable()
+    {
+        TemporaryDatabasePath path;
+        const auto store = std::make_shared<SqliteTaskStore>(path.Path());
+        RuntimeTaskProjectionService service{ store, nullptr, path.Path().parent_path() };
+        const auto create = _create(60);
+        VERIFY_IS_TRUE(service.Execute(create, nullptr).Succeeded());
+
+        auto message = _action(create, 61, TaskUiCommandOperation::QueueMessage, 1);
+        message.Text = "first follow-up";
+        VERIFY_IS_TRUE(service.Execute(message, nullptr).Succeeded());
+        auto aggregate = store->LoadTask(TaskId{ create.TaskId });
+        VERIFY_ARE_EQUAL(size_t{ 1 }, aggregate->Messages.size());
+        VERIFY_IS_TRUE(aggregate->Messages.front().State == TaskMessageState::Pending);
+
+        auto revise = _action(create, 62, TaskUiCommandOperation::ReviseMessage, aggregate->Task.Version);
+        revise.MessageId = aggregate->Messages.front().Id.Value();
+        revise.ExpectedMessageRevision = 1;
+        revise.Text = "revised follow-up";
+        VERIFY_IS_TRUE(service.Execute(revise, nullptr).Succeeded());
+        aggregate = store->LoadTask(TaskId{ create.TaskId });
+        VERIFY_ARE_EQUAL(std::string{ "revised follow-up" }, aggregate->Messages.front().Content);
+
+        auto remove = _action(create, 63, TaskUiCommandOperation::RemoveMessage, aggregate->Task.Version);
+        remove.MessageId = aggregate->Messages.front().Id.Value();
+        remove.ExpectedMessageRevision = 2;
+        VERIFY_IS_TRUE(service.Execute(remove, nullptr).Succeeded());
+        aggregate = store->LoadTask(TaskId{ create.TaskId });
+        VERIFY_IS_TRUE(aggregate->Messages.front().State == TaskMessageState::Removed);
+
+        const auto start = _action(create, 64, TaskUiCommandOperation::Start, aggregate->Task.Version);
+        const auto started = service.Execute(start, nullptr);
+        VERIFY_IS_TRUE(started.Succeeded());
+        aggregate = store->LoadTask(TaskId{ create.TaskId });
+        ChangeTaskRunStateCommand cancel;
+        cancel.Metadata = MakeMetadata(65, aggregate->Task.Version, aggregate->Task.UpdatedAtUnixMilliseconds + 1);
+        cancel.Task = aggregate->Task.Id;
+        cancel.Run = aggregate->Runs.front().Id;
+        cancel.RequestedState = TaskRunState::Cancelled;
+        cancel.ReasonCode = "test";
+        VERIFY_IS_TRUE(store->ChangeTaskRunState(cancel).Succeeded());
+        aggregate = store->LoadTask(TaskId{ create.TaskId });
+        auto retry = _action(create, 66, TaskUiCommandOperation::Retry, aggregate->Task.Version);
+        retry.RelatedRunId = aggregate->Runs.front().Id.Value();
+        const auto retried = service.Execute(retry, nullptr);
+        VERIFY_IS_TRUE(retried.Succeeded());
+        aggregate = store->LoadTask(TaskId{ create.TaskId });
+        VERIFY_ARE_EQUAL(size_t{ 2 }, aggregate->Runs.size());
+        VERIFY_IS_TRUE(aggregate->Runs.back().Trigger == TaskRunTrigger::ManualRetry);
+        VERIFY_IS_TRUE(aggregate->Runs.back().RetryOfRunId == std::optional<TaskRunId>{ aggregate->Runs.front().Id });
+
+        ChangeTaskRunStateCommand cancelRetry;
+        cancelRetry.Metadata = MakeMetadata(67, aggregate->Task.Version, aggregate->Task.UpdatedAtUnixMilliseconds + 1);
+        cancelRetry.Task = aggregate->Task.Id;
+        cancelRetry.Run = aggregate->Runs.back().Id;
+        cancelRetry.RequestedState = TaskRunState::Cancelled;
+        cancelRetry.ReasonCode = "test";
+        VERIFY_IS_TRUE(store->ChangeTaskRunState(cancelRetry).Succeeded());
+        aggregate = store->LoadTask(TaskId{ create.TaskId });
+
+        auto derived = _action(create, 68, TaskUiCommandOperation::Derive, aggregate->Task.Version);
+        derived.DerivedTaskId = MakeId<TaskId>(999).Value();
+        derived.Draft = *create.Draft;
+        derived.Draft->Title = "Derived Task";
+        const auto derivedResult = service.Execute(derived, nullptr);
+        VERIFY_IS_TRUE(derivedResult.Succeeded());
+        const auto derivedAggregate = store->LoadTask(TaskId{ *derived.DerivedTaskId });
+        VERIFY_IS_TRUE(derivedAggregate.has_value());
+        VERIFY_IS_TRUE(derivedAggregate->Task.ForkedFromTaskId == std::optional<TaskId>{ TaskId{ create.TaskId } });
+    }
+
+    void RuntimeTaskProjectionServiceTests::OpenTerminalCreatesOneGenerationAndEnforcesSurfaceOwner()
+    {
+        TemporaryDatabasePath path;
+        UniqueRuntimeRoot runtimeRoot;
+        const auto store = std::make_shared<SqliteTaskStore>(path.Path());
+        const auto identity = RequireIdentity(runtimeRoot.Path());
+        auto terminals = std::make_shared<RuntimeTaskTerminalService>(
+            identity,
+            "91000000-0000-4000-8000-000000000001",
+            [](auto&&, auto&&) { return RuntimeTerminalBackendResult{ RuntimeTerminalBackendStatus::Succeeded, {} }; },
+            [](auto&&) { return RuntimeTerminalBackendResult{ RuntimeTerminalBackendStatus::Succeeded, {} }; });
+        RuntimeTaskProjectionService service{ store, nullptr, path.Path().parent_path(), terminals };
+        const auto create = _create(70);
+        VERIFY_IS_TRUE(service.Execute(create, nullptr).Succeeded());
+        const auto open = _action(create, 71, TaskUiCommandOperation::OpenTerminal, 1);
+        const auto opened = service.Execute(
+            open, nullptr, "92000000-0000-4000-8000-000000000002");
+        VERIFY_IS_TRUE(opened.Succeeded());
+        VERIFY_IS_TRUE(opened.Result.Surface.has_value());
+        VERIFY_ARE_EQUAL(uint64_t{ 1 }, opened.Result.Surface->Generation);
+        VERIFY_IS_FALSE(opened.Result.Surface->OwnedElsewhere);
+        const auto aggregate = store->LoadTask(TaskId{ create.TaskId });
+        VERIFY_IS_TRUE(aggregate->Terminal.State == TaskTerminalState::Ready);
+        VERIFY_ARE_EQUAL(uint64_t{ 1 }, aggregate->Terminal.Generation);
+
+        auto competing = _action(create, 72, TaskUiCommandOperation::OpenTerminal, aggregate->Task.Version);
+        const auto owned = service.Execute(
+            competing, nullptr, "93000000-0000-4000-8000-000000000003");
+        VERIFY_IS_TRUE(owned.Succeeded());
+        VERIFY_IS_TRUE(owned.Result.Surface->OwnedElsewhere);
+        VERIFY_ARE_EQUAL(uint64_t{ 1 }, owned.Result.Surface->Generation);
+        terminals->Stop();
     }
 }

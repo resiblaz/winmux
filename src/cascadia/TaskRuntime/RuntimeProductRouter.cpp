@@ -187,7 +187,7 @@ namespace Microsoft::Terminal::TaskRuntime
             const auto decoded = DecodeTaskUiCommandRequest(request.PayloadJson);
             if (!decoded.Succeeded()) return _error(ProtocolRpcErrorCode::InvalidRequest, "Task UI command is invalid");
             if (cancellation.IsCancellationRequested()) return _error(ProtocolRpcErrorCode::RuntimeUnavailable, "Task UI command was cancelled");
-            const auto executed = service.Execute(decoded.Value, nullptr);
+            const auto executed = service.Execute(decoded.Value, nullptr, client.ClientInstanceId);
             if (!executed.Succeeded()) return _error(_taskRpcCode(executed.Status), executed.Error);
             const auto encoded = EncodeTaskUiCommandResult(executed.Result);
             if (!encoded.Succeeded) return _error(ProtocolRpcErrorCode::InternalError, "Task command result could not be encoded");

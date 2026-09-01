@@ -86,10 +86,12 @@ namespace Microsoft::Terminal::TaskRuntime
     RuntimeFoundationRouter::RuntimeFoundationRouter(
         std::string runtimeIdentity,
         std::string runtimeInstanceId,
-        const uint32_t processId) :
+        const uint32_t processId,
+        std::function<bool()> requestDrain) :
         _runtimeIdentity{ std::move(runtimeIdentity) },
         _runtimeInstanceId{ std::move(runtimeInstanceId) },
-        _processId{ processId }
+        _processId{ processId },
+        _requestDrain{ std::move(requestDrain) }
     {
     }
 
@@ -144,6 +146,21 @@ namespace Microsoft::Terminal::TaskRuntime
                 _processId,
                 std::string{ RuntimeFoundationReadyState },
             }));
+        }
+        case ControlMethod::DrainRuntime:
+        {
+            if (!_parseEmptyObject(request.PayloadJson))
+            {
+                return _invalidParameters(request.Method);
+            }
+            if (!_requestDrain || !_requestDrain())
+            {
+                return _error(ProtocolRpcErrorCode::Conflict, "Runtime drain request was rejected");
+            }
+            RuntimeControlRouteResult result;
+            result.Succeeded = true;
+            result.ResultJson = R"({"draining":true})";
+            return result;
         }
         default:
         {

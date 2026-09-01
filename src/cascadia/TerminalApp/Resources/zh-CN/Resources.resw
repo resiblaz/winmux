@@ -1392,6 +1392,10 @@
   <data name="TaskPageCloseTaskButton.Content" xml:space="preserve"><value>关闭任务终端</value></data>
   <data name="TaskPageMarkDoneButton.Content" xml:space="preserve"><value>确认完成</value></data>
   <data name="TaskPageReopenTaskButton.Content" xml:space="preserve"><value>重新打开</value></data>
+  <data name="TaskPageRetryTaskButton.Content" xml:space="preserve"><value>重试</value></data>
+  <data name="TaskPageCancelTaskButton.Content" xml:space="preserve"><value>取消任务</value></data>
+  <data name="TaskPageFinalizeWorktreeButton.Content" xml:space="preserve"><value>交付并清理 Worktree</value></data>
+  <data name="TaskPageDeleteTaskButton.Content" xml:space="preserve"><value>删除任务</value></data>
   <data name="TaskPageActiveRunTitle.Text" xml:space="preserve"><value>活动 TaskRun</value></data>
   <data name="TaskPageGoalTitle.Text" xml:space="preserve"><value>目标与背景</value></data>
   <data name="TaskPageAcceptanceTitle.Text" xml:space="preserve"><value>验收条件</value></data>
@@ -1399,7 +1403,14 @@
   <data name="TaskPageExecutionLogTitle.Text" xml:space="preserve"><value>执行记录</value></data>
   <data name="TaskPageFollowupInput.PlaceholderText" xml:space="preserve"><value>补充要求，或告诉 Codex 下一步……</value></data>
   <data name="TaskPageQueueFollowupButton.Content" xml:space="preserve"><value>发送给 Codex</value></data>
+  <data name="TaskPageQueuedMessageEditor.PlaceholderText" xml:space="preserve"><value>选择一条排队消息进行编辑</value></data>
+  <data name="TaskPageEditQueuedMessageButton.Content" xml:space="preserve"><value>保存消息</value></data>
+  <data name="TaskPageRemoveQueuedMessageButton.Content" xml:space="preserve"><value>移除</value></data>
   <data name="TaskPageQueueFollowupButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>连接 Task Runtime 后启用跟进消息。</value></data>
+  <data name="TaskPage_DeleteTitle" xml:space="preserve"><value>删除此任务？</value></data>
+  <data name="TaskPage_DeleteBody" xml:space="preserve"><value>Runtime 会先停止任务、安全交付 Worktree 变更，再删除任务及历史，仅临时保留防重放墓碑。此操作无法撤销。</value></data>
+  <data name="TaskPage_DeleteConfirm" xml:space="preserve"><value>删除任务</value></data>
+  <data name="TaskPage_DeleteCancel" xml:space="preserve"><value>取消</value></data>
   <data name="TaskPagePropertiesTitle.Text" xml:space="preserve"><value>属性</value></data>
   <data name="TaskPageWorkspaceProperty.Text" xml:space="preserve"><value>Workspace</value></data>
   <data name="TaskPageExecutionModeProperty.Text" xml:space="preserve"><value>执行方式</value></data>

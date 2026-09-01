@@ -6,6 +6,7 @@
 #include "AgentHistoryInbox.h"
 #include "AgentHistoryStore.h"
 #include "ConclusionSidebar.h"
+#include "Tasks/TaskAgentSessionRegistry.h"
 
 #include <unordered_set>
 
@@ -29,6 +30,7 @@ namespace winrt::TerminalApp::implementation
         void Stop() noexcept;
         void OnWorkspaceItemsChanged();
         void UpdateView();
+        void SetTaskSessionRegistry(std::shared_ptr<tasks::TaskAgentSessionRegistry> registry) noexcept;
         safe_void_coroutine ResumeSession(winrt::guid workspaceId,
                                           winrt::hstring sessionId,
                                           winrt::hstring workingDirectory);
@@ -75,5 +77,6 @@ namespace winrt::TerminalApp::implementation
         bool _providerOperationInFlight{};
         bool _stopped{ true };
         std::unordered_set<winrt::guid> _autoSyncAttempted;
+        std::shared_ptr<tasks::TaskAgentSessionRegistry> _taskSessions;
     };
 }

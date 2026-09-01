@@ -565,6 +565,10 @@ namespace winrt::TerminalApp::implementation
     //   an aggregate confirmation has already been shown (i.e. close other tabs)
     winrt::Windows::Foundation::IAsyncAction TerminalPage::_HandleCloseTabRequested(winrt::TerminalApp::Tab tab, bool skipConfirmClose)
     {
+        if (_IsTaskOwnedTab(tab))
+        {
+            co_return;
+        }
         winrt::com_ptr<TerminalPage> strong;
 
         if (tab.ReadOnly())
@@ -625,6 +629,7 @@ namespace winrt::TerminalApp::implementation
             // The tab is already removed
             return;
         }
+        _taskSurfacePolicy.Unregister(_TaskSurfaceId(tab));
 
         // We use _removing flag to suppress _OnTabSelectionChanged events
         // that might get triggered while removing
@@ -923,6 +928,21 @@ namespace winrt::TerminalApp::implementation
     // - pane: the pane to close.
     void TerminalPage::_HandleClosePaneRequested(std::shared_ptr<Pane> pane)
     {
+        for (const auto& tab : _tabs)
+        {
+            if (!_IsTaskOwnedTab(tab))
+            {
+                continue;
+            }
+            bool ownsPane{};
+            winrt::get_self<implementation::Tab>(tab)->GetRootPane()->WalkTree([&](const auto& current) {
+                ownsPane = ownsPane || current == pane;
+            });
+            if (ownsPane)
+            {
+                return;
+            }
+        }
         // Build the list of actions to recreate the closed pane,
         // BuildStartupActions returns the "first" pane and the rest of
         // its actions are assuming that first pane has been created first.
@@ -965,6 +985,10 @@ namespace winrt::TerminalApp::implementation
     //   tab's Closed event.
     safe_void_coroutine TerminalPage::_CloseFocusedPane()
     {
+        if (_IsTaskOwnedTab(_GetFocusedTab()))
+        {
+            co_return;
+        }
         if (const auto activeTab{ _GetFocusedTabImpl() })
         {
             _UnZoomIfNeeded();
@@ -1080,8 +1104,12 @@ namespace winrt::TerminalApp::implementation
     // - Shows a single aggregate confirmation dialog upfront if the confirmOnClose setting warrants it.
     // Arguments:
     // - tabs - tabs to remove
-    safe_void_coroutine TerminalPage::_RemoveTabs(const std::vector<winrt::TerminalApp::Tab> tabs)
+    safe_void_coroutine TerminalPage::_RemoveTabs(const std::vector<winrt::TerminalApp::Tab> requestedTabs)
     {
+        std::vector<winrt::TerminalApp::Tab> tabs;
+        std::ranges::copy_if(requestedTabs, std::back_inserter(tabs), [&](const auto& tab) {
+            return !_IsTaskOwnedTab(tab);
+        });
         if (tabs.empty())
         {
             co_return;
@@ -1358,7 +1386,6 @@ namespace winrt::TerminalApp::implementation
         {
             return;
         }
-
         const auto tab = _tabs.GetAt(currentTabIndex);
         const auto item = _WorkspaceItemForTab(tab);
         if (!item)

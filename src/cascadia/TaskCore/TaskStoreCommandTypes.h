@@ -52,6 +52,7 @@ namespace Microsoft::Terminal::TaskCore
     {
         TaskCommandMetadata Metadata;
         TaskRunRecord Run;
+        bool ClearManualHold{};
     };
 
     struct RecordTaskAgentSessionCommand
@@ -162,6 +163,7 @@ namespace Microsoft::Terminal::TaskCore
         TaskTerminalState RequestedState{ TaskTerminalState::NotCreated };
         uint64_t RequestedGeneration{};
         bool ExplicitOpen{};
+        bool ClearManualHold{};
     };
 
     struct StartTaskIntentCommand

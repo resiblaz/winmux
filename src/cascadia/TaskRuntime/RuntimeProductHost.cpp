@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "RuntimeProductHostInternal.h"
+#include "RuntimeProductExecutableDiscovery.h"
 
 #include "RuntimeCrypto.h"
 #include "RuntimeFoundationRouter.h"
@@ -12,13 +13,15 @@
 #include "RuntimeTaskProviderService.h"
 #include "RuntimeTaskProviderSink.h"
 #include "RuntimeTaskProjectionService.h"
+#include "RuntimeTaskTerminalCallbackBridge.h"
+#include "RuntimeTaskTerminalService.h"
+#include "RuntimeTaskOrchestrator.h"
 
 #include "CodexAppServerAdapter.h"
 
 #include "SqliteTaskStore.h"
 
 #include "ProtocolCapabilities.h"
-#include "ProtocolValidation.h"
 
 namespace Microsoft::Terminal::TaskRuntime
 {
@@ -36,7 +39,12 @@ namespace Microsoft::Terminal::TaskRuntime
             handshake.Capabilities =
                 static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle) |
                 static_cast<uint64_t>(ProtocolCapability::TaskQueries) |
-                static_cast<uint64_t>(ProtocolCapability::TaskCommands);
+                static_cast<uint64_t>(ProtocolCapability::TaskCommands) |
+                static_cast<uint64_t>(ProtocolCapability::TerminalStream) |
+                static_cast<uint64_t>(ProtocolCapability::InputControllerLease) |
+                static_cast<uint64_t>(ProtocolCapability::TaskTerminalSurfaces) |
+                static_cast<uint64_t>(ProtocolCapability::TaskOrchestration);
+            handshake.Capabilities |= static_cast<uint64_t>(ProtocolCapability::RuntimeDrain);
             return handshake;
         }
     }
@@ -47,12 +55,18 @@ namespace Microsoft::Terminal::TaskRuntime
         std::shared_ptr<RuntimeProductRouter> router,
         std::shared_ptr<Microsoft::Terminal::TaskCore::ITaskStore> store,
         std::shared_ptr<RuntimeTaskProviderService> provider,
+        std::shared_ptr<RuntimeTaskTerminalService> terminals,
+        std::shared_ptr<RuntimeTaskOrchestrator> orchestrator,
+        std::shared_ptr<std::atomic_bool> drainRequested,
         RuntimeProductHostIdleConfiguration idleConfiguration) :
         Bootstrap{ std::move(bootstrap) },
         InstanceId{ std::move(instanceId) },
         Router{ std::move(router) },
         Store{ std::move(store) },
         Provider{ std::move(provider) },
+        Terminals{ std::move(terminals) },
+        Orchestrator{ std::move(orchestrator) },
+        DrainRequested{ std::move(drainRequested) },
         IdleConfiguration{ std::move(idleConfiguration) }
     {
     }
@@ -63,9 +77,17 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             std::scoped_lock lock{ LifecycleMutex };
             Server.Stop();
+            if (Orchestrator)
+            {
+                Orchestrator->Stop();
+            }
             if (Provider)
             {
                 Provider->Stop();
+            }
+            if (Terminals)
+            {
+                Terminals->Stop();
             }
             // A callback-thread Stop is intentionally non-blocking. Retain
             // single-instance ownership until an external owner observes that
@@ -227,10 +249,15 @@ namespace Microsoft::Terminal::TaskRuntime
                 result.Error = "Runtime instance ID generation failed";
                 return result;
             }
+            auto drainRequested = std::make_shared<std::atomic_bool>(false);
             auto foundation = std::make_shared<RuntimeFoundationRouter>(
                 bootstrap.Identity.ProtocolIdentity,
                 *instanceId,
-                GetCurrentProcessId());
+                GetCurrentProcessId(),
+                [drainRequested] {
+                    drainRequested->store(true, std::memory_order_release);
+                    return true;
+                });
             if (!foundation->Valid())
             {
                 result.Status = RuntimeProductHostStartStatus::RuntimeInstanceIdFailure;
@@ -253,7 +280,23 @@ namespace Microsoft::Terminal::TaskRuntime
             auto rtask = std::make_shared<RuntimeRtaskCommandService>(
                 store,
                 std::move(capabilities));
-            auto providerSink = std::make_shared<RuntimeTaskProviderSink>(store);
+            auto terminalCallbacks = std::make_shared<RuntimeTaskTerminalCallbackBridge>(store);
+            auto terminals = std::make_shared<RuntimeTaskTerminalService>(
+                bootstrap.Identity,
+                *instanceId,
+                [terminalCallbacks](const std::string_view taskId, const std::span<const uint8_t> input) {
+                    return terminalCallbacks->Input(taskId, input);
+                },
+                [terminalCallbacks](const std::string_view taskId) {
+                    return terminalCallbacks->Interrupt(taskId);
+                });
+            if (!terminals->Valid())
+            {
+                result.Status = RuntimeProductHostStartStatus::TaskStoreFailure;
+                result.Error = "Runtime terminal service could not initialize";
+                return result;
+            }
+            auto providerSink = std::make_shared<RuntimeTaskProviderSink>(store, terminals);
             auto provider = std::make_shared<RuntimeTaskProviderService>(
                 [] {
                     const auto executable = DiscoverCodexExecutable();
@@ -267,14 +310,33 @@ namespace Microsoft::Terminal::TaskRuntime
                 result.Error = "Runtime provider service could not initialize";
                 return result;
             }
+            terminalCallbacks->SetProvider(provider);
+            auto orchestrator = std::make_shared<RuntimeTaskOrchestrator>(
+                store,
+                provider,
+                rtask,
+                terminals,
+                bootstrap.Identity.SettingsRoot,
+                FindGitExecutable(),
+                FindRuntimeProductSibling(L"rtask.exe"),
+                NarrowRuntimeAscii(bootstrap.Identity.ControlPipeName));
+            if (!orchestrator->Valid())
+            {
+                result.Status = RuntimeProductHostStartStatus::TaskStoreFailure;
+                result.Error = "Runtime Task orchestrator could not initialize";
+                return result;
+            }
+            terminalCallbacks->SetOrchestrator(orchestrator);
             auto router = std::make_shared<RuntimeProductRouter>(
                 std::move(foundation),
-                std::move(rtask),
+                rtask,
                 provider,
                 std::make_shared<RuntimeTaskProjectionService>(
                     store,
                     provider,
-                    bootstrap.Identity.SettingsRoot));
+                    bootstrap.Identity.SettingsRoot,
+                    terminals,
+                    orchestrator));
             if (!router->Valid())
             {
                 result.Status = RuntimeProductHostStartStatus::TaskStoreFailure;
@@ -288,6 +350,9 @@ namespace Microsoft::Terminal::TaskRuntime
                 std::move(router),
                 std::move(store),
                 std::move(provider),
+                std::move(terminals),
+                std::move(orchestrator),
+                std::move(drainRequested),
                 std::move(idleConfiguration));
             configuration.Handshake = _foundationHandshake(
                 impl->Bootstrap.Identity,
@@ -306,6 +371,12 @@ namespace Microsoft::Terminal::TaskRuntime
                 return result;
             }
             impl->Server = std::move(server.Server);
+            if (!impl->Orchestrator->Start())
+            {
+                result.Status = RuntimeProductHostStartStatus::IdleMonitorFailure;
+                result.Error = "Runtime Task orchestrator failed to start";
+                return result;
+            }
             if (!impl->StartIdleMonitor())
             {
                 result.Status = RuntimeProductHostStartStatus::IdleMonitorFailure;

@@ -40,6 +40,10 @@ namespace winrt::TerminalApp::implementation
         bool CanCloseTerminal() const noexcept;
         bool CanMarkDone() const noexcept;
         bool CanReopen() const noexcept;
+        bool CanRetry() const noexcept;
+        bool CanCancel() const noexcept;
+        bool CanFinalizeWorktree() const noexcept;
+        bool CanDelete() const noexcept;
         Windows::Foundation::Collections::IObservableVector<winrt::hstring> AcceptanceItems() const noexcept;
         Windows::Foundation::Collections::IObservableVector<winrt::hstring> RunItems() const noexcept;
         Windows::Foundation::Collections::IObservableVector<winrt::hstring> QueuedMessageItems() const noexcept;
@@ -47,6 +51,7 @@ namespace winrt::TerminalApp::implementation
         uint64_t Version() const noexcept;
 
         tasks::TaskStatus NativeStatus() const noexcept;
+        std::optional<std::pair<std::wstring, uint64_t>> QueuedMessageIdentityAt(uint32_t index) const;
 
     private:
         tasks::TaskProjection _projection;

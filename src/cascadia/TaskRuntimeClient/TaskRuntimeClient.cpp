@@ -118,6 +118,7 @@ namespace Microsoft::Terminal::TaskRuntime
             case ControlMethod::AcquireInputLease:
             case ControlMethod::ReleaseInputLease:
             case ControlMethod::RuntimeStatus:
+            case ControlMethod::DrainRuntime:
                 return true;
             case ControlMethod::SnapshotAndSubscribe:
             case ControlMethod::Unsubscribe:
@@ -454,6 +455,18 @@ namespace Microsoft::Terminal::TaskRuntime
             std::scoped_lock lock{ Mutex };
             return CurrentRuntimeInstanceId;
         }
+
+        ProtocolCapabilitySet RuntimeClientSharedState::NegotiatedCapabilities() const noexcept
+        {
+            std::scoped_lock lock{ Mutex };
+            return CurrentCapabilities;
+        }
+
+        uint16_t RuntimeClientSharedState::ProtocolMinor() const noexcept
+        {
+            std::scoped_lock lock{ Mutex };
+            return CurrentProtocolMinor;
+        }
     }
 
     struct TaskRuntimeClient::Impl
@@ -536,5 +549,15 @@ namespace Microsoft::Terminal::TaskRuntime
     std::string TaskRuntimeClient::RuntimeInstanceId() const
     {
         return _impl && _impl->State ? _impl->State->RuntimeInstanceId() : std::string{};
+    }
+
+    ProtocolCapabilitySet TaskRuntimeClient::NegotiatedCapabilities() const noexcept
+    {
+        return _impl && _impl->State ? _impl->State->NegotiatedCapabilities() : 0;
+    }
+
+    uint16_t TaskRuntimeClient::ProtocolMinor() const noexcept
+    {
+        return _impl && _impl->State ? _impl->State->ProtocolMinor() : 0;
     }
 }

@@ -440,8 +440,13 @@ function renderDetailActions(task, activeRun) {
         return `
             <button class="button secondary" type="button" data-action="open-terminal">打开终端</button>
             <button class="button danger" type="button" data-action="stop-run" data-run-id="${escapeHtml(activeRun.id)}">停止（Esc）</button>
-            <button class="button ghost" type="button" data-action="close-task">关闭任务</button>`;
+            <button class="button ghost" type="button" data-action="close-task">关闭任务终端</button>
+            <button class="button danger" type="button" data-action="cancel-task">取消任务</button>`;
     }
+
+    const maintenanceActions = `
+        ${task.executionMode.startsWith("Worktree") ? `<button class="button ghost" type="button" data-action="finalize-worktree">交付并清理 Worktree</button>` : ""}
+        <button class="button danger" type="button" data-action="delete-task">删除任务</button>`;
 
     switch (task.status) {
         case "backlog":
@@ -452,22 +457,25 @@ function renderDetailActions(task, activeRun) {
             return `
                 <button class="button primary" type="button" data-action="start-run">交给 Codex</button>
                 <button class="button secondary" type="button" data-action="open-terminal">${task.terminalState === "closed" || task.terminalState === "suspended" ? "打开任务终端" : "打开终端"}</button>
-                ${task.terminalState === "closed" ? "" : `<button class="button ghost" type="button" data-action="close-task">关闭任务</button>`}`;
+                ${task.terminalState === "closed" ? "" : `<button class="button ghost" type="button" data-action="close-task">关闭任务终端</button>`}
+                <button class="button ghost" type="button" data-action="cancel-task">取消任务</button>${maintenanceActions}`;
         case "in_review":
             return `
                 <button class="button secondary" type="button" data-action="focus-followup">继续处理</button>
                 <button class="button success" type="button" data-action="mark-done">确认完成</button>
                 <button class="button secondary" type="button" data-action="open-terminal">${task.terminalState === "closed" || task.terminalState === "suspended" ? "打开任务终端" : "打开终端"}</button>
-                ${task.terminalState === "closed" ? "" : `<button class="button ghost" type="button" data-action="close-task">关闭任务</button>`}`;
+                ${task.terminalState === "closed" ? "" : `<button class="button ghost" type="button" data-action="close-task">关闭任务终端</button>`}
+                <button class="button ghost" type="button" data-action="cancel-task">取消任务</button>${maintenanceActions}`;
         case "blocked":
             return `
                 <button class="button secondary" type="button" data-action="unblock">解除阻塞</button>
                 <button class="button secondary" type="button" data-action="open-terminal">${task.terminalState === "closed" || task.terminalState === "suspended" ? "打开任务终端" : "打开终端"}</button>
-                ${task.terminalState === "closed" ? "" : `<button class="button ghost" type="button" data-action="close-task">关闭任务</button>`}`;
+                ${task.terminalState === "closed" ? "" : `<button class="button ghost" type="button" data-action="close-task">关闭任务终端</button>`}
+                <button class="button ghost" type="button" data-action="cancel-task">取消任务</button>${maintenanceActions}`;
         case "done":
-            return `<button class="button secondary" type="button" data-action="reopen">重新打开</button>`;
+            return `<button class="button secondary" type="button" data-action="reopen">重新打开</button>${maintenanceActions}`;
         case "cancelled":
-            return `<button class="button secondary" type="button" data-action="reopen">重新打开</button>`;
+            return `<button class="button secondary" type="button" data-action="reopen">重新打开</button>${maintenanceActions}`;
         default:
             return "";
     }
@@ -996,6 +1004,40 @@ function markDone(task) {
     showToast(`${task.id} 已确认完成，Agent 终端已关闭；Worktree 与历史保留。`, "success");
 }
 
+function cancelTask(task) {
+    const activeRun = getActiveRun(task);
+    if (activeRun) stopRun(task, activeRun.id);
+    task.status = "cancelled";
+    task.terminalState = "closed";
+    task.manualHold = true;
+    task.updatedAt = Date.now();
+    renderAll();
+    showToast(`${task.id} 已取消；Task、结果分支、Worktree 与历史均保留。`, "warning");
+}
+
+function finalizeWorktree(task, confirm = true) {
+    if (getActiveRun(task)) {
+        showToast("活动运行结束前不能清理 Worktree。", "warning");
+        return false;
+    }
+    if (confirm && !window.confirm("交付并清理 Task Worktree？\n\n所有剩余改动会先创建 checkpoint；有产出的结果分支会保留。")) return false;
+    task.worktree = "已清理；结果分支已保留";
+    task.updatedAt = Date.now();
+    renderAll();
+    showToast("Worktree 已安全交付并清理。", "success");
+    return true;
+}
+
+function deleteTask(task) {
+    if (!window.confirm("永久删除这个 Task？\n\nRuntime 会先停止任务并安全交付 Worktree。任务、运行、消息和结构化历史随后会删除。")) return;
+    if (task.executionMode.startsWith("Worktree") && !task.worktree.startsWith("已清理") && !finalizeWorktree(task, false)) return;
+    const index = tasks.indexOf(task);
+    if (index >= 0) tasks.splice(index, 1);
+    state.selectedTaskId = tasks[0]?.id ?? null;
+    renderAll();
+    showToast("Task 已删除；仅保留 30 天防重放墓碑。", "info");
+}
+
 function openRunDialog(task, run) {
     document.querySelector("#run-dialog-title").textContent = `${task.id} · 运行 #${run.attempt}`;
     const transcript = run.events.map((event) => `[${formatClock(event.at)}] ${event.text}`).join("\n");
@@ -1047,6 +1089,12 @@ taskDetail.addEventListener("click", (event) => {
         markDone(task);
     } else if (action === "close-task") {
         closeTask(task);
+    } else if (action === "cancel-task") {
+        cancelTask(task);
+    } else if (action === "finalize-worktree") {
+        finalizeWorktree(task);
+    } else if (action === "delete-task") {
+        deleteTask(task);
     } else if (action === "reopen") {
         task.status = "todo";
         task.updatedAt = Date.now();

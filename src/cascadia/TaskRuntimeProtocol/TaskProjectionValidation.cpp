@@ -127,9 +127,19 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         case TaskUiCommandOperation::Create: return "create";
         case TaskUiCommandOperation::Start: return "start";
         case TaskUiCommandOperation::Stop: return "stop";
+        case TaskUiCommandOperation::OpenTerminal: return "open_terminal";
         case TaskUiCommandOperation::Close: return "close";
         case TaskUiCommandOperation::MarkDone: return "mark_done";
         case TaskUiCommandOperation::Reopen: return "reopen";
+        case TaskUiCommandOperation::QueueMessage: return "queue_message";
+        case TaskUiCommandOperation::ReviseMessage: return "revise_message";
+        case TaskUiCommandOperation::RemoveMessage: return "remove_message";
+        case TaskUiCommandOperation::Retry: return "retry";
+        case TaskUiCommandOperation::Cancel: return "cancel";
+        case TaskUiCommandOperation::FinalizeWorktree: return "finalize_worktree";
+        case TaskUiCommandOperation::Delete: return "delete";
+        case TaskUiCommandOperation::Derive: return "derive";
+        case TaskUiCommandOperation::RestartProvider: return "restart_provider";
         default: return {};
         }
     }
@@ -146,13 +156,34 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
 
     bool ValidateTaskUiCommand(const TaskUiCommandRequest& value, std::string& error) noexcept
     {
+        const auto creates = value.Operation == TaskUiCommandOperation::Create;
+        const auto derives = value.Operation == TaskUiCommandOperation::Derive;
         if (!_id(value.CommandId) || !_id(value.TaskId) ||
             value.Operation >= TaskUiCommandOperation::Count ||
-            (value.Operation == TaskUiCommandOperation::Create) != value.Draft.has_value() ||
-            (value.Operation == TaskUiCommandOperation::Create && value.ExpectedTaskVersion != 0) ||
-            (value.Operation != TaskUiCommandOperation::Create && value.ExpectedTaskVersion == 0))
+            (creates || derives) != value.Draft.has_value() ||
+            (creates && value.ExpectedTaskVersion != 0) ||
+            (!creates && value.ExpectedTaskVersion == 0) ||
+            (value.MessageId && !_id(*value.MessageId)) ||
+            (value.RelatedRunId && !_id(*value.RelatedRunId)) ||
+            (value.DerivedTaskId && !_id(*value.DerivedTaskId)) ||
+            (value.Text && !_text(*value.Text, 64 * 1024, true)))
         {
             error = "Task UI command envelope is invalid";
+            return false;
+        }
+        const auto hasMessageTarget = value.MessageId.has_value() || value.ExpectedMessageRevision.has_value();
+        const auto expectedMessageTarget = value.Operation == TaskUiCommandOperation::ReviseMessage ||
+                                           value.Operation == TaskUiCommandOperation::RemoveMessage;
+        if (hasMessageTarget != expectedMessageTarget ||
+            (expectedMessageTarget && (!value.MessageId || !value.ExpectedMessageRevision || *value.ExpectedMessageRevision == 0)) ||
+            (value.Operation == TaskUiCommandOperation::QueueMessage) !=
+                (value.Text.has_value() && !expectedMessageTarget) ||
+            (value.Operation == TaskUiCommandOperation::ReviseMessage && !value.Text) ||
+            (value.Operation == TaskUiCommandOperation::RemoveMessage && value.Text) ||
+            (value.Operation == TaskUiCommandOperation::Retry) != value.RelatedRunId.has_value() ||
+            derives != value.DerivedTaskId.has_value())
+        {
+            error = "Task UI command arguments are invalid";
             return false;
         }
         if (value.Draft)

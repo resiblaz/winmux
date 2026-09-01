@@ -33,6 +33,11 @@ namespace winrt::TerminalApp::implementation
         void SetCurrentWorkspace(const winrt::hstring& workspace);
         bool CreateTask(const tasks::TaskDraft& draft, bool startImmediately);
         void ExecuteSelected(tasks::TaskCommand command);
+        bool QueueSelectedMessage(const winrt::hstring& message);
+        bool ReviseSelectedMessage(
+            const std::wstring& messageId,
+            uint64_t revision,
+            const std::optional<std::wstring>& replacement);
 
         til::property_changed_event PropertyChanged;
 

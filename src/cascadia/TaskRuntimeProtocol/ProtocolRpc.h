@@ -26,6 +26,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         AcquireInputLease,
         ReleaseInputLease,
         RuntimeStatus,
+        DrainRuntime,
         Count,
     };
 

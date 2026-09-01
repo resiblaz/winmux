@@ -115,6 +115,15 @@ namespace TaskRuntimeProtocolLocalTests
         decoded = DecodeTaskUiCommandRequest(encoded.Payload);
         VERIFY_IS_TRUE(decoded.Value.Operation == TaskUiCommandOperation::Start);
 
+        create.Operation = TaskUiCommandOperation::QueueMessage;
+        create.Text = "follow up";
+        encoded = EncodeTaskUiCommandRequest(create);
+        VERIFY_IS_TRUE(encoded.Succeeded);
+        decoded = DecodeTaskUiCommandRequest(encoded.Payload);
+        VERIFY_IS_TRUE(decoded.Value.Operation == TaskUiCommandOperation::QueueMessage);
+        VERIFY_IS_TRUE(decoded.Value.Text == create.Text);
+        create.Text.reset();
+
         TaskUiCommandResult result;
         result.CommandId = create.CommandId;
         result.TaskId = create.TaskId;
@@ -122,12 +131,20 @@ namespace TaskRuntimeProtocolLocalTests
         result.TaskVersion = 2;
         result.EventSequence = 2;
         result.Pending = true;
+        result.Surface = TaskUiSurfaceDescriptor{
+            "60000000-0000-4000-8000-000000000006",
+            R"(\\.\pipe\WT.TaskRuntime.test.terminal)",
+            3,
+            false,
+        };
         encoded = EncodeTaskUiCommandResult(result);
         VERIFY_IS_TRUE(encoded.Succeeded);
         const auto resultRoundtrip = DecodeTaskUiCommandResult(encoded.Payload);
         VERIFY_IS_TRUE(resultRoundtrip.Succeeded());
         VERIFY_IS_TRUE(resultRoundtrip.Value.Pending);
         VERIFY_IS_TRUE(resultRoundtrip.Value.RunId == result.RunId);
+        VERIFY_IS_TRUE(resultRoundtrip.Value.Surface.has_value());
+        VERIFY_ARE_EQUAL(uint64_t{ 3 }, resultRoundtrip.Value.Surface->Generation);
     }
 
     void TaskProjectionRpcTests::RejectsMalformedOversizedAndNoncanonicalPayloads()

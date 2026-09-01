@@ -18,6 +18,41 @@ namespace Microsoft::Terminal::TaskCore
     {
         constexpr std::string_view CreateTaskRunCommandName{ "CreateTaskRun" };
 
+        bool _updateTaskForRun(
+            sqlite3* database,
+            const CreateTaskRunCommand& command,
+            const uint64_t currentVersion,
+            const uint64_t committedVersion,
+            std::string& error)
+        {
+            if (!command.ClearManualHold)
+            {
+                return details::UpdateTaskVersion(
+                    database, command.Run.Task, currentVersion, committedVersion,
+                    command.Metadata.TimestampUnixMilliseconds, error);
+            }
+            constexpr auto sql = R"SQL(
+UPDATE task SET manual_hold=0, version=?1, updated_at=?2
+WHERE id=?3 AND version=?4;
+)SQL";
+            details::SqliteStatement statement{ database, sql, error };
+            if (!statement ||
+                !details::BindInt64(database, statement.Get(), 1, static_cast<int64_t>(committedVersion), error) ||
+                !details::BindInt64(database, statement.Get(), 2, command.Metadata.TimestampUnixMilliseconds, error) ||
+                !details::BindText(database, statement.Get(), 3, command.Run.Task.Value(), error) ||
+                !details::BindInt64(database, statement.Get(), 4, static_cast<int64_t>(currentVersion), error) ||
+                !details::StepDone(database, statement.Get(), error))
+            {
+                return false;
+            }
+            if (sqlite3_changes(database) != 1)
+            {
+                error = "Task changed while clearing manual hold for a Run";
+                return false;
+            }
+            return true;
+        }
+
         TaskStoreCommandResult _success(
             const TaskCommandMetadata& metadata,
             const uint64_t committedVersion,
@@ -113,7 +148,7 @@ namespace Microsoft::Terminal::TaskCore
         {
             return details::CommandFailure(TaskStoreCommandStatus::InvalidRecord, "TaskRun creation precedes the latest Task state");
         }
-        if (task->ManualHold)
+        if (task->ManualHold && !command.ClearManualHold)
         {
             return details::CommandFailure(
                 TaskStoreCommandStatus::InvalidTransition,
@@ -173,13 +208,8 @@ namespace Microsoft::Terminal::TaskCore
         if (!details::NextRunSequence(_impl->Database, command.Run.Task, runSequence, error) ||
             !details::NextAggregateSequence(_impl->Database, command.Run.Task, eventSequence, error) ||
             !details::InsertTaskRun(_impl->Database, command.Run, runSequence, error) ||
-            !details::UpdateTaskVersion(
-                _impl->Database,
-                command.Run.Task,
-                task->Version,
-                committedVersion,
-                command.Metadata.TimestampUnixMilliseconds,
-                error) ||
+            !_updateTaskForRun(
+                _impl->Database, command, task->Version, committedVersion, error) ||
             !details::AppendEvent(
                 _impl->Database,
                 command.Metadata,

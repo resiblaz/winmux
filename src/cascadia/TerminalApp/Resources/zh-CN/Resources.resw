@@ -1516,4 +1516,7 @@
   <data name="TaskPageRunDetailsTitle.Text" xml:space="preserve"><value>运行详情</value></data>
   <data name="TaskPageRunDetailsEmpty.Text" xml:space="preserve"><value>此运行尚未记录结构化事件。</value></data>
   <data name="TaskPageLoadingTasks.Text" xml:space="preserve"><value>正在从后台 Runtime 加载任务…</value></data>
+  <data name="TaskPage_TerminalOwnedElsewhereTitle" xml:space="preserve"><value>任务终端已在另一窗口打开</value></data>
+  <data name="TaskPage_TerminalOwnedElsewhereBody" xml:space="preserve"><value>请切换到包含此任务终端的窗口。关闭那个窗口后，可以在这里重新打开终端。</value></data>
+  <data name="TaskPage_CleanupFailed" xml:space="preserve"><value>Worktree 清理失败。请关闭占用任务目录的程序，然后重试清理。（{0}）</value></data>
 </root>

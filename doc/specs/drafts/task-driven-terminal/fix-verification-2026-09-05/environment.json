@@ -1,0 +1,17 @@
+{
+  "captured_at": "2026-09-05T20:26:38.194907+08:00",
+  "baseline_commit": "6bb4ee1d9e41973ffb42385ebdfef6386dc53aef",
+  "codex_version": "0.153.4",
+  "qa_app": "F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230\\app\\terminal-0.0.1.0",
+  "qa_repository": "F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230\\repo",
+  "portable_zip": "F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230\\app\\WindowsTerminalDev_0.0.1.0_x64_workspace-sidebar.zip",
+  "portable_sha256": "460952a9c984aaf60da6680045c3a2e00534be500002cf7b12a2ce92cfa5c734",
+  "binary_sha256": {
+    "WindowsTerminal.exe": "b8d85c53db7a12d3b39ca2cdd37830927030035970106003c4c383589722d1e8",
+    "TerminalApp.dll": "e023e252f05d661c9a4970acad3aafd73ee3f7347ca41503916c040e5900b6c8",
+    "TaskRuntime.exe": "8a3b14a6cbec063c7f99466f7b7e963e6bfee5ff1957584c13e53350d5ec4fd8",
+    "rtask.exe": "f8039ee959364aea6e48b399582bdd34cb53b6c01ac4bca999f74689c78b4b89"
+  },
+  "gui_pid": 23236,
+  "gui_handle": 2754858
+}

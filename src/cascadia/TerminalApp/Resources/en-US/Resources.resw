@@ -1649,4 +1649,7 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="TaskPageRunDetailsTitle.Text" xml:space="preserve"><value>Run details</value></data>
   <data name="TaskPageRunDetailsEmpty.Text" xml:space="preserve"><value>No structured events have been recorded for this run.</value></data>
   <data name="TaskPageLoadingTasks.Text" xml:space="preserve"><value>Loading tasks from the background Runtime…</value></data>
+  <data name="TaskPage_TerminalOwnedElsewhereTitle" xml:space="preserve"><value>Task terminal is open in another window</value></data>
+  <data name="TaskPage_TerminalOwnedElsewhereBody" xml:space="preserve"><value>Switch to the window containing this task terminal. After closing that window, you can open the terminal here.</value></data>
+  <data name="TaskPage_CleanupFailed" xml:space="preserve"><value>Worktree cleanup failed. Close programs using the task folder, then retry cleanup. ({0})</value></data>
 </root>

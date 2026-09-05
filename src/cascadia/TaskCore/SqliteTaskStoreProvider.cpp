@@ -326,14 +326,12 @@ WHERE task_id=?3;
             return details::CommandFailure(TaskStoreCommandStatus::StorageError, std::move(error));
         }
         if (!task) return details::MissingTaskFailure(_impl->Database, command.Task, error);
-        if (task->Version != command.Metadata.ExpectedTaskVersion)
+        // Provider output is an ordered audit stream, not a business mutation.
+        // It neither consumes an optimistic Task revision nor changes UpdatedAt.
+        // A delayed event may precede a newer user command's timestamp.
+        if (command.Metadata.TimestampUnixMilliseconds < task->CreatedAtUnixMilliseconds)
         {
-            return details::CommandFailure(TaskStoreCommandStatus::VersionConflict, "Task version does not match expected version");
-        }
-        if (command.Metadata.TimestampUnixMilliseconds < task->UpdatedAtUnixMilliseconds ||
-            task->Version == static_cast<uint64_t>((std::numeric_limits<int64_t>::max)()))
-        {
-            return details::CommandFailure(TaskStoreCommandStatus::InvalidCommand, "Provider event time or Task version is invalid");
+            return details::CommandFailure(TaskStoreCommandStatus::InvalidCommand, "Provider event precedes its Task");
         }
         if (command.Run)
         {
@@ -360,11 +358,8 @@ WHERE task_id=?3;
             return details::CommandFailure(TaskStoreCommandStatus::StorageError, std::move(error));
         }
         if (command.Run) runSequence = nextRunSequence;
-        const auto committedVersion = task->Version + 1;
+        const auto committedVersion = task->Version;
         if (!details::NextAggregateSequence(_impl->Database, command.Task, eventSequence, error) ||
-            !details::UpdateTaskVersion(
-                _impl->Database, command.Task, task->Version, committedVersion,
-                command.Metadata.TimestampUnixMilliseconds, error) ||
             !details::AppendEvent(
                 _impl->Database, command.Metadata, command.Task, command.Run,
                 eventSequence, runSequence, command.EventType, error) ||

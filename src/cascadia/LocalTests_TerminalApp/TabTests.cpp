@@ -177,6 +177,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceListeningPortsProjectMetadata);
         TEST_METHOD(WorkspaceAgentResumeRejectsUntrustedInput);
         TEST_METHOD(WorkspaceSnapshotOmitsRuntimeProcessState);
+        TEST_METHOD(WorkspaceSnapshotObservesCommittedTopology);
         TEST_METHOD(WorkspaceSnapshotOpenIsNonConsuming);
         TEST_METHOD(WorkspaceSnapshotRejectsUnsafeActions);
         TEST_METHOD(WorkspaceSnapshotSourceSurvivesContentAttach);
@@ -577,6 +578,55 @@ namespace TerminalAppLocalTests
             VERIFY_IS_TRUE(expectedHint == std::wstring_view{ item.SwitchShortcutHintText() });
             itemImpl->ShowSwitchShortcutHint(false);
             VERIFY_IS_TRUE(item.SwitchShortcutHintText().empty());
+        });
+    }
+
+    void TabTests::WorkspaceSnapshotObservesCommittedTopology()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            auto& workspaces = page->_workspaceFeatures->Workspaces();
+            auto original = workspaces.SetChangedHandler({});
+            const auto restore = wil::scope_exit([&] { workspaces.SetChangedHandler(std::move(original)); });
+            uint32_t commits{};
+            workspaces.SetChangedHandler([&] {
+                ++commits;
+                VERIFY_IS_FALSE(workspaces.IsUpdating());
+                VERIFY_IS_FALSE(page->_removing);
+                workspaces.AssertInvariants(page->_tabs);
+                VERIFY_ARE_EQUAL(page->_tabs.Size(), page->_tabView.TabItems().Size());
+                for (uint32_t index = 0; index < page->_tabs.Size(); ++index)
+                    VERIFY_ARE_EQUAL(page->_tabs.GetAt(index).TabViewItem(), page->_tabView.TabItems().GetAt(index));
+                for (const auto& tab : page->_mruTabs)
+                    VERIFY_IS_TRUE(page->_GetTabIndex(tab).has_value());
+                if (page->_tabs.Size())
+                {
+                    const auto focused = page->_GetFocusedTab();
+                    VERIFY_IS_NOT_NULL(focused);
+                    VERIFY_ARE_EQUAL(focused, workspaces.ItemForTab(focused).SourceTab());
+                }
+                if (original) original();
+            });
+            const auto generation = workspaces.Generation();
+            {
+                auto batch = workspaces.BeginUpdate();
+                page->_OpenNewTab(NewTerminalArgs{ 1 });
+                {
+                    auto nested = workspaces.BeginUpdate();
+                    page->_OpenNewWorkspace();
+                }
+                VERIFY_ARE_EQUAL(0u, commits);
+                VERIFY_ARE_EQUAL(generation, workspaces.Generation());
+            }
+            VERIFY_ARE_EQUAL(1u, commits);
+            page->_TryMoveTab(0, 1, true);
+            VERIFY_ARE_EQUAL(2u, commits);
+            const auto removed = page->_GetFocusedTab();
+            page->_RemoveTab(removed);
+            VERIFY_ARE_EQUAL(3u, commits);
+            VERIFY_ARE_EQUAL(2u, page->_tabs.Size());
+            VERIFY_IS_TRUE(page->_GetFocusedTab() != removed);
         });
     }
 

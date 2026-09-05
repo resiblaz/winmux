@@ -30,6 +30,9 @@ namespace TaskRuntimeLocalTests
         struct OrchestratorProviderState
         {
             bool CompleteOnStart{ true };
+            bool BlockClose{};
+            wil::unique_handle CloseEntered{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+            wil::unique_handle CloseExited{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
             std::atomic<TaskProviderStatus> InterruptStatus{ TaskProviderStatus::Succeeded };
             std::atomic_uint32_t InterruptCalls{};
             std::atomic<TaskProviderEventKind> TerminalEvent{ TaskProviderEventKind::UnknownOptional };
@@ -93,7 +96,17 @@ namespace TaskRuntimeLocalTests
             }
             TaskProviderResult RespondToApproval(std::string_view, std::string_view, std::string_view, TaskProviderApprovalDecision, HANDLE) override { return { TaskProviderStatus::Succeeded, {} }; }
             TaskProviderResult SuspendSession(std::string_view, HANDLE) override { return { TaskProviderStatus::Succeeded, {} }; }
-            TaskProviderResult CloseSessionProjection(std::string_view, HANDLE) override { return { TaskProviderStatus::Succeeded, {} }; }
+            TaskProviderResult CloseSessionProjection(std::string_view, HANDLE cancellation) override
+            {
+                if (_state->BlockClose)
+                {
+                    SetEvent(_state->CloseEntered.get());
+                    const auto stopped = WaitForSingleObject(cancellation, 5000);
+                    SetEvent(_state->CloseExited.get());
+                    return { stopped == WAIT_OBJECT_0 ? TaskProviderStatus::Cancelled : TaskProviderStatus::Timeout, {} };
+                }
+                return { TaskProviderStatus::Succeeded, {} };
+            }
 
             TaskProviderEventResult NextEvent(const uint32_t timeoutMilliseconds, const HANDLE cancellationEvent) override
             {
@@ -226,13 +239,44 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(ManualAndAutomaticRetriesRetainFollowupInput);
         TEST_METHOD(DirectQueuedRunExecutesToCompletionAndReleasesRuntimeResources);
         TEST_METHOD(StopIntentCancelsPendingRunAndRetainsManualHold);
+        TEST_METHOD(CancelIntentPersistsCancelledBeforeCompletingClose);
         TEST_METHOD(IdleTerminalWithoutProviderSessionSuspends);
         TEST_METHOD(RecoversEveryPreparationStateWithoutAnAgentSession);
         TEST_METHOD(SchedulerShutdownPreservesDirectoryWaitForRestart);
         TEST_METHOD(StopCloseAndDeleteWaitForProviderCompletionAndKeepDirectoryLease);
         TEST_METHOD(DeleteCancelsAnActualDirectoryWait);
         TEST_METHOD(WorktreeTaskCreatedThroughProjectionRunsToCompletion);
+        TEST_METHOD(SlowCloseAllowsOtherTaskStopAndShutdownJoinsLifecycleWorkers);
     };
+
+    void RuntimeTaskOrchestratorTests::SlowCloseAllowsOtherTaskStopAndShutdownJoinsLifecycleWorkers()
+    {
+        OrchestratorFixture fixture;
+        fixture.State->BlockClose = true;
+        const auto first = fixture.CreateDirectTask();
+        VERIFY_IS_TRUE(fixture.Provider->StartSession(
+            { first.Task.Id.Value(), fixture.Root.Path(), "test-model" }, nullptr).Succeeded());
+        const auto current = fixture.Store->LoadTask(first.Task.Id);
+        VERIFY_IS_TRUE(fixture.Store->StartTaskIntent(MakeStartIntentCommand(
+            first, 1, 10, current->Task.Version, current->Task.UpdatedAtUnixMilliseconds + 1, TaskIntentKind::Close)).Succeeded());
+        auto second = MakeCreateTaskCommand(2, 1, 20);
+        second.ExecutionContext.SourceRoot = first.ExecutionContext.SourceRoot;
+        second.ExecutionContext.RuntimeRoot = first.ExecutionContext.RuntimeRoot;
+        VERIFY_IS_TRUE(fixture.Store->CreateTask(second).Succeeded());
+        VERIFY_IS_TRUE(fixture.Orchestrator->Start());
+        VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, WaitForSingleObject(fixture.State->CloseEntered.get(), 2000));
+        VERIFY_IS_TRUE(fixture.Store->StartTaskIntent(MakeStartIntentCommand(second, 2, 21, 1, 1200, TaskIntentKind::Stop)).Succeeded());
+        fixture.Orchestrator->Notify();
+        VERIFY_IS_TRUE(_waitUntil([&] {
+            const auto task = fixture.Store->LoadTask(second.Task.Id);
+            return task && task->Intent && task->Intent->Stage == TaskIntentStage::Completed;
+        }, 1000));
+        VERIFY_ARE_EQUAL(DWORD{ WAIT_TIMEOUT }, WaitForSingleObject(fixture.State->CloseExited.get(), 0));
+        const auto before = GetTickCount64();
+        fixture.Orchestrator->Stop();
+        VERIFY_IS_TRUE(GetTickCount64() - before < 1000);
+        VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, WaitForSingleObject(fixture.State->CloseExited.get(), 0));
+    }
 
     void RuntimeTaskOrchestratorTests::RecoversEveryPreparationStateWithoutAnAgentSession()
     {
@@ -525,6 +569,21 @@ namespace TaskRuntimeLocalTests
         const auto aggregate = store->LoadTask(task.Task.Id);
         VERIFY_IS_TRUE(aggregate.has_value());
         VERIFY_IS_TRUE(aggregate->Runs.front().State == TaskRunState::Completed);
+    }
+
+    void RuntimeTaskOrchestratorTests::CancelIntentPersistsCancelledBeforeCompletingClose()
+    {
+        OrchestratorFixture fixture;
+        const auto task = fixture.CreateDirectTask();
+        auto intent = MakeStartIntentCommand(task, 1, 2, 1, 1100, TaskIntentKind::Close);
+        intent.Intent.DetailJson = "{\"cancel\":true,\"source\":\"tasks_page\"}";
+        VERIFY_IS_TRUE(fixture.Store->StartTaskIntent(intent).Succeeded());
+        VERIFY_IS_TRUE(fixture.Orchestrator->Start());
+        VERIFY_IS_TRUE(_waitUntil([&] {
+            const auto current = fixture.Store->LoadTask(task.Task.Id);
+            return current && current->Task.Status == TaskStatus::Cancelled && current->Task.ManualHold &&
+                   current->Intent->Stage == TaskIntentStage::Completed;
+        }));
     }
 
     void RuntimeTaskOrchestratorTests::StopIntentCancelsPendingRunAndRetainsManualHold()

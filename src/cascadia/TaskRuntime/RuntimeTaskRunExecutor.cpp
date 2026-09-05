@@ -294,6 +294,25 @@ namespace Microsoft::Terminal::TaskRuntime
             return;
         }
 
+        const auto capability = Rtask->IssueForActiveRun(
+            task.Value(), run.Value(), AllRtaskMethods, DefaultRuntimeRtaskCapabilityLifetimeMilliseconds, GetTickCount64());
+        const auto prompt = BuildRuntimeTaskPrompt(*aggregate, *runRecord);
+        if (!capability.Grant || !prompt)
+        {
+            static_cast<void>(Rtask->InvalidateRun(run.Value()));
+            static_cast<void>(TransitionRun(task, run, TaskRunState::Failed, "run-context-capability"));
+            return;
+        }
+        TaskProviderRunRequest request;
+        request.Prompt = *prompt;
+        request.Context.TaskId = task.Value();
+        request.Context.RunId = run.Value();
+        request.Context.WorkingDirectory = *directory;
+        request.Context.Model = runContext->Model;
+        request.Context.Instructions = runContext->Instructions;
+        request.Context.RtaskExecutable = RtaskExecutable;
+        request.Context.RtaskEndpoint = RtaskEndpoint;
+        request.Context.RtaskCapability = capability.Grant->Capability;
         TaskProviderCoordinatorResult session;
         const auto currentSession = std::ranges::find_if(aggregate->AgentSessions, [](const auto& value) {
             return value.IsCurrent && value.State != AgentSessionState::Poisoned && value.State != AgentSessionState::Closed;
@@ -304,32 +323,15 @@ namespace Microsoft::Terminal::TaskRuntime
         }
         if (!session.Succeeded())
         {
-            session = Provider->StartSession({ task.Value(), *directory, runContext->Model }, StopEvent.get());
+            session = Provider->StartSession({ task.Value(), *directory, runContext->Model, request.Context }, StopEvent.get());
         }
         if (!session.Succeeded() || !session.Session)
         {
+            static_cast<void>(Rtask->InvalidateRun(run.Value()));
             static_cast<void>(TransitionRun(task, run, TaskRunState::Failed, _providerReason(session.Status)));
             return;
         }
-        const auto capability = Rtask->IssueForActiveRun(
-            task.Value(), run.Value(), AllRtaskMethods, DefaultRuntimeRtaskCapabilityLifetimeMilliseconds, GetTickCount64());
-        const auto prompt = BuildRuntimeTaskPrompt(*aggregate, *runRecord);
-        if (!capability.Grant || !prompt)
-        {
-            static_cast<void>(TransitionRun(task, run, TaskRunState::Failed, "run-context-capability"));
-            return;
-        }
-        TaskProviderRunRequest request;
         request.SessionId = session.Session->ProviderSessionId;
-        request.Prompt = *prompt;
-        request.Context.TaskId = task.Value();
-        request.Context.RunId = run.Value();
-        request.Context.WorkingDirectory = *directory;
-        request.Context.Model = runContext->Model;
-        request.Context.Instructions = runContext->Instructions;
-        request.Context.RtaskExecutable = RtaskExecutable;
-        request.Context.RtaskEndpoint = RtaskEndpoint;
-        request.Context.RtaskCapability = capability.Grant->Capability;
         const auto started = Provider->StartRun(task.Value(), request, StopEvent.get());
         if (!started.Succeeded())
         {

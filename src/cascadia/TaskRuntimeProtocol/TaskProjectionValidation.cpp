@@ -99,7 +99,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         for (const auto& message : value.Messages)
         {
             if (!_id(message.Id) || message.Author > 2 || message.State > 3 || message.Revision == 0 ||
-                !_text(message.Content, 64 * 1024, true) || !_optionalId(message.ClaimedByRunId) ||
+                !_text(message.Content, 64 * 1024, message.State != 3) || !_optionalId(message.ClaimedByRunId) ||
                 message.CreatedAtUnixMilliseconds < 0 ||
                 message.UpdatedAtUnixMilliseconds < message.CreatedAtUnixMilliseconds)
             {

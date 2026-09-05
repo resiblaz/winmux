@@ -4,6 +4,7 @@
 #pragma once
 
 #include "WorkspaceItemViewModel.h"
+#include <functional>
 
 namespace winrt::TerminalApp::implementation
 {
@@ -21,6 +22,23 @@ namespace winrt::TerminalApp::implementation
         };
 
         WorkspaceCollection();
+
+        class UpdateScope final
+        {
+        public:
+            explicit UpdateScope(WorkspaceCollection& owner) noexcept;
+            UpdateScope(UpdateScope&& other) noexcept;
+            UpdateScope(const UpdateScope&) = delete;
+            ~UpdateScope() noexcept;
+            void Commit();
+        private:
+            WorkspaceCollection* _owner;
+        };
+        [[nodiscard]] UpdateScope BeginUpdate() noexcept;
+        std::function<void()> SetChangedHandler(std::function<void()> handler);
+        uint64_t Generation() const noexcept;
+        bool IsUpdating() const noexcept { return _updateDepth != 0; }
+        void NotifyNativeReorder() { _markChanged(); }
 
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel> Items() const noexcept;
         std::optional<uint32_t> IndexOf(const winrt::guid& workspaceId) const noexcept;
@@ -46,5 +64,13 @@ namespace winrt::TerminalApp::implementation
 
     private:
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel> _items;
+        std::function<void()> _changed;
+        uint32_t _updateDepth{};
+        uint64_t _generation{};
+        bool _dirty{};
+        bool _publishing{};
+        void _markChanged();
+        void _endUpdate();
+        void _publish();
     };
 }

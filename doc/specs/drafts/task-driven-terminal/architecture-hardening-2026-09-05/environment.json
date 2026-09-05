@@ -1,0 +1,13 @@
+{
+  "captured_at": "2026-09-05T23:53:21.159143+08:00",
+  "qa_app": "F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230\\app\\terminal-0.0.1.0",
+  "qa_repository": "F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230\\repo",
+  "gui_pid": 12084,
+  "binaries_sha256_match_build": {
+    "WindowsTerminal.exe": "b8d85c53db7a12d3b39ca2cdd37830927030035970106003c4c383589722d1e8",
+    "TaskRuntime.exe": "6dd8c41c0d5ef92519713852cb71b197e1ea97f4f39331e78062b04248b1b2be",
+    "TerminalApp.dll": "3ef05d193a75f6263bb2d1287a6f5375405a7cd8dbd084b749249a2eff7b4150"
+  },
+  "actual_file_content": "architecture-ok",
+  "active_runs_at_finish": 0
+}

@@ -20,7 +20,6 @@
 #include "WorkspaceItemViewModel.h"
 #include "WorkspaceSidebar.h"
 #include "ConclusionSidebar.h"
-#include "Tasks/TaskPage.h"
 #include "Tasks/TaskSurfacePolicy.h"
 #include "Tasks/TaskAgentSessionRegistry.h"
 #include "AgentHistoryInbox.h"
@@ -48,10 +47,16 @@ namespace winrt::Microsoft::Terminal::Settings
 
 namespace winrt::TerminalApp::implementation
 {
+    namespace tasks
+    {
+        struct TaskSurfaceDescriptor;
+    }
+
     struct TerminalSettingsCache;
     class WorkspaceFeatureSet;
     class WorkspaceAutomationController;
     class AgentHistoryCoordinator;
+    struct AgentHistoryRetentionPolicy;
     class WorkspaceSnapshotCoordinator;
     struct WorkspaceSessionRestoreState;
     class WorkspaceSidebarController;
@@ -231,6 +236,13 @@ namespace winrt::TerminalApp::implementation
 
         winrt::TerminalApp::IDialogPresenter DialogPresenter() const;
         void DialogPresenter(winrt::TerminalApp::IDialogPresenter dialogPresenter);
+        Windows::Foundation::Collections::IVectorView<TerminalApp::WorkspaceItemViewModel> WorkspaceItemsView() const;
+        TerminalApp::WorkspaceItemViewModel ActiveWorkspace() const;
+        bool WorkspaceUiReady() const noexcept;
+        bool WorkspaceSidebarEnabled() const noexcept;
+        AgentHistoryRetentionPolicy WorkspaceHistoryRetention() const;
+        AgentHistoryCoordinator& WorkspaceHistory() noexcept;
+        void OpenHistorySession(const winrt::guid& workspaceId, const Microsoft::Terminal::Settings::Model::NewTerminalArgs& args);
 
         winrt::TerminalApp::TaskbarState TaskbarState() const;
 
@@ -348,7 +360,6 @@ namespace winrt::TerminalApp::implementation
         Microsoft::Terminal::Settings::Model::CascadiaSettings _settings{ nullptr };
 
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _tabs;
-        Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel>::VectorChanged_revoker _workspaceItemsChangedRevoker;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _mruTabs;
         static winrt::com_ptr<Tab> _GetTabImpl(const TerminalApp::Tab& tab);
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel> _WorkspaceItems() const noexcept;
@@ -815,7 +826,6 @@ namespace winrt::TerminalApp::implementation
         friend class TerminalAppLocalTests::TabTests;
         friend class TerminalAppLocalTests::SettingsTests;
         friend class WorkspaceAutomationController;
-        friend class AgentHistoryCoordinator;
         friend class WorkspaceSnapshotCoordinator;
     };
 }

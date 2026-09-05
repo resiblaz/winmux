@@ -64,29 +64,55 @@ namespace Microsoft::Terminal::TaskProvider
         return _adapter != nullptr;
     }
 
-    TaskProviderResult TaskProviderCoordinator::_ensureProvider(const HANDLE cancellationEvent)
+    std::shared_ptr<std::mutex> TaskProviderCoordinator::_taskGate(const std::string_view taskId)
+    {
+        const std::scoped_lock lock{ _mutex };
+        if (_taskGates.size() >= _configuration.MaximumSessions)
+            std::erase_if(_taskGates, [](const auto& entry) { return entry.second.expired(); });
+        auto& entry = _taskGates[std::string{ taskId }];
+        auto gate = entry.lock();
+        if (!gate) { gate = std::make_shared<std::mutex>(); entry = gate; }
+        return gate;
+    }
+
+    TaskProviderResult TaskProviderCoordinator::_ensureProvider(std::unique_lock<std::mutex>& lock, const HANDLE cancellationEvent)
     {
         if (!_valid) return { TaskProviderStatus::InvalidRequest, "Task provider coordinator is invalid" };
         if (_adapter) return { TaskProviderStatus::AlreadyApplied, {} };
-        try
+        const auto epoch = _epoch;
+        lock.unlock();
+        std::unique_lock initialization{ _initializationMutex };
+        lock.lock();
+        if (_epoch != epoch) return { TaskProviderStatus::TransportClosed, "Task provider initialization was superseded" };
+        if (_adapter) return { TaskProviderStatus::AlreadyApplied, {} };
+        std::shared_ptr<ITaskProviderAdapter> adapter;
+        TaskProviderResult result;
+        lock.unlock();
         {
-            auto adapter = _factory();
-            if (!adapter) return { TaskProviderStatus::ResourceFailure, "Task provider factory returned no adapter" };
-            auto capabilities = adapter->ProbeCapabilities(cancellationEvent);
-            if (!capabilities.Succeeded()) return { capabilities.Status, capabilities.Error };
-            if (!capabilities.Value ||
-                (capabilities.Value->Capabilities & RequiredTaskProviderCapabilities) != RequiredTaskProviderCapabilities)
+            const auto relock = wil::scope_exit([&] { lock.lock(); });
+            try
             {
-                adapter->Stop();
-                return { TaskProviderStatus::UnsupportedCapability, "Task provider is missing a required capability" };
+                adapter = _factory();
+                if (!adapter) return { TaskProviderStatus::ResourceFailure, "Task provider factory returned no adapter" };
+                const auto capabilities = adapter->ProbeCapabilities(cancellationEvent);
+                result = { capabilities.Status, capabilities.Error };
+                if (result.Succeeded() && (!capabilities.Value ||
+                    (capabilities.Value->Capabilities & RequiredTaskProviderCapabilities) != RequiredTaskProviderCapabilities))
+                    result = { TaskProviderStatus::UnsupportedCapability, "Task provider is missing a required capability" };
+                if (!result.Succeeded()) adapter->Stop();
             }
-            _adapter = std::move(adapter);
-            return { TaskProviderStatus::Succeeded, {} };
+            catch (...) { result.Status = TaskProviderStatus::ResourceFailure; }
         }
-        catch (...)
+        if (!result.Succeeded()) return result;
+        if (_epoch != epoch)
         {
-            return { TaskProviderStatus::ResourceFailure, "Task provider initialization exhausted resources" };
+            lock.unlock();
+            const auto relock = wil::scope_exit([&] { lock.lock(); });
+            adapter->Stop();
+            return { TaskProviderStatus::TransportClosed, "Task provider initialization was superseded" };
         }
+        _adapter = std::move(adapter);
+        return result;
     }
 
     TaskProviderResult TaskProviderCoordinator::_publishSession(const TaskProviderSessionBinding& session) const
@@ -119,20 +145,29 @@ namespace Microsoft::Terminal::TaskProvider
         const TaskProviderSessionRequest& request,
         const HANDLE cancellationEvent)
     {
-        const std::scoped_lock lock{ _mutex };
         if (!_validIdentity(request.TaskId)) return _from({ TaskProviderStatus::InvalidRequest, "Task identity is invalid" });
+        const auto gate = _taskGate(request.TaskId);
+        const std::unique_lock operation{ *gate };
+        std::unique_lock lock{ _mutex };
         if (const auto existing = _sessionsByTask.find(request.TaskId); existing != _sessionsByTask.end())
         {
-            TaskProviderCoordinatorResult result;
-            result.Status = TaskProviderStatus::AlreadyApplied;
-            result.Session = existing->second;
-            return result;
+            if (existing->second.State != TaskProviderSessionState::Closed)
+            {
+                TaskProviderCoordinatorResult result;
+                result.Status = TaskProviderStatus::AlreadyApplied;
+                result.Session = existing->second;
+                return result;
+            }
+            _tasksByProviderSession.erase(existing->second.ProviderSessionId);
+            _sessionsByTask.erase(existing);
         }
-        if (_sessionsByTask.size() >= _configuration.MaximumSessions)
+        if (_sessionsByTask.size() + _startingSessions >= _configuration.MaximumSessions)
         {
             for (auto iterator = _sessionsByTask.begin(); iterator != _sessionsByTask.end();)
             {
-                if (iterator->second.State == TaskProviderSessionState::Closed)
+                const auto busy = _taskGates.find(iterator->first);
+                if (iterator->second.State == TaskProviderSessionState::Closed &&
+                    (busy == _taskGates.end() || busy->second.expired()))
                 {
                     _tasksByProviderSession.erase(iterator->second.ProviderSessionId);
                     iterator = _sessionsByTask.erase(iterator);
@@ -142,14 +177,20 @@ namespace Microsoft::Terminal::TaskProvider
                     ++iterator;
                 }
             }
-            if (_sessionsByTask.size() >= _configuration.MaximumSessions)
+            if (_sessionsByTask.size() + _startingSessions >= _configuration.MaximumSessions)
             {
                 return _from({ TaskProviderStatus::ResourceFailure, "Task provider session capacity was reached" });
             }
         }
-        const auto ready = _ensureProvider(cancellationEvent);
+        const auto ready = _ensureProvider(lock, cancellationEvent);
         if (!ready.Succeeded()) return _from(ready);
-        auto started = _adapter->StartSession(request, cancellationEvent);
+        if (_sessionsByTask.size() + _startingSessions >= _configuration.MaximumSessions)
+            return _from({ TaskProviderStatus::ResourceFailure, "Task provider session capacity was reached" });
+        ++_startingSessions;
+        const auto reservation = wil::scope_exit([&] { --_startingSessions; });
+        auto startedCall = _invoke(lock, [&](auto& adapter) { return adapter.StartSession(request, cancellationEvent); });
+        if (!startedCall) return _from({ TaskProviderStatus::TransportClosed, "Task provider changed during operation" });
+        auto started = std::move(*startedCall);
         if (!started.Succeeded() || !started.Value) return _from(started);
         if (!_validIdentity(started.Value->SessionId) || _tasksByProviderSession.contains(started.Value->SessionId))
         {
@@ -163,7 +204,7 @@ namespace Microsoft::Terminal::TaskProvider
         {
             _sessionsByTask.erase(binding.TaskId);
             _tasksByProviderSession.erase(binding.ProviderSessionId);
-            static_cast<void>(_adapter->CloseSessionProjection(binding.ProviderSessionId, cancellationEvent));
+            static_cast<void>(_invoke(lock, [&](auto& adapter) { return adapter.CloseSessionProjection(binding.ProviderSessionId, cancellationEvent); }));
             return _from(persisted);
         }
         TaskProviderCoordinatorResult result;
@@ -177,14 +218,22 @@ namespace Microsoft::Terminal::TaskProvider
         const std::string_view providerSessionId,
         const HANDLE cancellationEvent)
     {
-        const std::scoped_lock lock{ _mutex };
+        if (!_validIdentity(taskId)) return _from({ TaskProviderStatus::InvalidRequest, "Task identity is invalid" });
+        const auto gate = _taskGate(taskId);
+        const std::unique_lock operation{ *gate };
+        std::unique_lock lock{ _mutex };
         if (!_validIdentity(taskId) || !_validIdentity(providerSessionId))
         {
             return _from({ TaskProviderStatus::InvalidRequest, "Task provider resume identity is invalid" });
         }
-        const auto ready = _ensureProvider(cancellationEvent);
+        if (const auto owner = _tasksByProviderSession.find(std::string{ providerSessionId });
+            owner != _tasksByProviderSession.end() && owner->second != taskId)
+            return _from({ TaskProviderStatus::Conflict, "Task provider session belongs to another Task" });
+        const auto ready = _ensureProvider(lock, cancellationEvent);
         if (!ready.Succeeded()) return _from(ready);
-        auto resumed = _adapter->ResumeSession(providerSessionId, cancellationEvent);
+        auto resumedCall = _invoke(lock, [&](auto& adapter) { return adapter.ResumeSession(providerSessionId, cancellationEvent); });
+        if (!resumedCall) return _from({ TaskProviderStatus::TransportClosed, "Task provider changed during operation" });
+        auto resumed = std::move(*resumedCall);
         if (!resumed.Succeeded() || !resumed.Value) return _from(resumed);
         if (resumed.Value->SessionId != providerSessionId)
         {
@@ -232,7 +281,10 @@ namespace Microsoft::Terminal::TaskProvider
         const TaskProviderRunRequest& request,
         const HANDLE cancellationEvent)
     {
-        const std::scoped_lock lock{ _mutex };
+        if (!_validIdentity(taskId)) return _from({ TaskProviderStatus::InvalidRequest, "Task identity is invalid" });
+        const auto gate = _taskGate(taskId);
+        const std::unique_lock operation{ *gate };
+        std::unique_lock lock{ _mutex };
         if (!_validIdentity(taskId) || !_validIdentity(request.Context.RunId))
         {
             return _from({ TaskProviderStatus::InvalidRequest, "Task provider Run identity is invalid" });
@@ -242,20 +294,23 @@ namespace Microsoft::Terminal::TaskProvider
         {
             return _from({ TaskProviderStatus::NotFound, "Task provider session was not found for the Task" });
         }
-        if (session->second.State == TaskProviderSessionState::ClosePending ||
-            session->second.State == TaskProviderSessionState::Closing ||
-            session->second.State == TaskProviderSessionState::Closed ||
-            session->second.State == TaskProviderSessionState::Poisoned)
+        auto& bindingSession = session->second;
+        if (bindingSession.State == TaskProviderSessionState::ClosePending ||
+            bindingSession.State == TaskProviderSessionState::Closing ||
+            bindingSession.State == TaskProviderSessionState::Closed ||
+            bindingSession.State == TaskProviderSessionState::Poisoned)
         {
             return _from({ TaskProviderStatus::Conflict, "Task provider session cannot start a Run in its current state" });
         }
         if (_activeRun(taskId)) return _from({ TaskProviderStatus::Conflict, "Task already has an active provider Run" });
         if (_runsByTaskRun.contains(request.Context.RunId)) return _from({ TaskProviderStatus::Conflict, "TaskRun identity is already registered" });
-        if (_runsByTaskRun.size() >= _configuration.MaximumRuns)
+        if (_runsByTaskRun.size() + _startingRuns >= _configuration.MaximumRuns)
         {
             for (auto iterator = _runsByTaskRun.begin(); iterator != _runsByTaskRun.end();)
             {
-                if (_terminal(iterator->second.State))
+                const auto busy = _taskGates.find(iterator->second.TaskId);
+                if (_terminal(iterator->second.State) &&
+                    (iterator->second.TaskId == taskId || busy == _taskGates.end() || busy->second.expired()))
                 {
                     _taskRunsByProviderRun.erase(iterator->second.ProviderRunId);
                     iterator = _runsByTaskRun.erase(iterator);
@@ -265,14 +320,20 @@ namespace Microsoft::Terminal::TaskProvider
                     ++iterator;
                 }
             }
-            if (_runsByTaskRun.size() >= _configuration.MaximumRuns)
+            if (_runsByTaskRun.size() + _startingRuns >= _configuration.MaximumRuns)
             {
                 return _from({ TaskProviderStatus::ResourceFailure, "Task provider Run capacity was reached" });
             }
         }
-        const auto ready = _ensureProvider(cancellationEvent);
+        const auto ready = _ensureProvider(lock, cancellationEvent);
         if (!ready.Succeeded()) return _from(ready);
-        auto started = _adapter->StartRun(request, cancellationEvent);
+        if (_runsByTaskRun.size() + _startingRuns >= _configuration.MaximumRuns)
+            return _from({ TaskProviderStatus::ResourceFailure, "Task provider Run capacity was reached" });
+        ++_startingRuns;
+        const auto reservation = wil::scope_exit([&] { --_startingRuns; });
+        auto startedCall = _invoke(lock, [&](auto& adapter) { return adapter.StartRun(request, cancellationEvent); });
+        if (!startedCall) return _from({ TaskProviderStatus::TransportClosed, "Task provider changed during operation" });
+        auto started = std::move(*startedCall);
         if (!started.Succeeded() || !started.Value) return _from(started);
         if (!_validIdentity(started.Value->RunId) || _taskRunsByProviderRun.contains(started.Value->RunId))
         {
@@ -284,18 +345,16 @@ namespace Microsoft::Terminal::TaskProvider
         };
         _taskRunsByProviderRun.emplace(binding.ProviderRunId, binding.TaskRunId);
         _runsByTaskRun.emplace(binding.TaskRunId, binding);
-        session->second.State = TaskProviderSessionState::Busy;
-        const auto persistedSession = _publishSession(session->second);
+        bindingSession.State = TaskProviderSessionState::Busy;
+        const auto persistedSession = _publishSession(bindingSession);
         const auto persistedRun = _publishRun(binding);
         if (!persistedSession.Succeeded() || !persistedRun.Succeeded())
         {
-            static_cast<void>(_adapter->InterruptRun(
-                binding.ProviderSessionId,
-                binding.ProviderRunId,
-                cancellationEvent));
+            if (!_invoke(lock, [&](auto& adapter) { return adapter.InterruptRun(binding.ProviderSessionId, binding.ProviderRunId, cancellationEvent); }))
+                return _from({ TaskProviderStatus::TransportClosed, "Task provider changed during rollback" });
             _runsByTaskRun.erase(binding.TaskRunId);
             _taskRunsByProviderRun.erase(binding.ProviderRunId);
-            session->second.State = TaskProviderSessionState::Ready;
+            bindingSession.State = TaskProviderSessionState::Ready;
             return _from(!persistedRun.Succeeded() ? persistedRun : persistedSession);
         }
         TaskProviderCoordinatorResult result;
@@ -310,11 +369,17 @@ namespace Microsoft::Terminal::TaskProvider
         const std::string_view message,
         const HANDLE cancellationEvent)
     {
-        const std::scoped_lock lock{ _mutex };
+        if (!_validIdentity(taskId)) return _from({ TaskProviderStatus::InvalidRequest, "Task identity is invalid" });
+        const auto gate = _taskGate(taskId);
+        const std::unique_lock operation{ *gate };
+        std::unique_lock lock{ _mutex };
         auto run = _findRun(taskId, taskRunId);
         if (!run || _terminal(run->State)) return _from({ TaskProviderStatus::NotFound, "Active Task provider Run was not found" });
         if (!_adapter) return _from({ TaskProviderStatus::Unavailable, "Task provider is unavailable" });
-        const auto steered = _adapter->SteerRun(run->ProviderSessionId, run->ProviderRunId, message, cancellationEvent);
+        const auto runSnapshot = *run;
+        auto steeredCall = _invoke(lock, [&](auto& adapter) { return adapter.SteerRun(runSnapshot.ProviderSessionId, runSnapshot.ProviderRunId, message, cancellationEvent); });
+        if (!steeredCall) return _from({ TaskProviderStatus::TransportClosed, "Task provider changed during operation" });
+        auto steered = std::move(*steeredCall);
         if (steered.Status == TaskProviderStatus::Rejected || steered.Status == TaskProviderStatus::Conflict)
         {
             try
@@ -342,11 +407,18 @@ namespace Microsoft::Terminal::TaskProvider
         const std::string_view taskRunId,
         const HANDLE cancellationEvent)
     {
-        const std::scoped_lock lock{ _mutex };
+        if (!_validIdentity(taskId)) return _from({ TaskProviderStatus::InvalidRequest, "Task identity is invalid" });
+        const auto gate = _taskGate(taskId);
+        const std::unique_lock operation{ *gate };
+        std::unique_lock lock{ _mutex };
         auto run = _findRun(taskId, taskRunId);
         if (!run || _terminal(run->State)) return _from({ TaskProviderStatus::NotFound, "Active Task provider Run was not found" });
         if (!_adapter) return _from({ TaskProviderStatus::Unavailable, "Task provider is unavailable" });
-        auto result = _from(_adapter->InterruptRun(run->ProviderSessionId, run->ProviderRunId, cancellationEvent));
+        const auto runSnapshot = *run;
+        auto interruptedCall = _invoke(lock, [&](auto& adapter) { return adapter.InterruptRun(runSnapshot.ProviderSessionId, runSnapshot.ProviderRunId, cancellationEvent); });
+        if (!interruptedCall) return _from({ TaskProviderStatus::TransportClosed, "Task provider changed during operation" });
+        auto interrupted = std::move(*interruptedCall);
+        auto result = _from(interrupted);
         result.Run = *run;
         return result;
     }
@@ -355,60 +427,70 @@ namespace Microsoft::Terminal::TaskProvider
         const std::string_view taskId,
         const HANDLE cancellationEvent)
     {
-        const std::scoped_lock lock{ _mutex };
+        if (!_validIdentity(taskId)) return _from({ TaskProviderStatus::InvalidRequest, "Task identity is invalid" });
+        const auto gate = _taskGate(taskId);
+        const std::unique_lock operation{ *gate };
+        std::unique_lock lock{ _mutex };
         const auto session = _sessionsByTask.find(std::string{ taskId });
         if (session == _sessionsByTask.end()) return _from({ TaskProviderStatus::NotFound, "Task provider session was not found" });
-        if (session->second.State == TaskProviderSessionState::Closed)
+        auto& bindingSession = session->second;
+        const auto providerSessionId = bindingSession.ProviderSessionId;
+        if (bindingSession.State == TaskProviderSessionState::Closed)
         {
             TaskProviderCoordinatorResult result;
             result.Status = TaskProviderStatus::AlreadyApplied;
-            result.Session = session->second;
+            result.Session = bindingSession;
             return result;
         }
         if (!_adapter) return _from({ TaskProviderStatus::Unavailable, "Task provider is unavailable" });
         if (auto run = _activeRun(taskId))
         {
-            if (session->second.State == TaskProviderSessionState::Closing)
+            if (bindingSession.State == TaskProviderSessionState::Closing)
             {
                 TaskProviderCoordinatorResult result;
                 result.Status = TaskProviderStatus::Succeeded;
                 result.ClosePending = true;
-                result.Session = session->second;
+                result.Session = bindingSession;
                 result.Run = *run;
                 return result;
             }
-            const auto interrupted = _adapter->InterruptRun(run->ProviderSessionId, run->ProviderRunId, cancellationEvent);
+            const auto runSnapshot = *run;
+            auto interruptedCall = _invoke(lock, [&](auto& adapter) { return adapter.InterruptRun(runSnapshot.ProviderSessionId, runSnapshot.ProviderRunId, cancellationEvent); });
+            if (!interruptedCall) return _from({ TaskProviderStatus::TransportClosed, "Task provider changed during operation" });
+            auto interrupted = std::move(*interruptedCall);
             if (interrupted.Status == TaskProviderStatus::Timeout || interrupted.Status == TaskProviderStatus::TransportClosed)
             {
-                session->second.State = TaskProviderSessionState::ClosePending;
-                const auto persisted = _publishSession(session->second);
+                bindingSession.State = TaskProviderSessionState::ClosePending;
+                const auto persisted = _publishSession(bindingSession);
                 if (!persisted.Succeeded()) return _from(persisted);
                 TaskProviderCoordinatorResult result;
                 result.Status = TaskProviderStatus::Succeeded;
                 result.ClosePending = true;
-                result.Session = session->second;
+                result.Session = bindingSession;
                 result.Run = *run;
                 return result;
             }
             if (!interrupted.Succeeded()) return _from(interrupted);
-            session->second.State = TaskProviderSessionState::Closing;
-            const auto persisted = _publishSession(session->second);
+            bindingSession.State = TaskProviderSessionState::Closing;
+            const auto persisted = _publishSession(bindingSession);
             if (!persisted.Succeeded()) return _from(persisted);
             TaskProviderCoordinatorResult result;
             result.Status = TaskProviderStatus::Succeeded;
             result.ClosePending = true;
-            result.Session = session->second;
+            result.Session = bindingSession;
             result.Run = *run;
             return result;
         }
-        const auto closed = _adapter->CloseSessionProjection(session->second.ProviderSessionId, cancellationEvent);
+        auto closedCall = _invoke(lock, [&](auto& adapter) { return adapter.CloseSessionProjection(providerSessionId, cancellationEvent); });
+        if (!closedCall) return _from({ TaskProviderStatus::TransportClosed, "Task provider changed during operation" });
+        auto closed = std::move(*closedCall);
         if (!closed.Succeeded()) return _from(closed);
-        session->second.State = TaskProviderSessionState::Closed;
-        const auto persisted = _publishSession(session->second);
+        bindingSession.State = TaskProviderSessionState::Closed;
+        const auto persisted = _publishSession(bindingSession);
         if (!persisted.Succeeded()) return _from(persisted);
         TaskProviderCoordinatorResult result;
         result.Status = TaskProviderStatus::Succeeded;
-        result.Session = session->second;
+        result.Session = bindingSession;
         return result;
     }
 
@@ -416,19 +498,26 @@ namespace Microsoft::Terminal::TaskProvider
         const std::string_view taskId,
         const HANDLE cancellationEvent)
     {
-        const std::scoped_lock lock{ _mutex };
+        if (!_validIdentity(taskId)) return _from({ TaskProviderStatus::InvalidRequest, "Task identity is invalid" });
+        const auto gate = _taskGate(taskId);
+        const std::unique_lock operation{ *gate };
+        std::unique_lock lock{ _mutex };
         const auto session = _sessionsByTask.find(std::string{ taskId });
         if (session == _sessionsByTask.end()) return _from({ TaskProviderStatus::NotFound, "Task provider session was not found" });
+        auto& bindingSession = session->second;
+        const auto providerSessionId = bindingSession.ProviderSessionId;
         if (_activeRun(taskId)) return _from({ TaskProviderStatus::Conflict, "Active Task provider Run prevents suspension" });
         if (!_adapter) return _from({ TaskProviderStatus::Unavailable, "Task provider is unavailable" });
-        const auto suspended = _adapter->SuspendSession(session->second.ProviderSessionId, cancellationEvent);
+        auto suspendedCall = _invoke(lock, [&](auto& adapter) { return adapter.SuspendSession(providerSessionId, cancellationEvent); });
+        if (!suspendedCall) return _from({ TaskProviderStatus::TransportClosed, "Task provider changed during operation" });
+        auto suspended = std::move(*suspendedCall);
         if (!suspended.Succeeded()) return _from(suspended);
-        session->second.State = TaskProviderSessionState::Suspended;
-        const auto persisted = _publishSession(session->second);
+        bindingSession.State = TaskProviderSessionState::Suspended;
+        const auto persisted = _publishSession(bindingSession);
         if (!persisted.Succeeded()) return _from(persisted);
         TaskProviderCoordinatorResult result;
         result.Status = TaskProviderStatus::Succeeded;
-        result.Session = session->second;
+        result.Session = bindingSession;
         return result;
     }
 
@@ -439,17 +528,24 @@ namespace Microsoft::Terminal::TaskProvider
         const TaskProviderApprovalDecision decision,
         const HANDLE cancellationEvent)
     {
-        const std::scoped_lock lock{ _mutex };
+        if (!_validIdentity(taskId)) return _from({ TaskProviderStatus::InvalidRequest, "Task identity is invalid" });
+        const auto gate = _taskGate(taskId);
+        const std::unique_lock operation{ *gate };
+        std::unique_lock lock{ _mutex };
         auto run = _findRun(taskId, taskRunId);
         if (!run || _terminal(run->State)) return _from({ TaskProviderStatus::NotFound, "Active Task provider Run was not found" });
         if (!_adapter) return _from({ TaskProviderStatus::Unavailable, "Task provider is unavailable" });
-        auto result = _from(_adapter->RespondToApproval(
-            run->ProviderSessionId, run->ProviderRunId, approvalId, decision, cancellationEvent));
+        const auto runSnapshot = *run;
+        auto approvedCall = _invoke(lock, [&](auto& adapter) { return adapter.RespondToApproval(runSnapshot.ProviderSessionId, runSnapshot.ProviderRunId, approvalId, decision, cancellationEvent); });
+        if (!approvedCall) return _from({ TaskProviderStatus::TransportClosed, "Task provider changed during operation" });
+        auto approved = std::move(*approvedCall);
+        auto result = _from(approved);
         result.Run = *run;
         return result;
     }
 
     TaskProviderCoordinatorResult TaskProviderCoordinator::_reconcileProviderFailure(
+        std::unique_lock<std::mutex>& lock,
         const TaskProviderStatus status,
         const std::string_view providerCode,
         std::string error)
@@ -485,8 +581,14 @@ namespace Microsoft::Terminal::TaskProvider
         }
         result.AffectedTaskIds.assign(affected.begin(), affected.end());
         std::ranges::sort(result.AffectedTaskIds);
-        if (_adapter) _adapter->Stop();
-        _adapter.reset();
+        const auto adapter = std::exchange(_adapter, nullptr);
+        ++_epoch;
+        _deferredEvents.clear();
+        lock.unlock();
+        {
+            const auto relock = wil::scope_exit([&] { lock.lock(); });
+            if (adapter) adapter->Stop();
+        }
         return result;
     }
 
@@ -494,37 +596,68 @@ namespace Microsoft::Terminal::TaskProvider
     {
         const std::scoped_lock eventLock{ _eventMutex };
         std::shared_ptr<ITaskProviderAdapter> adapter;
+        std::shared_ptr<std::mutex> gate;
+        std::unique_lock<std::mutex> operation;
+        TaskProviderEventResult next;
         {
             const std::scoped_lock lock{ _mutex };
-            adapter = _adapter;
+            for (auto it = _deferredEvents.begin(); it != _deferredEvents.end();)
+            {
+                if (it->Adapter != _adapter) { it = _deferredEvents.erase(it); continue; }
+                std::unique_lock candidate{ *it->Gate, std::try_to_lock };
+                if (!candidate.owns_lock()) { ++it; continue; }
+                adapter = it->Adapter;
+                gate = it->Gate;
+                operation = std::move(candidate);
+                next.Status = TaskProviderStatus::Succeeded;
+                next.Value = std::move(it->Event);
+                _deferredEvents.erase(it);
+                break;
+            }
+            if (!adapter) adapter = _adapter;
         }
         if (!adapter) return _from({ TaskProviderStatus::Unavailable, "Task provider is not running" });
-        // Keep the adapter alive while waiting, but let commands and Stop acquire
-        // the coordinator. The adapter serializes its own transport operations.
-        auto next = adapter->NextEvent(_configuration.EventPollMilliseconds, cancellationEvent);
-        const std::scoped_lock lock{ _mutex };
-        if (_adapter != adapter)
-            return _from({ TaskProviderStatus::Succeeded, {} });
-        if (!next.Succeeded())
+        if (!next.Value)
         {
-            if (next.Status == TaskProviderStatus::TransportClosed ||
-                next.Status == TaskProviderStatus::OutputLimitExceeded ||
-                next.Status == TaskProviderStatus::MalformedResponse ||
-                next.Status == TaskProviderStatus::ResourceFailure)
+            next = adapter->NextEvent(_configuration.EventPollMilliseconds, cancellationEvent);
+            std::unique_lock lock{ _mutex };
+            if (_adapter != adapter) return _from({ TaskProviderStatus::Succeeded, {} });
+            if (!next.Succeeded())
             {
-                return _reconcileProviderFailure(next.Status, "runtime_recovery", std::move(next.Error));
+                if (next.Status == TaskProviderStatus::TransportClosed || next.Status == TaskProviderStatus::OutputLimitExceeded ||
+                    next.Status == TaskProviderStatus::MalformedResponse || next.Status == TaskProviderStatus::ResourceFailure)
+                    return _reconcileProviderFailure(lock, next.Status, "runtime_recovery", std::move(next.Error));
+                return _from(next);
             }
-            return _from(next);
+            if (next.NoEvent || !next.Value) return _from({ TaskProviderStatus::Succeeded, {} });
+            const auto owner = _tasksByProviderSession.find(next.Value->SessionId);
+            if (owner == _tasksByProviderSession.end())
+                return _from({ next.Value->Kind == TaskProviderEventKind::UnknownOptional ? TaskProviderStatus::Succeeded : TaskProviderStatus::NotFound, {} });
+            const auto taskId = owner->second;
+            lock.unlock();
+            gate = _taskGate(taskId);
+            operation = std::unique_lock{ *gate, std::try_to_lock };
+            lock.lock();
+            if (_adapter != adapter) return _from({ TaskProviderStatus::Succeeded, {} });
+            // A task can become available while NextEvent is waiting. Its new
+            // event must still follow any older event deferred for that task.
+            const auto queuedAhead = std::ranges::any_of(_deferredEvents, [&](const auto& event) {
+                return event.Adapter == adapter && event.Gate == gate;
+            });
+            if (!operation.owns_lock() || queuedAhead)
+            {
+                if (_deferredEvents.size() >= 4096)
+                    return _reconcileProviderFailure(lock, TaskProviderStatus::OutputLimitExceeded, "runtime_recovery", "Deferred provider event capacity was reached");
+                _deferredEvents.push_back({ adapter, gate, std::move(*next.Value) });
+                return _from({ TaskProviderStatus::Succeeded, {} });
+            }
         }
+        std::unique_lock lock{ _mutex };
+        if (_adapter != adapter) return _from({ TaskProviderStatus::Succeeded, {} });
         TaskProviderCoordinatorResult result;
         result.Status = TaskProviderStatus::Succeeded;
-        if (next.NoEvent || !next.Value) return result;
         const auto task = _tasksByProviderSession.find(next.Value->SessionId);
-        if (task == _tasksByProviderSession.end())
-        {
-            if (next.Value->Kind == TaskProviderEventKind::UnknownOptional) return result;
-            return _from({ TaskProviderStatus::NotFound, "Task provider event session is not registered" });
-        }
+        if (task == _tasksByProviderSession.end()) return result;
         auto session = _sessionsByTask.find(task->second);
         if (session == _sessionsByTask.end()) return _from({ TaskProviderStatus::ResourceFailure, "Task provider session registry is inconsistent" });
         std::optional<TaskProviderRunBinding> run;
@@ -552,8 +685,9 @@ namespace Microsoft::Terminal::TaskProvider
             if (session->second.State == TaskProviderSessionState::ClosePending ||
                 session->second.State == TaskProviderSessionState::Closing)
             {
-                const auto closed = _adapter->CloseSessionProjection(session->second.ProviderSessionId, cancellationEvent);
-                if (closed.Succeeded()) session->second.State = TaskProviderSessionState::Closed;
+                // The lifecycle worker completes close after the terminal event.
+                // Event delivery must never wait for provider teardown IO.
+                session->second.State = TaskProviderSessionState::Closing;
             }
             else
             {
@@ -578,10 +712,10 @@ namespace Microsoft::Terminal::TaskProvider
 
     TaskProviderCoordinatorResult TaskProviderCoordinator::RestartProvider(const HANDLE cancellationEvent)
     {
-        const std::scoped_lock lock{ _mutex };
+        std::unique_lock lock{ _mutex };
         auto reconciled = _reconcileProviderFailure(
-            TaskProviderStatus::TransportClosed, "runtime_recovery", "Task provider was explicitly restarted");
-        const auto started = _ensureProvider(cancellationEvent);
+            lock, TaskProviderStatus::TransportClosed, "runtime_recovery", "Task provider was explicitly restarted");
+        const auto started = _ensureProvider(lock, cancellationEvent);
         if (!started.Succeeded())
         {
             reconciled.Status = started.Status;
@@ -615,8 +749,14 @@ namespace Microsoft::Terminal::TaskProvider
 
     void TaskProviderCoordinator::Stop() noexcept
     {
-        const std::scoped_lock lock{ _mutex };
-        if (_adapter) _adapter->Stop();
-        _adapter.reset();
+        std::shared_ptr<ITaskProviderAdapter> adapter;
+        {
+            const std::scoped_lock lock{ _mutex };
+            adapter = std::exchange(_adapter, nullptr);
+            ++_epoch;
+            _deferredEvents.clear();
+        }
+        if (adapter) adapter->Stop();
     }
+
 }

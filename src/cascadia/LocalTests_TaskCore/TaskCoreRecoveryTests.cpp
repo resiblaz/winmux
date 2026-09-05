@@ -18,6 +18,7 @@ namespace TaskCoreLocalTests
         TEST_METHOD(IntentProgressManualHoldAndResumePersistAcrossReopen);
         TEST_METHOD(RecoverySnapshotReturnsBoundedPendingResources);
         TEST_METHOD(CompletedIntentCanBeReplacedByNewLifecycleWork);
+        TEST_METHOD(FailedCleanupCanBeRetriedButStillBlocksUnrelatedLifecycleWork);
         TEST_METHOD(IntentKindRejectsUnsupportedStageWithoutMutation);
         TEST_METHOD(IncompleteCleanupBlocksRunAndStatusWithoutManualHold);
     };
@@ -133,6 +134,25 @@ namespace TaskCoreLocalTests
         VERIFY_ARE_EQUAL(size_t{ 1 }, recovery.Snapshot.UnclaimedMessages.size());
         VERIFY_IS_TRUE(recovery.Snapshot.HasMoreUnclaimedMessages);
         VERIFY_ARE_EQUAL(size_t{ 0 }, recovery.Snapshot.Tombstones.size());
+    }
+
+    void TaskCoreRecoveryTests::FailedCleanupCanBeRetriedButStillBlocksUnrelatedLifecycleWork()
+    {
+        TemporaryDatabasePath path;
+        SqliteTaskStore store{ path.Path() };
+        const auto task = MakeCreateTaskCommand();
+        VERIFY_IS_TRUE(store.CreateTask(task).Succeeded());
+        const auto intent = MakeStartIntentCommand(task, 1, 2, 1, 1100, TaskIntentKind::WorktreeCleanup);
+        VERIFY_IS_TRUE(store.StartTaskIntent(intent).Succeeded());
+        VERIFY_IS_TRUE(store.AdvanceTaskIntent(
+            MakeAdvanceIntentCommand(intent, 3, 2, 1, 1200, TaskIntentStage::Failed, "git-finalize-operation-failed")).Succeeded());
+        VERIFY_IS_FALSE(store.StartTaskIntent(
+            MakeStartIntentCommand(task, 2, 4, 3, 1300, TaskIntentKind::Close)).Succeeded());
+        VERIFY_IS_TRUE(store.StartTaskIntent(
+            MakeStartIntentCommand(task, 3, 5, 3, 1300, TaskIntentKind::WorktreeCleanup)).Succeeded());
+        const auto snapshot = store.LoadTask(task.Task.Id);
+        VERIFY_IS_TRUE(snapshot->Intent->Stage == TaskIntentStage::Requested);
+        VERIFY_ARE_EQUAL(uint64_t{ 4 }, snapshot->Task.Version);
     }
 
     void TaskCoreRecoveryTests::CompletedIntentCanBeReplacedByNewLifecycleWork()

@@ -314,7 +314,15 @@ WHERE id=?4 AND version=?5;
         {
             return details::CommandFailure(TaskStoreCommandStatus::StorageError, std::move(error));
         }
-        if (currentIntent && currentIntent->Stage != TaskIntentStage::Completed)
+        // A user cancellation is completed by the close intent itself. Keep the
+        // intent active until the status is durable, including across restart.
+        const bool completingCancellation = currentIntent &&
+            currentIntent->Kind == TaskIntentKind::Close &&
+            currentIntent->Stage == TaskIntentStage::RemovingSurface &&
+            currentIntent->DetailJson.find("\"cancel\":true") != std::string::npos &&
+            command.Authority == TaskStatusAuthority::User &&
+            command.RequestedStatus == TaskStatus::Cancelled;
+        if (currentIntent && currentIntent->Stage != TaskIntentStage::Completed && !completingCancellation)
         {
             return details::CommandFailure(
                 TaskStoreCommandStatus::InvalidTransition,

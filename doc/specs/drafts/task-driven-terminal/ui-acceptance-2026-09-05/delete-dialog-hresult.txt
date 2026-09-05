@@ -1,0 +1,21 @@
+QA HRESULT: 80070057 RetAddr           : Args to Child                                                           : Call Site
+00007ffc`3458f5da : 000001ba`80388e80 00000000`00000000 000001ba`80388e80 00000070`f170dc30 : TerminalApp!winrt::throw_hresult
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::check_hresult+0x12
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::impl::consume_Windows_UI_Xaml_Controls_IContentDialog<winrt::Windows::UI::Xaml::Controls::IContentDialog>::ShowAsync+0x51
+00007ffc`342bf1a6 : 000001ba`2e4c61c0 000001ba`54c98bc0 00000000`00000009 00007ffc`1ec0d875 : TerminalApp!winrt::TerminalApp::implementation::TaskPage::_Execute$_ResumeCoro$1+0x52a
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::TerminalApp::implementation::TaskPage::_Execute+0x40
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::TerminalApp::implementation::TaskPage::{ctor}::__l2::<lambda_1>::operator()+0xa5
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!std::invoke+0xa8
+00007ffc`3436fd80 : 000001ba`803840b0 000001ba`54d4d878 00000000`00000000 00007ffc`1ed3b8b5 : TerminalApp!std::_Func_impl_no_alloc<`winrt::TerminalApp::implementation::TaskPage::TaskPage'::`2'::<lambda_1>,void,enum winrt::TerminalApp::implementation::tasks::TaskCommand>::_Do_call+0xc6
+*** ERROR: Symbol file could not be found.  Defaulted to export symbols for C:\Windows\System32\Windows.UI.Xaml.dll -
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!std::_Func_class<void,enum winrt::TerminalApp::implementation::tasks::TaskCommand>::operator()+0x12
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::TerminalApp::implementation::TaskDetailsPane::_Request+0x23
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::TerminalApp::implementation::TaskDetailsPane::_DeleteTask_Click+0x23
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::TerminalApp::implementation::TaskDetailsPaneT<winrt::TerminalApp::implementation::TaskDetailsPane>::Connect::__l19::<lambda_15>::operator()+0x5b
+00007ffc`1ed3b5eb : 000001ba`7fe7ea60 000001ba`7fe7ea60 00000000`00000000 00000000`00000000 : TerminalApp!winrt::impl::delegate<winrt::Windows::UI::Xaml::RoutedEventHandler,`winrt::TerminalApp::implementation::TaskDetailsPaneT<winrt::TerminalApp::implementation::TaskDetailsPane>::Connect'::`19'::<lambda_15> >::Invoke+0x70
+00007ffc`1ee1062c : 00000000`00000000 000001ba`7fe40748 000001ba`803ccd00 00000000`00000000 : Windows_UI_Xaml!DllGetActivationFactory+0x93e3b
+00007ffc`1ee1051f : 00000000`00000000 000001ba`803ccd00 000001ba`7dcbf880 00007ffc`1eddfb5e : Windows_UI_Xaml!DllGetActivationFactory+0x168e7c
+00007ffc`1ebe2dfa : 00000000`00000000 00000000`00000000 00000000`00000000 00000070`f170de90 : Windows_UI_Xaml!DllGetActivationFactory+0x168d6f
+00007ffc`1ebe2d1b : 000001ba`00000001 000001ba`7fe407f8 00000000`00000000 00000000`00000000 : Windows_UI_Xaml+0xc2dfa
+00007ffc`1eb941a9 : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : Windows_UI_Xaml+0xc2d1b
+Detached

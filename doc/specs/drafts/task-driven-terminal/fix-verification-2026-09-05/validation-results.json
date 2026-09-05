@@ -1,0 +1,3306 @@
+{
+  "native_passed": 822,
+  "native_failed": 0,
+  "hook_assertions_passed": 246,
+  "release_msix_built": true,
+  "cli_smoke_passed": true,
+  "source_logs": [
+    "F:\\RicherLife\\codes\\win_terminal\\dist\\task-fix-validation-20260905-174704\\release-gate-final.log",
+    "F:\\RicherLife\\codes\\win_terminal\\dist\\task-fix-validation-20260905-174704\\remaining-gate.log",
+    "F:\\RicherLife\\codes\\win_terminal\\dist\\task-fix-validation-20260905-174704\\provider-policy-tests.log",
+    "F:\\RicherLife\\codes\\win_terminal\\dist\\task-fix-validation-20260905-174704\\provider-unload-tests.log",
+    "F:\\RicherLife\\codes\\win_terminal\\dist\\task-fix-validation-20260905-174704\\provider-unload-final-tests.log",
+    "F:\\RicherLife\\codes\\win_terminal\\dist\\task-fix-validation-20260905-174704\\publication-tests.log",
+    "F:\\RicherLife\\codes\\win_terminal\\dist\\task-fix-validation-20260905-174704\\publication-final-test.log"
+  ],
+  "tests": {
+    "TaskCoreLocalTests::TaskCoreIdentifierTests::AcceptsCanonicalNonZeroUuid": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreIdentifierTests::RejectsNoncanonicalAndZeroUuid": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreIdentifierTests::StrongIdsRemainTypeSafeValues": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreAgentMutationTests::FourAgentMutationsCommitStatusResultAndEvents": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreAgentMutationTests::ReplayedCommandIgnoresServerSelectedExpectedVersion": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreAgentMutationTests::CrossTaskAndInactiveRunMutationsFailWithoutReceipt": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreAgentMutationTests::IncompleteIntentBlocksAgentMutation": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreAgentMutationTests::AgentResultSurvivesRunCompletionWithoutReplacement": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreAgentMutationTests::FailedResultEventRollsBackMutationVersionEventAndReceipt": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreAgentMutationTests::ValidationRejectsTextShapeAndBounds": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitStoreTests::FirstRunFreezesExecutionIdentityAndFailureRollsItBack": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitStoreTests::InitializeIsAtomicReplayableAndLoadsTypedGitState": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitStoreTests::InitializeRejectsUnfrozenDirectAndCrossTaskContexts": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitStoreTests::ExistingFrozenContextsAcceptCanonicalWindowsPathSpelling": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitStoreTests::DeleteRequiresFinalizedDeliveredCleanupEvidence": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitCheckpointTests::CheckpointPolicyAllowsDurableForwardAndRetryEdges": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitCheckpointTests::PersistsCheckpointAndReusesReadyWorktreeAcrossRuns": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitCheckpointTests::RecoversFailedCheckpointAndBlocksNextRunUntilResolved": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitCheckpointTests::RollsBackCheckpointAndWorktreeEvidenceTogether": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitFinalizationTests::FinalizationPolicyAllowsOnlyPreservingRetryAndCompletion": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitFinalizationTests::GuardsActiveRunPersistsFailureRetriesAndEnablesDelete": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitFinalizationTests::IncompleteCheckpointBlocksFinalizationUntilDelivered": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitWorktreeTransitionTests::SetupPolicyAllowsOnlyForwardFailureAndRecoveryEdges": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitWorktreeTransitionTests::AdvancesSetupEvidenceAtomicallyToReady": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitWorktreeTransitionTests::RejectsStaleIdentityEvidenceAndInvalidTransitions": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreGitWorktreeTransitionTests::FailureRetryAndEventRollbackRemainDurable": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreIntentPolicyTests::RestrictsStagesByIntentKind": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreIntentPolicyTests::AllowsForwardProgressFailureAndRetry": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreIntentPolicyTests::RejectsBackwardAndCompletedTransitions": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreIntentPolicyTests::IdentifiesManualHoldIntentKinds": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreMessageTests::PendingMessagesReviseAndClaimIntoOneFollowUpRun": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreMessageTests::MessagesFoldBeforeStartAndDeferAfterStarting": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreMessageTests::ManualHoldDefersMessagesUntilIntentCompletes": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreMessageTests::UnclaimedMessageCanBeRemovedButClaimedOutcomeIsImmutable": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreMessageTests::ClaimFailureRollsBackRunMessagesAndTaskVersion": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreMessageTests::EnforcesUnclaimedAndPerRunMessageLimits": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreProviderStoreTests::RecordsAndTransitionsCurrentAgentSessionAtomically": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreProviderStoreTests::AppendsOrderedProviderEventAndReplaysReceipt": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreProviderStoreTests::RejectsCrossTaskBindingsAndRollsBackEventFailure": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRecordValidationTests::AcceptsValidTaskAndExecutionContext": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRecordValidationTests::RejectsInvalidTaskIdentityBoundsAndOrdering": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRecordValidationTests::RejectsExecutionModeContradictions": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRecordValidationTests::ValidatesGitWorktreeProofAndStateInvariants": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRecordValidationTests::ValidatesGitCheckpointBoundsAndTerminalEvidence": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRecoveryTests::IntentProgressManualHoldAndResumePersistAcrossReopen": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRecoveryTests::RecoverySnapshotReturnsBoundedPendingResources": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRecoveryTests::CompletedIntentCanBeReplacedByNewLifecycleWork": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRecoveryTests::FailedCleanupCanBeRetriedButStillBlocksUnrelatedLifecycleWork": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRecoveryTests::IntentKindRejectsUnsupportedStageWithoutMutation": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRecoveryTests::IncompleteCleanupBlocksRunAndStatusWithoutManualHold": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRuntimeActivityTests::ReportsOnlyWorkThatRequiresResidentRuntime": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreSchemaTests::InitializesCompleteCurrentSchemaAndPragmas": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreSchemaTests::ReopenIsIdempotent": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreSchemaTests::RejectsFutureSchemaWithoutRewritingIt": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreSchemaTests::RejectsForeignAndUnversionedDatabases": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreSchemaTests::PreservesCorruptDatabaseForRecovery": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreSchemaTests::MigratesVersionOneSchemaAndPreservesTombstones": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreSchemaTests::FailedMigrationRollsBackWithoutVersionAdvance": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreSchemaTests::MigratesVersionTwoMessageSchema": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreSchemaTests::FailedVersionTwoMigrationRollsBack": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreSchemaTests::MigratesVersionThreeGitSchemaAndPreservesCheckpoints": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreSchemaTests::FailedVersionThreeMigrationRollsBack": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreStoreRunTests::CreateRunAssignsSequenceAndRejectsSecondActiveRun": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreStoreRunTests::RunTransitionsPersistImmutableTerminalOutcome": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreStoreRunTests::TerminalGenerationAndActiveRunGuardsAreTransactional": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreStoreRunTests::ActiveRunBlocksConflictingTaskStatus": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreStoreRunTests::CrossTaskRunReferencesAreRejectedWithoutReceipt": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreStoreRunTests::ExplicitRunAtomicallyClearsManualHold": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreStoreTaskTests::PersistsCompleteTaskAggregateAndReopens": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreStoreTaskTests::CommandReceiptReplayAndConflictAreDurable": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreStoreTaskTests::VersionConflictDoesNotMutateAndEventsPageInOrder": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreStoreTaskTests::FailedAggregateInsertRollsBackEveryRow": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreStoreTaskTests::ListTasksFiltersWorkspaceAndIncludesCriteria": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreDeletionTests::DeleteIsAtomicReplayableAndRetainedForThirtyDays": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreDeletionTests::DeleteRequiresReadyIntentAndNoActiveRun": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreDeletionTests::TombstoneCommandConflictDoesNotMutateAggregate": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreDeletionTests::TombstoneCleanupIsBoundedAndReportsRemainingWork": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRunStatePolicyTests::AcceptsOrderedExecutionAndTerminalOutcomes": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRunStatePolicyTests::RejectsSkippedAndBackwardTransitions": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreRunStatePolicyTests::TerminalOutcomesAreImmutable": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreTaskStatusPolicyTests::UserTransitionsFollowProductFlow": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreTaskStatusPolicyTests::AgentAuthorityCannotCompleteOrCancel": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreTaskStatusPolicyTests::CompletionCancellationAndRecoveryRespectGuards": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreTerminalStatePolicyTests::NewAndReopenedTerminalsRequireFreshGeneration": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreTerminalStatePolicyTests::InGenerationTransitionsKeepGeneration": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskCoreLocalTests::TaskCoreTerminalStatePolicyTests::ActiveRunBlocksSuspendAndClose": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::DirectoryIdentityTests::ResolvesUnicodeCaseAndExtendedAliasesToOneIdentity": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::DirectoryIdentityTests::DistinguishesDirectoriesAndKeepsDigestPolicyIndependent": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::DirectoryIdentityTests::RejectsMalformedMissingFileRootSystemAndUncPaths": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::DirectoryIdentityTests::RejectsReparseDeviceAndNonDirectoryAttributes": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitCommandBoundaryTests::WindowsQuotingPreservesEmptyQuotesBackslashesAndMetacharacters": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitCommandBoundaryTests::CommandLineBoundsFailBeforeProcessLaunch": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitCommandBoundaryTests::EnvironmentRemovesRepositorySelectorsAndAddsFixedPolicy": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitCommandBoundaryTests::EnvironmentOverridesAreAllowlistedBoundedAndUnique": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitCommandRunnerTests::PreservesStructuredArgumentsAndSanitizesEnvironment": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitCommandRunnerTests::ReportsTimeoutCancellationAndNonzeroExitWithoutShell": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitCommandRunnerTests::EnforcesOutputUtf8AndRequestBounds": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitCommandRunnerTests::CancellationTerminatesTheEntireDescendantJobTree": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitCommandRunnerTests::ExecutableValidationRejectsMissingRelativeAndDirectoryTargets": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitCommandRunnerTests::RepeatedCommandsReleaseProcessPipeAndJobHandles": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitRepositoryInspectorTests::InspectsMainLinkedAndDetachedSha1Worktrees": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitRepositoryInspectorTests::InspectsSha256AndRejectsBareUnbornAndPlainDirectories": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitRepositoryInspectorTests::RejectsOldGitAndPropagatesCancellationTimeoutAndInvalidOutput": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::GitRepositoryInspectorTests::CommonDirectoryLockDeadlineAndCancellationRemainBounded": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::TaskExecutionCrossProcessTests::DirectLeaseSerializesDifferentRuntimeIdentitiesAcrossProcesses": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::TaskExecutionCrossProcessTests::GitLockSerializesDifferentRuntimeIdentitiesAcrossProcesses": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::TaskExecutionLockTests::DirectLeaseIsStrictFifoAndRejectsReentrantOwner": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::TaskExecutionLockTests::DirectLeaseCancellationRemovesMiddleWaiter": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::TaskExecutionLockTests::DirectLeaseReportsAbandonedNamedMutex": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::TaskExecutionLockTests::GitLockHonorsTimeoutCancellationAndDirectoryParallelism": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::TaskExecutionLockTests::GitLockIsThreadAffineAndReportsAbandonedOwnership": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::TaskExecutionLockTests::MutexNamesAreScopedStableAndRejectBroadPrecreation": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskExecutionLocalTests::TaskExecutionLockTests::RepeatedAcquireReleaseDoesNotLeakHandlesOrQueueParticipants": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSnapshotFileTests::HashesUnicodeRegularFileWithStableIdentity": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSnapshotFileTests::RejectsInvalidMissingDirectoryAndReparseAttributes": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSnapshotFileTests::RejectsOversizedAndCancelledFilesWithoutReadingThem": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSourceCaptureLimitTests::AcceptsTwoThousandUntrackedFilesAndRejectsTheNext": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSourceCaptureLimitTests::AggregatesExactlyTwoHundredMiBAndRejectsOneMoreByte": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSourceCaptureLimitTests::RejectsSparseOversizedAndReparseFiles": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSourceCaptureTests::CapturesCleanRepositoryWithStableDigest": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSourceCaptureTests::CapturesDirtyUnicodeStateWithoutMutatingSource": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSourceCaptureTests::CapturesDirtySha256Repository": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSourceCaptureTests::DetectsVanishingAndDigestRacingUntrackedFiles": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSourceCaptureTests::DetectsTrackedAndStashReferenceRaces": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSourceCaptureTests::PropagatesCancellationDuringUntrackedCapture": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSourceCaptureTests::PreservesResourceFailureClassification": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSourceStatusTests::ParsesStagedUnstagedUntrackedIgnoredAndRenameRecords": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSourceStatusTests::RejectsMalformedStatusAndPathLists": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitSourceStatusTests::BoundsAndDeduplicatesNulPathLists": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeBaselineTests::UsesSourceHeadForCleanSnapshotAndRecoversIdempotently": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeBaselineTests::CommitsDirtyBaselineWithFallbackIdentityAndDisabledHooks": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeBaselineTests::RejectsIncompleteIdentityAndPreservesStagedCandidate": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeBaselineTests::PreservesStagedCandidateOnSigningFailureAndRetries": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeBaselineTests::RecoversCommitAfterMarkerReplacementFailure": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeCaptureJournalTests::CapturesJournalBeforePublishingMarkerAndReloads": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeCaptureJournalTests::RecoversMissingMarkerWithoutRecapturingChangedSource": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeCaptureJournalTests::RejectsOrphanMarkerWithoutJournalEvidence": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeCaptureJournalTests::PropagatesCaptureCancellationWithoutPublishingEvidence": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeCheckpointTests::PreservesAgentCommitsAndCheckpointsDirtyRemainderExactlyOnce": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeCheckpointTests::DoesNotCreateEmptyCommitAndReusesWorktreeForNextRun": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeCheckpointTests::DisablesHooksUsesFallbackIdentityAndSupportsSha256": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeCheckpointTests::PreservesSigningFailureAndRetriesWithoutLosingStagedWork": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeCheckpointTests::RecoversCommitAfterPostCommitObservationFailure": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeConcurrencyTests::SameRepositoryCheckpointCriticalSectionsSerialize": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeConcurrencyTests::DifferentRepositoryCheckpointCriticalSectionsRunInParallel": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeFileCopyTests::CopiesNestedUnicodeFileAtomicallyAndResumes": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeFileCopyTests::RejectsSourceChangeDestinationCollisionAndCancellation": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeFileCopyTests::RejectsSourceDestinationAndStagingReparsePoints": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeFileCopyTests::DiscardsOwnedPartialStagingBeforeRetry": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeFinalizeTests::RemovesBaselineEqualWorktreeAndBranchIdempotently": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeFinalizeTests::OccupiedDirectoryIsPreservedAndCleanupCanRetry": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskGitLocalTests::GitWorktreeFinalizeTests::RecoversEmptyDirectoryAfterGitRemovedRegistration": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeFinalizeTests::CheckpointsRemainderAndRetainsProducedBranchAndAgentCommit": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeFinalizeTests::PreservesIgnoredAndSigningFailuresForRetry": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeFinalizeTests::RejectsOwnershipMismatchWithoutRemovingAnything": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeFinalizeTests::RecoversPostCommitObservationWithoutDuplicateCommit": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeFinalizeTests::ResumesSidecarCleanupAfterWorktreeAndBranchRemoval": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeLayoutTests::PreparesDeterministicUnicodeManagedLayout": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeLayoutTests::DistinguishesTaskPathsAndRejectsInvalidRequests": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeLayoutTests::RejectsFileCollisionAndReparseRuntimeRoot": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeMarkerTests::CodecRoundTripsDeterministicallyAndRejectsCorruption": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeMarkerTests::CreatesReadsAndAtomicallyAdvancesMarkerEvidence": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeMarkerTests::RejectsInvalidIdentityStaleReplacementAndUnsafeFile": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreePreflightParserTests::ParsesBranchDetachedAndAdministrativeWorktreeRecords": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreePreflightParserTests::RejectsMalformedWorktreeAndIndexRecords": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreePreflightParserTests::ParsesSubmoduleFilterAndBooleanConfigurationEvidence": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreePreflightParserTests::EvaluatesDeterministicCollisionAndRecoveryPolicy": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreePreflightTests::AcceptsUnoccupiedAndExactOwnedRecoveryStates": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreePreflightTests::RejectsDeterministicBranchAndPathCollisions": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreePreflightTests::RejectsSparseSubmoduleFilterAndPromisorRepositories": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreePreflightTests::RejectsMissingObjectsChangedSourceAndCancellation": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeProvisionTests::CreatesDeterministicBranchWithoutMutatingSourceState": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeProvisionTests::RecoversDetachedAndAlreadyAttachedWorktrees": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeProvisionTests::PreservesDetachedWorktreeWhenBranchAttachmentFails": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeProvisionTests::RejectsCollisionAndCancellationBeforeCreation": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeReplayTests::ReplaysStagedUnstagedAndUntrackedStateWithoutIgnoredFiles": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeReplayTests::RetryReusesCopiedFilesAfterSourceFailure": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeReplayTests::RejectsUnrelatedTargetChangesWithoutOverwritingThem": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeReplayTests::PreservesTrackedStateWhenStashApplyFailsAndRecovers": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeReplayTests::ReplaysCleanSha256SnapshotIdempotently": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeSourceJournalTests::CodecRoundTripsAndRejectsCorruptionAndInvalidManifest": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeSourceJournalTests::PersistsRealCapturedSnapshotAndBindsMarker": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskGitLocalTests::GitWorktreeSourceJournalTests::RejectsWrongOwnershipAndCorruptedFile": {
+      "status": "Passed",
+      "log": "release-gate-final.log"
+    },
+    "TaskProviderLocalTests::CodexAppServerAdapterTests::InitializesStartsResumesAndRunsWithScopedContext": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::CodexAppServerAdapterTests::InitialRunDoesNotResumeMissingRolloutAndNextRunRefreshesCapability": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::CodexAppServerAdapterTests::TranslatesEventsAndCorrelatesApprovalResponse": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::CodexAppServerAdapterTests::PropagatesMethodErrorsAndTransportFailure": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::CodexAppServerAdapterTests::YoloPrecedesAppServerSubcommandInProcessCommandLine": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::CodexAppServerAdapterTests::OptInInstalledCodexInitializeSmoke": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::TaskProviderCoordinatorTests::LazilySharesOneProviderAndReconcilesCrashAcrossTasks": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::TaskProviderCoordinatorTests::StartingAfterCloseCreatesRunnableSession": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::TaskProviderCoordinatorTests::DefersRejectedSteeringDurably": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::TaskProviderCoordinatorTests::ClosePendingDoesNotStopSharedProvider": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::TaskProviderCoordinatorTests::SuspendResumeAndApprovalRemainTaskScoped": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::TaskProviderCoordinatorTests::EventWaitAllowsCommandsAndDiscardsEventsFromRestartedProvider": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::TaskProviderPolicyTests::ValidatesPinnedMethodContract": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::TaskProviderPolicyTests::ParsesCurrentInitializeShape": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::TaskProviderPolicyTests::ClassifiesRetryAndResumeBoundaries": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::TaskProviderPolicyTests::PreparesScopedRtaskContextWithoutOverrides": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::TaskProviderPolicyTests::NormalizesRedactsAndBoundsEvents": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::TaskProviderPolicyTests::NormalizesSupportedNotificationAndApprovalMatrix": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskProviderLocalTests::TaskProviderPolicyTests::RendersStructuredEventsAsBoundedVt": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ClientControlEnvelopeTests::DecodesResponseIntoVariant": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ClientControlEnvelopeTests::DecodesKnownAndUnknownNotificationsIntoVariant": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ClientControlEnvelopeTests::RejectsRequestsUnknownTypesAndMalformedPayloads": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ClientRequestPolicyTests::ReadOnlyRequestsRetryWithANewRequestId": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ClientRequestPolicyTests::SubscriptionMethodsUseExplicitReconnectActions": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ClientRequestPolicyTests::MutationsBecomeOutcomeUnknownAfterWriteStarts": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ControlFrameTests::EncodesLittleEndianLengthAndDecodesFragments": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ControlFrameTests::DecodesCoalescedFramesWithoutLosingRemainder": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ControlFrameTests::RejectsEmptyOversizedAndMalformedUtf8Payloads": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ControlFrameTests::BoundsTransportFeedAndFramesPerFeed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ControlFrameTests::ReconfiguresLimitOnlyAtAFrameBoundary": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ControlFrameTests::FailedDecoderRequiresExplicitReset": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ControlSessionTests::RequiresHelloBeforeAnyRequest": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ControlSessionTests::AcceptedHelloEnablesNegotiatedMethods": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ControlSessionTests::MissingCapabilityRejectsMethodWithoutClosingSession": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ControlSessionTests::DuplicateHelloMovesSessionToClosing": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ControlSessionTests::BoundsAndCorrelatesInflightRequests": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ControlSessionTests::ClosingAndClosedSessionsRejectNewWork": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolHandshakeTests::NegotiatesOverlappingMinorRangeAndCapabilities": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolHandshakeTests::RejectsIdentityAndMajorVersionMismatch": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolHandshakeTests::RejectsNonoverlappingMinorRanges": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolHandshakeTests::RejectsUnknownOrUnavailableRequiredCapabilities": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolHandshakeTests::RejectsInvalidClientAndRuntimeBounds": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolHandshakeTests::ClientValidatesRuntimeResponseIdentityVersionCapabilitiesAndLimits": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolJsonTests::HelloRequestRoundTripsCanonicalSchema": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolJsonTests::UnknownOptionalCapabilityIsIgnoredButRequiredIsRetained": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolJsonTests::RejectsDuplicateUnknownAndTrailingJsonFields": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolJsonTests::HelloResponseRoundTripsAndIgnoresFutureCapability": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolJsonTests::RejectsInvalidUtf8OversizeAndInvalidBounds": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolRpcJsonTests::MethodAndErrorNamesMapToCapabilities": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolRpcJsonTests::RequestRoundTripsStrictObjectPayload": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolRpcJsonTests::SuccessAndErrorResponsesRoundTripExclusively": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolRpcJsonTests::NotificationRoundTripsAndUnknownKindIsIgnorable": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolRpcJsonTests::RejectsInvalidIdsCursorsBodiesAndExtraFields": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolValidationTests::ValidatesCanonicalIdentifiersAndRuntimeIdentity": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolValidationTests::AcceptsWellFormedUtf8": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolValidationTests::RejectsMalformedOverlongAndSurrogateUtf8": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::ProtocolValidationTests::CapabilityNamesRoundTripDeterministically": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RuntimeFoundationRpcTests::PingResultRoundTripsCanonicalExactSchema": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RuntimeFoundationRpcTests::RuntimeStatusRoundTripsCanonicalExactSchemaAndProcessBounds": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RuntimeFoundationRpcTests::PingRejectsMissingUnknownWrongTypeAndInvalidIdentity": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RuntimeFoundationRpcTests::RuntimeStatusRejectsMissingUnknownWrongTypeAndInvalidValues": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RuntimeFoundationRpcTests::DecodersRejectMalformedUtf8AndOversizedPayloads": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RuntimeFoundationRpcTests::EncodersRejectEveryInvalidField": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RtaskCommandTests::MethodsAndSetsAreExactAndBounded": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RtaskCommandTests::FourCommandShapesEnforceScopedText": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RtaskCommandTests::Utf8TextLimitsAreByteAndCharacterBounded": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RtaskCommandTests::IdentityCapabilityAndResultsFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RtaskCommandTests::DiagnosticSummaryRedactsCapabilityAndText": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RtaskCommandJsonTests::FourRequestsRoundTripWithMethodExactSchemas": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RtaskCommandJsonTests::CommandResultRoundTripsUnsignedCursors": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RtaskCommandJsonTests::RepeatedEncodingPreservesIdempotencyIdentity": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RtaskCommandJsonTests::RejectsUnknownExtraDuplicateAndNumericDrift": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::RtaskCommandJsonTests::MalformedAndOversizedErrorsNeverEchoSecrets": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::SnapshotAndSubscribeTests::SnapshotResultRoundTripsStrictIdentityCursorAndObject": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::SnapshotAndSubscribeTests::UnsubscribeRequestRoundTripsStrictIdentity": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::SnapshotAndSubscribeTests::PreservesMaximumUnsignedCursorValues": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::SnapshotAndSubscribeTests::RejectsNumericAndUtf8Boundaries": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::SnapshotAndSubscribeTests::RejectsMalformedUnknownAndOutOfBoundsValues": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::SubscriptionCursorTests::SnapshotAndStrictlyNewNotificationsAdvanceCursor": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::SubscriptionCursorTests::DuplicatesAtOrBelowCursorAreIgnored": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::SubscriptionCursorTests::GapSubscriptionOrGenerationMismatchRequiresResnapshot": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::SubscriptionCursorTests::SubscriptionClosedAppliesThenRequiresResnapshot": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::SubscriptionCursorTests::InvalidSnapshotAndNotificationDoNotBecomeSynchronized": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::SubscriptionCursorTests::UnknownOptionalNotificationAdvancesCursorWithoutApplyingPayload": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::TerminalFrameTests::BinaryOutputRoundTripsAcrossFragmentedFeeds": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::TerminalFrameTests::CoalescedFramesRequireIncreasingSequence": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::TerminalFrameTests::ResizePayloadEnforcesDimensionsAndFrameShape": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::TerminalFrameTests::RejectsInvalidMagicVersionKindFlagsAndGeneration": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::TerminalFrameTests::RejectsOversizedFeedsPayloadsAndFrameBursts": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::TerminalFrameTests::FailedDecoderCanBeExplicitlyReset": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::TaskProjectionRpcTests::QueryAndProjectionRoundTripStrictly": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::TaskProjectionRpcTests::RemovedMessagesAllowEmptyContentWithoutHidingTasks": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::TaskProjectionRpcTests::UiCommandsRoundTripByOperation": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeProtocolLocalTests::TaskProjectionRpcTests::RejectsMalformedOversizedAndNoncanonicalPayloads": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeActivationDeadlineTests::DeadlineUsesOneAbsoluteMonotonicValue": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeActivationDeadlineTests::DeadlineSaturatesWithoutWrapping": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeActivationDeadlineTests::ZeroDelayAndExhaustedClockFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeActivationWindowsServicesTests::DeadlineAndPriorityOrderingAreExact": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeActivationWindowsServicesTests::WaitWakesForSignalBeforeDeadline": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeActivationWindowsServicesTests::InvalidHandlesFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeDirectConnectDispositionTests::OnlyStrictInitialAbsenceMayLaunch": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeDirectConnectDispositionTests::RetryCancelledAndFatalReasonsAreExhaustive": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorConcurrencyTests::ConcurrentClientsCoordinateOneLaunchAndAllConnect": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorExitTests::LaunchFailureIsTypedAndAlwaysReleasesLease": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorExitTests::DeterministicRuntimeExitCodesAreLaunchFailures": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorExitTests::UnexpectedRuntimeExitIsRetryableWithoutRelaunch": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorExitTests::SecondInstanceExitKeepsWaitingForWinner": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorExitTests::ProcessObservationFailureIsTyped": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorFlowTests::InvalidConfigurationFailsBeforeTouchingDependencies": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorFlowTests::ExistingRuntimeSkipsLockAndLaunch": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorFlowTests::AbsentRuntimeLaunchesOnceAndCompletesHello": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorFlowTests::RuntimeAppearingBeforeLockedReprobeSkipsLaunch": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorFlowTests::BusyOrHandshakingEndpointNeverLaunches": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorFlowTests::LockTimeoutAndCancellationDoNotLaunch": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorFlowTests::AllStagesShareOneAbsoluteDeadline": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorFlowTests::PostLaunchCancellationClosesObservationWithoutTermination": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchingConnectorFlowTests::PostLaunchDeadlineAndWaitFailuresCloseObservationWithoutTermination": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockDeterministicTests::PassesOneUnchangedAbsoluteDeadlineToWaitSeam": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockDeterministicTests::CancellationHandleIsAlwaysHighestPriority": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockDeterministicTests::InvalidIdentityDeadlineAndWaitFailureFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockMandatoryLabelTests::AcceptsPrecreatedMutexWithExactMediumNoWriteUpLabel": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockMandatoryLabelTests::RejectsMissingLowAndWrongMandatoryLabels": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockNamedMutexTests::SameIdentitySerializesCompetingThreads": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockNamedMutexTests::CancellationWinsBeforeAndDuringMutexWait": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockNamedMutexTests::AbsoluteDeadlineBoundsContendedWait": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockNamedMutexTests::DifferentRuntimeIdentitiesRemainIndependent": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockOwnershipTests::HandleIsNonInheritableAndAclContainsCurrentUserAndSystem": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockOwnershipTests::OwnerThreadScopeExitReleasesMutex": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockOwnershipTests::SameThreadMovesPreserveOwnership": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockOwnershipTests::CrossThreadReleaseIsRejectedWithoutLosingOwnership": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockOwnershipTests::AbandonedMutexIsAcquiredAndReported": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockOwnershipTests::RejectsPrecreatedMutexWithBroadAcl": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeLaunchLockOwnershipTests::RejectsPrecreatedMutexThatDeniesCurrentUser": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeParentJobTests::PlansNoJobSilentAndExplicitBreakawayExactly": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeParentJobTests::DeniedAndFailedParentJobQueriesFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeParentJobTests::ChildMustProveItIsOutsideEveryJob": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherPathTests::AcceptsDriveExtendedAndCaseInsensitiveExecutablePaths": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherPathTests::RejectsRelativeDriveRelativeRootedUncAndEmbeddedNullPaths": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherPathTests::RejectsWrongMissingDirectoryReparseAndDeviceExecutables": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherPathTests::RejectsReparseMissingAndNonDirectoryTrustedRootComponents": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherPathTests::ExecutableMustBeDirectlyInsideNonRootTrustedRoot": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherFailureTests::CreateFailureAndMalformedCreateResultCloseReturnedHandlesOnce": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherFailureTests::ChildJobQueryFailureAndStillInJobRollbackBeforeResume": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherFailureTests::ResumeFailureRollsBackSuspendedProcess": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherFailureTests::RollbackFailureDominatesOriginalFailureAndStillClosesHandles": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherSuccessTests::LaunchesWithExactCreateProcessContractForEveryJobStrategy": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherSuccessTests::PreCreateCancellationAndPollFailureCreateNothing": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherSuccessTests::CancellationAfterCreateStillResumesAndCommits": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherSuccessTests::AlreadyResumedChildCommitsWithoutTermination": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherSuccessTests::SuccessHandlesAreClosedExactlyOnce": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherValidationTests::RejectsMissingApiAndMismatchedRuntimeIdentity": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherValidationTests::ReportsCommandLineTooLongBeforeJobOrCreate": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherValidationTests::CancellationImmediatelyBeforeCreateStillCreatesNothing": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessLauncherValidationTests::ParentJobFailuresPreventCreate": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessObservationTests::ReportsRunningThenExitedWithExactProcessIdentity": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessObservationTests::PollExitQueryAndStillActiveFailuresAreTyped": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeProcessObservationTests::CloseIsIdempotentAndNeverTerminatesProcess": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeWindowsCommandLineTests::RoundTripsWindowsArgumentEdgeCases": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeWindowsCommandLineTests::AcceptsExact32767CharacterBoundary": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeActivationLocalTests::RuntimeWindowsCommandLineTests::RejectsOversizeEmptyAndEmbeddedNullArguments": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientEpochTests::ActivatesMonotonicEpochsWithoutReuse": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientEpochTests::RejectsBusyAndStaleTransitions": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientEpochTests::RetirementIsFirstWriterWins": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientEpochTests::EpochOverflowFailsClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientConnectDispositionTests::ActivationFailuresOverrideGenericTransportStatus": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientConnectDispositionTests::LegacyTransportClassificationRemainsStable": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientHeartbeatTests::InitialWindowUsesHalfAndFullDeadlines": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientHeartbeatTests::OddIntervalUsesFloorHalfWithForwardProgress": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientHeartbeatTests::FullDeadlineWinsOverPingDue": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientHeartbeatTests::PingDueQueuesOnceAndInflightWaitsForFullDeadline": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientHeartbeatTests::InboundSupersedesPingAndRearmsWindow": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientHeartbeatTests::InboundAndAckAtFullDeadlineDoNotRearm": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientHeartbeatTests::AcknowledgeRequiresExactOperationAndRejectsOldAck": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientHeartbeatTests::RetireRejectsOldEpochOperationAfterReinitialize": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientHeartbeatTests::BackwardClockFailsClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientHeartbeatTests::InitializationAndObservationOverflowFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientHeartbeatTests::HeartbeatRequestIdsAreCanonicalReservedAndUnique": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientInterfaceTests::DefaultBackoffIsBoundedAndDeterministic": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientInterfaceTests::DefaultRequestIdsAreCanonicalAndUnique": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientRequestTests::RejectsInvalidDuplicateAndOverCapacityAttempts": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientRequestTests::ResponseMayWinBeforeWriteCompletionReturns": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientRequestTests::ClassifiesStaleUnknownAndLateResponses": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientRequestTests::RetiresWriteStartedMethodsWithExplicitPolicy": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientRequestTests::RetiresWriteCompletedMethodsWithExplicitPolicy": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientRequestTests::QueuedAttemptsSurviveEpochRetirementAndCanBeCancelled": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientRequestTests::RetryRequiresAFreshRequestId": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientRequestTests::SoftTombstonesAreBoundedAndEpochClearable": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientRequestTests::ClearingOneEpochPreservesOtherTombstones": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientRequestTests::StopDrainRemovesOnlyQueuedAttempts": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientRequestTests::RetiresIntoPreallocatedBufferWithoutPartialMutation": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientRequestTests::SupersedesOnlyMatchingActiveEpochAttempts": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSchedulerTests::DeadlineEqualToNowReturnsImmediately": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSchedulerTests::PreSignaledWakeWinsAtDeadline": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSchedulerTests::FakePreSignaledWakeDoesNotConsumeInjectedFailure": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSchedulerTests::DeadlineAdditionSaturates": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSchedulerTests::InvalidWakeHandlesFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionStreamTests::DefaultsAreFrozenAndInvalidOptionsFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionStreamTests::PullsSnapshotAndNotificationInFifoOrder": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionStreamTests::UnknownOptionalPayloadCountsTowardEventLimit": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionStreamTests::ReservedCapacityCountsTowardRetainedMemory": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionStreamTests::NotificationCursorMustMatchWireSequence": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionStreamTests::EnforcesEventCountAndAggregateByteBounds": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionStreamTests::PullReportsTimeoutCancellationAndClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionStreamTests::CloseWakesPullAtWaitBoundary": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionStreamTests::TerminalEventSurvivesAFullQueueAndDrainsLast": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionStreamTests::ConcurrentProducerAndConsumerPreserveOrder": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionStreamTests::UnsubscribeAndDestructorInvokeRemoveExactlyOnce": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionBudgetTests::SharedBudgetCoordinatesStreamsAndPullReleases": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionBudgetTests::DestroyingStateReleasesReservation": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionBudgetTests::ConcurrentReservationsNeverExceedLimit": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::BoundsLogicalIdentityAndSelectsDesiredDeterministically": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::BindsSnapshotToEpochRequestAndAppliesCursorAtomically": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::ObservesKnownDuplicateAndUnknownNotifications": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::GapGenerationDriftAndClosedRequireResnapshot": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::RemovesLiveSubscriptionThroughBoundUnsubscribe": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::RemoveDuringSnapshotWaitsThenCleansWireSubscription": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::RemovedLogicalIdRejectsOldSnapshotAfterReuse": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::RetireEpochResnapshotsDesiredAndFinalizesRemoving": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::RejectsWireConflictDuplicateRequestAndStaleRevision": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::StaleEpochAndUnknownWireDoNotMutateCursor": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::FindsSnapshotAndUnsubscribeRequestBindings": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::SnapshotRequestFailureRetriesOrFinalizesRemoval": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::UnsubscribeRequestFailurePreservesWireForRetry": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::RuntimeClientSubscriptionTests::ForceNeedsSnapshotRejectsStaleAndFinalizesRemoval": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientReconnectTests::ReadOnlyRequestRetriesWithFreshRequestId": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientReconnectTests::TransmittedMutationReturnsOutcomeUnknownWithoutReplay": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientReconnectTests::NotSentRequestSurvivesEpochRetirement": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientReconnectTests::TransientConnectFailureBacksOffThenConnects": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientReconnectTests::ProtocolAndPermanentFailuresFaultWithoutRetry": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientReconnectTests::FatalConnectFailureCompletesQueuedRequest": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientReconnectTests::ImmediateDisconnectsAccumulateBackoffUntilHealthyResponse": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientReconnectTests::ReusedRequestIdFailsClosedBeforeWire": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientRequestFlowTests::ConnectRequestResponseAndLifecycle": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientRequestFlowTests::ResponseCanCompleteBeforeSendReturns": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientRequestFlowTests::ResponsesMayArriveOutOfOrder": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientRequestFlowTests::DuplicateResponseIsIgnoredAndConnectionRemainsUsable": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientRequestFlowTests::UnknownCurrentEpochResponseFaultsClient": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientRequestFlowTests::OneEpochUsesOnlyOneWriter": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientRequestFlowTests::SubscriptionMethodsRemainOutsideRequestCore": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSchedulerTests::ReconnectOccursAtExactVirtualDeadline": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSchedulerTests::FrozenVirtualTimeDoesNotBusyLoop": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSchedulerTests::StopWakesBackoffWithoutAdvancingTime": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSchedulerTests::SchedulerFailureFaultsQueuedRequestWithoutRetry": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSchedulerTests::ZeroBackoffFaultsWithoutScheduling": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSchedulerTests::SaturatedClockFaultsWithoutReconnect": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSchedulerTests::RequestQueuedDuringBackoffSucceedsAfterDeadline": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSchedulerTests::ConsecutiveBackoffsUseAbsoluteDeadlines": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatIntegrationTests::HalfIntervalPingAndAckRearmExactDeadlines": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatIntegrationTests::MissingAckRetiresAtFullDeadlineThenBacksOff": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatIntegrationTests::AdvancePastFullDeadlineDoesNotSendLatePing": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatIntegrationTests::PublicResponseRearmsHeartbeatWindow": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatIntegrationTests::SupersededOldAckDoesNotRefreshLiveness": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatIntegrationTests::SubscriptionResponseRearmsHeartbeatWindow": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatIntegrationTests::SubscriptionNotificationRearmsHeartbeatWindow": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatLifecycleTests::HeartbeatUsesReservedCapacityWhenUserQueueIsFull": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatLifecycleTests::StopWinsWhileHeartbeatDeadlineReturns": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatLifecycleTests::StopCancelsInflightHeartbeatWithoutReconnect": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatLifecycleTests::HeartbeatAckResetsReconnectBackoffHealth": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatFailureTests::HeartbeatSendsWhenUserByteBudgetIsExactlyFull": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatFailureTests::HeartbeatAckMayCompleteBeforeSendReturns": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatFailureTests::ActiveHeartbeatSchedulerFailureFaultsQueuedRequest": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatFailureTests::HeartbeatSendFailureRetiresThenBacksOff": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatFailureTests::WrongNamespaceAndFutureHeartbeatAcksFaultClient": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientHeartbeatFailureTests::PublicReservedRequestIdIsRejectedBeforeWire": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientProductConnectorTests::DefaultConnectorRequiresExplicitActivationPaths": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientProductConnectorTests::InjectedConnectorDoesNotRequireProductActivationPaths": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientStopTests::StopDuringConnectCompletesQueuedRequest": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientStopTests::StopDuringBackoffIsImmediate": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientStopTests::StopDuringReceiveJoinsBeforeClose": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientStopTests::StopDuringBlockedMutationSendReturnsOutcomeUnknown": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientStopTests::CloseWaitsForCancellationToReturn": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientStopTests::FacadeMayBeDestroyedFromConnectCall": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientStopTests::FacadeMayBeDestroyedFromSendCall": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientStopTests::FacadeMayBeDestroyedFromReceiveCall": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientStopTests::FacadeMayBeDestroyedFromCancelCall": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientStopTests::FacadeMayBeDestroyedFromCloseCall": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientStopTests::ResponseRetireAndStopRaceCompletesExactlyOnce": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionIntegrationTests::SubscribeWhileConnectingSnapshotsWhenReady": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionIntegrationTests::SnapshotResponseMayCompleteBeforeSendReturns": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionIntegrationTests::SnapshotPrecedesBufferedNotification": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionIntegrationTests::DuplicateAndUnknownAdvanceWithoutVisibleDelta": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionIntegrationTests::CursorFailuresReconnectAndUseFreshWireIdentity": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionIntegrationTests::TwoSubscriptionsCorrelateOutOfOrderResponses": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionIntegrationTests::UnsubscribeIsSafeInDesiredInflightAndLivePhases": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionIntegrationTests::FullStreamReconnectsWithoutSilentCursorLoss": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionIntegrationTests::StopAndFacadeDestructionWakeWithClientStopped": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionIntegrationTests::SnapshotDisconnectCeilingFaultsStream": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionIntegrationTests::UserSnapshotAndUnsubscribeIdsAreGloballyUnique": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionFailureTests::PermanentOversizedSnapshotFaultsAtAttemptLimit": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionFailureTests::StopOnFinalSnapshotAttemptReportsClientStopped": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionFailureTests::NegotiatedFrameLimitRejectsOnlyOversizedSubscription": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeClientLocalTests::TaskRuntimeClientSubscriptionFailureTests::MultipleSubscriptionsResnapshotTogetherOnNewEpoch": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeBootstrapTests::SingleInstanceRejectsSecondOwnerAndReleasesWithRaii": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeBootstrapTests::ControlPipeUsesDerivedNameSecurityAndFirstInstanceGuard": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeBootstrapTests::DifferentRuntimeIdentityUsesIndependentKernelObjects": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeBootstrapTests::BootstrapComposesIdentitySecurityInstanceAndPipe": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeBootstrapTests::InvalidKernelObjectConfigurationFailsClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RtaskCommandLineTests::ParsesTheFourAcceptedCommands": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RtaskCommandLineTests::HelpIsTheOnlyNonCommandMode": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RtaskCommandLineTests::RejectsExtraScopeSecretsAndMalformedForms": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RtaskContextAndStdinTests::ContextAcceptsOnlyExactLocalEndpointRunAndCapability": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RtaskContextAndStdinTests::ContextRejectsRemoteAliasAndSecretShapeDrift": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RtaskContextAndStdinTests::StdinPreservesExactBytesAndBoundsGrowth": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RtaskContextAndStdinTests::StdinRejectsEmptyInvalidConfigurationAndOversize": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RtaskClientTests::SendsHelloAndOneCorrelatedSubmitCommand": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RtaskClientTests::ReturnsTypedRpcErrorWithoutLeakingRequestPayload": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RtaskClientTests::ClassifiesConnectSendAndReceiveFailures": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RtaskClientTests::RejectsIdentityContextAndCorrelationDrift": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeCommandLineTests::AcceptsLegalModesAndPairedInternalHandles": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeCommandLineTests::RejectsMalformedOptionsTable": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlChannelTests::OverlappedChannelRoundTripsQueuedFrames": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlChannelTests::ClientAndServerPerformValidatedHelloHandshake": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlChannelTests::ClientRejectsWrongRuntimeHelloIdentity": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlChannelTests::ReceiveTimesOutThenObservesPeerDisconnect": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlChannelTests::MalformedRawFrameFailsDecoderClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlChannelTests::ConnectToMissingRuntimeIsBounded": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlConnectorTests::ConnectsPerformsHelloAndAppliesNegotiatedLimit": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlConnectorTests::MissingPipeHonorsBoundedTimeout": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlConnectorTests::PrecancelledAndWaitingConnectReturnCancelled": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlConnectorTests::CancelsHandshakeWaitWithoutReturningConnection": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlConnectorTests::ProtocolRejectedAndMalformedHelloReturnNoConnection": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlConnectorTests::CancelPendingIoTerminatesEpochAndReconnectsCleanly": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlConnectorTests::HandshakeUsesOneBoundedDeadline": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlDiscoveryTests::ImmediatePolicyReturnsPreciseEndpointAbsent": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlDiscoveryTests::PrecancelledImmediateDiscoveryStillReturnsCancelled": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlDiscoveryTests::BusyEndpointNeverLooksAbsent": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlDiscoveryTests::InvalidDiscoveryPolicyFailsClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationConcurrencyTests::PendingDuplicateOwnerIsVisibleBeforeRouteReturns": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationConcurrencyTests::PendingBudgetReservesSnapshotResponseSlot": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationConcurrencyTests::StopRejectsEveryPublishAfterItsLinearizationPoint": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationTests::SnapshotResponsePrecedesFirstNotification": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationTests::NotificationTargetsOnlyOwningWindow": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationTests::UnsubscribeStopsFutureDelivery": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationTests::SuccessfulSubscriptionMethodsRequireMatchingSideEffects": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationTests::EnforcesMonotonicNotificationSequence": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationTests::SubscriptionClosedRemovesOwnership": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationTests::SlowSubscriberDoesNotBlockAnotherSubscription": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationTests::DisconnectCleansOwnershipAndReconnects": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationTests::InvalidSubscriptionChangeReturnsInternalError": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationTests::InvalidOrWrongGenerationNotificationIsNotDelivered": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationTests::NegotiatedPayloadLimitAppliesBeforeQueueing": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationTests::SubscriptionCountIsBoundedPerClient": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlNotificationTests::AmbiguousSubscriptionOwnerFailsClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlQueueTests::DequeuedPayloadCountsUntilWriterCompletesIt": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlQueueTests::EnforcesByteAndMessageValidationBounds": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlQueueTests::BatchEnqueueIsAtomicAndOrdered": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlQueueTests::CloseWakesAWaitingWriter": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlServerTests::RoutesTwoHelloValidatedClientsIndependently": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlServerTests::StalledHelloDoesNotBlockAnotherClient": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlServerTests::RejectsCapabilityWithoutInvokingRouterAndKeepsSessionReady": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlServerTests::RejectsRequestBeforeHelloAndRecordsMalformedPeer": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlServerTests::ConvertsRouterExceptionToTypedError": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlServerTests::SlowClientDoesNotBlockAnotherClient": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlServerTests::ClientLimitRejectsOnlyTheNewConnection": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlServerTests::LastClientDisconnectLeavesServerAvailableForReconnect": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlServerTests::StopDuringSubscriptionPlanningCancelsBeforeRoute": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlServerTests::InvalidServerConfigurationFailsClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlServerTests::StopCancelsIdleAcceptorAndClientReads": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlServerTests::StopFromRouterWorkerDoesNotJoinItself": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlServerTests::RapidDisconnectDuringSessionPublicationIsReapedSafely": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlSubscriptionRecoveryTests::ConflictingPlanDoesNotRemoveExistingOwner": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeControlSubscriptionRecoveryTests::RouterExceptionAfterPlanningCancelsReservation": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeCryptoTests::Sha256MatchesKnownVectorAndEmptyInput": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeCryptoTests::RandomUuidsAreCanonicalAndUnique": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeFoundationRouterTests::PingAndRuntimeStatusReturnExactFoundationFields": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeFoundationRouterTests::NonEmptyOrMalformedParametersReturnInvalidRequest": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeFoundationRouterTests::CancellationReturnsRuntimeUnavailable": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeFoundationRouterTests::UnsupportedMethodReturnsInvalidRequest": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeFoundationRouterTests::ConcurrentReadOnlyRoutesRemainIndependent": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeFoundationRouterTests::DrainRequestIsExplicitAndCallbackBound": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeGitWorktreeSetupTests::RecoversEveryExternalPhaseAfterStoreRollback": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeGitWorktreeSetupTests::PersistsCaptureCancellationAndRequiresExplicitRetry": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeGitWorktreeCheckpointTests::CheckpointsEveryTerminalOutcomeAndKeepsWorktreeReady": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeGitWorktreeCheckpointTests::FakeRunsPreserveAgentCommitsAndReuseOneWorktree": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeGitWorktreeCheckpointTests::RecoversStartInspectAndCommitAfterStoreRollbacksExactlyOnce": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeGitWorktreeCheckpointTests::PersistsSigningFailureBlocksNextRunAndRetriesExplicitly": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeGitWorktreeFinalizeTests::BlocksActiveRunThenFinalizesEmptyWorktreeWithoutChangingTaskStatus": {
+      "status": "Passed",
+      "log": "publication-tests.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeGitWorktreeFinalizeTests::CheckpointsDirtyRemainderAndRetainsResultBranch": {
+      "status": "Passed",
+      "log": "publication-tests.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeGitWorktreeFinalizeTests::PersistsSigningFailureAndRetriesPreservedWorktree": {
+      "status": "Passed",
+      "log": "publication-tests.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeGitWorktreeFinalizeTests::RecoversAfterGitRemovalBeforeSqlitePublication": {
+      "status": "Passed",
+      "log": "publication-tests.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeGitWorktreeFinalizeTests::ResumesSidecarFailureWithoutRepeatingGitRemoval": {
+      "status": "Passed",
+      "log": "publication-tests.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeGitWorktreeMilestoneTests::RepeatedSqliteAndServiceRestartsResumeCheckpointAndFinalize": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeHelperIdleStateTests::DefaultGraceIsTwoMinutesAndExactExpiryExits": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeHelperIdleStateTests::EveryActivityClassCancelsAndRestartsGrace": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeHelperIdleStateTests::CompletedConnectionSequenceRestartsGrace": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeHelperIdleStateTests::ActivityWinsAtTheExactDeadline": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeHelperIdleStateTests::UnavailableObservationFailsIdleClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeHelperIdleStateTests::NewActivityCanCancelAnExitReadyDecision": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeHelperIdleStateTests::ClockAndActivitySequenceRegressionsFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeHelperIdleStateTests::InvalidDurationAndClockExhaustionAreRejected": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductHostProcessTests::RealServeAcceptsHelloWithNegotiatedContract": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductHostProcessTests::PingAndRuntimeStatusReportConcreteHost": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductHostProcessTests::ReconnectPreservesRuntimeInstanceAndProcess": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductHostProcessTests::SecondIdentityInstanceExitsThreeWithoutDisruptingOwner": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductHostProcessTests::MalformedPeerIsIsolatedFromHealthyPeers": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductHostProcessTests::ShutdownEventStopsGracefullyAndReleasesIdentityResources": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductHostProcessTests::RealRuntimePersistsTerminalUiCreateAndQuery": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductHostProcessTests::DrainStopsQuiescentRuntimeWithoutForcedCleanup": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductHostIdleProcessTests::QuiescentRuntimeExitsSuccessfullyAfterGrace": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductHostIdleProcessTests::ControlClientCancelsExitAndDisconnectRestartsFullGrace": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductHostIdleProcessTests::ActiveRunSurvivesAllUiClientsAndAllowsReconnect": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductRouterTests::RoutesTaskCtlSubmitCommandToDurableService": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductRouterTests::RejectsUiCancelledMalformedAndUnauthorizedSubmit": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductRouterTests::PreservesFoundationPingAndRuntimeStatusRoutes": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeProductRouterTests::RoutesTerminalUiCreateAndQueryToTaskProjectionService": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskProviderSinkTests::PersistsSessionRunEventsFailureAndDeferredSteering": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskProviderSinkTests::BatchesSequentialProviderEventsWithoutLosingOrder": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskProviderSinkTests::RejectsUnknownAndCrossTaskProviderIdentity": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskProjectionServiceTests::CreateQueryStartStopAndCloseUseDurableReceipts": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskProjectionServiceTests::QueryFiltersWorkspaceCompletionAndEventTail": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskProjectionServiceTests::WorktreeDraftProjectsDeterministicFuturePath": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskProjectionServiceTests::RejectsStaleAndInvalidCommandsWithoutMutation": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskProjectionServiceTests::MessageRetryAndDerivedTaskCommandsAreDurable": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskProjectionServiceTests::OpenTerminalCreatesOneGenerationAndEnforcesSurfaceOwner": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskTerminalServiceTests::OpenStreamsSnapshotInputInterruptAndGracefulClose": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskTerminalServiceTests::SurfaceOwnerIsExclusiveUntilTerminalClientDetaches": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskTerminalServiceTests::InputAndInterruptDoNotBlockConcurrentProviderOutput": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskOrchestratorTests::RetryPolicyIsAllowlistedBoundedAndBackedOff": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskOrchestratorTests::FollowupPromptPreservesCanonicalMessageOrder": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskOrchestratorTests::ManualAndAutomaticRetriesRetainFollowupInput": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskOrchestratorTests::DirectQueuedRunExecutesToCompletionAndReleasesRuntimeResources": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskOrchestratorTests::StopIntentCancelsPendingRunAndRetainsManualHold": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskOrchestratorTests::CancelIntentPersistsCancelledBeforeCompletingClose": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskOrchestratorTests::IdleTerminalWithoutProviderSessionSuspends": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskOrchestratorTests::RecoversEveryPreparationStateWithoutAnAgentSession": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskOrchestratorTests::SchedulerShutdownPreservesDirectoryWaitForRestart": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskOrchestratorTests::StopCloseAndDeleteWaitForProviderCompletionAndKeepDirectoryLease": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskOrchestratorTests::DeleteCancelsAnActualDirectoryWait": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTaskOrchestratorTests::WorktreeTaskCreatedThroughProjectionRunsToCompletion": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeCodexDiscoveryTests::AcceptsOnlyAbsoluteRegularNativeExecutables": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeCodexDiscoveryTests::DiscoveryNeverRequiresCodexInstallation": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeRtaskCapabilityRegistryTests::RejectsInvalidConfigurationScopeAndLifetime": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeRtaskCapabilityRegistryTests::AuthorizationBindsTokenRunAndMethod": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeRtaskCapabilityRegistryTests::IssueRenewReplayAndExpiryAreIdempotent": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeRtaskCapabilityRegistryTests::InvalidationCapacityAndExpiredPurgeAreRunScoped": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeRtaskCapabilityRegistryTests::ClockTokenSourceAndCollisionFailuresAreBounded": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeRtaskCapabilityRegistryTests::SystemTokenSourceProducesUniqueValidSecrets": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeRtaskCommandServiceTests::IssueRequiresCapabilityBoundActiveRun": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeRtaskCommandServiceTests::ExecuteCommitsAndReplaysOneAgentMutation": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeRtaskCommandServiceTests::AuthorizationRejectsWrongMethodTokenAndExpiry": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeRtaskCommandServiceTests::CrossTaskBindingAndTerminalRunFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeRtaskCommandServiceTests::ResultPersistsAndRunInvalidationIsImmediate": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeRtaskEndToEndTests::RealPipeClientCommitsAndReplaysThroughProductRouter": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeIdentityTests::IdentityIsStableAcrossCaseAndLexicalPathAliases": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeIdentityTests::ChannelRootAndUserSidIsolateRuntimeObjects": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeIdentityTests::DerivedNamesAreBoundedAndProtocolSafe": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeIdentityTests::RejectsRelativeRootsInvalidChannelsAndInvalidSids": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeIdentityTests::CurrentUserIdentityMatchesExplicitSid": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeIdentityTests::ConcurrentCurrentUserIdentityDerivationIsStable": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeActivationJobTests::RealSilentAndExplicitBreakawayLeaveEveryJob": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeActivationJobTests::RealDeniedBreakawayCreatesNoRuntime": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeActivationJobTests::RealNotInJobStrategyWhenHarnessCanBreakAway": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeOnDemandActivationTests::ProductClientActivationOutlivesShortLivedParent": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeOnDemandActivationTests::ConcurrentThreadsLaunchExactlyOneRealRuntime": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeOnDemandActivationTests::ConcurrentProcessesLaunchExactlyOneRealRuntime": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeOnDemandActivationTests::CrashedRuntimeRestartsWithNewProcessIdentity": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeSecurityTests::DescriptorIsProtectedNonInheritableAndOwnedByCurrentUser": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeSecurityTests::DaclGrantsOnlyCurrentUserAndLocalSystem": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeSecurityTests::MandatoryLabelRejectsLowIntegrityWrites": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeSecurityTests::RejectsMalformedUserSid": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalEndpointTests::EndpointDerivationBindsRuntimeSessionAndGeneration": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalEndpointTests::EndpointValidationRejectsDriftAndMalformedIdentity": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalEndpointTests::TerminalPipeUsesCurrentUserSecurityAndFirstInstanceGuard": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalChannelTests::BinaryFramesRoundTripAcrossFragmentedAndCoalescedWrites": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalChannelTests::ChannelRejectsStaleGenerationAndNonMonotonicSend": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalChannelTests::PayloadBoundsAndMalformedInputFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalChannelTests::CancellationInterruptsPendingTerminalRead": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalChannelTests::TerminalBackpressureDoesNotBlockControlPipe": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalChannelTests::MissingTerminalEndpointTimeoutAndCancellationAreBounded": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalHandshakeTests::HandshakeBindsIdentityCapabilityAndPayloadLimit": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalHandshakeTests::ClientRejectsWrongIdentityAndMissingTerminalCapability": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalHandshakeTests::ServerRejectsWrongEndpointIdentityWithErrorFrame": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalHandshakeTests::ServerRequiresHelloAsFirstSequenceOneFrame": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalHandshakeTests::LocalHandshakeConfigurationFailsBeforeWire": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalHandshakeTests::ClientDeadlineAndCancellationRemainBounded": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalResourceTests::RepeatedConnectRoundTripAndCloseReleasesHandles": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalOutputRingTests::RejectsInvalidConfiguration": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalOutputRingTests::AppendTracksExactFrameAndByteBounds": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalOutputRingTests::EvictionAdvancesConservativeCatchUpWatermark": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalOutputRingTests::RejectedAppendNeverMutatesRing": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalOutputRingTests::CatchUpClassifiesGenerationReplayResetAndAhead": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalOutputRingTests::EndOfStreamMayRetainAnEmptyOutputFrame": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalInputLeaseTests::RejectsInvalidConfigurationClientAndGeneration": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalInputLeaseTests::AcquireRenewAndBusyPreserveOneController": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalInputLeaseTests::AuthorizationRequiresOwnerGenerationAndLeaseRevision": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalInputLeaseTests::ExactExpiryAndReacquirePreventAbaInput": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalInputLeaseTests::ReleaseAndDisconnectAreOwnerScopedAndIdempotent": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalInputLeaseTests::ClockRegressionSaturationAndRevisionExhaustionFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalLifecycleTests::DefaultGraceIsFiveMinutesAndExpirySuspends": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalLifecycleTests::ActiveRunCancelsAndRestartsTheFullGrace": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalLifecycleTests::AttachedClientWinsTheDeadlineRace": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalLifecycleTests::DeadlineWinsTheAttachRaceAndWakeUsesNewGeneration": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalLifecycleTests::NewWorkWakesSuspendedAndPassiveReconnectDoesNot": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalLifecycleTests::ClosedNeverAutomaticallyWakes": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalLifecycleTests::WakeFailureIsRecordedAndCanStartAnotherGeneration": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalLifecycleTests::SynchronizationRejectsStaleGenerationAndRearmsReady": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalLifecycleTests::ClockAndGenerationExhaustionFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalLifecycleTests::InvalidInitialStateGenerationAndDurationAreRejected": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalClientRegistryTests::RejectsInvalidConfigurationAndAttachIdentity": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalClientRegistryTests::AttachIsUniqueAndCapacityBounded": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalClientRegistryTests::PerClientQueueBoundsIsolateSlowPeer": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalClientRegistryTests::QueueManyPreflightDoesNotPartiallyMutateOnBoundsFailure": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalClientRegistryTests::PullPreservesFifoAndExactWireByteAccounting": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalClientRegistryTests::AcknowledgementIsMonotonicGenerationBoundedAndPerClient": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalClientRegistryTests::LeaseBindingAndDetachReturnExactRevision": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalSessionLifecycleTests::RejectsInvalidConfigurationAndMissingBackend": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalSessionLifecycleTests::AttachSnapshotsReplaysAndFansOutToObservers": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalSessionLifecycleTests::EvictionQueuesResetAndAcknowledgementsRemainMonotonic": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalSessionLifecycleTests::SlowControllerDisconnectIsTargetedAndReleasesLease": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalSessionLifecycleTests::LeaseOwnershipDisconnectExpiryAndAbaAreVersioned": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalSessionFrameTests::OnlyControllerMayWriteInputAndResize": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalSessionFrameTests::EscapeAndControlStopConvergeOnBackendInterrupt": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalSessionFrameTests::SnapshotFailuresDetachOnlyTheAttachingClient": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalSessionFrameTests::BackendOperationFailuresAreContainedAndReported": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalSessionFrameTests::HeartbeatValidationAndSequenceExhaustionFailClosed": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeTerminalSessionFrameTests::InvalidOutputDoesNotAdvanceAndEndOfStreamIsPublished": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::InitializesSchemaAndWal": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::MigratesVersionOneSchema": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::MigratesVersionTwoSchema": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::MigratesVersionThreeReceiptsAndBuildsFts": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::SessionSummariesUpsertListSortAndFilter": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::SessionSummaryMergePreservesHookAuthority": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::SessionSummaryDeletionAndValidationBoundaries": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::UpsertIsIdempotentAndPreservesPrompt": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::StagedUpsertHidesIncompleteTurns": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::PromptThenFinalUsesFinalMetadata": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::FinalThenPromptPreservesFinalMetadata": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::EventReceiptsAckReplayAndRejectConflicts": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::FiltersByWorkspaceAndUnicodeSearch": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::StructuredQueryFiltersSessionAndClosedReceivedRange": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::FullTextSearchTracksUpdatesDeletesAndLiteralQueries": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::FullTextSearchFallbackPreservesSearchBoundaries": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::PinnedTurnsSortFirst": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::DeleteTurnAndSession": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::DeleteWorkspaceAndAllUnpinnedPreserveReceiptsAndPins": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::CleanupUsesReceivedTimeAndPreservesPinned": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::CleanupEnforcesCountAndPayloadLimits": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::CleanupTombstonesAcksAndEventuallyPurgesReceipts": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::CleanupFailureRollsBackTombstonesAndTurns": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::ConcurrentStoresSerializeCleanup": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::PersistsAcrossReopen": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::ConclusionProtocolAcceptsOptionalPrompt": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::HistoryIngestProtocolIsStrict": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::InboxImportsStagesAndDeletesCommittedFiles": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::InboxImportsAndReplaysEmergencySlots": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::InboxRetainsEmergencySlotWhileProducerWrites": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::InboxPrioritizesEmergencySlotsWithinFileLimit": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::InboxDefersOtherWorkspacesAndRetainsCommitFailures": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::InboxQuarantinesInvalidAndProhibitedPayloads": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::InboxBoundsFileSizeAndCount": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::InboxBoundsAllDirectoryEntries": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::InboxRejectsReparsePointRoot": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::ConcurrentInboxesShareQuarantineBudget": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::AgentHistoryStoreTests::InboxPathBuildersAreDeterministic": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::CodexAppServerTests::HandshakePrecedesListAndHandlesFragmentedNotifications": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::CodexAppServerTests::RejectsWrongResponseId": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::CodexAppServerTests::ClassifiesUnsupportedAndBusinessErrors": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::CodexAppServerTests::FailsClosedOnOversizeTimeoutAndCancellation": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::CodexAppServerTests::ListTotalBudgetBoundsPagination": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::CodexAppServerTests::DetectsPaginationLoop": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::CodexAppServerTests::ReadThreadExtractsOnlyPromptAndFinal": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::CodexAppServerTests::ProbeResumeUnsubscribesBestEffort": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::CodexAppServerTests::Win32TransportBoundsNonReadingChild": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::WorkspaceGitMetadataTests::QueriesMainLinkedDetachedAndUnicodeWorktrees": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::WorkspaceGitMetadataTests::ValidatesExactDriftRepositoryWorktreeAndMissingStates": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::WorkspaceGitMetadataTests::RejectsInvalidBoundsAndClassifiesFakeTimeout": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskPageViewModelTests::StartsEmptyAndLoadsInjectedProjection": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskPageViewModelTests::FiltersAndPreservesSelectionByTaskId": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskPageViewModelTests::RoutesCommandsAndDraftsThroughProjectionSource": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskPageViewModelTests::CreatesTaskPageXamlTypes": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskPageViewModelTests::PageFilteringPreservesSelectionByTaskId": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskPageViewModelTests::PrototypeResolvesStableWorkspaceKey": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskPageViewModelTests::ProjectionCoordinatorRejectsStaleGenerationAndAcceptsNewEpoch": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskPageViewModelTests::SourceChangeBatchesReloadAndPreservesSelection": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskPageViewModelTests::RuntimeProjectionMapsRunsMessagesAndDetails": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskPageViewModelTests::IdleRuntimeProjectionObservesExternalCreationAndDeletion": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskSurfacePolicyTests::UserSurfaceCloseMatrixRemainsCompatible": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskSurfacePolicyTests::TaskSurfaceRejectsEveryUserCloseOrigin": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskSurfacePolicyTests::BulkWindowAndConnectionOriginsHaveDedicatedActions": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskSurfacePolicyTests::RuntimeAuthorizationIsGenerationBoundAndSingleUse": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskSurfacePolicyTests::ReconnectReplacesFailedOrPreviousRuntimeSurfaces": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskSurfacePolicyTests::EscapeSequencesDoNotInterruptOrPolluteTaskInput": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskSurfacePolicyTests::PastedLinesAndSurrogateBackspacePreserveMessages": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TaskAgentSessionRegistryTests::FullAndIncrementalSnapshotsExcludeOnlyCurrentTaskSessions": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TabTests::WorkspaceSidebarAdaptsToWindowModes": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TabTests::WorkspaceSurfaceShortcutActions": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TabTests::WorkspaceSnapshotOmitsRuntimeProcessState": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TabTests::WorkspaceSnapshotOpenIsNonConsuming": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TabTests::WorkspaceSnapshotRejectsUnsafeActions": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TabTests::WorkspaceSnapshotSourceSurvivesContentAttach": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TabTests::WorkspaceSnapshotStaleSourceIsCleared": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TerminalAppLocalTests::TabTests::WorkspaceLayoutPersistsMetadata": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::SaveAndLookupWorkspace": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::RemoveWorkspaceReturnsFalseWhenMissing": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::RenameWorkspaceMigratesEntry": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::RenameWorkspaceNoOpForEmptyOrEqualNames": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::RenameWorkspaceNoOpForMissingEntry": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::TakeWorkspaceRemovesAndReturns": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::TakeWorkspaceReturnsNullWhenMissing": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::WorkspaceSidebarStateRoundTrips": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::WindowLayoutWorkspaceMetadataRoundTrips": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::WindowLayoutWorkspaceSnapshotSourcesAreStrict": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::WorkspaceSnapshotJsonAndDiskRoundTrips": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::WorkspaceSnapshotLookupIsNonConsuming": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::SaveWorkspaceSnapshotUpsertsById": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::RemoveWorkspaceSnapshotIsIdempotent": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::ApplicationStateTests::InvalidWorkspaceSnapshotsAreRejected": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::SchemaV2RoundTripsGitBinding": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::MultiSurfaceMetadataRoundTrips": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::ValidatorRejectsMalformedGitBinding": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::TwoStoresUseRevisionCas": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::TouchMergesWithoutRevisionChange": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::ReturnedSnapshotsAreDetached": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::CorruptAndOversizedFilesAreRejected": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::ReparseStoreRootIsRejected": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::ReparseSnapshotDirectoryIsRejected": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::StandardAndElevatedScopesAreIsolated": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::CapacityIsBounded": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::ApplicationStateResetRemovesCorruptStoreFiles": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::MigrationIsIdempotentAcrossCrashWindow": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotStoreTests::MigrationRetainsFailedLegacyEntries": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotExchangeTests::RoundTripUsesStrictPortableEnvelope": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotExchangeTests::EnvelopeSizeIsBounded": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotExchangeTests::UnsafeActionIsRejected": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotExchangeTests::UnknownEnvelopeAndSnapshotFieldsAreRejected": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotExchangeTests::MissingProfileIsRejectedWithoutFallback": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotExchangeTests::DuplicateKeysAndTrailingContentAreRejected": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotExchangeTests::ConflictModesUseStoreCas": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceSnapshotExchangeTests::ExportRequiresExplicitForceToOverwrite": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceCommandlineTests::ParsesListFormats": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceCommandlineTests::ParsesOpenTargetAndCanonicalUuid": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceCommandlineTests::ParsesExportAndImportModes": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceCommandlineTests::RejectsUnknownMalformedAndConflictingArguments": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::WorkspaceCommandlineTests::ExecuteReportsUsageWithoutTouchingStorage": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::KeyBindingsTests::WorkspaceActionsCanBeCustomized": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::KeyBindingsTests::DefaultWorkspaceSurfaceBindings": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "SettingsModelUnitTests::DeserializationTests::AgentHistoryRetentionSettings": {
+      "status": "Passed",
+      "log": "remaining-gate.log"
+    },
+    "TaskProviderLocalTests::CodexAppServerAdapterTests::CloseUnloadsOnlyItsThreadAndRetriesHistoryRestoration": {
+      "status": "Passed",
+      "log": "provider-unload-final-tests.log"
+    },
+    "TaskRuntimeLocalTests::RuntimeGitWorktreeFinalizeTests::PublicationRetriesAggregateVersionWithoutChangingWorktreeCas": {
+      "status": "Passed",
+      "log": "publication-final-test.log"
+    }
+  }
+}

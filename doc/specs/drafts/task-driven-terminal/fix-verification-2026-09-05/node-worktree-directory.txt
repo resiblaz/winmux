@@ -1,0 +1,7 @@
+QA_CWD:
+000001db`f4e78930  "F:\RicherLife\codes\win_terminal"
+000001db`f4e78970  "\dist\task-acceptance-20260905-1"
+000001db`f4e789b0  "54230\app\terminal-0.0.1.0\setti"
+000001db`f4e789f0  "ngs\task-worktrees\v1\3969e2a7-8"
+000001db`f4e78a30  "0d0-4efe-9936-e6904429e55f\"
+Detached

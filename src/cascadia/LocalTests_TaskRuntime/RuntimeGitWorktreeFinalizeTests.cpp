@@ -4,6 +4,7 @@
 #include "pch.h"
 
 #include "RuntimeGitWorktreeFinalize.h"
+#include "RuntimeGitWorktreeFinalizeStore.h"
 #include "RuntimeGitWorktreeTestSupport.h"
 
 #include "GitSourceCommandOutput.h"
@@ -56,7 +57,7 @@ namespace TaskRuntimeLocalTests
                 {
                     L"rev-parse",
                     L"--verify",
-                    details::WidenGitSourceAscii(worktree.BranchRef),
+                    Microsoft::Terminal::TaskGit::details::WidenGitSourceAscii(worktree.BranchRef),
                 });
         }
     }
@@ -70,7 +71,24 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(PersistsSigningFailureAndRetriesPreservedWorktree);
         TEST_METHOD(RecoversAfterGitRemovalBeforeSqlitePublication);
         TEST_METHOD(ResumesSidecarFailureWithoutRepeatingGitRemoval);
+        TEST_METHOD(PublicationRetriesAggregateVersionWithoutChangingWorktreeCas);
     };
+
+    void RuntimeGitWorktreeFinalizeTests::PublicationRetriesAggregateVersionWithoutChangingWorktreeCas()
+    {
+        auto fixture = MakeReadyWorktree(506);
+        TransitionRunToTerminal(*fixture, TaskRunState::Cancelled, 16000, 3000);
+        const auto stale = fixture->Aggregate();
+        VERIFY_IS_TRUE(fixture->Store->ChangeTaskManualHold(
+            MakeManualHoldCommand(fixture->Task, 16020, stale.Task.Version, stale.Task.UpdatedAtUnixMilliseconds + 1, true)).Succeeded());
+        const auto stored = Microsoft::Terminal::TaskRuntime::details::AdvanceRuntimeGitWorktreeFinalization(
+            *fixture->Store, stale, _context(1, 4000), TaskGitWorktreeState::Finalizing, false, false);
+        VERIFY_IS_TRUE(stored.Succeeded());
+        const auto updated = fixture->Aggregate();
+        VERIFY_ARE_EQUAL(stale.Task.Version + 2, updated.Task.Version);
+        VERIFY_ARE_EQUAL(stale.GitWorktree->Revision + 1, updated.GitWorktree->Revision);
+        VERIFY_IS_TRUE(updated.GitWorktree->State == TaskGitWorktreeState::Finalizing);
+    }
 
     void RuntimeGitWorktreeFinalizeTests::BlocksActiveRunThenFinalizesEmptyWorktreeWithoutChangingTaskStatus()
     {

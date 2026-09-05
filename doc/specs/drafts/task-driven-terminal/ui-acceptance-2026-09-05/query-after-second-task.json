@@ -1,0 +1,69 @@
+{
+  "ok": true,
+  "requestId": "ce2df812-1c57-451b-9fb5-7b49c4ad615c",
+  "result": {
+    "generation": 2062,
+    "tasks": [
+      {
+        "acceptance": [],
+        "agentSessions": [
+          {
+            "id": "f014f7d7-e543-49e9-adfd-8f260d5add57",
+            "isCurrent": true,
+            "provider": "codex",
+            "providerSessionId": "01a070a6-feac-7110-9f0a-601396886131",
+            "state": 0
+          }
+        ],
+        "createdAt": 1788596387395,
+        "description": "Create direct.txt containing task-direct-pass in the current directory, then finish immediately. Do not commit, browse, or change anything outside this test directory.",
+        "events": [],
+        "execution": {
+          "branch": "",
+          "id": "1fd23dc0-ee55-49f0-a3ba-7805feb0c325",
+          "instructions": "",
+          "mode": 0,
+          "model": "",
+          "provider": "codex",
+          "relativeWorkingDirectory": "",
+          "revision": 1,
+          "runtimeRoot": "F:/RicherLife/codes/win_terminal/dist/task-acceptance-20260905-154230/repo",
+          "sourceRoot": "F:/RicherLife/codes/win_terminal/dist/task-acceptance-20260905-154230/repo",
+          "worktreePath": ""
+        },
+        "id": "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+        "lastEventSequence": 14,
+        "manualHold": false,
+        "messages": [],
+        "priority": 1,
+        "runs": [
+          {
+            "agentSessionId": null,
+            "createdAt": 1788596387419,
+            "executionContextId": "1fd23dc0-ee55-49f0-a3ba-7805feb0c325",
+            "finishedAt": 1788596387678,
+            "id": "44f0fdc8-0925-40dc-b16d-6af31f6e7e3b",
+            "reasonCode": "provider-start-failed",
+            "result": "",
+            "retryOfRunId": null,
+            "sequence": 1,
+            "startedAt": null,
+            "state": 6,
+            "trigger": 0
+          }
+        ],
+        "status": 1,
+        "terminal": {
+          "currentAgentSessionId": "f014f7d7-e543-49e9-adfd-8f260d5add57",
+          "generation": 1,
+          "state": 2
+        },
+        "title": "QA-02 Direct run",
+        "updatedAt": 1788596388867,
+        "version": 14,
+        "workspaceId": "ae0cfc6d-b66f-419e-9d5f-69bd3cdc1541"
+      }
+    ]
+  },
+  "type": "response"
+}

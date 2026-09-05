@@ -309,11 +309,19 @@ Constraints:
 - one active TaskRun per Task, enforced by transaction plus a partial unique
   index or equivalent database invariant;
 - terminal TaskRun outcomes cannot transition to another outcome;
-- Task aggregate version increments on every committed mutation;
+- Task aggregate version increments on committed business-state mutations;
+  provider telemetry appends advance the aggregate/run event cursor without
+  changing the Task version or its business update timestamp. Telemetry still
+  validates Task/Run ownership and commits an idempotent receipt atomically;
 - message claim and follow-up TaskRun creation are atomic;
 - current AgentSession/Surface bindings are unique per logical TaskTerminal;
 - foreign keys and cascading content deletion follow ADR-TASK-027, while
   tombstones remain independent.
+
+The telemetry exception was adopted on 2026-09-05. A delayed log event may
+precede a newer business command's timestamp, but never its Task/Run creation.
+Clients use committed event cursors for log catch-up, not the business version.
+This reuses the existing version and event-sequence columns without migration.
 
 SQLite policy:
 

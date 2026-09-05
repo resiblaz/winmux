@@ -1,0 +1,9 @@
+{
+  "04-closed-stays-in-tasks.png": "2c17b70201e1b1f6eef56e0fd5b655e9e06f88056d31333e436d677ff8d643ef",
+  "05-runtime-reconnected.png": "a70896d7be9ea10f4381b0c9f4cee64d14899d5935ade75d9bf5658b21842234",
+  "environment.json": "b3d11eb43fb18d8d51e660302aec26e26c0831460bbdc60c720f41a1641c553d",
+  "final-state.json": "4e65778f79ed3e81f0ba147f404eb949c795ba3b0ee811e9dc27bb98921b73c4",
+  "real-telemetry.json": "4d645e7bd005ef30ab7ae57b1a61c09c44403447eb3dd5c512942af74531d299",
+  "runtime-reconnect.json": "467eb608f166f2322acaca49b8aa37b5bc278d274b97edcec269c692f5dfe2e3",
+  "validation-results.json": "5d16f939973ec42e13decf62dacfaee1fdcf1ee5a3017553fd24b7aa0c276383"
+}

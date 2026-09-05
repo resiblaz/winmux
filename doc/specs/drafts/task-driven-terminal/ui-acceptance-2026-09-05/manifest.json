@@ -1,0 +1,180 @@
+{
+  "recorded_at": "2026-09-05T17:19:00+08:00",
+  "source_root": "F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230",
+  "assets": [
+    {
+      "file": "03-saved-task.png",
+      "original": "03-saved-task.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "b698be322e0075f25958beacbdeadd3a88a7a454a7eab77e507ec4ee8e195dcc"
+    },
+    {
+      "file": "04-draft-after-refresh.png",
+      "original": "04-draft-after-refresh.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "f1ac3c75cf6fd7d9dd013aeee39e576043585c437e1273401582780c12d4114d"
+    },
+    {
+      "file": "06-task-terminal.png",
+      "original": "06-task-terminal.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "0f1d58690492128848e0aa3a70d2119300b7db1ab9cdcd9afef4d8153ae7378c"
+    },
+    {
+      "file": "07-opened-task-terminal.png",
+      "original": "07-opened-task-terminal.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "0b8443a68ef8b41ed3e807aaf6c3fa38df9264f1d056436f21abac7ac5ea53cc"
+    },
+    {
+      "file": "08-tab-close-guard.png",
+      "original": "08-tab-close-guard.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "8799adf285283278119438ddee5312a2cb095b7265d76c4a0ff00483a1a330a5"
+    },
+    {
+      "file": "09-task-terminal-closed.png",
+      "original": "09-task-terminal-closed.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "16af19de453b1f823106ec668bb94297b2d7e46b1d8448527ee880151e03cee9"
+    },
+    {
+      "file": "10-message-edit-remove.png",
+      "original": "10-message-edit-remove.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "58cfcdad22a1d9ab79d89ba03c246be94af6b98c9f497b2b65da4ca8d19f9ec3"
+    },
+    {
+      "file": "11-retry-after-close.png",
+      "original": "11-retry-after-close.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "fc9f8fa7798abb563388450c286b81d46d0afc361ed6ef16229c86b6056bce58"
+    },
+    {
+      "file": "13-cancel-status.png",
+      "original": "13-cancel-status.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "106742ce463927e20ba62d6c94a7c417efe0bf924c76c5e2d7c7c664c83d9600"
+    },
+    {
+      "file": "14-retry-closed-session.png",
+      "original": "14-retry-closed-session.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "3e71d026a934377947856a1d389ab79be42503e904f4e4f1e2afd846c4a65309"
+    },
+    {
+      "file": "15-second-window-owned-terminal.png",
+      "original": "15-second-window-owned-terminal.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "7beb473a5bdf21233a65a77138979fb14a951ab1beac5b80ba997d21501f9929"
+    },
+    {
+      "file": "17-reattach-after-owner-close.png",
+      "original": "17-reattach-after-owner-close.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "92cebd096487c131bac645ca8a920b890d58577cf57b867fd1d4fd79c0fa21f6"
+    },
+    {
+      "file": "18-runtime-disconnected.png",
+      "original": "18-runtime-disconnected.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "b2eabf9572b7b6572b9c7c74b75994fda64c11e4b724be9ffecfbf52c3b45015"
+    },
+    {
+      "file": "19-before-reconnect-crash.png",
+      "original": "19-runtime-reconnected.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "aa3308ffa041406b072fccd28a672307f8f0662b90617e815bc93ba605bd88d3"
+    },
+    {
+      "file": "21-worktree-cleanup-failed.png",
+      "original": "21-worktree-finalized.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "3f3c841b057a81c08cfa0e993d91da86de8739c6f8235101a67ce122c7bc9407"
+    },
+    {
+      "file": "25-delete-no-dialog.png",
+      "original": "25-delete-no-dialog.png",
+      "treatment": "byte-for-byte copy",
+      "sha256": "b7a61d1a7b032bff982e147a728fc3b8e56995060e2c70809926cc701c7c28bb"
+    },
+    {
+      "file": "provider-protocol-probe.json",
+      "original": "provider-protocol-probe.json",
+      "treatment": "byte-for-byte copy",
+      "sha256": "6544e7f6a3d9da6427027c186f5c81bc21044f915f772dd4c55b610025837b80",
+      "source_sha256": "0863bbec511315c49e7c92cf0733d04e2f8fcac05fddee1c1f3624bc2635cc23"
+    },
+    {
+      "file": "removed-message-query-error.json",
+      "original": "removed-message-query-error.json",
+      "treatment": "byte-for-byte copy",
+      "sha256": "7766f77746f74717eb96d0a1ddfb226f664cf1b1cccafe8b36565c6c8fe2cc98",
+      "source_sha256": "5cc97e5a17280a377bf884199643fd25c690b8f7bc5ed83fd4e21a0b210495a8"
+    },
+    {
+      "file": "removed-message-all-query-error.json",
+      "original": "removed-message-all-query-error.json",
+      "treatment": "byte-for-byte copy",
+      "sha256": "4605038222b7e80fcd4c2f4fae3213f7e1ae8687cad5381908510a16ae0c4915",
+      "source_sha256": "75a1beb3cf68760b624eef8fc986bebc56de5fdfd73f38f4a95a11bd73aca415"
+    },
+    {
+      "file": "query-after-second-task.json",
+      "original": "query-after-second-task.json",
+      "treatment": "byte-for-byte copy",
+      "sha256": "d1154b1809eb82d074aef081302d4937da0cf97149168784008ee3e25ac72ba1",
+      "source_sha256": "e60c1b34475699b278f3f493ab524adbf6ab62d3fac8b4bc06cc32f0e7a63e5a"
+    },
+    {
+      "file": "state-after-retry.json",
+      "original": "state-after-retry.json",
+      "treatment": "byte-for-byte copy",
+      "sha256": "267eb93911877f4573c214665bb11e2da82a8291e2be3b5b7299e3dfa62cd423",
+      "source_sha256": "9f4ffd21c5637e2b54027100c5fbc994899d80bef554c850c424fa729014b581"
+    },
+    {
+      "file": "worktree-cleanup-failure.json",
+      "original": "worktree-cleanup-failure.json",
+      "treatment": "byte-for-byte copy",
+      "sha256": "b37dcd702fa7f3032905f8d270a05896879dc1701da12dabb68f66b8ae0693aa",
+      "source_sha256": "214e6e6e584eea361145d58c93815bb6c14480bbd67247df82d53d4336f50d47"
+    },
+    {
+      "file": "runtime-reconnect-crash-event.json",
+      "original": "runtime-reconnect-crash-event.json",
+      "treatment": "byte-for-byte copy",
+      "sha256": "a3d302e66b7f9be128c5b0cc4f6cf277bc064a7ebcc24ab5305545e597a2e695",
+      "source_sha256": "8759d54c3909e3a9752222fe39553803e40e5556b25605c30cbb38ff0fc95af7"
+    },
+    {
+      "file": "final-state.json",
+      "original": "final-state.json",
+      "treatment": "byte-for-byte copy",
+      "sha256": "e27d99c48337813151eccefd9b91c6e0fd29c79f97a4c28332cb8fb052a2538d",
+      "source_sha256": "38a17b53fb2667f66ee8152aaef2763470ae2bf242d0049980de67b0c4d9f4ce"
+    },
+    {
+      "file": "environment.json",
+      "original": "environment.json",
+      "treatment": "byte-for-byte copy",
+      "sha256": "364e074e11762a1cf30c9a72b2640e18a47e32b0e40ef6cf9cd2893843266d95",
+      "source_sha256": "0c536d9a92a99019e2264d692f7abec518620488e866d29eacbe592092ab6df1"
+    },
+    {
+      "file": "delete-dialog-hresult.txt",
+      "original": "delete-dialog-hresult.txt",
+      "treatment": "Excerpt from QA HRESULT through Detached; module-load output omitted",
+      "sha256": "796ead1943e83d72157f2b89775206240fa361f75873629c059dd2442b7b5c2f",
+      "source_sha256": "602556f3cba67ff3dee97ded75f817ce7b7c0c10182b02fa1e92141c6a8a9765"
+    },
+    {
+      "file": "runtime-reconnect-crash-stack.txt",
+      "original": "runtime-reconnect-crash-stack.txt",
+      "treatment": "NatVis unload noise omitted; exception and stack retained",
+      "sha256": "169d023bde69052e5dac552e4cfcb43e8fdd8be2b946f88cc4f25332eeee1ee3",
+      "source_sha256": "f69fef1dc64ead9625b5cf35dbb961c7c17b1695de9b9eeeb1df3a7564935a7c"
+    }
+  ],
+  "text_normalization": "Text artifacts use LF with trailing whitespace removed; source_sha256 preserves original capture hashes where changed."
+}

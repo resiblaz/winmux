@@ -1,0 +1,115 @@
+{
+  "source_directory": "F:\\RicherLife\\codes\\win_terminal\\dist\\task-fix-validation-20260905-174704",
+  "assets": [
+    {
+      "file": "03-remove-message-fixed.png",
+      "original": "03-remove-message-fixed.png",
+      "sha256": "a5585b9ed6300a41bbd15627a2214cdecb553594da21bcc225accc96b0d2a8bd"
+    },
+    {
+      "file": "09-delete-dialog-fixed.png",
+      "original": "09-delete-dialog-fixed.png",
+      "sha256": "5b3aeb9d584b7838a646fdfd31531eba798d50ef75cf84c5b3f21657077133ee"
+    },
+    {
+      "file": "10-task-tab-close-hidden.png",
+      "original": "10-task-tab-close-hidden.png",
+      "sha256": "01838349a6cc3e1d218b4dfa75686c2f9b65f9ed359e1bf7946c5b9491e1c1b8"
+    },
+    {
+      "file": "11-closed-terminal-stays-in-tasks.png",
+      "original": "11-close-terminal-confirmation.png",
+      "sha256": "12a44fcb76d3c9ee2c440288e0ed46f7eaf8d7f18b806a39c31f3057421b892c"
+    },
+    {
+      "file": "14-owned-elsewhere-dialog.png",
+      "original": "14-owned-elsewhere-dialog.png",
+      "sha256": "5a0bbb1ec5e8d3a6c5df52ef4e81fb074edf96ef293018901b8b376a7d94b989"
+    },
+    {
+      "file": "17-runtime-reconnected-fixed.png",
+      "original": "17-runtime-reconnected-fixed.png",
+      "sha256": "87ffdd5409f9ad62752a69417b2d08113bfa98a43c6f1cf94cf842f20a5cb30d"
+    },
+    {
+      "file": "20-final-cleanup-success.png",
+      "original": "20-final-cleanup-success.png",
+      "sha256": "9ed86a55c77465573ec8e698dd317cf3653b1ad261f0723f226b4646758def8e"
+    },
+    {
+      "file": "13-delete-cancel.json",
+      "original": "13-delete-cancel.json",
+      "sha256": "de5e99d9e60b745ac0523be63b126a5c63337569bd8621039b45120349f6860a",
+      "source_sha256": "85d27231f03375f346821bba670e96dcf3c6cae299138dd3ee517b54469bfb90"
+    },
+    {
+      "file": "14-delete-confirmed.json",
+      "original": "14-delete-confirmed.json",
+      "sha256": "0fbab94b50468eca2fb1c11e7094d34cb6e17746bb133c8c6ff5fe0e8a262519",
+      "source_sha256": "bb322f0211e173493562a76e4cd5f9b457ea4322127888d66a8afaf9e7b4993a"
+    },
+    {
+      "file": "15-cancel-active-runs.json",
+      "original": "15-cancel-active-runs.json",
+      "sha256": "b17652fb3fbd3e87aef5f65b9e5dfa668d963d4780c9bf064f15f74e10ce126b",
+      "source_sha256": "f981e0844b3b79f8656b78f0aa83fd5942b0f11a4cdba0001b399ab8b1aea38b"
+    },
+    {
+      "file": "17-completed-runs.json",
+      "original": "17-completed-runs.json",
+      "sha256": "a38cce5929190679580180456254577f54ac5a2d03c78186882d80d40076efba",
+      "source_sha256": "56f93385a9edd722aea4f302b5adb3b7e9c1e20ba79399783173befb44d77380"
+    },
+    {
+      "file": "runtime-reconnect-fixed.json",
+      "original": "runtime-reconnect-fixed.json",
+      "sha256": "5eadaf089430a613cc83a30babdb2d413f5d726aebb88c82a8bc57a79a88aa95",
+      "source_sha256": "c8d18609497d0fb9d1001bdcb203a91c7691100c02a4b848d5e00bb66264ae32"
+    },
+    {
+      "file": "provider-permissions-probe.json",
+      "original": "provider-permissions-probe.json",
+      "sha256": "1a0b0d50a471a4d8552bd4355c73f7ea745810dfd2f6efdc9af11da7b99583d8",
+      "source_sha256": "ab42e601ee2596b9e5bcf35d7b48cd3b5813395a16edbdcac7e58e032b583e13"
+    },
+    {
+      "file": "provider-unload-probe.json",
+      "original": "provider-unload-probe.json",
+      "sha256": "99226c0a17bc847cade29c47283d6c8e247a740938dfb6a2ef8ad8ac2cf40493",
+      "source_sha256": "469d73e1bae60cb17d87b66971092b294b7900a2f19857d4384686473062239a"
+    },
+    {
+      "file": "provider-unload-materialized-probe.json",
+      "original": "provider-unload-materialized-probe.json",
+      "sha256": "99226c0a17bc847cade29c47283d6c8e247a740938dfb6a2ef8ad8ac2cf40493",
+      "source_sha256": "469d73e1bae60cb17d87b66971092b294b7900a2f19857d4384686473062239a"
+    },
+    {
+      "file": "final-worktree-cleanup-proof.json",
+      "original": "final-worktree-cleanup-proof.json",
+      "sha256": "a48d63ad8e61652e5221209b81103b2a2eedcf51dfa571b2833fa1ae4b600adb",
+      "source_sha256": "bc92bf6fc1fc20309832df2fafda85042da732f0244318f91f79f39a9345378e"
+    },
+    {
+      "file": "validation-results.json",
+      "sha256": "2e79fb7301cde6a5105690c905caddd7357a0275fdd13b25dbefafc41b5f8d74",
+      "source_sha256": "ab93fe12d5de9b820a417178bdb25b23940e68e20e2f715609a795c5637de680"
+    },
+    {
+      "file": "final-state.json",
+      "sha256": "59afb6867ecd61a43086438cb5baa52813eb410fe0fa9a47de03a7548c874f76",
+      "source_sha256": "d4dc15e93cc97f83c7e89a60b42e05069986ffcd907e8291b608f71deef35a78"
+    },
+    {
+      "file": "environment.json",
+      "sha256": "c162363221ee97aa32c3f6958743b5b6dd57e2892df496e06532e39be15511e6",
+      "source_sha256": "8b3aec2d941c6bcdbf8c18c9318fbcb3c6c644ab0d8d88f932de68350d7a81ea"
+    },
+    {
+      "file": "node-worktree-directory.txt",
+      "sha256": "0329853c9493b044eb0a7ffbf612f4c2550e679f4ba64dcb3208ea129afc1b3a",
+      "source_sha256": "216fe7dd436596c6dcfaf6a8a4f919b021ee68b9fdd114669771a2929a05484e"
+    }
+  ],
+  "text_normalization": "Text artifacts use LF with trailing whitespace removed; source_sha256 preserves original capture hashes where changed."
+}

@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "internal_error",
+    "data": {},
+    "message": "Task projection could not be encoded"
+  },
+  "ok": false,
+  "requestId": "80a5f108-12c9-4b37-973b-46e5083e8f97",
+  "type": "response"
+}

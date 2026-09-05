@@ -41,6 +41,8 @@ namespace Microsoft::Terminal::TaskProvider
             std::chrono::milliseconds timeout,
             HANDLE cancellationEvent) noexcept = 0;
         [[nodiscard]] virtual bool Running() const noexcept = 0;
+        // Wake/cancel in-flight IO without disposing handles it still uses.
+        virtual void RequestStop() noexcept { Stop(); }
         virtual void Stop() noexcept = 0;
     };
 

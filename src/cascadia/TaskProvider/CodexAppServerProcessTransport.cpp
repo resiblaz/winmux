@@ -399,14 +399,22 @@ namespace Microsoft::Terminal::TaskProvider
                 return _running.load(std::memory_order_acquire);
             }
 
-            void Stop() noexcept override
+            void RequestStop() noexcept override
             {
                 _running.store(false, std::memory_order_release);
-                _stdin.reset();
                 if (_job)
                 {
                     TerminateJobObject(_job.get(), ERROR_PROCESS_ABORTED);
                 }
+                const std::scoped_lock lock{ _mutex };
+                _stdoutEnded = true;
+                if (_dataEvent) SetEvent(_dataEvent.get());
+            }
+
+            void Stop() noexcept override
+            {
+                RequestStop();
+                _stdin.reset();
                 if (_stdoutThread.joinable())
                 {
                     CancelSynchronousIo(_stdoutThread.native_handle());

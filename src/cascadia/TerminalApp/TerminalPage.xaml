@@ -160,6 +160,7 @@
                                         FontFamily="{ThemeResource SymbolThemeFontFamily}"
                                         FontSize="9"
                                         IsTabStop="False"
+                                        Visibility="{x:Bind mtu:Converters.BooleanToVisibility(TabViewItem.IsClosable), Mode=OneWay}"
                                         Opacity="0.72"
                                         Tag="{Binding}" />
                             </Grid>

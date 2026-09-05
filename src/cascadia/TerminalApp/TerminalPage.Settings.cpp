@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "TerminalPage.h"
+#include "Tasks/TaskPage.h"
 #include "WorkspaceFeatureSet.h"
 
 #include <TerminalCore/ControlKeyStates.hpp>
@@ -217,7 +218,7 @@ namespace winrt::TerminalApp::implementation
 
         for (const auto& tab : _tabs)
         {
-            tab.CloseButtonVisibility(visibility);
+            tab.CloseButtonVisibility(_IsTaskOwnedTab(tab) ? Settings::Model::TabCloseButtonVisibility::Never : visibility);
         }
 
         switch (visibility)
@@ -414,6 +415,10 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::DialogPresenter(winrt::TerminalApp::IDialogPresenter dialogPresenter)
     {
         _dialogPresenter = dialogPresenter;
+        if (_taskPage)
+        {
+            winrt::get_self<implementation::TaskPage>(_taskPage)->SetDialogPresenter(dialogPresenter);
+        }
     }
 
     // Method Description:

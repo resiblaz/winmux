@@ -70,6 +70,23 @@ namespace Microsoft::Terminal::TaskRuntime::details
         command.CleanupEligible = cleanupEligible;
         command.PreservedPath = std::move(preservedPath);
         command.FailureReasonCode = std::move(failureReasonCode);
-        return store.AdvanceTaskGitWorktreeFinalization(command);
+        for (size_t attempt = 0;; ++attempt)
+        {
+            const auto stored = store.AdvanceTaskGitWorktreeFinalization(command);
+            if (stored.Status != TaskStoreCommandStatus::VersionConflict || attempt >= 3)
+                return stored;
+            const auto current = store.LoadTask(command.Task);
+            if (!current || !current->GitWorktree ||
+                current->GitWorktree->Revision != worktree.Revision ||
+                current->GitWorktree->State != worktree.State ||
+                current->GitWorktree->ExecutionContext != command.ExecutionContext)
+                return stored;
+            // Provider notifications can advance only the aggregate version
+            // while Git is running. Retry publication against that version,
+            // retaining the Worktree CAS and without repeating filesystem work.
+            command.Metadata.ExpectedTaskVersion = current->Task.Version;
+            command.Metadata.TimestampUnixMilliseconds = (std::max)(
+                command.Metadata.TimestampUnixMilliseconds, current->Task.UpdatedAtUnixMilliseconds);
+        }
     }
 }

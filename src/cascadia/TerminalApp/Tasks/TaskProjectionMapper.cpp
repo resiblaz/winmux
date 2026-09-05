@@ -90,6 +90,8 @@ namespace winrt::TerminalApp::implementation::tasks
                     else if (payload.isMember("reasonCode") && payload["reasonCode"].isString())
                         text = payload["reasonCode"].asString();
                 }
+                if (event.Type == "TaskWorktreeCleanupFailed")
+                    return fmt::format(fmt::runtime(_resource(L"TaskPage_CleanupFailed")), _wide(text));
                 return text.empty() ?
                            fmt::format(FMT_COMPILE(L"{}  {}"), _time(event.CreatedAtUnixMilliseconds), _wide(event.Type)) :
                            fmt::format(FMT_COMPILE(L"{}  {} — {}"), _time(event.CreatedAtUnixMilliseconds), _wide(event.Type), _wide(text));

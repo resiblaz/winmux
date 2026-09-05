@@ -1,0 +1,16 @@
+{
+  "worktree": [
+    "F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230\\app\\terminal-0.0.1.0\\settings\\task-worktrees\\v1\\f2f12643-7c2d-4c36-b893-3cf57c77b285",
+    7,
+    "F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230\\app\\terminal-0.0.1.0\\settings\\task-worktrees\\v1\\f2f12643-7c2d-4c36-b893-3cf57c77b285",
+    "git-finalize-operation-failed"
+  ],
+  "intent": [
+    2,
+    7,
+    "git-finalize-operation-failed"
+  ],
+  "directory_exists": true,
+  "delete_access_probe_error": 32,
+  "remaining_files": []
+}

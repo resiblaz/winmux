@@ -56,6 +56,7 @@ namespace Microsoft::Terminal::TaskCore
                    stage == TaskIntentStage::Completed;
         case TaskIntentKind::WorktreeCleanup:
             return stage == TaskIntentStage::Requested ||
+                   stage == TaskIntentStage::WaitingForProvider ||
                    stage == TaskIntentStage::Checkpointing ||
                    stage == TaskIntentStage::FinalizingWorktree ||
                    stage == TaskIntentStage::Failed ||

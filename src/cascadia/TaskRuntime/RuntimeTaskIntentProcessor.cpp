@@ -91,9 +91,12 @@ namespace Microsoft::Terminal::TaskRuntime
                     aggregate->Task.Id, run->Id, TaskRunState::Cancelled, "user-stop"));
                 return;
             }
-            if (std::ranges::any_of(aggregate->Runs, [&](const auto& run) { return WorkerBusy(run.Id); }))
-                return;
         }
+
+        // Cleanup and run checkpointing share the same worktree. A lifecycle
+        // worker may interrupt preparation, but must not finalize alongside it.
+        if (std::ranges::any_of(aggregate->Runs, [&](const auto& run) { return WorkerBusy(run.Id); }))
+            return;
 
         if (intent.Kind == TaskIntentKind::Stop)
         {
@@ -101,7 +104,8 @@ namespace Microsoft::Terminal::TaskRuntime
             return;
         }
 
-        if (intent.Kind == TaskIntentKind::Close || intent.Kind == TaskIntentKind::Delete)
+        if (intent.Kind == TaskIntentKind::Close || intent.Kind == TaskIntentKind::Delete ||
+            intent.Kind == TaskIntentKind::WorktreeCleanup)
         {
             const auto closed = Provider->CloseTask(aggregate->Task.Id.Value(), StopEvent.get());
             if (closed.ClosePending ||
@@ -139,9 +143,10 @@ namespace Microsoft::Terminal::TaskRuntime
                     static_cast<void>(TransitionTerminal(
                         aggregate->Task.Id, TaskTerminalState::Closed, aggregate->Terminal.Generation));
                 }
-                if (_cancelRequested(*aggregate->Intent))
+                if (_cancelRequested(*aggregate->Intent) &&
+                    !ChangeStatus(aggregate->Task.Id, TaskStatus::Cancelled))
                 {
-                    static_cast<void>(ChangeStatus(aggregate->Task.Id, TaskStatus::Cancelled));
+                    return;
                 }
                 static_cast<void>(AdvanceIntent(
                     aggregate->Task.Id, aggregate->Intent->Id, TaskIntentStage::Completed, {}, aggregate->Intent->DetailJson));

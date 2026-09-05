@@ -34,7 +34,7 @@ VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10);
 UPDATE task_intent
 SET id=?1, kind=?3, stage=?4, revision=?5, deadline_at=?6, detail_json=?7,
     reason_code=?8, created_at=?9, updated_at=?10
-WHERE task_id=?2 AND stage=8;
+WHERE task_id=?2 AND (stage=8 OR (kind=2 AND stage=7 AND ?3 IN (2,3)));
 )SQL";
             details::SqliteStatement statement{ database, replaceCompleted ? replaceSql : insertSql, error };
             const auto deadline = intent.DeadlineAtUnixMilliseconds;
@@ -55,7 +55,7 @@ WHERE task_id=?2 AND stage=8;
             }
             if (replaceCompleted && sqlite3_changes(database) != 1)
             {
-                error = "Completed Task intent changed during transaction";
+                error = "Previous Task intent changed during transaction";
                 return false;
             }
             return true;
@@ -231,7 +231,13 @@ WHERE id=?4 AND version=?5;
         {
             return details::CommandFailure(TaskStoreCommandStatus::StorageError, std::move(error));
         }
-        if (currentIntent && currentIntent->Stage != TaskIntentStage::Completed)
+        // An explicit retry may replace a failed cleanup with another cleanup
+        // (or delete). Other incomplete lifecycle operations remain exclusive.
+        const bool retryingCleanup = currentIntent &&
+            currentIntent->Kind == TaskIntentKind::WorktreeCleanup &&
+            currentIntent->Stage == TaskIntentStage::Failed &&
+            (command.Intent.Kind == TaskIntentKind::WorktreeCleanup || command.Intent.Kind == TaskIntentKind::Delete);
+        if (currentIntent && currentIntent->Stage != TaskIntentStage::Completed && !retryingCleanup)
         {
             return details::CommandFailure(
                 TaskStoreCommandStatus::ActiveIntentExists,

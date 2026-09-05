@@ -6,9 +6,13 @@
 #include "ITaskProviderAdapter.h"
 
 #include <functional>
+#include <deque>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <type_traits>
+#include <utility>
+#include <wil/resource.h>
 
 namespace Microsoft::Terminal::TaskProvider
 {
@@ -123,16 +127,47 @@ namespace Microsoft::Terminal::TaskProvider
         std::shared_ptr<ITaskProviderCoordinatorSink> _sink;
         TaskProviderCoordinatorConfiguration _configuration;
         mutable std::mutex _mutex;
+        std::mutex _initializationMutex;
         std::mutex _eventMutex;
         std::shared_ptr<ITaskProviderAdapter> _adapter;
         std::unordered_map<std::string, TaskProviderSessionBinding> _sessionsByTask;
         std::unordered_map<std::string, std::string> _tasksByProviderSession;
         std::unordered_map<std::string, TaskProviderRunBinding> _runsByTaskRun;
         std::unordered_map<std::string, std::string> _taskRunsByProviderRun;
+        std::unordered_map<std::string, std::weak_ptr<std::mutex>> _taskGates;
+        struct DeferredEvent
+        {
+            std::shared_ptr<ITaskProviderAdapter> Adapter;
+            std::shared_ptr<std::mutex> Gate;
+            TaskProviderEvent Event;
+        };
+        std::deque<DeferredEvent> _deferredEvents;
+        size_t _startingSessions{};
+        size_t _startingRuns{};
+        uint64_t _epoch{};
         bool _valid{};
 
-        [[nodiscard]] TaskProviderResult _ensureProvider(HANDLE cancellationEvent);
+        [[nodiscard]] std::shared_ptr<std::mutex> _taskGate(std::string_view taskId);
+        [[nodiscard]] TaskProviderResult _ensureProvider(std::unique_lock<std::mutex>& lock, HANDLE cancellationEvent);
+        template<typename TCall>
+        auto _invoke(std::unique_lock<std::mutex>& lock, TCall&& call)
+            -> std::optional<std::invoke_result_t<TCall, ITaskProviderAdapter&>>
+        {
+            using Result = std::invoke_result_t<TCall, ITaskProviderAdapter&>;
+            const auto adapter = _adapter;
+            if (!adapter) return std::nullopt;
+            std::optional<Result> result;
+            lock.unlock();
+            {
+                const auto relock = wil::scope_exit([&] { lock.lock(); });
+                try { result = std::invoke(std::forward<TCall>(call), *adapter); }
+                catch (...) { result.emplace(); result->Status = TaskProviderStatus::ResourceFailure; }
+            }
+            // Never publish a completion from an adapter replaced during IO.
+            return _adapter == adapter ? std::move(result) : std::nullopt;
+        }
         [[nodiscard]] TaskProviderCoordinatorResult _reconcileProviderFailure(
+            std::unique_lock<std::mutex>& lock,
             TaskProviderStatus status,
             std::string_view providerCode,
             std::string error);

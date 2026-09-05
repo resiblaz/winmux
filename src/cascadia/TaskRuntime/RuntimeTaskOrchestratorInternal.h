@@ -8,6 +8,7 @@
 #include "DirectDirectoryLease.h"
 
 #include <condition_variable>
+#include <functional>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
@@ -40,6 +41,7 @@ namespace Microsoft::Terminal::TaskRuntime
         std::condition_variable Changed;
         std::thread Scheduler;
         std::unordered_map<std::string, std::shared_ptr<Worker>> Workers;
+        std::unordered_map<std::string, std::shared_ptr<Worker>> LifecycleWorkers;
         std::unordered_map<std::string, std::string> KnownRuns;
         std::unordered_set<std::string> RecoveringPreparations;
         std::unordered_map<std::string, uint64_t> TerminalIdleDeadlines;
@@ -64,6 +66,9 @@ namespace Microsoft::Terminal::TaskRuntime
         void Recover() noexcept;
         void Tick() noexcept;
         void ReapWorkers() noexcept;
+        bool StartLifecycleWorker(const Microsoft::Terminal::TaskCore::TaskId& task,
+                                  bool urgent, std::function<void()> operation) noexcept;
+        void SuspendIdleTerminal(Microsoft::Terminal::TaskCore::TaskId task) noexcept;
         void StartWorker(
             const Microsoft::Terminal::TaskCore::TaskId& task,
             const Microsoft::Terminal::TaskCore::TaskRunId& run) noexcept;

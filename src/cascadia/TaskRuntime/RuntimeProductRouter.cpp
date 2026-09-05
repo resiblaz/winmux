@@ -162,7 +162,8 @@ namespace Microsoft::Terminal::TaskRuntime
             if (!queried.Succeeded()) return _error(_taskRpcCode(queried.Status), queried.Error);
             auto projection = queried.Projection;
             auto encoded = EncodeTaskProjectionQueryResult(projection);
-            while (!encoded.Succeeded && !decoded.Value.TaskId && projection.Tasks.size() > 1)
+            while (!encoded.Succeeded && encoded.Error == "Encoded Task projection exceeds protocol bounds" &&
+                   !decoded.Value.TaskId && projection.Tasks.size() > 1)
             {
                 projection.Tasks.resize((projection.Tasks.size() + 1) / 2);
                 encoded = EncodeTaskProjectionQueryResult(projection);

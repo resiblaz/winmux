@@ -175,17 +175,61 @@ namespace winrt::TerminalApp::implementation
         return _items.Size();
     }
 
+    WorkspaceCollection::UpdateScope::UpdateScope(WorkspaceCollection& owner) noexcept : _owner{ &owner }
+    {
+        ++owner._updateDepth;
+    }
+
+    WorkspaceCollection::UpdateScope::UpdateScope(UpdateScope&& other) noexcept : _owner{ std::exchange(other._owner, nullptr) } {}
+
+    WorkspaceCollection::UpdateScope::~UpdateScope() noexcept
+    {
+        try { Commit(); } CATCH_LOG();
+    }
+
+    void WorkspaceCollection::UpdateScope::Commit()
+    {
+        if (const auto owner = std::exchange(_owner, nullptr)) owner->_endUpdate();
+    }
+
+    WorkspaceCollection::UpdateScope WorkspaceCollection::BeginUpdate() noexcept { return UpdateScope{ *this }; }
+
+    std::function<void()> WorkspaceCollection::SetChangedHandler(std::function<void()> handler)
+    {
+        return std::exchange(_changed, std::move(handler));
+    }
+
+    uint64_t WorkspaceCollection::Generation() const noexcept { return _generation; }
+
+    void WorkspaceCollection::_markChanged() { _dirty = true; _publish(); }
+
+    void WorkspaceCollection::_endUpdate() { if (--_updateDepth == 0) _publish(); }
+
+    void WorkspaceCollection::_publish()
+    {
+        if (_updateDepth || _publishing) return;
+        _publishing = true;
+        const auto reset = wil::scope_exit([&] { _publishing = false; });
+        while (std::exchange(_dirty, false))
+        {
+            ++_generation;
+            if (_changed) _changed();
+        }
+    }
+
     void WorkspaceCollection::Insert(const uint32_t index, const TerminalApp::WorkspaceItemViewModel& item)
     {
         THROW_HR_IF(E_INVALIDARG, !item || index > _items.Size());
         THROW_HR_IF(E_UNEXPECTED, IndexOf(item.WorkspaceId()).has_value());
         _items.InsertAt(index, item);
+        _markChanged();
     }
 
     void WorkspaceCollection::Remove(const uint32_t index)
     {
         THROW_HR_IF(E_BOUNDS, index >= _items.Size());
         _items.RemoveAt(index);
+        _markChanged();
     }
 
     void WorkspaceCollection::Move(const uint32_t from, const uint32_t to)
@@ -196,6 +240,7 @@ namespace winrt::TerminalApp::implementation
             const auto item = _items.GetAt(from);
             _items.RemoveAt(from);
             _items.InsertAt(to, item);
+            _markChanged();
         }
     }
 
@@ -205,7 +250,9 @@ namespace winrt::TerminalApp::implementation
     {
         const auto index = IndexOf(workspaceId);
         THROW_HR_IF(E_INVALIDARG, !index);
-        return winrt::get_self<WorkspaceItemViewModel>(_items.GetAt(index.value()))->AddSurface(tab, surfaceId);
+        const auto id = winrt::get_self<WorkspaceItemViewModel>(_items.GetAt(index.value()))->AddSurface(tab, surfaceId);
+        _markChanged();
+        return id;
     }
 
     bool WorkspaceCollection::RemoveSurface(const TerminalApp::Tab& tab)
@@ -222,22 +269,30 @@ namespace winrt::TerminalApp::implementation
         if (item.SurfaceCount() == 0)
         {
             _items.RemoveAt(index.value());
+            _markChanged();
             return true;
         }
+        _markChanged();
         return false;
     }
 
     bool WorkspaceCollection::MoveSurface(const TerminalApp::Tab& tab, const uint32_t targetIndex)
     {
         const auto item = ItemForTab(tab);
-        return item && winrt::get_self<WorkspaceItemViewModel>(item)->MoveSurface(tab, targetIndex);
+        const auto moved = item && winrt::get_self<WorkspaceItemViewModel>(item)->MoveSurface(tab, targetIndex);
+        if (moved) _markChanged();
+        return moved;
     }
 
     void WorkspaceCollection::SetActiveTab(const TerminalApp::Tab& tab)
     {
         const auto item = ItemForTab(tab);
         THROW_HR_IF(E_INVALIDARG, !item);
-        winrt::get_self<WorkspaceItemViewModel>(item)->SetActiveTab(tab);
+        if (item.SourceTab() != tab)
+        {
+            winrt::get_self<WorkspaceItemViewModel>(item)->SetActiveTab(tab);
+            _markChanged();
+        }
     }
 
     void WorkspaceCollection::AssertInvariants(const Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab>& tabs) const

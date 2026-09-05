@@ -20,7 +20,8 @@ namespace Microsoft::Terminal::TaskRuntime
         return MaximumConcurrentPreparations != 0 && MaximumConcurrentPreparations <= 16 &&
                ActivePollMilliseconds >= 50 && ActivePollMilliseconds <= 5000 &&
                IdlePollMilliseconds >= ActivePollMilliseconds && IdlePollMilliseconds <= 60000 &&
-               TerminalIdleMilliseconds >= 1000;
+               TerminalIdleMilliseconds >= 1000 &&
+               MaximumConcurrentLifecycleOperations >= 2 && MaximumConcurrentLifecycleOperations <= 16;
     }
 
     RuntimeTaskOrchestrator::Impl::Impl(
@@ -227,6 +228,8 @@ namespace Microsoft::Terminal::TaskRuntime
             SetEvent(_impl->StopEvent.get());
             for (const auto& [_, worker] : _impl->Workers)
                 SetEvent(worker->Cancellation.get());
+            for (const auto& [_, worker] : _impl->LifecycleWorkers)
+                SetEvent(worker->Cancellation.get());
         }
         _impl->Changed.notify_all();
         if (_impl->Scheduler.joinable())
@@ -239,6 +242,9 @@ namespace Microsoft::Terminal::TaskRuntime
                 threads.emplace_back(std::move(worker->Thread));
             }
             _impl->Workers.clear();
+            for (auto& [_, worker] : _impl->LifecycleWorkers)
+                threads.emplace_back(std::move(worker->Thread));
+            _impl->LifecycleWorkers.clear();
         }
         for (auto& thread : threads)
         {
@@ -256,7 +262,7 @@ namespace Microsoft::Terminal::TaskRuntime
             std::unique_lock lock{ Mutex };
             Changed.wait_for(
                 lock,
-                std::chrono::milliseconds{ KnownRuns.empty() && Workers.empty() ? Configuration.IdlePollMilliseconds : Configuration.ActivePollMilliseconds },
+                std::chrono::milliseconds{ KnownRuns.empty() && Workers.empty() && LifecycleWorkers.empty() ? Configuration.IdlePollMilliseconds : Configuration.ActivePollMilliseconds },
                 [&] { return Stopping || WakeRequested; });
             WakeRequested = false;
         }
@@ -373,9 +379,13 @@ namespace Microsoft::Terminal::TaskRuntime
             }
         }
 
-        for (const auto& intent : recovery.Snapshot.PendingIntents)
+        for (const bool urgent : { true, false })
         {
-            HandleIntent(intent);
+            for (const auto& intent : recovery.Snapshot.PendingIntents)
+            {
+                if ((intent.Kind != TaskIntentKind::WorktreeCleanup) == urgent)
+                    StartLifecycleWorker(intent.Task, urgent, [this, intent] { HandleIntent(intent); });
+            }
         }
 
         for (const auto& terminal : recovery.Snapshot.RecoverableTerminals)
@@ -414,6 +424,15 @@ namespace Microsoft::Terminal::TaskRuntime
                     ++iterator;
                 }
             }
+            for (auto iterator = LifecycleWorkers.begin(); iterator != LifecycleWorkers.end();)
+            {
+                if (iterator->second->Finished.load(std::memory_order_acquire))
+                {
+                    completed.emplace_back(std::move(iterator->second->Thread));
+                    iterator = LifecycleWorkers.erase(iterator);
+                }
+                else ++iterator;
+            }
         }
         for (auto& thread : completed)
         {
@@ -426,7 +445,7 @@ namespace Microsoft::Terminal::TaskRuntime
     try
     {
         const std::scoped_lock lock{ Mutex };
-        if (Stopping || Workers.contains(run.Value()) ||
+        if (Stopping || Workers.contains(run.Value()) || LifecycleWorkers.contains(task.Value()) ||
             Workers.size() >= Configuration.MaximumConcurrentPreparations)
         {
             return;
@@ -524,14 +543,55 @@ namespace Microsoft::Terminal::TaskRuntime
         const auto [found, inserted] = TerminalIdleDeadlines.emplace(taskId, now + Configuration.TerminalIdleMilliseconds);
         if (inserted || now < found->second)
             return;
-        const auto suspended = Provider->SuspendTask(taskId, StopEvent.get());
+        if (StartLifecycleWorker(aggregate.Task.Id, false, [this, task = aggregate.Task.Id] { SuspendIdleTerminal(task); }))
+            TerminalIdleDeadlines.erase(taskId);
+    }
+    catch (...)
+    {
+    }
+
+    bool RuntimeTaskOrchestrator::Impl::StartLifecycleWorker(const TaskId& task, const bool urgent, std::function<void()> operation) noexcept
+    try
+    {
+        const std::scoped_lock lock{ Mutex };
+        // Keep a slot available for Stop/Close/Delete while cleanups are slow.
+        const auto limit = Configuration.MaximumConcurrentLifecycleOperations - (urgent ? 0 : 1);
+        if (Stopping || LifecycleWorkers.contains(task.Value()) || LifecycleWorkers.size() >= limit)
+            return false;
+        auto worker = std::make_shared<Worker>();
+        if (!worker->Cancellation) return false;
+        LifecycleWorkers.emplace(task.Value(), worker);
+        try
+        {
+            worker->Thread = std::thread{ [worker, operation = std::move(operation)] {
+                try { operation(); } catch (...) {}
+                worker->Finished.store(true, std::memory_order_release);
+            } };
+            return true;
+        }
+        catch (...) { LifecycleWorkers.erase(task.Value()); return false; }
+    }
+    catch (...) { return false; }
+
+    void RuntimeTaskOrchestrator::Impl::SuspendIdleTerminal(TaskId task) noexcept
+    try
+    {
+        auto aggregate = Store->LoadTask(task);
+        const auto eligible = [&](const TaskAggregateSnapshot& current) {
+            return current.Terminal.State == TaskTerminalState::Ready && Terminals->ClientCount(task.Value()) == 0 &&
+                   (!current.Intent || current.Intent->Stage == TaskIntentStage::Completed) &&
+                   !std::ranges::any_of(current.Runs, [](const auto& run) { return IsTaskRunActive(run.State); });
+        };
+        if (!aggregate || !eligible(*aggregate)) return;
+        const auto suspended = Provider->SuspendTask(task.Value(), StopEvent.get());
+        aggregate = Store->LoadTask(task);
+        if (!aggregate || !eligible(*aggregate)) return;
         if (suspended.Succeeded() ||
             suspended.Status == Microsoft::Terminal::TaskProvider::TaskProviderStatus::NotFound)
         {
-            static_cast<void>(Terminals->Close(taskId, aggregate.Terminal.Generation, false));
-            static_cast<void>(TransitionTerminal(aggregate.Task.Id, TaskTerminalState::Suspended, aggregate.Terminal.Generation));
+            static_cast<void>(Terminals->Close(task.Value(), aggregate->Terminal.Generation, false));
+            static_cast<void>(TransitionTerminal(task, TaskTerminalState::Suspended, aggregate->Terminal.Generation));
         }
-        TerminalIdleDeadlines.erase(taskId);
     }
     catch (...)
     {

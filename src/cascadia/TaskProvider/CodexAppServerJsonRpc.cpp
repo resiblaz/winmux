@@ -54,7 +54,7 @@ namespace Microsoft::Terminal::TaskProvider
 
     CodexAppServerJsonRpc::CodexAppServerJsonRpc(
         CodexAppServerTransportFactory transportFactory) :
-        _factory{ std::move(transportFactory) }
+        _factory{ std::move(transportFactory) }, _stopEvent{ CreateEventW(nullptr, TRUE, FALSE, nullptr) }
     {
     }
 
@@ -63,28 +63,31 @@ namespace Microsoft::Terminal::TaskProvider
         Stop();
     }
 
+
     TaskProviderResult CodexAppServerJsonRpc::Start() noexcept
     {
-        const std::scoped_lock lock{ _mutex };
+        const std::scoped_lock lifecycle{ _lifecycleMutex };
         try
         {
-            if (!_factory)
             {
-                return { TaskProviderStatus::InvalidRequest, "Codex transport factory is unavailable" };
+                const std::scoped_lock lock{ _mutex };
+                if (_transport && !_failure && _transport->Running())
+                    return { TaskProviderStatus::AlreadyApplied, {} };
             }
-            if (_transport && _transport->Running())
-            {
-                return { TaskProviderStatus::AlreadyApplied, {} };
-            }
-            _transport = _factory();
-            if (!_transport)
-            {
+            _stopLocked();
+            if (!_factory || !_stopEvent)
+                return { TaskProviderStatus::ResourceFailure, "Codex transport configuration is unavailable" };
+            auto transport = _factory();
+            if (!transport)
                 return { TaskProviderStatus::ResourceFailure, "Codex transport factory returned no transport" };
-            }
-            _buffer.clear();
-            _notifications.clear();
+            const auto started = transport->Start();
+            if (!started.Succeeded()) return started;
+            const std::scoped_lock lock{ _mutex };
+            _transport = std::move(transport);
+            _failure.reset();
             _nextRequestId = 1;
-            return _transport->Start();
+            ResetEvent(_stopEvent.get());
+            return started;
         }
         catch (...)
         {
@@ -95,22 +98,40 @@ namespace Microsoft::Terminal::TaskProvider
     TaskProviderResult CodexAppServerJsonRpc::_write(
         Json::Value message,
         const uint32_t timeoutMilliseconds,
-        const HANDLE cancellationEvent)
+        const HANDLE cancellationEvent,
+        const uint64_t epoch)
     {
-        if (!_transport || !_transport->Running() || timeoutMilliseconds == 0)
-        {
-            return { TaskProviderStatus::Unavailable, "Codex JSON-RPC transport is not running" };
-        }
+        if (!timeoutMilliseconds)
+            return { TaskProviderStatus::InvalidRequest, "Codex write timeout is invalid" };
         auto encoded = _json(message);
         encoded.push_back('\n');
         if (encoded.size() > MaximumCodexJsonLineBytes)
-        {
             return { TaskProviderStatus::OutputLimitExceeded, "Codex JSON-RPC request is oversized" };
+        const auto deadline = GetTickCount64() + timeoutMilliseconds;
+        std::unique_lock writer{ _writeMutex, std::defer_lock };
+        for (;;)
+        {
+            if (cancellationEvent && WaitForSingleObject(cancellationEvent, 0) == WAIT_OBJECT_0)
+                return { TaskProviderStatus::Cancelled, "Codex request was cancelled" };
+            {
+                const std::scoped_lock lock{ _mutex };
+                if (epoch != _epoch || !_transport)
+                    return { TaskProviderStatus::TransportClosed, "Codex transport generation changed" };
+                if (_failure) return *_failure;
+            }
+            if (GetTickCount64() >= deadline)
+                return { TaskProviderStatus::Timeout, "Codex write timed out" };
+            if (writer.try_lock_for(std::chrono::milliseconds{ 5 })) break;
         }
-        return _transport->Write(
-            encoded,
-            std::chrono::milliseconds{ timeoutMilliseconds },
-            cancellationEvent);
+        {
+            const std::scoped_lock lock{ _mutex };
+            if (epoch != _epoch || !_transport)
+                return { TaskProviderStatus::TransportClosed, "Codex transport generation changed" };
+            if (_failure) return *_failure;
+        }
+        // Stop signals IO first, then takes the direction locks before disposal.
+        return _transport->Write(encoded, std::chrono::milliseconds{
+            static_cast<int64_t>((std::max<uint64_t>)(1, deadline - (std::min)(deadline, GetTickCount64()))) }, cancellationEvent);
     }
 
     std::optional<Json::Value> CodexAppServerJsonRpc::_readMessage(
@@ -174,98 +195,175 @@ namespace Microsoft::Terminal::TaskProvider
         }
     }
 
+
+    bool CodexAppServerJsonRpc::_pumpOnce(const uint64_t epoch) noexcept
+    {
+        std::unique_lock reader{ _readMutex, std::try_to_lock };
+        if (!reader.owns_lock()) return false;
+        try
+        {
+            {
+                const std::scoped_lock lock{ _mutex };
+                if (epoch != _epoch || !_transport || _failure) return false;
+            }
+            TaskProviderResult failure;
+            const auto message = _readMessage(GetTickCount64() + 10, _stopEvent.get(), failure);
+            std::unique_lock lock{ _mutex };
+            if (epoch != _epoch) return false;
+            if (!message)
+            {
+                if (failure.Status == TaskProviderStatus::Timeout) return false;
+                _failure = failure;
+            }
+            else if (_method(*message))
+            {
+                if (_notifications.size() >= MaximumCodexQueuedNotifications)
+                    _failure = TaskProviderResult{ TaskProviderStatus::OutputLimitExceeded, "Codex notification queue is full" };
+                else
+                    _notifications.push_back(*message);
+            }
+            else if (!message->isMember("id") || !(*message)["id"].isUInt64() ||
+                     (*message)["id"].asUInt64() == 0 || (*message)["id"].asUInt64() >= _nextRequestId)
+            {
+                _failure = TaskProviderResult{ TaskProviderStatus::MalformedResponse, "Codex response ID was never issued" };
+            }
+            else
+            {
+                const auto found = _pending.find((*message)["id"].asUInt64());
+                // Timed-out/cancelled requests may still receive a late response.
+                if (found != _pending.end() && !found->second)
+                {
+                    CodexJsonRpcResult result;
+                    if (message->isMember("error"))
+                    {
+                        const auto& error = (*message)["error"];
+                        if (!error.isObject() || !error["code"].isInt64() || !error["message"].isString())
+                        {
+                            result.Status = TaskProviderStatus::MalformedResponse;
+                            result.Error = "Codex RPC error is malformed";
+                        }
+                        else
+                        {
+                            result.RpcCode = error["code"].asInt64();
+                            result.Status = result.RpcCode == -32601 ? TaskProviderStatus::UnsupportedCapability : TaskProviderStatus::Rejected;
+                            result.Error = error["message"].asString().substr(0, MaximumProviderDiagnosticBytes);
+                        }
+                    }
+                    else if (message->isMember("result"))
+                    {
+                        result.Status = TaskProviderStatus::Succeeded;
+                        result.Value = (*message)["result"];
+                    }
+                    else
+                    {
+                        result.Status = TaskProviderStatus::MalformedResponse;
+                        result.Error = "Codex response has no result";
+                    }
+                    found->second = std::move(result);
+                }
+            }
+            const auto failed = _failure.has_value();
+            lock.unlock();
+            _changed.notify_all();
+            if (failed && _transport) _transport->RequestStop();
+            return true;
+        }
+        catch (...)
+        {
+            const std::scoped_lock lock{ _mutex };
+            if (epoch == _epoch)
+                _failure = TaskProviderResult{ TaskProviderStatus::ResourceFailure, "Codex response dispatch exhausted resources" };
+            _changed.notify_all();
+            return false;
+        }
+    }
+
     CodexJsonRpcResult CodexAppServerJsonRpc::Request(
         const std::string_view method,
         const Json::Value& params,
         const uint32_t timeoutMilliseconds,
         const HANDLE cancellationEvent) noexcept
     {
-        const std::scoped_lock lock{ _mutex };
         CodexJsonRpcResult result;
+        uint64_t requestId{};
+        uint64_t epoch{};
         try
         {
-            if (method.empty() || method.size() > 128 || !params.isObject() ||
-                _nextRequestId == 0 || timeoutMilliseconds == 0)
+            if (method.empty() || method.size() > 128 || !params.isObject() || !timeoutMilliseconds)
             {
                 result.Status = TaskProviderStatus::InvalidRequest;
                 result.Error = "Codex JSON-RPC request is invalid";
                 return result;
             }
-            const auto requestId = _nextRequestId++;
+            const auto deadline = GetTickCount64() + timeoutMilliseconds;
+            {
+                const std::scoped_lock lock{ _mutex };
+                if (!_transport || _failure || !_nextRequestId)
+                {
+                    result.Status = _failure ? _failure->Status : TaskProviderStatus::Unavailable;
+                    result.Error = _failure ? _failure->Error : "Codex transport is unavailable";
+                    return result;
+                }
+                if (_pending.size() >= MaximumCodexPendingRequests)
+                {
+                    result.Status = TaskProviderStatus::ResourceFailure;
+                    result.Error = "Codex pending request capacity was reached";
+                    return result;
+                }
+                epoch = _epoch;
+                requestId = _nextRequestId++;
+                _pending.emplace(requestId, std::nullopt);
+            }
             Json::Value message{ Json::objectValue };
             message["id"] = Json::UInt64{ requestId };
             message["method"] = std::string{ method };
             message["params"] = params;
-            const auto written = _write(
-                std::move(message), timeoutMilliseconds, cancellationEvent);
+            const auto written = _write(std::move(message), timeoutMilliseconds, cancellationEvent, epoch);
             if (!written.Succeeded())
             {
+                const std::scoped_lock lock{ _mutex };
+                if (epoch == _epoch) _pending.erase(requestId);
                 result.Status = written.Status;
                 result.Error = written.Error;
                 return result;
             }
-            const auto deadline = GetTickCount64() + timeoutMilliseconds;
             for (;;)
             {
-                TaskProviderResult failure;
-                const auto received = _readMessage(deadline, cancellationEvent, failure);
-                if (!received)
                 {
-                    result.Status = failure.Status;
-                    result.Error = failure.Error;
-                    return result;
-                }
-                if (_method(*received))
-                {
-                    if (_notifications.size() >= MaximumCodexQueuedNotifications)
+                    std::unique_lock lock{ _mutex };
+                    if (epoch != _epoch)
                     {
-                        result.Status = TaskProviderStatus::OutputLimitExceeded;
-                        result.Error = "Codex notification queue is full";
+                        result.Status = TaskProviderStatus::TransportClosed;
+                        result.Error = "Codex transport generation changed";
                         return result;
                     }
-                    _notifications.emplace_back(*received);
-                    continue;
-                }
-                if (!received->isMember("id") ||
-                    !(*received)["id"].isUInt64() ||
-                    (*received)["id"].asUInt64() != requestId)
-                {
-                    result.Status = TaskProviderStatus::MalformedResponse;
-                    result.Error = "Codex response ID is missing or unexpected";
-                    return result;
-                }
-                if (received->isMember("error"))
-                {
-                    const auto& error = (*received)["error"];
-                    if (!error.isObject() || !error.isMember("code") ||
-                        !error["code"].isInt64() || !error.isMember("message") ||
-                        !error["message"].isString())
+                    const auto found = _pending.find(requestId);
+                    if (found != _pending.end() && found->second)
                     {
-                        result.Status = TaskProviderStatus::MalformedResponse;
-                        result.Error = "Codex RPC error is malformed";
+                        result = std::move(*found->second);
+                        _pending.erase(found);
                         return result;
                     }
-                    result.RpcCode = error["code"].asInt64();
-                    result.Status = result.RpcCode == -32601 ?
-                                        TaskProviderStatus::UnsupportedCapability :
-                                        TaskProviderStatus::Rejected;
-                    result.Error = error["message"].asString().substr(
-                        0, MaximumProviderDiagnosticBytes);
-                    return result;
+                    const auto cancelled = cancellationEvent && WaitForSingleObject(cancellationEvent, 0) == WAIT_OBJECT_0;
+                    if (_failure || cancelled || GetTickCount64() >= deadline)
+                    {
+                        _pending.erase(requestId);
+                        result.Status = _failure ? _failure->Status : cancelled ? TaskProviderStatus::Cancelled : TaskProviderStatus::Timeout;
+                        result.Error = _failure ? _failure->Error : cancelled ? "Codex request was cancelled" : "Codex response timed out";
+                        return result;
+                    }
                 }
-                if (!received->isMember("result"))
+                if (!_pumpOnce(epoch))
                 {
-                    result.Status = TaskProviderStatus::MalformedResponse;
-                    result.Error = "Codex response has no result";
-                    return result;
+                    std::unique_lock lock{ _mutex };
+                    _changed.wait_for(lock, std::chrono::milliseconds{ 5 });
                 }
-                result.Status = TaskProviderStatus::Succeeded;
-                result.Value = (*received)["result"];
-                return result;
             }
         }
         catch (...)
         {
+            const std::scoped_lock lock{ _mutex };
+            if (epoch == _epoch) _pending.erase(requestId);
             result.Status = TaskProviderStatus::ResourceFailure;
             result.Error = "Codex JSON-RPC request exhausted resources";
             return result;
@@ -278,17 +376,16 @@ namespace Microsoft::Terminal::TaskProvider
         const uint32_t timeoutMilliseconds,
         const HANDLE cancellationEvent) noexcept
     {
-        const std::scoped_lock lock{ _mutex };
         try
         {
             if (method.empty() || method.size() > 128 || !params.isObject())
-            {
                 return { TaskProviderStatus::InvalidRequest, "Codex notification is invalid" };
-            }
             Json::Value message{ Json::objectValue };
             message["method"] = std::string{ method };
             message["params"] = params;
-            return _write(std::move(message), timeoutMilliseconds, cancellationEvent);
+            uint64_t epoch;
+            { const std::scoped_lock lock{ _mutex }; epoch = _epoch; }
+            return _write(std::move(message), timeoutMilliseconds, cancellationEvent, epoch);
         }
         catch (...)
         {
@@ -302,18 +399,16 @@ namespace Microsoft::Terminal::TaskProvider
         const uint32_t timeoutMilliseconds,
         const HANDLE cancellationEvent) noexcept
     {
-        const std::scoped_lock lock{ _mutex };
         try
         {
-            if ((!requestId.isUInt64() && !requestId.isString()) ||
-                requestId.empty() || !response.isObject())
-            {
+            if ((!requestId.isUInt64() && !requestId.isString()) || requestId.empty() || !response.isObject())
                 return { TaskProviderStatus::InvalidRequest, "Codex JSON-RPC response is invalid" };
-            }
             Json::Value message{ Json::objectValue };
             message["id"] = requestId;
             message["result"] = response;
-            return _write(std::move(message), timeoutMilliseconds, cancellationEvent);
+            uint64_t epoch;
+            { const std::scoped_lock lock{ _mutex }; epoch = _epoch; }
+            return _write(std::move(message), timeoutMilliseconds, cancellationEvent, epoch);
         }
         catch (...)
         {
@@ -325,43 +420,42 @@ namespace Microsoft::Terminal::TaskProvider
         const uint32_t timeoutMilliseconds,
         const HANDLE cancellationEvent) noexcept
     {
-        const std::scoped_lock lock{ _mutex };
         CodexJsonRpcResult result;
         try
         {
-            if (!_transport || !_transport->Running() || timeoutMilliseconds == 0)
+            uint64_t epoch;
+            { const std::scoped_lock lock{ _mutex }; epoch = _epoch; }
+            const auto deadline = GetTickCount64() + timeoutMilliseconds;
+            for (;;)
             {
-                result.Status = TaskProviderStatus::Unavailable;
-                result.Error = "Codex notification transport is unavailable";
-                return result;
+                {
+                    std::unique_lock lock{ _mutex };
+                    if (epoch != _epoch || !_transport || _failure || !timeoutMilliseconds)
+                    {
+                        result.Status = _failure ? _failure->Status : TaskProviderStatus::Unavailable;
+                        result.Error = _failure ? _failure->Error : "Codex notification transport is unavailable";
+                        return result;
+                    }
+                    if (!_notifications.empty())
+                    {
+                        result.Status = TaskProviderStatus::Succeeded;
+                        result.Value = std::move(_notifications.front());
+                        _notifications.pop_front();
+                        return result;
+                    }
+                    const auto cancelled = cancellationEvent && WaitForSingleObject(cancellationEvent, 0) == WAIT_OBJECT_0;
+                    if (cancelled || GetTickCount64() >= deadline)
+                    {
+                        result.Status = cancelled ? TaskProviderStatus::Cancelled : TaskProviderStatus::Timeout;
+                        return result;
+                    }
+                }
+                if (!_pumpOnce(epoch))
+                {
+                    std::unique_lock lock{ _mutex };
+                    _changed.wait_for(lock, std::chrono::milliseconds{ 5 });
+                }
             }
-            if (!_notifications.empty())
-            {
-                result.Status = TaskProviderStatus::Succeeded;
-                result.Value = std::move(_notifications.front());
-                _notifications.pop_front();
-                return result;
-            }
-            TaskProviderResult failure;
-            const auto received = _readMessage(
-                GetTickCount64() + timeoutMilliseconds,
-                cancellationEvent,
-                failure);
-            if (!received)
-            {
-                result.Status = failure.Status;
-                result.Error = failure.Error;
-                return result;
-            }
-            if (!_method(*received))
-            {
-                result.Status = TaskProviderStatus::MalformedResponse;
-                result.Error = "Unexpected Codex response arrived without an active request";
-                return result;
-            }
-            result.Status = TaskProviderStatus::Succeeded;
-            result.Value = *received;
-            return result;
         }
         catch (...)
         {
@@ -374,18 +468,33 @@ namespace Microsoft::Terminal::TaskProvider
     bool CodexAppServerJsonRpc::Running() const noexcept
     {
         const std::scoped_lock lock{ _mutex };
-        return _transport && _transport->Running();
+        return _transport && !_failure && _transport->Running();
+    }
+
+    void CodexAppServerJsonRpc::_stopLocked() noexcept
+    {
+        ICodexAppServerTransport* transport{};
+        {
+            const std::scoped_lock lock{ _mutex };
+            ++_epoch;
+            if (_stopEvent) SetEvent(_stopEvent.get());
+            transport = _transport.get();
+        }
+        _changed.notify_all();
+        if (transport) transport->RequestStop();
+        const std::scoped_lock io{ _writeMutex, _readMutex };
+        if (transport) transport->Stop();
+        const std::scoped_lock lock{ _mutex };
+        _transport.reset();
+        _buffer.clear();
+        _notifications.clear();
+        _pending.clear();
+        _failure.reset();
     }
 
     void CodexAppServerJsonRpc::Stop() noexcept
     {
-        const std::scoped_lock lock{ _mutex };
-        if (_transport)
-        {
-            _transport->Stop();
-        }
-        _transport.reset();
-        _buffer.clear();
-        _notifications.clear();
+        const std::scoped_lock lifecycle{ _lifecycleMutex };
+        _stopLocked();
     }
 }

@@ -105,11 +105,28 @@ namespace Microsoft::Terminal::TaskProvider
     {
         {
             const std::scoped_lock lock{ _stateMutex };
+            if (_stopped) return { TaskProviderStatus::TransportClosed, "Codex adapter was stopped" };
+            if (_initialized) return { TaskProviderStatus::AlreadyApplied, {} };
+        }
+        const std::scoped_lock initialization{ _initializeMutex };
+        {
+            const std::scoped_lock lock{ _stateMutex };
+            if (_stopped) return { TaskProviderStatus::TransportClosed, "Codex adapter was stopped" };
             if (_initialized) return { TaskProviderStatus::AlreadyApplied, {} };
             if (!_timeouts.Valid()) return _invalid("Codex App Server timeouts are invalid");
         }
         const auto started = _rpc.Start();
         if (!started.Succeeded()) return started;
+        bool stopped;
+        {
+            const std::scoped_lock lock{ _stateMutex };
+            stopped = _stopped;
+        }
+        if (stopped)
+        {
+            _rpc.Stop();
+            return { TaskProviderStatus::TransportClosed, "Codex adapter was stopped during launch" };
+        }
 
         Json::Value clientInfo{ Json::objectValue };
         clientInfo["name"] = "richer-terminal-task-runtime";
@@ -143,6 +160,7 @@ namespace Microsoft::Terminal::TaskProvider
         }
         {
             const std::scoped_lock lock{ _stateMutex };
+            if (_stopped || !_rpc.Running()) return { TaskProviderStatus::TransportClosed, "Codex initialization was stopped" };
             _capabilities = std::move(parsed.Value.value());
             _initialized = true;
             _nextEventSequence = 1;
@@ -205,7 +223,39 @@ namespace Microsoft::Terminal::TaskProvider
         params["runtimeWorkspaceRoots"].append(*cwd);
         params["threadSource"] = "richer-terminal-task-runtime";
         params["ephemeral"] = false;
+        // App Server does not inherit the launcher's --yolo permissions when
+        // creating threads. Preserve the Task provider's existing execution mode.
+        params["approvalPolicy"] = "never";
+        params["sandbox"] = "danger-full-access";
         if (!request.Model.empty()) params["model"] = request.Model;
+        if (request.InitialRunContext)
+        {
+            const auto& context = *request.InitialRunContext;
+            const auto prepared = PrepareTaskProviderRunContext(context);
+            if (!prepared.Succeeded || context.TaskId != request.TaskId ||
+                context.WorkingDirectory != request.WorkingDirectory || context.Model != request.Model)
+            {
+                result.Status = TaskProviderStatus::InvalidRequest;
+                result.Error = "Codex initial Run context is invalid";
+                return result;
+            }
+            Json::Value environment{ Json::objectValue };
+            for (const auto& entry : prepared.Environment)
+            {
+                const auto name = _utf8(entry.Name);
+                const auto value = _utf8(entry.Value);
+                if (!name || !value)
+                {
+                    result.Status = TaskProviderStatus::InvalidRequest;
+                    result.Error = "Codex initial Run environment is not valid UTF-8";
+                    return result;
+                }
+                environment[*name] = *value;
+            }
+            params["developerInstructions"] = prepared.Instructions;
+            params["config"]["shell_environment_policy"]["inherit"] = "all";
+            params["config"]["shell_environment_policy"]["set"] = std::move(environment);
+        }
         const auto response = _rpc.Request(
             "thread/start", params, _timeouts.SessionMilliseconds, cancellationEvent);
         if (!response.Succeeded())
@@ -223,6 +273,11 @@ namespace Microsoft::Terminal::TaskProvider
         }
         result.Status = TaskProviderStatus::Succeeded;
         result.Value = TaskProviderSession{ *id, TaskProviderSessionState::Ready };
+        if (request.InitialRunContext)
+        {
+            const auto lock = std::scoped_lock{ _stateMutex };
+            _initialRunBySession.insert_or_assign(*id, request.InitialRunContext->RunId);
+        }
         return result;
     }
 
@@ -247,8 +302,21 @@ namespace Microsoft::Terminal::TaskProvider
         Json::Value params{ Json::objectValue };
         params["threadId"] = std::string{ sessionId };
         params["excludeTurns"] = true;
-        const auto response = _rpc.Request(
+        auto response = _rpc.Request(
             "thread/resume", params, _timeouts.SessionMilliseconds, cancellationEvent);
+        // Recover a process interruption between unloading and restoring the
+        // stored thread. The rollout is preserved by the archive operation.
+        if (!response.Succeeded() && response.Error.find(" is archived.") != std::string::npos)
+        {
+            const auto restored = _rpc.Request("thread/unarchive", params, _timeouts.SessionMilliseconds, cancellationEvent);
+            if (!restored.Succeeded())
+            {
+                result.Status = restored.Status;
+                result.Error = restored.Error;
+                return result;
+            }
+            response = _rpc.Request("thread/resume", params, _timeouts.SessionMilliseconds, cancellationEvent);
+        }
         if (!response.Succeeded())
         {
             result.Status = response.Status;
@@ -264,6 +332,10 @@ namespace Microsoft::Terminal::TaskProvider
         }
         result.Status = TaskProviderStatus::Succeeded;
         result.Value = TaskProviderSession{ *id, TaskProviderSessionState::Ready };
+        {
+            const std::scoped_lock lock{ _stateMutex };
+            _pendingUnarchive.erase(*id);
+        }
         return result;
     }
 
@@ -321,26 +393,46 @@ namespace Microsoft::Terminal::TaskProvider
         Json::Value resume{ Json::objectValue };
         resume["threadId"] = request.SessionId;
         resume["excludeTurns"] = true;
+        resume["approvalPolicy"] = "never";
+        resume["sandbox"] = "danger-full-access";
         resume["cwd"] = *cwd;
         resume["runtimeWorkspaceRoots"] = Json::Value{ Json::arrayValue };
         resume["runtimeWorkspaceRoots"].append(*cwd);
         resume["developerInstructions"] = prepared.Instructions;
         resume["config"] = std::move(config);
         if (!request.Context.Model.empty()) resume["model"] = request.Context.Model;
-        const auto resumed = _rpc.Request(
-            "thread/resume", resume, _timeouts.SessionMilliseconds, cancellationEvent);
-        if (!resumed.Succeeded())
+        bool initialRun{};
         {
-            result.Status = resumed.Status;
-            result.Error = resumed.Error;
-            return result;
+            const auto lock = std::scoped_lock{ _stateMutex };
+            const auto initial = _initialRunBySession.find(request.SessionId);
+            initialRun = initial != _initialRunBySession.end() && initial->second == request.Context.RunId;
         }
-        const auto resumedId = _threadId(resumed.Value);
-        if (!resumedId || *resumedId != request.SessionId)
+        if (!initialRun)
         {
-            result.Status = TaskProviderStatus::MalformedResponse;
-            result.Error = "Codex Run preparation resumed a different thread";
-            return result;
+            // Unsubscribe retains loaded threads for an idle grace period.
+            // Unload this thread before applying the next Run's capability.
+            const auto unloaded = CloseSessionProjection(request.SessionId, cancellationEvent);
+            if (!unloaded.Succeeded())
+            {
+                result.Status = unloaded.Status;
+                result.Error = unloaded.Error;
+                return result;
+            }
+            const auto resumed = _rpc.Request(
+                "thread/resume", resume, _timeouts.SessionMilliseconds, cancellationEvent);
+            if (!resumed.Succeeded())
+            {
+                result.Status = resumed.Status;
+                result.Error = resumed.Error;
+                return result;
+            }
+            const auto resumedId = _threadId(resumed.Value);
+            if (!resumedId || *resumedId != request.SessionId)
+            {
+                result.Status = TaskProviderStatus::MalformedResponse;
+                result.Error = "Codex Run preparation resumed a different thread";
+                return result;
+            }
         }
 
         Json::Value input{ Json::objectValue };
@@ -373,6 +465,10 @@ namespace Microsoft::Terminal::TaskProvider
         }
         result.Status = TaskProviderStatus::Succeeded;
         result.Value = TaskProviderRun{ request.SessionId, *id, TaskProviderRunState::Running };
+        {
+            const auto lock = std::scoped_lock{ _stateMutex };
+            _initialRunBySession.erase(request.SessionId);
+        }
         return result;
     }
 
@@ -516,6 +612,11 @@ namespace Microsoft::Terminal::TaskProvider
         params["threadId"] = std::string{ sessionId };
         const auto response = _rpc.Request(
             "thread/unsubscribe", params, _timeouts.CommandMilliseconds, cancellationEvent);
+        if (response.Succeeded())
+        {
+            const auto lock = std::scoped_lock{ _stateMutex };
+            _initialRunBySession.erase(std::string{ sessionId });
+        }
         return { response.Status, response.Error };
     }
 
@@ -526,7 +627,44 @@ namespace Microsoft::Terminal::TaskProvider
 
     TaskProviderResult CodexAppServerAdapter::CloseSessionProjection(const std::string_view sessionId, const HANDLE cancellationEvent)
     {
-        return _unsubscribe(sessionId, cancellationEvent);
+        if (!_validIdentifier(sessionId)) return _invalid("Codex close identity is invalid");
+        const std::string id{ sessionId };
+        Json::Value params{ Json::objectValue };
+        params["threadId"] = id;
+        bool restorePending{};
+        {
+            const std::scoped_lock lock{ _stateMutex };
+            restorePending = _pendingUnarchive.contains(id);
+        }
+        if (!restorePending)
+        {
+            // Archive shuts down only this thread and its children. Unarchive
+            // restores the history without reloading its processes. In contrast,
+            // unsubscribe alone can leave Node/MCP cwd handles alive for 30 min.
+            auto archived = _rpc.Request("thread/archive", params, _timeouts.SessionMilliseconds, cancellationEvent);
+            if (!archived.Succeeded() && archived.Error.find("no rollout found for thread id " + id) != std::string::npos)
+            {
+                // A fresh thread may not have a rollout yet. A no-section move
+                // materializes it without running an Agent turn or a shell command.
+                auto materialize = params;
+                materialize["sectionId"] = Json::Value{};
+                const auto persisted = _rpc.Request("thread/section/move", materialize, _timeouts.SessionMilliseconds, cancellationEvent);
+                if (!persisted.Succeeded()) return { persisted.Status, persisted.Error };
+                archived = _rpc.Request("thread/archive", params, _timeouts.SessionMilliseconds, cancellationEvent);
+            }
+            if (!archived.Succeeded()) return { archived.Status, archived.Error };
+            const std::scoped_lock lock{ _stateMutex };
+            _pendingUnarchive.insert(id);
+            _initialRunBySession.erase(id);
+        }
+        const auto restored = _rpc.Request("thread/unarchive", params, _timeouts.SessionMilliseconds, cancellationEvent);
+        if (!restored.Succeeded()) return { restored.Status, restored.Error };
+        const auto restoredId = _threadId(restored.Value);
+        if (!restoredId || *restoredId != id)
+            return { TaskProviderStatus::MalformedResponse, "Codex close restored a different thread" };
+        const std::scoped_lock lock{ _stateMutex };
+        _pendingUnarchive.erase(id);
+        return { TaskProviderStatus::Succeeded, {} };
     }
 
     TaskProviderFailureDisposition CodexAppServerAdapter::ClassifyFailureAndResumeSafety(
@@ -538,11 +676,19 @@ namespace Microsoft::Terminal::TaskProvider
 
     void CodexAppServerAdapter::Stop() noexcept
     {
+        {
+            const std::scoped_lock lock{ _stateMutex };
+            // Coordinators replace stopped adapters. Late calls on the old
+            // instance must never start a second provider after replacement.
+            _stopped = true;
+        }
         _rpc.Stop();
         const std::scoped_lock lock{ _stateMutex };
         _initialized = false;
         _capabilities.reset();
         _approvals.clear();
+        _initialRunBySession.clear();
+        _pendingUnarchive.clear();
         _nextEventSequence = 1;
     }
 

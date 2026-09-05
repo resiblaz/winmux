@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "TerminalPage.h"
+#include "Tasks/TaskPage.h"
 #include "WorkspaceFeatureSet.h"
 
 #include <TerminalCore/ControlKeyStates.hpp>
@@ -287,6 +288,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         auto& workspaces = _workspaceFeatures->Workspaces();
+        auto topology = workspaces.BeginUpdate();
         const auto workspaceIndex = workspaces.IndexOfTab(tab);
         if (!workspaceIndex)
         {
@@ -400,6 +402,7 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_ApplyRestoredWorkspaceActiveSurfaces()
     {
         auto& workspaces = _workspaceFeatures->Workspaces();
+        auto topology = workspaces.BeginUpdate();
         for (const auto& [workspaceId, surfaceId] : _SessionRestore().ActiveSurfaceIds)
         {
             if (const auto workspaceIndex = workspaces.IndexOf(workspaceId))
@@ -440,6 +443,7 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_SynchronizeFlatTabOrder()
     {
+        auto topology = _workspaceFeatures->Workspaces().BeginUpdate();
         std::vector<TerminalApp::Tab> desiredOrder;
         desiredOrder.reserve(_tabs.Size());
         for (const auto& workspace : _WorkspaceItems())
@@ -588,6 +592,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         auto& workspaces = _workspaceFeatures->Workspaces();
+        auto topology = workspaces.BeginUpdate();
         const auto currentIndex = workspaces.IndexOf(item.WorkspaceId());
         if (!currentIndex)
         {
@@ -1286,6 +1291,7 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_WorkspaceList_DragItemsCompleted(const IInspectable&, const DragItemsCompletedEventArgs&)
     {
+        auto topology = _workspaceFeatures->Workspaces().BeginUpdate();
         if (_SidebarController().ReorderFrom.has_value() && _SidebarController().ReorderItem)
         {
             uint32_t newIndex{};
@@ -1307,12 +1313,55 @@ namespace winrt::TerminalApp::implementation
                 {
                     _workspaceFeatures->Workspaces().Move(newIndex, clampedIndex);
                 }
+                _workspaceFeatures->Workspaces().NotifyNativeReorder();
                 _SynchronizeFlatTabOrder();
             }
         }
 
         _SidebarController().ReorderFrom = std::nullopt;
         _SidebarController().ReorderItem = nullptr;
+    }
+
+    Windows::Foundation::Collections::IVectorView<TerminalApp::WorkspaceItemViewModel> TerminalPage::WorkspaceItemsView() const
+    {
+        return _WorkspaceItems().GetView();
+    }
+
+    TerminalApp::WorkspaceItemViewModel TerminalPage::ActiveWorkspace() const
+    {
+        return _workspaceFeatures->Workspaces().ItemForTab(_GetFocusedTab());
+    }
+
+    bool TerminalPage::WorkspaceUiReady() const noexcept
+    {
+        return _tabView && !_workspaceFeatures->Workspaces().IsUpdating();
+    }
+
+    bool TerminalPage::WorkspaceSidebarEnabled() const noexcept { return _SidebarController().Enabled; }
+
+    AgentHistoryCoordinator& TerminalPage::WorkspaceHistory() noexcept { return _workspaceFeatures->History(); }
+
+    AgentHistoryRetentionPolicy TerminalPage::WorkspaceHistoryRetention() const
+    {
+        const auto settings = _settings.GlobalSettings();
+        AgentHistoryRetentionPolicy policy;
+        policy.RetentionDays = std::min(settings.AgentHistoryRetentionDays(), uint32_t{ 36500 });
+        policy.MaximumTurns = std::min(settings.AgentHistoryMaximumTurns(), uint32_t{ 1000000 });
+        policy.MaximumPayloadBytes = static_cast<uint64_t>(std::min(settings.AgentHistoryMaximumPayloadMiB(), uint32_t{ 4096 })) * 1024 * 1024;
+        policy.ReceiptTombstoneDays = 30;
+        return policy;
+    }
+
+    void TerminalPage::OpenHistorySession(const winrt::guid& workspaceId, const NewTerminalArgs& args)
+    {
+        const auto index = _workspaceFeatures->Workspaces().IndexOf(workspaceId);
+        if (!index) return;
+        const auto tab = _WorkspaceItems().GetAt(*index).SourceTab();
+        const auto tabIndex = tab ? _GetTabIndex(tab) : std::nullopt;
+        if (!tabIndex) return;
+        _SelectTab(*tabIndex);
+        if (const auto pane = _MakePane(args, nullptr, nullptr, true, workspaceId))
+            _SplitPane(_GetTabImpl(tab), SplitDirection::Automatic, 0.5f, pane, workspaceId);
     }
 
 }

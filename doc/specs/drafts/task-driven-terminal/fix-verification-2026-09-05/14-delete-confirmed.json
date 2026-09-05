@@ -1,0 +1,318 @@
+{
+  "task": [
+    {
+      "id": "c4b19534-baa9-4e65-b5f7-e9f64aca01c8",
+      "workspace_id": "ae0cfc6d-b66f-419e-9d5f-69bd3cdc1541",
+      "forked_from_task_id": null,
+      "title": "QA-01 Save only",
+      "description": "When explicitly started, create smoke.txt containing exactly task-ui-pass. Work only inside the current task directory. Do not commit, browse, or modify any other directory. Finish immediately after writing the file.",
+      "status": 1,
+      "priority": 1,
+      "version": 35,
+      "manual_hold": 1,
+      "created_at": 1788594689325,
+      "updated_at": 1788604662292
+    },
+    {
+      "id": "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+      "workspace_id": "ae0cfc6d-b66f-419e-9d5f-69bd3cdc1541",
+      "forked_from_task_id": null,
+      "title": "QA-02 Direct run",
+      "description": "Create direct.txt containing task-direct-pass in the current directory, then finish immediately. Do not commit, browse, or change anything outside this test directory.",
+      "status": 1,
+      "priority": 1,
+      "version": 99,
+      "manual_hold": 0,
+      "created_at": 1788596387395,
+      "updated_at": 1788605763280
+    },
+    {
+      "id": "f2f12643-7c2d-4c36-b893-3cf57c77b285",
+      "workspace_id": "29ffc450-0c9d-40ce-bb54-b69981046be5",
+      "forked_from_task_id": null,
+      "title": "QA-03 Worktree cleanup",
+      "description": "Reply QA cleanup test only. Do not use tools or modify files.",
+      "status": 1,
+      "priority": 1,
+      "version": 37,
+      "manual_hold": 0,
+      "created_at": 1788598074410,
+      "updated_at": 1788605574839
+    },
+    {
+      "id": "3969e2a7-80d0-4efe-9936-e6904429e55f",
+      "workspace_id": "40f8c105-8d93-428d-b72b-c40edcb9c9ab",
+      "forked_from_task_id": null,
+      "title": "QA-05 Fixed Worktree",
+      "description": "Create verified-worktree.txt containing fixed-worktree-pass in the current working directory. Do not browse, commit, create subagents, or modify files outside this directory. Finish immediately.",
+      "status": 1,
+      "priority": 1,
+      "version": 77,
+      "manual_hold": 0,
+      "created_at": 1788605844088,
+      "updated_at": 1788605871742
+    }
+  ],
+  "task_run": [
+    {
+      "id": "f6067ce6-3c1f-46b5-8b1e-309aa623f56a",
+      "task_id": "c4b19534-baa9-4e65-b5f7-e9f64aca01c8",
+      "execution_context_id": "a5471336-8188-4940-b487-4c79b8c71012",
+      "agent_session_id": null,
+      "retry_of_run_id": null,
+      "trigger": 0,
+      "state": 6,
+      "sequence": 1,
+      "created_at": 1788594895298,
+      "started_at": null,
+      "finished_at": 1788594904095,
+      "result": "",
+      "reason_code": "provider-start-failed"
+    },
+    {
+      "id": "44f0fdc8-0925-40dc-b16d-6af31f6e7e3b",
+      "task_id": "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+      "execution_context_id": "1fd23dc0-ee55-49f0-a3ba-7805feb0c325",
+      "agent_session_id": null,
+      "retry_of_run_id": null,
+      "trigger": 0,
+      "state": 6,
+      "sequence": 1,
+      "created_at": 1788596387419,
+      "started_at": null,
+      "finished_at": 1788596387678,
+      "result": "",
+      "reason_code": "provider-start-failed"
+    },
+    {
+      "id": "e7759192-ea10-4ac2-a344-48f8c2b96985",
+      "task_id": "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+      "execution_context_id": "1fd23dc0-ee55-49f0-a3ba-7805feb0c325",
+      "agent_session_id": null,
+      "retry_of_run_id": "44f0fdc8-0925-40dc-b16d-6af31f6e7e3b",
+      "trigger": 1,
+      "state": 6,
+      "sequence": 2,
+      "created_at": 1788596983634,
+      "started_at": null,
+      "finished_at": 1788596983701,
+      "result": "",
+      "reason_code": "provider-start-failed"
+    },
+    {
+      "id": "fbc2417e-2021-4c30-a1c7-5cc91e0b5c78",
+      "task_id": "f2f12643-7c2d-4c36-b893-3cf57c77b285",
+      "execution_context_id": "f5986234-af09-44d1-919a-ece40ad7cd36",
+      "agent_session_id": null,
+      "retry_of_run_id": null,
+      "trigger": 0,
+      "state": 6,
+      "sequence": 1,
+      "created_at": 1788598074443,
+      "started_at": null,
+      "finished_at": 1788598083143,
+      "result": "",
+      "reason_code": "provider-start-failed"
+    },
+    {
+      "id": "9a14251f-1b20-4a07-b650-ddefa152d974",
+      "task_id": "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+      "execution_context_id": "1fd23dc0-ee55-49f0-a3ba-7805feb0c325",
+      "agent_session_id": null,
+      "retry_of_run_id": "e7759192-ea10-4ac2-a344-48f8c2b96985",
+      "trigger": 1,
+      "state": 4,
+      "sequence": 3,
+      "created_at": 1788605718048,
+      "started_at": 1788605718376,
+      "finished_at": null,
+      "result": "",
+      "reason_code": ""
+    },
+    {
+      "id": "ae700ea8-dfe9-4500-8818-7c7573054ccb",
+      "task_id": "3969e2a7-80d0-4efe-9936-e6904429e55f",
+      "execution_context_id": "011c7d90-f76a-413a-916c-0dfb270a699c",
+      "agent_session_id": null,
+      "retry_of_run_id": null,
+      "trigger": 0,
+      "state": 4,
+      "sequence": 1,
+      "created_at": 1788605844108,
+      "started_at": 1788605852859,
+      "finished_at": null,
+      "result": "",
+      "reason_code": ""
+    }
+  ],
+  "task_terminal": [
+    {
+      "id": "0f0ddce3-864a-442c-ae5b-d0a93212b214",
+      "task_id": "c4b19534-baa9-4e65-b5f7-e9f64aca01c8",
+      "state": 7,
+      "generation": 1,
+      "current_agent_session_id": null,
+      "updated_at": 1788595443191
+    },
+    {
+      "id": "1a8d813b-a740-4d6b-854a-b4fd6c5c74b8",
+      "task_id": "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+      "state": 3,
+      "generation": 3,
+      "current_agent_session_id": "3492c151-5d83-4bc4-bfd7-30368d30c361",
+      "updated_at": 1788605718385
+    },
+    {
+      "id": "ba51b7e4-bac0-419d-b528-6f731f60c06e",
+      "task_id": "f2f12643-7c2d-4c36-b893-3cf57c77b285",
+      "state": 5,
+      "generation": 1,
+      "current_agent_session_id": "d59564a9-f71a-47ba-b7c9-5313179e2e9f",
+      "updated_at": 1788598387301
+    },
+    {
+      "id": "69d96d6f-06c8-48f6-b1cd-197d29d511da",
+      "task_id": "3969e2a7-80d0-4efe-9936-e6904429e55f",
+      "state": 3,
+      "generation": 1,
+      "current_agent_session_id": "c2908b77-3802-4ad7-b7e1-5921c874d2ad",
+      "updated_at": 1788605852863
+    }
+  ],
+  "task_message": [
+    {
+      "id": "1e1a9df0-1592-44a3-9e09-a3f7accbf798",
+      "task_id": "c4b19534-baa9-4e65-b5f7-e9f64aca01c8",
+      "state": 3,
+      "revision": 3,
+      "content": "",
+      "claimed_by_run_id": null,
+      "created_at": 1788595624919,
+      "author": 0,
+      "updated_at": 1788604662292
+    },
+    {
+      "id": "75f4fa6e-85bf-4247-9274-4827ee990f4d",
+      "task_id": "c4b19534-baa9-4e65-b5f7-e9f64aca01c8",
+      "state": 3,
+      "revision": 2,
+      "content": "",
+      "claimed_by_run_id": null,
+      "created_at": 1788595626552,
+      "author": 0,
+      "updated_at": 1788595728637
+    }
+  ],
+  "task_intent": [
+    {
+      "id": "9b4202d2-c395-459b-80c6-74a38ec46e23",
+      "task_id": "c4b19534-baa9-4e65-b5f7-e9f64aca01c8",
+      "kind": 1,
+      "stage": 8,
+      "revision": 3,
+      "deadline_at": null,
+      "detail_json": "{\"source\":\"tasks_page\"}",
+      "reason_code": "",
+      "created_at": 1788595443077,
+      "updated_at": 1788595443196
+    },
+    {
+      "id": "d6d73ee0-fa4a-41d3-99d9-2817718908f3",
+      "task_id": "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+      "kind": 1,
+      "stage": 8,
+      "revision": 3,
+      "deadline_at": null,
+      "detail_json": "{\"cancel\":true,\"source\":\"tasks_page\"}",
+      "reason_code": "",
+      "created_at": 1788596555283,
+      "updated_at": 1788596555471
+    },
+    {
+      "id": "809818f6-b64c-453d-9e6f-e34acc9c56d1",
+      "task_id": "f2f12643-7c2d-4c36-b893-3cf57c77b285",
+      "kind": 2,
+      "stage": 8,
+      "revision": 3,
+      "deadline_at": null,
+      "detail_json": "{\"source\":\"tasks_page\"}",
+      "reason_code": "",
+      "created_at": 1788605573971,
+      "updated_at": 1788605574839
+    }
+  ],
+  "agent_session": [
+    {
+      "id": "abffc617-9517-4953-9b33-d66c4d9be14c",
+      "task_id": "c4b19534-baa9-4e65-b5f7-e9f64aca01c8",
+      "provider": "codex",
+      "provider_session_id": "01a07090-5b6f-7281-a883-e178342d96e5",
+      "state": 3,
+      "is_current": 0,
+      "created_at": 1788594904042,
+      "updated_at": 1788595443145
+    },
+    {
+      "id": "f014f7d7-e543-49e9-adfd-8f260d5add57",
+      "task_id": "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+      "provider": "codex",
+      "provider_session_id": "01a070a6-feac-7110-9f0a-601396886131",
+      "state": 3,
+      "is_current": 0,
+      "created_at": 1788596387620,
+      "updated_at": 1788596555434
+    },
+    {
+      "id": "d59564a9-f71a-47ba-b7c9-5313179e2e9f",
+      "task_id": "f2f12643-7c2d-4c36-b893-3cf57c77b285",
+      "provider": "codex",
+      "provider_session_id": "01a070c0-dd95-71d1-a295-830f0757a2dc",
+      "state": 1,
+      "is_current": 1,
+      "created_at": 1788598083089,
+      "updated_at": 1788598387269
+    },
+    {
+      "id": "3492c151-5d83-4bc4-bfd7-30368d30c361",
+      "task_id": "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+      "provider": "codex",
+      "provider_session_id": "01a07135-5ebe-7741-b5d4-55b583dc54af",
+      "state": 0,
+      "is_current": 1,
+      "created_at": 1788605718339,
+      "updated_at": 1788605718339
+    },
+    {
+      "id": "c2908b77-3802-4ad7-b7e1-5921c874d2ad",
+      "task_id": "3969e2a7-80d0-4efe-9936-e6904429e55f",
+      "provider": "codex",
+      "provider_session_id": "01a07137-6c26-7a11-ae0e-ec9a33ce84c5",
+      "state": 0,
+      "is_current": 1,
+      "created_at": 1788605852831,
+      "updated_at": 1788605852831
+    }
+  ],
+  "delete_tombstone": [
+    {
+      "task_id": "0809fab1-6a4d-4632-be00-bb69518d1e61",
+      "deleted_at": 1788605410733,
+      "expires_at": 1791197410733,
+      "replay_digest": "26c2242f7508430fb4bd2c1e3c38f65166473cd4a369301933a73e04cddd533c",
+      "command_id": "80ca7ad7-6502-4002-9981-3877966eb3ba",
+      "expected_version": 3,
+      "committed_version": 4,
+      "last_event_sequence": 4
+    },
+    {
+      "task_id": "755e106a-7ab8-45e6-b3cb-0cfeb1fd1d0b",
+      "deleted_at": 1788605949936,
+      "expires_at": 1791197949936,
+      "replay_digest": "f0fcdab94f960eb0b4d21f5bbe61672d8a935ea46cee7fe347d11be264760a77",
+      "command_id": "785fdffc-0f67-4517-9af4-3fea703aec29",
+      "expected_version": 3,
+      "committed_version": 4,
+      "last_event_sequence": 4
+    }
+  ]
+}

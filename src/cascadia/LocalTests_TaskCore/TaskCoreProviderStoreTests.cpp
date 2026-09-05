@@ -58,6 +58,7 @@ namespace TaskCoreLocalTests
 
         TEST_METHOD(RecordsAndTransitionsCurrentAgentSessionAtomically);
         TEST_METHOD(AppendsOrderedProviderEventAndReplaysReceipt);
+        TEST_METHOD(TelemetryDoesNotInvalidateBusinessCommandsOrDependOnTheirRevision);
         TEST_METHOD(RejectsCrossTaskBindingsAndRollsBackEventFailure);
     };
 
@@ -111,7 +112,7 @@ namespace TaskCoreLocalTests
         const auto command = _event(task, run.Run.Id, 4, 3, 1300);
         const auto appended = store.AppendTaskProviderEvent(command);
         VERIFY_IS_TRUE(appended.Succeeded());
-        VERIFY_ARE_EQUAL(uint64_t{ 4 }, appended.CommittedTaskVersion);
+        VERIFY_ARE_EQUAL(uint64_t{ 3 }, appended.CommittedTaskVersion);
         VERIFY_IS_TRUE(store.AppendTaskProviderEvent(command).Status == TaskStoreCommandStatus::Replayed);
 
         const auto events = store.ListEvents(task.Task.Id, 0, 16);
@@ -120,6 +121,32 @@ namespace TaskCoreLocalTests
         VERIFY_IS_TRUE(events.back().RunId == std::optional{ run.Run.Id });
         VERIFY_IS_TRUE(events.back().RunSequence == std::optional<uint64_t>{ 2 });
         VERIFY_IS_TRUE(events.back().PayloadJson.find("providerSequence") != std::string::npos);
+    }
+
+    void TaskCoreProviderStoreTests::TelemetryDoesNotInvalidateBusinessCommandsOrDependOnTheirRevision()
+    {
+        TemporaryDatabasePath path;
+        const auto task = MakeCreateTaskCommand();
+        SqliteTaskStore store{ path.Path() };
+        VERIFY_IS_TRUE(store.CreateTask(task).Succeeded());
+        const auto run = MakeCreateRunCommand(task, 1, 2, 1, 1100);
+        VERIFY_IS_TRUE(store.CreateTaskRun(run).Succeeded());
+        VERIFY_IS_TRUE(store.AppendTaskProviderEvent(_event(task, run.Run.Id, 3, 2, 1200)).Succeeded());
+        auto snapshot = store.LoadTask(task.Task.Id);
+        VERIFY_ARE_EQUAL(uint64_t{ 2 }, snapshot->Task.Version);
+        VERIFY_ARE_EQUAL(int64_t{ 1100 }, snapshot->Task.UpdatedAtUnixMilliseconds);
+        VERIFY_ARE_EQUAL(uint64_t{ 3 }, snapshot->LastEventSequence);
+        VERIFY_IS_TRUE(store.ChangeTaskManualHold(MakeManualHoldCommand(task, 4, 2, 1400, true)).Succeeded());
+        auto delayed = _event(task, run.Run.Id, 5, 2, 1300);
+        delayed.ProviderSequence = 8;
+        delayed.Metadata.EventPayloadJson = R"({"providerSequence":8,"kind":"agent_message_delta","text":"later"})";
+        VERIFY_IS_TRUE(store.AppendTaskProviderEvent(delayed).Succeeded());
+        VERIFY_IS_TRUE(store.AppendTaskProviderEvent(delayed).Status == TaskStoreCommandStatus::Replayed);
+        snapshot = store.LoadTask(task.Task.Id);
+        VERIFY_ARE_EQUAL(uint64_t{ 3 }, snapshot->Task.Version);
+        VERIFY_ARE_EQUAL(int64_t{ 1400 }, snapshot->Task.UpdatedAtUnixMilliseconds);
+        VERIFY_ARE_EQUAL(uint64_t{ 5 }, snapshot->LastEventSequence);
+        VERIFY_IS_TRUE(store.ChangeTaskManualHold(MakeManualHoldCommand(task, 6, 2, 1600, false)).Status == TaskStoreCommandStatus::VersionConflict);
     }
 
     void TaskCoreProviderStoreTests::RejectsCrossTaskBindingsAndRollsBackEventFailure()

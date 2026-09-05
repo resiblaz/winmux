@@ -1,0 +1,130 @@
+
+Microsoft (R) Windows Debugger Version 10.0.17763.132 AMD64
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+
+Loading Dump File [C:\Users\u1s1\AppData\Local\CrashDumps\WindowsTerminal.exe.34740.dmp]
+User Mini Dump File: Only registers, stack and portions of memory are available
+
+
+************* Path validation summary **************
+Response                         Time (ms)     Location
+OK                                             F:\RicherLife\codes\win_terminal\bin\x64\Release\TerminalApp
+OK                                             F:\RicherLife\codes\win_terminal\bin\x64\Release
+Symbol search path is: F:\RicherLife\codes\win_terminal\bin\x64\Release\TerminalApp;F:\RicherLife\codes\win_terminal\bin\x64\Release
+Executable search path is:
+Windows 10 Version 22621 MP (16 procs) Free x64
+Product: WinNt, suite: SingleUserTS
+22621.1.amd64fre.ni_release.220506-1250
+Machine Name:
+Debug session time: Sat Sep  5 16:40:14.000 2026 (UTC + 8:00)
+System Uptime: not available
+Process Uptime: 0 days 0:54:06.000
+................................................................
+................................................................
+...
+Loading unloaded module list
+......
+This dump file has an exception of interest stored in it.
+The stored exception information can be accessed via .ecxr.
+(87b4.6d6c): Security check failure or stack buffer overrun - code c0000409 (first/second chance not available)
+*** ERROR: Symbol file could not be found.  Defaulted to export symbols for ucrtbase.dll -
+ucrtbase!abort+0x4e:
+00007ffc`520ff6fe cd29            int     29h
+0:000> cdb: Reading initial command '.ecxr; kb; q'
+rax=0000000000000001 rbx=000000634cefc310 rcx=0000000000000007
+rdx=000010c442480801 rsi=00007ffba40703a1 rdi=0000000000318a70
+rip=00007ffc520ff6fe rsp=000000634cefc180 rbp=000000634cefccd0
+ r8=00007ffc52180920  r9=000000634cefc0f8 r10=0000000000000012
+r11=00007ffba40703a2 r12=00000000ffffffff r13=0000000000000003
+r14=00007ffba40703a1 r15=000000634cefcb40
+iopl=0         nv up ei pl nz na pe nc
+cs=0033  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000202
+ucrtbase!abort+0x4e:
+00007ffc`520ff6fe cd29            int     29h
+  *** Stack trace for last set context - .thread/.cxr resets it
+RetAddr           : Args to Child                                                           : Call Site
+00007ffc`520fee19 : 00000063`00000003 00007ffb`00000003 0000a8ea`d071ebf4 00000063`4cefcae8 : ucrtbase!abort+0x4e
+00007ffb`a3f18a79 : 00000000`00000000 00007ffb`a40a2bc0 0000a8ea`d071eba4 00007ffb`a3f1b30a : ucrtbase!terminate+0x29
+00007ffb`a3f1b7c0 : 00007ffb`a3f18a70 00007ffb`00000103 00000063`4cefe2d0 00007ffb`a40703a1 : TerminalApp!__std_terminate+0x9
+00007ffb`a3f1aec9 : 00007ffb`a3f18a70 00000063`4cefc3b0 00000063`00000103 00000000`00000103 : TerminalApp!_CallSettingFrame+0x20
+00007ffb`a3f181bf : 00000000`00000000 00007ffb`a40a2bc0 000001fe`5c0b3350 00007ffc`0104006a : TerminalApp!__FrameHandler4::FrameUnwindToState+0x319
+00007ffb`a3f1a446 : 00000063`4cefe2d0 00007ffb`a3c051d2 00007ffb`a40a3770 00000000`00000000 : TerminalApp!__FrameHandler4::FrameUnwindToEmptyState+0x2f
+00007ffb`a3f1a576 : 0000a8ea`d071ee24 00000000`00010040 00000000`00000000 00007ffb`a3f190a0 : TerminalApp!__InternalCxxFrameHandler<__FrameHandler4>+0x166
+00007ffb`a3f188b5 : 00000000`00000000 00007ffb`a40ba688 00000063`4cefd160 00000000`00000000 : TerminalApp!__InternalCxxFrameHandlerWrapper<__FrameHandler4>+0x36
+*** ERROR: Symbol file could not be found.  Defaulted to export symbols for ntdll.dll -
+00007ffc`54e151ff : 00000063`4cefe2d0 00000000`0010000f 00000063`4cefcad0 00000063`4cefccd0 : TerminalApp!__CxxFrameHandler4+0xa5
+00007ffc`54d90144 : 00000063`4cefd160 00007ffb`a3c00000 00007ffb`a3de14e3 00007ffb`a40ba688 : ntdll!_chkstk+0x1af
+00007ffb`a3f184dc : 00000000`003a8ccc 00000000`00000000 00000000`00000048 00007ffb`00000001 : ntdll!RtlUnwindEx+0x274
+00007ffb`a3f19c4a : 00000000`00000002 00000063`4cefce40 00000063`4cefce90 00000063`4cefd080 : TerminalApp!__FrameHandler4::UnwindNestedFrames+0x15c
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!CatchIt+0x87
+00007ffb`a3f1a51e : 00000063`4cefe0d0 00000000`00000000 00000063`4cefd080 00000000`00000000 : TerminalApp!FindHandler<__FrameHandler4>+0x4ea
+00007ffb`a3f1a576 : 0000a8ea`d071e5b4 00007ffb`a3f190a0 00000000`00000000 00007ffb`a3f190a0 : TerminalApp!__InternalCxxFrameHandler<__FrameHandler4>+0x23e
+00007ffb`a3f188b5 : 00007ffb`a3c00000 00007ffb`a40afb7c 00000063`4cefd160 00000000`00000000 : TerminalApp!__InternalCxxFrameHandlerWrapper<__FrameHandler4>+0x36
+00007ffc`54e1517f : 00000063`4cefe420 00000000`00000000 00000063`4cefd660 00000063`4cefe0d0 : TerminalApp!__CxxFrameHandler4+0xa5
+00007ffc`54d8e856 : 00000063`4cefe0d0 00007ffb`a3c00000 00007ffb`a3cb0fc8 00007ffb`a40afb7c : ntdll!_chkstk+0x12f
+00007ffc`54dc4925 : 00000000`00000000 00000063`4cefdf80 00000000`00000000 00007ffc`54dc4885 : ntdll!RtlFindCharInUnicodeString+0xa96
+*** ERROR: Symbol file could not be found.  Defaulted to export symbols for KERNELBASE.dll -
+00007ffc`525afe4c : 0000e0c2`53977b5e 00007ffb`a4096090 00000063`4cefe220 00007ffc`54603f5f : ntdll!RtlRaiseException+0x195
+00007ffb`a3f18f49 : 000001fe`5c1d1620 000001fe`9838f5f0 00000000`00000000 00000063`4cefe278 : KERNELBASE!RaiseException+0x6c
+00007ffb`a3c196c1 : 000001fe`bd13e440 00007ffb`a4011f08 00000000`8000000b 00007ffb`a4011f08 : TerminalApp!_CxxThrowException+0x99
+00007ffb`a3c346f8 : 00000063`4cefe380 000001fe`804cdfd8 00000063`0000026c 00007ffb`a4005650 : TerminalApp!winrt::throw_hresult+0x101
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::check_hresult+0x3a
+00007ffb`a3de14e3 : 00007ffb`a4005650 00000000`00000000 000001fe`7d731a90 000001fe`7d731a90 : TerminalApp!winrt::impl::consume_Windows_Foundation_Collections_IVector<winrt::Windows::Foundation::Collections::IObservableVector<winrt::TerminalApp::Tab>,winrt::TerminalApp::Tab>::GetAt+0xf8
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::TerminalApp::implementation::TerminalPage::_GetFocusedTab+0x2a
+00007ffb`a3cb0fc8 : 00000000`000004c7 00007ffb`a4005650 00000000`00000000 00000000`00000000 : TerminalApp!winrt::TerminalApp::implementation::AgentHistoryCoordinator::_UpdateConclusionSidebar+0x83
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::TerminalApp::implementation::AgentHistoryCoordinator::OnWorkspaceItemsChanged+0x20
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::TerminalApp::implementation::TerminalPage::Create::__l2::<lambda_2>::operator()+0x9f
+00007ffb`a3c4414d : 00000000`00000020 000001fe`982f7750 000001fe`7a2d0ee0 00007ffb`a4015af0 : TerminalApp!winrt::impl::delegate<winrt::Windows::Foundation::Collections::VectorChangedEventHandler<winrt::TerminalApp::WorkspaceItemViewModel>,`winrt::TerminalApp::implementation::TerminalPage::Create'::`2'::<lambda_2> >::Invoke+0xb8
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::Windows::Foundation::Collections::VectorChangedEventHandler<winrt::TerminalApp::FilteredCommand>::operator()+0x30
+00007ffb`a3c42ee0 : 000001fe`00000000 aaaaaaaa`aaaaaaab 000001fe`79d5df90 00007ffb`a3da7d23 : TerminalApp!winrt::impl::invoke<winrt::Windows::Foundation::Collections::VectorChangedEventHandler<winrt::TerminalApp::FilteredCommand>,winrt::impl::convertible_observable_vector<winrt::TerminalApp::FilteredCommand,std::vector<winrt::TerminalApp::FilteredCommand,std::allocator<winrt::TerminalApp::FilteredCommand> >,winrt::impl::single_threaded_collection_base>,winrt::Windows::Foundation::Collections::IVectorChangedEventArgs>+0x3d
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::event<winrt::Windows::Foundation::Collections::VectorChangedEventHandler<winrt::TerminalApp::FilteredCommand> >::operator()+0x62
+00007ffb`a3c6438d : 00000000`00000000 00000101`00000001 00000063`4cefe629 00000063`4cefe618 : TerminalApp!winrt::observable_vector_base<winrt::impl::convertible_observable_vector<winrt::TerminalApp::FilteredCommand,std::vector<winrt::TerminalApp::FilteredCommand,std::allocator<winrt::TerminalApp::FilteredCommand> >,winrt::impl::single_threaded_collection_base>,winrt::TerminalApp::FilteredCommand>::call_changed+0xc0
+00007ffb`a3da6939 : 00000101`00000001 00000063`4cefe6c0 0000934e`00000000 0000934e`cd1ace9e : TerminalApp!winrt::impl::produce<winrt::impl::convertible_observable_vector<winrt::TerminalApp::AgentHistoryItem,std::vector<winrt::TerminalApp::AgentHistoryItem,std::allocator<winrt::TerminalApp::AgentHistoryItem> >,winrt::impl::single_threaded_collection_base>,winrt::Windows::Foundation::Collections::IVector<winrt::TerminalApp::AgentHistoryItem> >::RemoveAt+0x1d
+00007ffb`a3dbc0a5 : 000001fe`7d732188 00000063`4cefe630 00000101`00000001 00000101`00000001 : TerminalApp!winrt::impl::consume_Windows_Foundation_Collections_IVector<winrt::Windows::Foundation::Collections::IObservableVector<winrt::TerminalApp::WorkspaceItemViewModel>,winrt::TerminalApp::WorkspaceItemViewModel>::RemoveAt+0x99
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::TerminalApp::implementation::WorkspaceCollection::RemoveSurface+0x9b
+00007ffb`a3dc502f : 00000000`00000050 00007ffc`32815ae0 000001fe`7d8afe40 000001fe`7d732020 : TerminalApp!winrt::TerminalApp::implementation::TerminalPage::_RemoveTab+0x265
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::TerminalApp::implementation::TerminalPage::_InitializeTab::__l2::<lambda_6>::operator()+0xe3
+00007ffb`a3d9a65c : 00000001`804cdfc0 00007ffb`a4007280 00000000`00000000 00007ffb`a3c18b14 : TerminalApp!winrt::impl::delegate<winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable>,`winrt::TerminalApp::implementation::TerminalPage::_InitializeTab'::`2'::<lambda_6> >::Invoke+0xff
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable>::operator()+0x2c
+00007ffb`a3e2a750 : 00007ffb`00000000 00000000`00000000 000001fe`7d8afe40 00007ffc`5209364b : TerminalApp!winrt::impl::invoke<winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable>,std::nullptr_t,std::nullptr_t>+0x3c
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::event<winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable> >::operator()+0x56
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!til::event<winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable> >::raise+0x56
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::TerminalApp::implementation::Tab::Close+0x66
+00007ffb`a3db7e2f : 000001fe`bd13e8a0 00000000`00000000 00000000`00000002 00000000`00000001 : TerminalApp!winrt::impl::produce<winrt::TerminalApp::implementation::Tab,winrt::TerminalApp::ITab>::Close+0x70
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!winrt::impl::consume_TerminalApp_ITab<winrt::TerminalApp::ITab>::Close+0x2e
+00007ffb`a3f7373e : 000001fe`7d8fad40 000001fe`7d8fad40 000001fe`7d8fad40 00007ffb`a3c15130 : TerminalApp!winrt::TerminalApp::implementation::TerminalPage::_CloseTaskSurface+0x25f
+00007ffb`a3c15151 : 000001fe`7d8fad40 000001fe`5cbf9090 000001fe`2e308730 00b5948f`d62d8da2 : TerminalApp!winrt::TerminalApp::implementation::TerminalPage::_HandleTaskSurface$_ResumeCoro$1+0x66e
+*** ERROR: Symbol file could not be found.  Defaulted to export symbols for Windows.UI.dll -
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!std::coroutine_handle<void>::resume+0xc
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!wil::details::dispatcher_handler::Complete+0x1d
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : TerminalApp!wil::details::dispatcher_handler::operator()+0x1d
+00007ffc`45d25a20 : 00000000`00000000 000001fe`5cbf9090 00000063`4cefeda8 00000063`4cefed39 : TerminalApp!winrt::impl::delegate<winrt::Windows::UI::Core::DispatchedHandler,wil::details::dispatcher_handler>::Invoke+0x21
+00007ffc`45d258e2 : 000001fe`2e3d2440 00007ffc`4a9c6a65 00000063`4cefeda8 00007ffc`4a990770 : Windows_UI!CreateControlInputEx+0xc6c0
+*** ERROR: Symbol file could not be found.  Defaulted to export symbols for CoreMessaging.dll -
+00007ffc`4a990790 : 00000000`00000000 00007ffc`1edd325e 00000000`00000000 000001fe`2e2b7410 : Windows_UI!CreateControlInputEx+0xc582
+00007ffc`4a9bc994 : 000001fe`98592ed0 00007ffc`4a9cb86a 000001fe`2e298b10 00007ffc`1edd3193 : CoreMessaging!CoreUICreateEx+0xb0
+00007ffc`4a9bc40e : 000001fe`2e257310 00007ffc`4a990770 000001fe`2e257310 00007ffc`4a990770 : CoreMessaging!CoreUICallReceive+0x1fe4
+00007ffc`4a9c9d5f : 000001fe`98591d60 000001fe`2e29d740 00000000`00000000 000001fe`2e29dc20 : CoreMessaging!CoreUICallReceive+0x1a5e
+00007ffc`4a9c81b3 : 000001fe`803e2290 00000000`00000001 000001fe`2e2b61a0 000001fe`2e29d920 : CoreMessaging!CoreUICallReceive+0xf3af
+00007ffc`4a9c8b3f : 000001fe`00000004 000001fe`52d440c0 000001fe`52d6cee0 000001fe`52d440c0 : CoreMessaging!CoreUICallReceive+0xd803
+00007ffc`4a9c6783 : 000001fe`2e298910 000001fe`2e2b7cd0 000001fe`2e259cd0 000001fe`2e259cd0 : CoreMessaging!CoreUICallReceive+0xe18f
+00007ffc`4a9c6346 : 000001fe`2e2af6d0 000001fe`2e2a1f50 000001fe`00000003 00000000`00000000 : CoreMessaging!CoreUICallReceive+0xbdd3
+00007ffc`4a9c37fc : 00007ffc`52481774 00000000`00000003 00007ffc`52093600 000001fe`2e2b7410 : CoreMessaging!CoreUICallReceive+0xb996
+*** ERROR: Symbol file could not be found.  Defaulted to export symbols for user32.dll -
+00007ffc`54a283f1 : 00000000`00000202 00000000`00000000 00000000`00000000 00000000`80000022 : CoreMessaging!CoreUICallReceive+0x8e4c
+00007ffc`54a280ac : 00000000`00008388 00007ffc`4a9c36b0 00000000`000109a4 00000000`80000000 : user32!DispatchMessageW+0x741
+00007ffc`54a331dd : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000004 : user32!DispatchMessageW+0x3fc
+00007ffc`54e14114 : 00000000`00000000 00000000`00000000 00000000`00000070 ffffffff`ffffffff : user32!GetClassLongW+0x58d
+00007ffc`52481534 : 00007ffc`54a3550a 00000000`80000006 00000000`00000000 00007ff7`00000000 : ntdll!KiUserCallbackDispatcher+0x24
+*** ERROR: Symbol file could not be found.  Defaulted to export symbols for win32u.dll -
+00007ffc`54a3550a : 00000000`80000006 00000000`00000000 00007ff7`00000000 00007ff7`00000001 : win32u!NtUserGetMessage+0x14
+00007ff7`9211c98a : 00007ff7`920f7800 00007ff7`00000000 00007ff7`920f7800 000001fe`2e2211d0 : user32!GetMessageW+0x2a
+00007ff7`920f7865 : 000001fe`2e2211d0 000001fe`2e221688 000001fe`2e2211d0 000001fe`2e220330 : WindowsTerminal!WindowEmperor::HandleCommandlineArgs+0xcda
+00007ff7`9213e5c9 : 00000000`00000001 00000000`00000000 00000000`00000000 00000000`00000000 : WindowsTerminal!wWinMain+0x1405
+*** ERROR: Symbol file could not be found.  Defaulted to export symbols for kernel32.dll -
+(Inline Function) : --------`-------- --------`-------- --------`-------- --------`-------- : WindowsTerminal!invoke_main+0x21
+00007ffc`5340257d : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : WindowsTerminal!__scrt_common_main_seh+0x109
+00007ffc`54dcaf08 : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : kernel32!BaseThreadInitThunk+0x1d
+00000000`00000000 : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : ntdll!RtlUserThreadStart+0x28
+quit:

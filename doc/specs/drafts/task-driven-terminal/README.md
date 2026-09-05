@@ -60,8 +60,9 @@ Current implementation position:
 - M8 protocol drain, packaging hardening, documentation, and release review:
   complete.
 
-All M0-M8 work remains on `feature/task-runtime-foundation` and is intentionally
-not merged into `main` pending review.
+The integration baseline includes M0-M8 and the subsequent Task fixes and
+[architecture hardening](architecture-hardening-2026-09-05.md). Further feature
+designs and implementations use dedicated branches from `main`.
 
 ## Reference-first rule
 

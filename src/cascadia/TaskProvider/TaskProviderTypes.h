@@ -171,6 +171,8 @@ namespace Microsoft::Terminal::TaskProvider
         std::string TaskId;
         std::filesystem::path WorkingDirectory;
         std::string Model;
+        // A new durable thread has no rollout to resume until its first turn.
+        std::optional<TaskProviderRunContext> InitialRunContext;
     };
 
     struct TaskProviderRunRequest

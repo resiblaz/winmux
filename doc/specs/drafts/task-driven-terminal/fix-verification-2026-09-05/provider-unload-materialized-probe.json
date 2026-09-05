@@ -1,0 +1,25 @@
+[
+  {
+    "method": "thread/loaded/list",
+    "error": null,
+    "thread_loaded": true
+  },
+  {
+    "method": "thread/archive",
+    "error": null
+  },
+  {
+    "method": "thread/loaded/list",
+    "error": null,
+    "thread_loaded": false
+  },
+  {
+    "method": "thread/unarchive",
+    "error": null
+  },
+  {
+    "method": "thread/loaded/list",
+    "error": null,
+    "thread_loaded": false
+  }
+]

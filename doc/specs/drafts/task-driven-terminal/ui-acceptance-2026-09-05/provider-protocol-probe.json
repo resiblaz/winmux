@@ -1,0 +1,28 @@
+{
+  "codex_version": "0.153.4",
+  "steps": [
+    {
+      "method": "initialize",
+      "error": null,
+      "succeeded": true
+    },
+    {
+      "method": "thread/start",
+      "error": null,
+      "succeeded": true
+    },
+    {
+      "method": "thread/resume",
+      "error": {
+        "code": -32600,
+        "message": "no rollout found for thread id 01a07096-dfc7-7392-860f-c155dbb2b271"
+      },
+      "succeeded": false
+    },
+    {
+      "method": "thread/unsubscribe",
+      "error": null,
+      "succeeded": true
+    }
+  ]
+}

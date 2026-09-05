@@ -290,8 +290,12 @@ namespace winrt::TerminalApp::implementation
 
     safe_void_coroutine TaskPage::_Execute(const tasks::TaskCommand command)
     {
+        const auto strong = get_strong();
+        const auto selectedTask = _viewModel.SelectedTask();
+        const auto presenter = _dialogPresenter.get();
         if (command == tasks::TaskCommand::Delete)
         {
+            if (!presenter) co_return;
             ContentDialog dialog{};
             dialog.Title(box_value(RS_(L"TaskPage_DeleteTitle")));
             dialog.Content(box_value(RS_(L"TaskPage_DeleteBody")));
@@ -299,7 +303,8 @@ namespace winrt::TerminalApp::implementation
             dialog.CloseButtonText(RS_(L"TaskPage_DeleteCancel"));
             dialog.DefaultButton(ContentDialogButton::Close);
             const auto weakThis = get_weak();
-            if (co_await dialog.ShowAsync() != ContentDialogResult::Primary)
+            if (co_await presenter.ShowDialog(dialog) != ContentDialogResult::Primary ||
+                !selectedTask || !_viewModel.SelectedTask() || _viewModel.SelectedTask().Id() != selectedTask.Id())
             {
                 co_return;
             }
@@ -314,6 +319,7 @@ namespace winrt::TerminalApp::implementation
             const auto selected = _viewModel.SelectedTask();
             if (selected && selected.HasActiveRun())
             {
+                if (!presenter) co_return;
                 ContentDialog dialog{};
                 dialog.Title(box_value(RS_(L"TaskPage_CloseActiveTitle")));
                 dialog.Content(box_value(RS_(L"TaskPage_CloseActiveBody")));
@@ -321,7 +327,8 @@ namespace winrt::TerminalApp::implementation
                 dialog.CloseButtonText(RS_(L"TaskPage_CloseActiveCancel"));
                 dialog.DefaultButton(ContentDialogButton::Close);
                 const auto weakThis = get_weak();
-                if (co_await dialog.ShowAsync() != ContentDialogResult::Primary)
+                if (co_await presenter.ShowDialog(dialog) != ContentDialogResult::Primary ||
+                    !selectedTask || !_viewModel.SelectedTask() || _viewModel.SelectedTask().Id() != selectedTask.Id())
                 {
                     co_return;
                 }

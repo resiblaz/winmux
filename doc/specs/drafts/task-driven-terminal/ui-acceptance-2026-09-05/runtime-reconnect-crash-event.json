@@ -1,0 +1,5 @@
+{
+  "TimeCreated": "2026-09-05T16:40:13.9245668+08:00",
+  "Id": 1000,
+  "Message": "错误应用程序名称: WindowsTerminal.exe，版本: 0.0.0.0，时间戳: 0x6a969354\r\n错误模块名称: ucrtbase.dll，版本: 10.0.22621.3593，时间戳: 0x10c46e71\r\n异常代码: 0xc0000409\r\n错误偏移量: 0x000000000007f6fe\r\n错误进程 ID: 0x0x87B4\r\n错误应用程序启动时间: 0x0x1DD3D0A9D263D2A\r\n错误应用程序路径: F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230\\app\\terminal-0.0.1.0\\WindowsTerminal.exe\r\n错误模块路径: C:\\WINDOWS\\System32\\ucrtbase.dll\r\n报告 ID: 20f66bc7-870b-4655-a0d9-b4d674b4b38e\r\n错误程序包全名: \r\n错误程序包相对应用程序 ID: "
+}

@@ -9,6 +9,7 @@
 
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace Microsoft::Terminal::TaskProvider
 {
@@ -50,10 +51,14 @@ namespace Microsoft::Terminal::TaskProvider
         CodexAppServerJsonRpc _rpc;
         CodexAppServerTimeouts _timeouts;
         std::mutex _stateMutex;
+        std::mutex _initializeMutex;
         bool _initialized{};
+        bool _stopped{};
         uint64_t _nextEventSequence{ 1 };
         std::optional<TaskProviderCapabilities> _capabilities;
         std::unordered_map<std::string, CodexPendingApproval> _approvals;
+        std::unordered_map<std::string, std::string> _initialRunBySession;
+        std::unordered_set<std::string> _pendingUnarchive;
 
         [[nodiscard]] TaskProviderResult _ensureInitialized(HANDLE cancellationEvent);
         [[nodiscard]] TaskProviderResult _unsubscribe(std::string_view sessionId, HANDLE cancellationEvent);

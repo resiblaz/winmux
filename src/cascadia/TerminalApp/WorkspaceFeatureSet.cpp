@@ -67,6 +67,7 @@ namespace winrt::TerminalApp::implementation
 
     void WorkspaceFeatureSet::Stop() noexcept
     {
+        _workspaces.SetChangedHandler({});
         _sidebar.Stop();
         _snapshots.Stop();
         _history.Stop();

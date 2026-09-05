@@ -1,0 +1,33 @@
+{
+  "captured_at": "2026-09-05T17:19:00+08:00",
+  "repository_commit": "6bb4ee1d9e41973ffb42385ebdfef6386dc53aef",
+  "qa_root": "F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230",
+  "qa_repository": "F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230\\repo",
+  "qa_app": "F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230\\app\\terminal-0.0.1.0",
+  "windows_version": "10.0.22621",
+  "machine": "AMD64",
+  "ui_language": "zh-CN",
+  "desktop_pixels": [
+    1920,
+    1080
+  ],
+  "tested_window_pixels": [
+    [
+      1560,
+      900
+    ],
+    [
+      1500,
+      870
+    ]
+  ],
+  "provider": "real installed codex-cli 0.153.4",
+  "current_gui_pid": 17572,
+  "runtime_pid_after_restart": 24820,
+  "crashed_gui_pid": 34740,
+  "binary_sha256": {
+    "TaskRuntime.exe": "c9f78c7b68f707b02c082c14cd57fce5dccf3c2477ec6fb973c7e715b84c8bcf",
+    "TerminalApp.dll": "021cb7116923e4ae04de9196166108f37ce58e60c35497f943c00038725f3844",
+    "rtask.exe": "042b4b9fbe543d6cbedb2fb79b439aca7c54bc47a19dbabc66dd4ef1a5ff12f7"
+  }
+}

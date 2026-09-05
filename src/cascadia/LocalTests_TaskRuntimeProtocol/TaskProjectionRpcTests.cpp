@@ -58,9 +58,27 @@ namespace TaskRuntimeProtocolLocalTests
         TEST_CLASS(TaskProjectionRpcTests);
 
         TEST_METHOD(QueryAndProjectionRoundTripStrictly);
+        TEST_METHOD(RemovedMessagesAllowEmptyContentWithoutHidingTasks);
         TEST_METHOD(UiCommandsRoundTripByOperation);
         TEST_METHOD(RejectsMalformedOversizedAndNoncanonicalPayloads);
     };
+
+    void TaskProjectionRpcTests::RemovedMessagesAllowEmptyContentWithoutHidingTasks()
+    {
+        TaskProjectionQueryResult projection;
+        projection.Tasks.push_back(_task());
+        auto& message = projection.Tasks.front().Messages.front();
+        message.State = 3;
+        message.Content.clear();
+        const auto encoded = EncodeTaskProjectionQueryResult(projection);
+        VERIFY_IS_TRUE(encoded.Succeeded);
+        const auto decoded = DecodeTaskProjectionQueryResult(encoded.Payload);
+        VERIFY_IS_TRUE(decoded.Succeeded());
+        VERIFY_ARE_EQUAL(size_t{ 1 }, decoded.Value.Tasks.size());
+        VERIFY_IS_TRUE(decoded.Value.Tasks.front().Messages.front().Content.empty());
+        message.State = 1;
+        VERIFY_IS_FALSE(EncodeTaskProjectionQueryResult(projection).Succeeded);
+    }
 
     void TaskProjectionRpcTests::QueryAndProjectionRoundTripStrictly()
     {

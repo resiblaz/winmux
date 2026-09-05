@@ -113,6 +113,7 @@ namespace winrt::TerminalApp::implementation
             workspaceId = _ReserveWorkspaceIdForNewTab();
         }
         auto& workspaces = _workspaceFeatures->Workspaces();
+        auto topology = workspaces.BeginUpdate();
         const auto existingWorkspaceIndex = workspaces.IndexOf(workspaceId);
         const auto existingWorkspace = existingWorkspaceIndex ? _WorkspaceItems().GetAt(existingWorkspaceIndex.value()) : nullptr;
 
@@ -629,14 +630,15 @@ namespace winrt::TerminalApp::implementation
             // The tab is already removed
             return;
         }
+        auto topology = _workspaceFeatures->Workspaces().BeginUpdate();
         _taskSurfacePolicy.Unregister(_TaskSurfaceId(tab));
 
         // We use _removing flag to suppress _OnTabSelectionChanged events
         // that might get triggered while removing
-        _removing = true;
-        auto unsetRemoving = wil::scope_exit([&]() noexcept { _removing = false; });
+        const auto wasRemoving = std::exchange(_removing, true);
+        auto unsetRemoving = wil::scope_exit([&]() noexcept { _removing = wasRemoving; });
 
-        const auto focusedTabIndex{ _GetFocusedTabIndex() };
+        const auto focusedTab{ _GetFocusedTab() };
 
         // NOTE: Workspace persistence for named windows used to live here,
         // but by the time _RemoveTab runs the pane content may already be
@@ -679,9 +681,13 @@ namespace winrt::TerminalApp::implementation
             // if the user manually closed all tabs.
             // Do this only if we are the last window; the monarch will notice
             // we are missing and remove us that way otherwise.
+            _tabView.SelectedItem(nullptr);
+            _removing = wasRemoving;
+            unsetRemoving.release();
+            topology.Commit();
             CloseWindowRequested.raise(*this, nullptr);
         }
-        else if (focusedTabIndex.has_value() && focusedTabIndex.value() == gsl::narrow_cast<uint32_t>(tabIndex))
+        else if (focusedTab == tab)
         {
             // Manually select the new tab to get focus, rather than relying on TabView since:
             // 1. We want to customize this behavior (e.g., use MRU logic)
@@ -744,6 +750,10 @@ namespace winrt::TerminalApp::implementation
     // true iff we were able to select that tab index, false otherwise
     bool TerminalPage::_SelectTab(uint32_t tabIndex)
     {
+        if (_tabs.Size() == 0)
+        {
+            return false;
+        }
         // GH#9369 - if the argument is out of range, then clamp to the number
         // of available tabs. Previously, we'd just silently do nothing if the
         // value was greater than the number of tabs.
@@ -790,12 +800,15 @@ namespace winrt::TerminalApp::implementation
     // - the index of the currently focused tab if there is one, else nullopt
     std::optional<uint32_t> TerminalPage::_GetFocusedTabIndex() const noexcept
     {
-        // GH#1117: This is a workaround because _tabView.SelectedIndex()
-        //          sometimes return incorrect result after removing some tabs
-        uint32_t focusedIndex;
-        if (_tabView.TabItems().IndexOf(_tabView.SelectedItem(), focusedIndex))
+        // Collections change independently during removal notifications. Resolve
+        // the selected object against the live tabs, never a stale view index.
+        const auto selected = _tabView.SelectedItem();
+        for (uint32_t index = 0; index < _tabs.Size(); ++index)
         {
-            return focusedIndex;
+            if (_tabs.GetAt(index).TabViewItem() == selected)
+            {
+                return index;
+            }
         }
         return std::nullopt;
     }
@@ -1394,6 +1407,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         auto& workspaces = _workspaceFeatures->Workspaces();
+        auto topology = workspaces.BeginUpdate();
         if (item.SurfaceCount() > 1)
         {
             const auto span = workspaces.Span(item.WorkspaceId());

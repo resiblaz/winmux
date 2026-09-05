@@ -79,12 +79,47 @@ namespace TaskGitLocalTests
         TEST_CLASS(GitWorktreeFinalizeTests);
 
         TEST_METHOD(RemovesBaselineEqualWorktreeAndBranchIdempotently);
+        TEST_METHOD(OccupiedDirectoryIsPreservedAndCleanupCanRetry);
+        TEST_METHOD(RecoversEmptyDirectoryAfterGitRemovedRegistration);
         TEST_METHOD(CheckpointsRemainderAndRetainsProducedBranchAndAgentCommit);
         TEST_METHOD(PreservesIgnoredAndSigningFailuresForRetry);
         TEST_METHOD(RejectsOwnershipMismatchWithoutRemovingAnything);
         TEST_METHOD(RecoversPostCommitObservationWithoutDuplicateCommit);
         TEST_METHOD(ResumesSidecarCleanupAfterWorktreeAndBranchRemoval);
     };
+
+    void GitWorktreeFinalizeTests::OccupiedDirectoryIsPreservedAndCleanupCanRetry()
+    {
+        GitFixture fixture;
+        auto prepared = PrepareTaskWorktree(fixture, L"occupied finalize",
+            TaskId{ "e1000000-0000-4000-8000-000000000002" });
+        PrepareReadyTaskWorktree(fixture, prepared);
+        const auto occupied = CreateFileW(prepared.Layout.WorktreePath.c_str(), GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+        VERIFY_IS_TRUE(occupied != INVALID_HANDLE_VALUE);
+        const auto result = _finalize(fixture, prepared);
+        const auto registrationRetained = std::filesystem::exists(prepared.Layout.WorktreePath / L".git");
+        CloseHandle(occupied);
+        VERIFY_IS_FALSE(result.Succeeded());
+        VERIFY_IS_TRUE(result.Preserved);
+        VERIFY_IS_TRUE(registrationRetained);
+        VERIFY_IS_TRUE(_finalize(fixture, prepared).Succeeded());
+    }
+
+    void GitWorktreeFinalizeTests::RecoversEmptyDirectoryAfterGitRemovedRegistration()
+    {
+        GitFixture fixture;
+        auto prepared = PrepareTaskWorktree(fixture, L"partial finalize",
+            TaskId{ "e1000000-0000-4000-8000-000000000003" });
+        PrepareReadyTaskWorktree(fixture, prepared);
+        VERIFY_IS_TRUE(fixture.Run(prepared.Repository,
+            { L"worktree", L"remove", L"--", prepared.Layout.WorktreePath.native() }).Succeeded());
+        VERIFY_IS_TRUE(std::filesystem::create_directory(prepared.Layout.WorktreePath));
+        const auto result = _finalize(fixture, prepared);
+        VERIFY_IS_TRUE(result.Succeeded());
+        VERIFY_IS_TRUE(result.WorktreeRemoved);
+        VERIFY_IS_FALSE(std::filesystem::exists(prepared.Layout.WorktreePath));
+    }
 
     void GitWorktreeFinalizeTests::RemovesBaselineEqualWorktreeAndBranchIdempotently()
     {

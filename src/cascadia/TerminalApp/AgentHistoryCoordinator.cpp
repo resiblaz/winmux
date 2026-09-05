@@ -220,29 +220,29 @@ namespace winrt::TerminalApp::implementation
         const auto weakPage = _page.get_weak();
         winrt::get_self<implementation::ConclusionSidebar>(_sidebar)->SetCodexHistoryHandlers(
             [weakPage](const auto& workspaceId, const auto& workspaceTitle, const auto& cwd) {
-                if (const auto page = weakPage.get(); page && page->_workspaceFeatures)
+                if (const auto page = weakPage.get(); page)
                 {
-                    page->_workspaceFeatures->History()._SyncCodexHistoryRequested(workspaceId, workspaceTitle, cwd);
+                    page->WorkspaceHistory()._SyncCodexHistoryRequested(workspaceId, workspaceTitle, cwd);
                 }
             },
             [weakPage](const auto& workspaceId, const auto& workspaceTitle, const auto& cwd, const auto& sessionId) {
-                if (const auto page = weakPage.get(); page && page->_workspaceFeatures)
+                if (const auto page = weakPage.get(); page)
                 {
-                    page->_workspaceFeatures->History()._LoadCodexHistoryRequested(workspaceId, workspaceTitle, cwd, sessionId);
+                    page->WorkspaceHistory()._LoadCodexHistoryRequested(workspaceId, workspaceTitle, cwd, sessionId);
                 }
             },
             [weakPage](const auto& workspaceId, const auto&, const auto& cwd, const auto& sessionId) {
-                if (const auto page = weakPage.get(); page && page->_workspaceFeatures)
+                if (const auto page = weakPage.get(); page)
                 {
-                    page->_workspaceFeatures->History()._ResumeCodexHistoryRequested(workspaceId, {}, cwd, sessionId);
+                    page->WorkspaceHistory()._ResumeCodexHistoryRequested(workspaceId, {}, cwd, sessionId);
                 }
             });
 
         _cleanupTimer.Interval(1h);
         _cleanupTimer.Tick([weakPage](const auto&, const auto&) {
-            if (const auto page = weakPage.get(); page && page->_workspaceFeatures)
+            if (const auto page = weakPage.get(); page)
             {
-                page->_workspaceFeatures->History()._CleanupAgentHistoryIfDue();
+                page->WorkspaceHistory()._CleanupAgentHistoryIfDue();
             }
         });
         _cleanupTimer.Start();
@@ -286,14 +286,14 @@ namespace winrt::TerminalApp::implementation
 
     void AgentHistoryCoordinator::_UpdateConclusionSidebar()
     {
-        if (_stopped || !_sidebar || !_page._tabView)
+        if (_stopped || !_sidebar || !_page.WorkspaceUiReady())
         {
             return;
         }
 
         const auto sidebar = winrt::get_self<implementation::ConclusionSidebar>(_sidebar);
-        const auto activeItem = _page._WorkspaceItemForTab(_page._GetFocusedTab());
-        if (_page._SidebarController().Enabled && activeItem)
+        const auto activeItem = _page.ActiveWorkspace();
+        if (_page.WorkspaceSidebarEnabled() && activeItem)
         {
             const auto item = activeItem;
             const auto workspaceId = item.WorkspaceId();
@@ -304,7 +304,7 @@ namespace winrt::TerminalApp::implementation
             size_t matchingCwdCount{};
             if (!cwd.empty())
             {
-                for (const auto& candidate : _page._WorkspaceItems())
+                for (const auto& candidate : _page.WorkspaceItemsView())
                 {
                     if (_sameHistoryCwd(candidate.WorkingDirectory(), cwd))
                     {
@@ -341,14 +341,14 @@ namespace winrt::TerminalApp::implementation
             _inboxImportPending = true;
             return;
         }
-        if (_page._WorkspaceItems().Size() == 0)
+        if (_page.WorkspaceItemsView().Size() == 0)
         {
             return;
         }
 
         std::vector<AgentHistoryInboxWorkspace> workspaces;
-        workspaces.reserve(_page._WorkspaceItems().Size());
-        for (const auto& item : _page._WorkspaceItems())
+        workspaces.reserve(_page.WorkspaceItemsView().Size());
+        for (const auto& item : _page.WorkspaceItemsView())
         {
             if (item.WorkspaceId() != winrt::guid{})
             {
@@ -383,9 +383,9 @@ namespace winrt::TerminalApp::implementation
         }
 
         co_await wil::resume_foreground(dispatcher);
-        if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
+        if (const auto page = weakThis.get(); page)
         {
-            auto& coordinator = page->_workspaceFeatures->History();
+            auto& coordinator = page->WorkspaceHistory();
             if (coordinator._stopped)
             {
                 co_return;
@@ -412,9 +412,6 @@ namespace winrt::TerminalApp::implementation
         }
 
         constexpr int64_t cleanupIntervalMilliseconds{ 24ll * 60 * 60 * 1000 };
-        constexpr uint32_t maximumRetentionDays{ 36500 };
-        constexpr uint32_t maximumTurns{ 1000000 };
-        constexpr uint32_t maximumPayloadMiB{ 4096 };
 
         const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
                              std::chrono::system_clock::now().time_since_epoch())
@@ -433,12 +430,7 @@ namespace winrt::TerminalApp::implementation
         state.AgentHistoryLastCleanupAt(now);
         state.Flush();
 
-        const auto settings = _page._settings.GlobalSettings();
-        AgentHistoryRetentionPolicy policy;
-        policy.RetentionDays = std::min(settings.AgentHistoryRetentionDays(), maximumRetentionDays);
-        policy.MaximumTurns = std::min(settings.AgentHistoryMaximumTurns(), maximumTurns);
-        policy.MaximumPayloadBytes = static_cast<uint64_t>(std::min(settings.AgentHistoryMaximumPayloadMiB(), maximumPayloadMiB)) * 1024 * 1024;
-        policy.ReceiptTombstoneDays = 30;
+        const auto policy = _page.WorkspaceHistoryRetention();
 
         _cleanupInFlight = true;
         _CleanupAgentHistoryAsync(policy);
@@ -461,9 +453,9 @@ namespace winrt::TerminalApp::implementation
         }
 
         co_await wil::resume_foreground(dispatcher);
-        if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
+        if (const auto page = weakThis.get(); page)
         {
-            auto& coordinator = page->_workspaceFeatures->History();
+            auto& coordinator = page->WorkspaceHistory();
             if (coordinator._stopped)
             {
                 co_return;
@@ -574,9 +566,9 @@ namespace winrt::TerminalApp::implementation
         CATCH_LOG();
 
         co_await wil::resume_foreground(dispatcher);
-        if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
+        if (const auto page = weakThis.get(); page)
         {
-            page->_workspaceFeatures->History()._CompleteCodexHistoryOperation(workspaceId, completionState, false, saved > 0);
+            page->WorkspaceHistory()._CompleteCodexHistoryOperation(workspaceId, completionState, false, saved > 0);
         }
     }
 
@@ -671,19 +663,19 @@ namespace winrt::TerminalApp::implementation
         CATCH_LOG();
 
         co_await wil::resume_foreground(dispatcher);
-        if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
+        if (const auto page = weakThis.get(); page)
         {
-            page->_workspaceFeatures->History()._CompleteCodexHistoryOperation(workspaceId, completionState, savedTurns > 0, true);
+            page->WorkspaceHistory()._CompleteCodexHistoryOperation(workspaceId, completionState, savedTurns > 0, true);
         }
     }
 
     bool AgentHistoryCoordinator::_IsCodexHistoryWorkspaceActive(const winrt::guid& workspaceId) const
     {
-        if (!_page._SidebarController().Enabled || !_page._tabView || workspaceId == winrt::guid{})
+        if (!_page.WorkspaceSidebarEnabled() || !_page.WorkspaceUiReady() || workspaceId == winrt::guid{})
         {
             return false;
         }
-        if (const auto item = _page._WorkspaceItemForTab(_page._GetFocusedTab()))
+        if (const auto item = _page.ActiveWorkspace())
         {
             return item.WorkspaceId() == workspaceId;
         }
@@ -755,7 +747,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         const auto weakThis = _page.get_weak();
-        const auto presenter = _page._dialogPresenter.get();
+        const auto presenter = _page.DialogPresenter();
         if (!presenter)
         {
             co_return;
@@ -775,11 +767,11 @@ namespace winrt::TerminalApp::implementation
         }
 
         auto page = weakThis.get();
-        if (!page || !page->_workspaceFeatures)
+        if (!page)
         {
             co_return;
         }
-        auto* coordinator = &page->_workspaceFeatures->History();
+        auto* coordinator = &page->WorkspaceHistory();
         if (coordinator->_stopped || coordinator->_providerOperationInFlight)
         {
             co_return;
@@ -826,11 +818,11 @@ namespace winrt::TerminalApp::implementation
 
         co_await wil::resume_foreground(dispatcher);
         page = weakThis.get();
-        if (!page || !page->_workspaceFeatures)
+        if (!page)
         {
             co_return;
         }
-        coordinator = &page->_workspaceFeatures->History();
+        coordinator = &page->WorkspaceHistory();
         if (coordinator->_stopped)
         {
             co_return;
@@ -871,26 +863,6 @@ namespace winrt::TerminalApp::implementation
 
         // The App Server is only a capability/identity preflight. The actual
         // interactive resume remains the fixed, explicitly confirmed CLI path.
-        TerminalApp::WorkspaceItemViewModel workspaceItem{ nullptr };
-        for (const auto& candidate : page->_WorkspaceItems())
-        {
-            if (candidate.WorkspaceId() == workspaceId)
-            {
-                workspaceItem = candidate;
-                break;
-            }
-        }
-        if (!workspaceItem)
-        {
-            co_return;
-        }
-        const auto tab = workspaceItem.SourceTab();
-        uint32_t tabIndex{};
-        if (!tab || !page->_tabs.IndexOf(tab, tabIndex))
-        {
-            co_return;
-        }
-
         NewTerminalArgs args{};
         args.Commandline(WorkspaceAgentResume::BuildCommandline(info, currentCommandProcessorPath, currentCodexCliPath));
         args.Elevate(false);
@@ -899,10 +871,6 @@ namespace winrt::TerminalApp::implementation
             args.StartingDirectory(workingDirectory);
         }
 
-        page->_SelectTab(tabIndex);
-        if (const auto newPane = page->_MakePane(args, nullptr, nullptr, true, workspaceId))
-        {
-            page->_SplitPane(TerminalPage::_GetTabImpl(tab), SplitDirection::Automatic, 0.5f, newPane, workspaceId);
-        }
+        page->OpenHistorySession(workspaceId, args);
     }
 }

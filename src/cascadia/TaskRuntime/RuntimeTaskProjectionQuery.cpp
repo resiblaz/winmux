@@ -6,6 +6,7 @@
 #include "RuntimeTaskOrchestrator.h"
 
 #include "TaskRunStatePolicy.h"
+#include <json/json.h>
 
 namespace Microsoft::Terminal::TaskRuntime
 {
@@ -16,7 +17,8 @@ namespace Microsoft::Terminal::TaskRuntime
     {
         TaskProjectionRecord _projection(
             const TaskAggregateSnapshot& aggregate,
-            std::vector<TaskEventRecord> events)
+            std::vector<TaskEventRecord> events,
+            const size_t eventLimit)
         {
             TaskProjectionRecord result;
             result.Id = aggregate.Task.Id.Value();
@@ -109,6 +111,22 @@ namespace Microsoft::Terminal::TaskRuntime
                 projected.CreatedAtUnixMilliseconds = event.CreatedAtUnixMilliseconds;
                 result.Events.emplace_back(std::move(projected));
             }
+            // Include a current cleanup failure even when the event history is
+            // limited, so the retained worktree has an actionable explanation.
+            if (eventLimit != 0 && aggregate.Intent && aggregate.Intent->Kind == TaskIntentKind::WorktreeCleanup &&
+                aggregate.Intent->Stage == TaskIntentStage::Failed)
+            {
+                Json::Value payload{ Json::objectValue };
+                payload["reasonCode"] = aggregate.Intent->ReasonCode;
+                Json::StreamWriterBuilder writer;
+                writer["indentation"] = "";
+                if (result.Events.size() >= eventLimit)
+                    result.Events.erase(result.Events.begin());
+                result.Events.push_back({ aggregate.Intent->Id.Value(), std::nullopt,
+                                          aggregate.LastEventSequence, std::nullopt,
+                                          "TaskWorktreeCleanupFailed", Json::writeString(writer, payload),
+                                          aggregate.Intent->UpdatedAtUnixMilliseconds });
+            }
             result.LastEventSequence = aggregate.LastEventSequence;
             return result;
         }
@@ -185,7 +203,7 @@ namespace Microsoft::Terminal::TaskRuntime
                                        aggregate->LastEventSequence - request.EventLimit : 0;
                 auto events = request.EventLimit == 0 ? std::vector<TaskEventRecord>{} :
                                                        _store->ListEvents(task.Id, after, request.EventLimit);
-                result.Projection.Tasks.emplace_back(_projection(*aggregate, std::move(events)));
+                result.Projection.Tasks.emplace_back(_projection(*aggregate, std::move(events), request.EventLimit));
             }
             result.Status = RuntimeTaskProjectionStatus::Succeeded;
             return result;

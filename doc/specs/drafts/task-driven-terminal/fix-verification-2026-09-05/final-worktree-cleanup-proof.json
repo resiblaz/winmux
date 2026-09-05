@@ -1,0 +1,39 @@
+{
+  "captured_at": "2026-09-05T20:21:51.617747+08:00",
+  "worktree": {
+    "task_id": "4a920ee4-9c42-4759-b7da-e94f7cf01eea",
+    "execution_context_id": "a98b71c9-94a7-4497-ab79-6bca7f495361",
+    "revision": 11,
+    "state": 8,
+    "repository_root": "F:/RicherLife/codes/win_terminal/dist/task-acceptance-20260905-154230/repo",
+    "repository_common_directory": "F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230\\repo\\.git",
+    "repository_identity_digest": "fd485eac6cc1c687500583df7eb4aedc893e1ed9e1b2c3bfb765fdb52a1c9936",
+    "worktree_path": "F:\\RicherLife\\codes\\win_terminal\\dist\\task-acceptance-20260905-154230\\app\\terminal-0.0.1.0\\settings\\task-worktrees\\v1\\4a920ee4-9c42-4759-b7da-e94f7cf01eea",
+    "branch_ref": "refs/heads/wt-task/4a920ee4-9c42-4759-b7da-e94f7cf01eea",
+    "source_head": "ce8c30b5fedc4a2901efb11d220875ad78b070c1",
+    "source_reference": "refs/heads/main",
+    "snapshot_digest": "0178171482b380b50679a08d36bbbada53583f74290e5cac1e0615e5d9d59405",
+    "baseline_commit": "4262954009cc10d79d3ca277ff34cff158520ebd",
+    "has_undelivered_work": 0,
+    "cleanup_eligible": 1,
+    "preserved_path": "",
+    "failure_reason_code": "",
+    "created_at": 1788610718114,
+    "updated_at": 1788610907109
+  },
+  "intent": {
+    "id": "5fbae4b8-5197-49c3-9f00-8dd5ea5ef27e",
+    "task_id": "4a920ee4-9c42-4759-b7da-e94f7cf01eea",
+    "kind": 2,
+    "stage": 8,
+    "revision": 3,
+    "deadline_at": null,
+    "detail_json": "{\"source\":\"tasks_page\"}",
+    "reason_code": "",
+    "created_at": 1788610906670,
+    "updated_at": 1788610908376
+  },
+  "directory_removed": true,
+  "retained_branch_content": "task-publish-pass",
+  "git_exit_code": 0
+}

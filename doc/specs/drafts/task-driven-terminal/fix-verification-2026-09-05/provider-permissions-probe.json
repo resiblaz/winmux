@@ -1,0 +1,23 @@
+[
+  {
+    "explicit_thread_permissions": false,
+    "effective_permissions": {
+      "approvalPolicy": "on-request",
+      "sandbox": {
+        "type": "readOnly",
+        "networkAccess": false
+      },
+      "approvalsReviewer": "user"
+    }
+  },
+  {
+    "explicit_thread_permissions": true,
+    "effective_permissions": {
+      "approvalPolicy": "never",
+      "sandbox": {
+        "type": "dangerFullAccess"
+      },
+      "approvalsReviewer": "user"
+    }
+  }
+]

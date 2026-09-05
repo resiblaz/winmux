@@ -17,6 +17,7 @@ namespace TaskProviderLocalTests
     {
         struct FakeAdapterState
         {
+            std::mutex Mutex;
             size_t Starts{};
             size_t Stops{};
             size_t SessionStarts{};
@@ -30,6 +31,9 @@ namespace TaskProviderLocalTests
             std::deque<TaskProviderEvent> Events;
             HANDLE EventWaitEntered{};
             HANDLE ReleaseEventWait{};
+            std::string BlockedRunTask;
+            HANDLE RunEntered{};
+            HANDLE ReleaseRun{};
         };
 
         class FakeAdapter final : public ITaskProviderAdapter
@@ -39,6 +43,7 @@ namespace TaskProviderLocalTests
 
             TaskProviderCapabilitiesResult ProbeCapabilities(HANDLE) override
             {
+                const std::scoped_lock lock{ _state->Mutex };
                 ++_state->Starts;
                 TaskProviderCapabilitiesResult result;
                 result.Status = TaskProviderStatus::Succeeded;
@@ -48,6 +53,7 @@ namespace TaskProviderLocalTests
 
             TaskProviderSessionResult StartSession(const TaskProviderSessionRequest&, HANDLE) override
             {
+                const std::scoped_lock lock{ _state->Mutex };
                 TaskProviderSessionResult result;
                 result.Status = TaskProviderStatus::Succeeded;
                 result.Value = TaskProviderSession{
@@ -67,6 +73,12 @@ namespace TaskProviderLocalTests
 
             TaskProviderRunResult StartRun(const TaskProviderRunRequest& request, HANDLE) override
             {
+                if (request.Context.TaskId == _state->BlockedRunTask)
+                {
+                    SetEvent(_state->RunEntered);
+                    WaitForSingleObject(_state->ReleaseRun, 5000);
+                }
+                const std::scoped_lock lock{ _state->Mutex };
                 TaskProviderRunResult result;
                 result.Status = TaskProviderStatus::Succeeded;
                 result.Value = TaskProviderRun{
@@ -79,11 +91,13 @@ namespace TaskProviderLocalTests
 
             TaskProviderResult SteerRun(std::string_view, std::string_view, std::string_view, HANDLE) override
             {
+                const std::scoped_lock lock{ _state->Mutex };
                 return { _state->SteerStatus, _state->SteerStatus == TaskProviderStatus::Succeeded ? "" : "steer rejected" };
             }
 
             TaskProviderResult InterruptRun(std::string_view, std::string_view, HANDLE) override
             {
+                const std::scoped_lock lock{ _state->Mutex };
                 return { _state->InterruptStatus, _state->InterruptStatus == TaskProviderStatus::Succeeded ? "" : "interrupt pending" };
             }
 
@@ -94,6 +108,7 @@ namespace TaskProviderLocalTests
                     SetEvent(_state->EventWaitEntered);
                     WaitForSingleObject(_state->ReleaseEventWait, 5000);
                 }
+                const std::scoped_lock lock{ _state->Mutex };
                 TaskProviderEventResult result;
                 if (_state->NextFailure)
                 {
@@ -115,18 +130,21 @@ namespace TaskProviderLocalTests
 
             TaskProviderResult RespondToApproval(std::string_view, std::string_view, std::string_view, TaskProviderApprovalDecision, HANDLE) override
             {
+                const std::scoped_lock lock{ _state->Mutex };
                 ++_state->ApprovalCalls;
                 return { TaskProviderStatus::Succeeded, {} };
             }
 
             TaskProviderResult SuspendSession(std::string_view, HANDLE) override
             {
+                const std::scoped_lock lock{ _state->Mutex };
                 ++_state->SuspendCalls;
                 return { TaskProviderStatus::Succeeded, {} };
             }
 
             TaskProviderResult CloseSessionProjection(std::string_view, HANDLE) override
             {
+                const std::scoped_lock lock{ _state->Mutex };
                 ++_state->CloseCalls;
                 return { TaskProviderStatus::Succeeded, {} };
             }
@@ -144,6 +162,7 @@ namespace TaskProviderLocalTests
 
             void Stop() noexcept override
             {
+                const std::scoped_lock lock{ _state->Mutex };
                 ++_state->Stops;
             }
 
@@ -211,11 +230,145 @@ namespace TaskProviderLocalTests
         TEST_CLASS(TaskProviderCoordinatorTests);
 
         TEST_METHOD(LazilySharesOneProviderAndReconcilesCrashAcrossTasks);
+        TEST_METHOD(StartingAfterCloseCreatesRunnableSession);
         TEST_METHOD(DefersRejectedSteeringDurably);
         TEST_METHOD(ClosePendingDoesNotStopSharedProvider);
         TEST_METHOD(SuspendResumeAndApprovalRemainTaskScoped);
         TEST_METHOD(EventWaitAllowsCommandsAndDiscardsEventsFromRestartedProvider);
+        TEST_METHOD(SlowRunDoesNotBlockOtherTaskCommandsOrEvents);
+        TEST_METHOD(RestartDiscardsCompletionFromBlockedRun);
+        TEST_METHOD(ReclaimsCompletedRunsForTheSameTaskAtCapacity);
     };
+
+    void TaskProviderCoordinatorTests::ReclaimsCompletedRunsForTheSameTaskAtCapacity()
+    {
+        const auto state = std::make_shared<FakeAdapterState>();
+        const auto sink = std::make_shared<RecordingSink>();
+        TaskProviderCoordinatorConfiguration configuration;
+        configuration.MaximumSessions = 1;
+        configuration.MaximumRuns = 1;
+        TaskProviderCoordinator coordinator{ [state] { return std::make_unique<FakeAdapter>(state); }, sink, configuration };
+        const auto session = coordinator.StartSession(_session(std::string{ Task1 }), nullptr);
+        const auto first = coordinator.StartRun(Task1, _run(session.Session->ProviderSessionId, std::string{ Task1 }, std::string{ Run1 }), nullptr);
+        VERIFY_IS_TRUE(first.Succeeded());
+        TaskProviderEvent event;
+        event.Sequence = 1;
+        event.Kind = TaskProviderEventKind::RunCompleted;
+        event.SessionId = session.Session->ProviderSessionId;
+        event.RunId = first.Run->ProviderRunId;
+        state->Events.push_back(event);
+        VERIFY_IS_TRUE(coordinator.PumpOneEvent(nullptr).Succeeded());
+        VERIFY_IS_TRUE(coordinator.StartRun(Task1, _run(session.Session->ProviderSessionId, std::string{ Task1 }, std::string{ Run2 }), nullptr).Succeeded());
+        VERIFY_ARE_EQUAL(size_t{ 1 }, coordinator.Runs().size());
+    }
+
+    void TaskProviderCoordinatorTests::SlowRunDoesNotBlockOtherTaskCommandsOrEvents()
+    {
+        const auto state = std::make_shared<FakeAdapterState>();
+        const auto sink = std::make_shared<RecordingSink>();
+        wil::unique_handle entered{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        wil::unique_handle release{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        state->BlockedRunTask = Task1;
+        state->RunEntered = entered.get();
+        state->ReleaseRun = release.get();
+        TaskProviderCoordinator coordinator{ [state] { return std::make_unique<FakeAdapter>(state); }, sink };
+        const auto first = coordinator.StartSession(_session(std::string{ Task1 }), nullptr);
+        const auto second = coordinator.StartSession(_session(std::string{ Task2 }), nullptr);
+        const auto secondRun = coordinator.StartRun(Task2, _run(second.Session->ProviderSessionId, std::string{ Task2 }, std::string{ Run2 }), nullptr);
+        VERIFY_IS_TRUE(secondRun.Succeeded());
+        TaskProviderCoordinatorResult started;
+        std::thread worker{ [&] { started = coordinator.StartRun(Task1, _run(first.Session->ProviderSessionId, std::string{ Task1 }, std::string{ Run1 }), nullptr); } };
+        const auto finish = wil::scope_exit([&] { SetEvent(release.get()); if (worker.joinable()) worker.join(); });
+        VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, WaitForSingleObject(entered.get(), 1000));
+        const auto before = GetTickCount64();
+        VERIFY_IS_TRUE(coordinator.InterruptRun(Task2, Run2, nullptr).Succeeded());
+        VERIFY_IS_TRUE(GetTickCount64() - before < 1000);
+        TaskProviderEvent event;
+        event.Sequence = 1;
+        event.Kind = TaskProviderEventKind::AgentMessageDelta;
+        event.SessionId = first.Session->ProviderSessionId;
+        {
+            const std::scoped_lock lock{ state->Mutex };
+            state->Events.push_back(event);
+            event.Sequence = 2;
+            event.SessionId = second.Session->ProviderSessionId;
+            state->Events.push_back(event);
+        }
+        VERIFY_IS_TRUE(coordinator.PumpOneEvent(nullptr).Succeeded());
+        VERIFY_IS_TRUE(sink->Events.empty());
+        VERIFY_IS_TRUE(coordinator.PumpOneEvent(nullptr).Succeeded());
+        VERIFY_ARE_EQUAL(size_t{ 1 }, sink->Events.size());
+        VERIFY_ARE_EQUAL(second.Session->ProviderSessionId, sink->Events[0].SessionId);
+        wil::unique_handle eventEntered{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        wil::unique_handle releaseEvent{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        state->EventWaitEntered = eventEntered.get();
+        state->ReleaseEventWait = releaseEvent.get();
+        event.Sequence = 3;
+        event.SessionId = first.Session->ProviderSessionId;
+        {
+            const std::scoped_lock lock{ state->Mutex };
+            state->Events.push_back(event);
+        }
+        std::thread poller{ [&] { static_cast<void>(coordinator.PumpOneEvent(nullptr)); } };
+        const auto finishPoll = wil::scope_exit([&] { SetEvent(releaseEvent.get()); if (poller.joinable()) poller.join(); });
+        VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, WaitForSingleObject(eventEntered.get(), 1000));
+        SetEvent(release.get());
+        worker.join();
+        SetEvent(releaseEvent.get());
+        poller.join();
+        state->EventWaitEntered = nullptr;
+        state->ReleaseEventWait = nullptr;
+        VERIFY_IS_TRUE(started.Succeeded());
+        VERIFY_ARE_EQUAL(size_t{ 1 }, sink->Events.size());
+        VERIFY_IS_TRUE(coordinator.PumpOneEvent(nullptr).Succeeded());
+        VERIFY_ARE_EQUAL(size_t{ 2 }, sink->Events.size());
+        VERIFY_ARE_EQUAL(first.Session->ProviderSessionId, sink->Events[1].SessionId);
+        VERIFY_ARE_EQUAL(uint64_t{ 1 }, sink->Events[1].Sequence);
+        VERIFY_IS_TRUE(coordinator.PumpOneEvent(nullptr).Succeeded());
+        VERIFY_ARE_EQUAL(size_t{ 3 }, sink->Events.size());
+        VERIFY_ARE_EQUAL(uint64_t{ 3 }, sink->Events[2].Sequence);
+    }
+
+    void TaskProviderCoordinatorTests::RestartDiscardsCompletionFromBlockedRun()
+    {
+        const auto state = std::make_shared<FakeAdapterState>();
+        const auto replacement = std::make_shared<FakeAdapterState>();
+        const auto sink = std::make_shared<RecordingSink>();
+        wil::unique_handle entered{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        wil::unique_handle release{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        state->BlockedRunTask = Task1;
+        state->RunEntered = entered.get();
+        state->ReleaseRun = release.get();
+        size_t factories{};
+        TaskProviderCoordinator coordinator{ [&] { return std::make_unique<FakeAdapter>(factories++ == 0 ? state : replacement); }, sink };
+        const auto session = coordinator.StartSession(_session(std::string{ Task1 }), nullptr);
+        TaskProviderCoordinatorResult started;
+        std::thread worker{ [&] { started = coordinator.StartRun(Task1, _run(session.Session->ProviderSessionId, std::string{ Task1 }, std::string{ Run1 }), nullptr); } };
+        const auto finish = wil::scope_exit([&] { SetEvent(release.get()); if (worker.joinable()) worker.join(); });
+        VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, WaitForSingleObject(entered.get(), 1000));
+        const auto before = GetTickCount64();
+        VERIFY_IS_TRUE(coordinator.RestartProvider(nullptr).Succeeded());
+        VERIFY_IS_TRUE(GetTickCount64() - before < 1000);
+        SetEvent(release.get());
+        worker.join();
+        VERIFY_IS_TRUE(started.Status == TaskProviderStatus::TransportClosed);
+        VERIFY_IS_TRUE(coordinator.Runs().empty());
+        VERIFY_IS_TRUE(sink->Runs.empty());
+    }
+
+    void TaskProviderCoordinatorTests::StartingAfterCloseCreatesRunnableSession()
+    {
+        const auto state = std::make_shared<FakeAdapterState>();
+        const auto sink = std::make_shared<RecordingSink>();
+        TaskProviderCoordinator coordinator{ [state] { return std::make_unique<FakeAdapter>(state); }, sink };
+        VERIFY_IS_TRUE(coordinator.StartSession(_session(std::string{ Task1 }), nullptr).Succeeded());
+        VERIFY_IS_TRUE(coordinator.CloseTask(Task1, nullptr).Succeeded());
+        const auto reopened = coordinator.StartSession(_session(std::string{ Task1 }), nullptr);
+        VERIFY_IS_TRUE(reopened.Succeeded());
+        VERIFY_IS_TRUE(reopened.Session->State == TaskProviderSessionState::Ready);
+        VERIFY_IS_TRUE(coordinator.StartRun(Task1,
+            _run(reopened.Session->ProviderSessionId, std::string{ Task1 }, std::string{ Run1 }), nullptr).Succeeded());
+    }
 
     void TaskProviderCoordinatorTests::EventWaitAllowsCommandsAndDiscardsEventsFromRestartedProvider()
     {
@@ -338,6 +491,8 @@ namespace TaskProviderLocalTests
         state->Events.emplace_back(std::move(terminal));
         const auto pumped = coordinator.PumpOneEvent(nullptr);
         VERIFY_IS_TRUE(pumped.Succeeded());
+        VERIFY_ARE_EQUAL(size_t{ 0 }, state->CloseCalls);
+        VERIFY_IS_TRUE(coordinator.CloseTask(Task1, nullptr).Succeeded());
         VERIFY_ARE_EQUAL(size_t{ 1 }, state->CloseCalls);
         const auto sessions = coordinator.Sessions();
         const auto closed = std::find_if(sessions.begin(), sessions.end(), [](const auto& value) { return value.TaskId == Task1; });

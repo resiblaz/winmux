@@ -18,6 +18,7 @@ namespace Microsoft::Terminal::TaskRuntime
         uint32_t ActivePollMilliseconds{ 500 };
         uint32_t IdlePollMilliseconds{ 5000 };
         uint32_t TerminalIdleMilliseconds{ 5 * 60 * 1000 };
+        size_t MaximumConcurrentLifecycleOperations{ 4 };
 
         [[nodiscard]] bool Valid() const noexcept;
     };

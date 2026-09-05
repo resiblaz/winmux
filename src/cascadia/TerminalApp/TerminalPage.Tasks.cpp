@@ -5,6 +5,7 @@
 #include "TerminalPage.h"
 
 #include "Tasks/TaskRuntimeConnection.h"
+#include "Tasks/TaskProjection.h"
 #include "TerminalPaneContent.h"
 
 #include "../../types/inc/utils.hpp"
@@ -14,6 +15,7 @@ using namespace winrt::Microsoft::Terminal::Settings::Model;
 using namespace winrt::Microsoft::Terminal::TerminalConnection;
 using namespace winrt::Windows::UI::Core;
 using namespace winrt::Windows::UI::Xaml;
+using namespace winrt::Windows::UI::Xaml::Controls;
 
 namespace winrt::TerminalApp::implementation
 {
@@ -57,6 +59,14 @@ namespace winrt::TerminalApp::implementation
         }
         if (descriptor.OwnedElsewhere)
         {
+            if (const auto presenter = _dialogPresenter.get())
+            {
+                ContentDialog dialog;
+                dialog.Title(box_value(RS_(L"TaskPage_TerminalOwnedElsewhereTitle")));
+                dialog.Content(box_value(RS_(L"TaskPage_TerminalOwnedElsewhereBody")));
+                dialog.CloseButtonText(RS_(L"Ok"));
+                co_await presenter.ShowDialog(dialog);
+            }
             co_return;
         }
         if (_tabs.Size() > 0)
@@ -199,8 +209,13 @@ namespace winrt::TerminalApp::implementation
         {
             if (_TaskSurfaceId(tab) == *surface)
             {
+                const auto toolPage = _activeWorkspaceToolPage;
                 _taskSurfacePolicy.Unregister(*surface);
                 tab.Close();
+                if (toolPage == WorkspaceToolPage::Tasks)
+                {
+                    _SetWorkspaceToolPage(toolPage);
+                }
                 return;
             }
         }

@@ -1,0 +1,84 @@
+{
+  "task": [
+    [
+      "c4b19534-baa9-4e65-b5f7-e9f64aca01c8",
+      "QA-01 Save only",
+      1,
+      1,
+      32
+    ],
+    [
+      "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+      "QA-02 Direct run",
+      1,
+      0,
+      26
+    ]
+  ],
+  "runs": [
+    [
+      "c4b19534-baa9-4e65-b5f7-e9f64aca01c8",
+      "f6067ce6-3c1f-46b5-8b1e-309aa623f56a",
+      6,
+      0,
+      null,
+      "provider-start-failed"
+    ],
+    [
+      "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+      "44f0fdc8-0925-40dc-b16d-6af31f6e7e3b",
+      6,
+      0,
+      null,
+      "provider-start-failed"
+    ],
+    [
+      "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+      "e7759192-ea10-4ac2-a344-48f8c2b96985",
+      6,
+      1,
+      "44f0fdc8-0925-40dc-b16d-6af31f6e7e3b",
+      "provider-start-failed"
+    ]
+  ],
+  "sessions": [
+    [
+      "c4b19534-baa9-4e65-b5f7-e9f64aca01c8",
+      "01a07090-5b6f-7281-a883-e178342d96e5",
+      3,
+      0
+    ],
+    [
+      "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+      "01a070a6-feac-7110-9f0a-601396886131",
+      3,
+      0
+    ]
+  ],
+  "terminal": [
+    [
+      "c4b19534-baa9-4e65-b5f7-e9f64aca01c8",
+      7,
+      1
+    ],
+    [
+      "03d4ec42-8f44-4d6f-b1ba-b54a4a2c05b1",
+      2,
+      2
+    ]
+  ],
+  "messages": [
+    [
+      "c4b19534-baa9-4e65-b5f7-e9f64aca01c8",
+      1,
+      2,
+      "QA pending message A revised"
+    ],
+    [
+      "c4b19534-baa9-4e65-b5f7-e9f64aca01c8",
+      3,
+      2,
+      ""
+    ]
+  ]
+}

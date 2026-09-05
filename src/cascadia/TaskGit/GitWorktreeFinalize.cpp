@@ -236,7 +236,7 @@ namespace Microsoft::Terminal::TaskGit
                     layout,
                     false);
             }
-            const auto initiallyPresent = *pathExists;
+            auto initiallyPresent = *pathExists;
             if (initiallyPresent)
             {
                 if (!journal ||
@@ -306,6 +306,20 @@ namespace Microsoft::Terminal::TaskGit
             if (!registrations)
             {
                 return failure;
+            }
+            if (initiallyPresent && !registrations->Managed && !registrations->BranchRegisteredElsewhere)
+            {
+                // Git may have removed the registration and files before an
+                // occupied root directory made removal fail. Ownership evidence
+                // was verified above. Only remove an empty, ordinary directory;
+                // never recursively delete an unregistered path on retry.
+                const auto attributes = GetFileAttributesW(layout.WorktreePath.c_str());
+                if (attributes != INVALID_FILE_ATTRIBUTES &&
+                    (attributes & FILE_ATTRIBUTE_DIRECTORY) && !(attributes & FILE_ATTRIBUTE_REPARSE_POINT) &&
+                    RemoveDirectoryW(layout.WorktreePath.c_str()))
+                {
+                    initiallyPresent = false;
+                }
             }
             if (registrations->BranchRegisteredElsewhere ||
                 (initiallyPresent != registrations->Managed.has_value()))
@@ -427,6 +441,19 @@ namespace Microsoft::Terminal::TaskGit
                                failure;
                 }
 
+                // Detect cwd/other non-delete-sharing handles before Git can
+                // partially remove the worktree and its registration.
+                const auto deleteProbe = CreateFileW(
+                    layout.WorktreePath.c_str(), DELETE,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+                if (deleteProbe == INVALID_HANDLE_VALUE)
+                {
+                    return _failure(GitWorktreeFinalizeStatus::GitFailure, GetLastError(),
+                                    "Close programs using the Task Worktree directory and retry cleanup",
+                                    layout, true);
+                }
+                CloseHandle(deleteProbe);
                 const auto removed = context.RunSource({
                     L"-c",
                     L"core.hooksPath=NUL",

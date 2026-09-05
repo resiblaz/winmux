@@ -43,7 +43,7 @@ namespace TaskProviderLocalTests
             {
                 value["thread"]["id"] = "provider-thread-1";
             }
-            else if (method == "thread/resume")
+            else if (method == "thread/resume" || method == "thread/unarchive")
             {
                 value["thread"]["id"] = request["params"]["threadId"];
             }

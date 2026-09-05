@@ -4,6 +4,7 @@
 
 #include "pch.h"
 #include "TerminalPage.h"
+#include "Tasks/TaskPage.h"
 #include "Tasks/RuntimeTaskProjectionSource.h"
 
 #include <TerminalCore/ControlKeyStates.hpp>
@@ -220,6 +221,7 @@ namespace winrt::TerminalApp::implementation
         _tabView = _tabRow.TabView();
         _workspaceSidebar = this->WorkspaceSidebar();
         _taskPage = this->TasksPage();
+        winrt::get_self<implementation::TaskPage>(_taskPage)->SetDialogPresenter(_dialogPresenter.get());
         _taskAgentSessions = std::make_shared<tasks::TaskAgentSessionRegistry>();
         _workspaceFeatures->History().SetTaskSessionRegistry(_taskAgentSessions);
         winrt::get_self<implementation::TaskPage>(_taskPage)->SetSurfaceHandler(
@@ -250,7 +252,7 @@ namespace winrt::TerminalApp::implementation
         _workspaceTasksToolTab = this->WorkspaceTasksToolTab();
         _workspaceSummaryToolTab = this->WorkspaceSummaryToolTab();
         _workspaceList.ItemsSource(_WorkspaceItems());
-        _workspaceItemsChangedRevoker = _WorkspaceItems().VectorChanged(winrt::auto_revoke, [weakThis{ get_weak() }](auto&&, auto&&) {
+        _workspaceFeatures->Workspaces().SetChangedHandler([weakThis{ get_weak() }] {
             if (const auto page = weakThis.get())
             {
                 page->_RefreshWorkspaceNotifications();

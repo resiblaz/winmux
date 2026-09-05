@@ -113,9 +113,10 @@ namespace Microsoft::Terminal::TaskRuntime
                 }
             }
             std::vector<const TaskRunMessageRecord*> messages;
+            const auto inputRun = _rootRun(run, aggregate.Runs);
             for (const auto& message : aggregate.RunMessages)
             {
-                if (message.Run == run.Id)
+                if (message.Run == inputRun->Id)
                 {
                     messages.push_back(&message);
                 }

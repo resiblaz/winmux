@@ -206,83 +206,29 @@ namespace winrt::TerminalApp::implementation::tasks
 
     void TaskRuntimeConnection::WriteInput(const winrt::array_view<const char16_t> data)
     {
-        std::wstring echo;
-        bool flush{};
-        bool interrupt{};
+        TaskTerminalInputBatch batch;
         {
             const std::scoped_lock lock{ _inputMutex };
-            for (const auto value : data)
-            {
-                if (value == 0x1b)
-                {
-                    interrupt = true;
-                    continue;
-                }
-                if (value == L'\r' || value == L'\n')
-                {
-                    if (value == L'\n' && _lastInputWasCarriageReturn)
-                    {
-                        _lastInputWasCarriageReturn = false;
-                        continue;
-                    }
-                    _lastInputWasCarriageReturn = value == L'\r';
-                    flush = flush || !_inputLine.empty();
-                    echo.append(L"\r\n");
-                    continue;
-                }
-                _lastInputWasCarriageReturn = false;
-                if (value == L'\b' || value == 0x7f)
-                {
-                    if (!_inputLine.empty())
-                    {
-                        _inputLine.pop_back();
-                        if (!_inputLine.empty() && IS_HIGH_SURROGATE(_inputLine.back()))
-                        {
-                            _inputLine.pop_back();
-                        }
-                        echo.append(L"\b \b");
-                    }
-                    continue;
-                }
-                if (value >= 0x20 || value == L'\t')
-                {
-                    _inputLine.push_back(static_cast<wchar_t>(value));
-                    echo.push_back(static_cast<wchar_t>(value));
-                }
-            }
+            batch = _input.Feed({ reinterpret_cast<const wchar_t*>(data.data()), data.size() });
         }
-        _raiseOutput(echo);
-        if (interrupt)
+        _raiseOutput(batch.Echo);
+        if (batch.Interrupt)
         {
             static_cast<void>(_send(TerminalFrameKind::Input, { 0x1b }, _descriptor.Generation));
         }
-        if (flush)
+        for (const auto& line : batch.Messages)
         {
-            _flushInputLine();
-        }
-    }
-
-    void TaskRuntimeConnection::_flushInputLine()
-    {
-        std::wstring line;
-        {
-            const std::scoped_lock lock{ _inputMutex };
-            line = std::exchange(_inputLine, {});
-        }
-        if (line.empty())
-        {
-            return;
-        }
-        try
-        {
-            const auto input = til::u16u8(line);
-            static_cast<void>(_send(
-                TerminalFrameKind::Input,
-                { input.begin(), input.end() },
-                _descriptor.Generation));
-        }
-        catch (...)
-        {
+            try
+            {
+                const auto input = til::u16u8(line);
+                static_cast<void>(_send(
+                    TerminalFrameKind::Input,
+                    { input.begin(), input.end() },
+                    _descriptor.Generation));
+            }
+            catch (...)
+            {
+            }
         }
     }
 

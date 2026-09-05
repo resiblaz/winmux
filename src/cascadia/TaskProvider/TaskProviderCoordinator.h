@@ -123,7 +123,8 @@ namespace Microsoft::Terminal::TaskProvider
         std::shared_ptr<ITaskProviderCoordinatorSink> _sink;
         TaskProviderCoordinatorConfiguration _configuration;
         mutable std::mutex _mutex;
-        std::unique_ptr<ITaskProviderAdapter> _adapter;
+        std::mutex _eventMutex;
+        std::shared_ptr<ITaskProviderAdapter> _adapter;
         std::unordered_map<std::string, TaskProviderSessionBinding> _sessionsByTask;
         std::unordered_map<std::string, std::string> _tasksByProviderSession;
         std::unordered_map<std::string, TaskProviderRunBinding> _runsByTaskRun;

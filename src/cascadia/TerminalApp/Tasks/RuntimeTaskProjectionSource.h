@@ -22,7 +22,8 @@ namespace winrt::TerminalApp::implementation::tasks
         RuntimeTaskProjectionSource(
             ::Microsoft::Terminal::TaskRuntime::TaskRuntimeClientConfiguration configuration,
             Windows::UI::Core::CoreDispatcher dispatcher,
-            std::shared_ptr<TaskAgentSessionRegistry> agentSessions = nullptr);
+            std::shared_ptr<TaskAgentSessionRegistry> agentSessions = nullptr,
+            ::Microsoft::Terminal::TaskRuntime::TaskRuntimeClientDependencies dependencies = {});
         ~RuntimeTaskProjectionSource() override;
 
         [[nodiscard]] std::vector<TaskProjection> Snapshot() const override;

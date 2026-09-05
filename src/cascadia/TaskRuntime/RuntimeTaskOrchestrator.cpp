@@ -111,6 +111,8 @@ namespace Microsoft::Terminal::TaskRuntime
     {
         if (_impl)
         {
+            const std::scoped_lock lock{ _impl->Mutex };
+            _impl->WakeRequested = true;
             _impl->Changed.notify_all();
         }
     }
@@ -222,8 +224,10 @@ namespace Microsoft::Terminal::TaskRuntime
             if (_impl->Stopping)
                 return;
             _impl->Stopping = true;
+            SetEvent(_impl->StopEvent.get());
+            for (const auto& [_, worker] : _impl->Workers)
+                SetEvent(worker->Cancellation.get());
         }
-        SetEvent(_impl->StopEvent.get());
         _impl->Changed.notify_all();
         if (_impl->Scheduler.joinable())
             _impl->Scheduler.join();
@@ -252,8 +256,9 @@ namespace Microsoft::Terminal::TaskRuntime
             std::unique_lock lock{ Mutex };
             Changed.wait_for(
                 lock,
-                std::chrono::milliseconds{ Configuration.IdlePollMilliseconds },
-                [&] { return Stopping; });
+                std::chrono::milliseconds{ KnownRuns.empty() && Workers.empty() ? Configuration.IdlePollMilliseconds : Configuration.ActivePollMilliseconds },
+                [&] { return Stopping || WakeRequested; });
+            WakeRequested = false;
         }
         ReapWorkers();
     }
@@ -273,8 +278,16 @@ namespace Microsoft::Terminal::TaskRuntime
                     {
                         KnownRuns.insert_or_assign(run.Id.Value(), task.Id.Value());
                     }
-                    else if (IsTaskRunActive(run.State) &&
-                             (run.AgentSession || !aggregate->AgentSessions.empty()))
+                    else if (run.State == TaskRunState::Preparing ||
+                             run.State == TaskRunState::WaitingForDirectory ||
+                             (run.State == TaskRunState::Starting && !run.AgentSession && aggregate->AgentSessions.empty()))
+                    {
+                        // No provider turn has been committed for this preparation.
+                        // Resume the same durable setup phases and reacquire its lease.
+                        RecoveringPreparations.emplace(run.Id.Value());
+                        KnownRuns.insert_or_assign(run.Id.Value(), task.Id.Value());
+                    }
+                    else if (IsTaskRunActive(run.State))
                     {
                         static_cast<void>(TransitionRun(task.Id, run.Id, TaskRunState::Interrupted, "runtime_recovery"));
                         KnownRuns.insert_or_assign(run.Id.Value(), task.Id.Value());
@@ -341,6 +354,11 @@ namespace Microsoft::Terminal::TaskRuntime
             }
             const auto record = std::ranges::find(aggregate->Runs, *run, &TaskRunRecord::Id);
             if (record != aggregate->Runs.end() && IsTaskRunTerminal(record->State))
+            {
+                RecoveringPreparations.erase(runId);
+                StartWorker(*task, *run);
+            }
+            else if (record != aggregate->Runs.end() && RecoveringPreparations.contains(runId) && !aggregate->Task.ManualHold)
             {
                 StartWorker(*task, *run);
             }
@@ -414,13 +432,16 @@ namespace Microsoft::Terminal::TaskRuntime
             return;
         }
         auto worker = std::make_shared<Worker>();
+        if (!worker->Cancellation)
+            return;
         Workers.emplace(run.Value(), worker);
         try
         {
             worker->Thread = std::thread{ [this, worker, task, run] {
-                ExecuteRun(task, run);
+                ExecuteRun(task, run, worker->Cancellation.get());
                 worker->Finished.store(true, std::memory_order_release);
-                Changed.notify_all();
+                // Retry unfinished checkpoint work on the bounded polling interval,
+                // rather than immediately rescheduling a failed finalizer in a loop.
             } };
         }
         catch (...)
@@ -430,6 +451,20 @@ namespace Microsoft::Terminal::TaskRuntime
     }
     catch (...)
     {
+    }
+
+    bool RuntimeTaskOrchestrator::Impl::WorkerBusy(const TaskRunId& run) noexcept
+    {
+        const std::scoped_lock lock{ Mutex };
+        const auto found = Workers.find(run.Value());
+        return found != Workers.end() && !found->second->Finished.load(std::memory_order_acquire);
+    }
+
+    void RuntimeTaskOrchestrator::Impl::CancelPreparation(const TaskRunId& run) noexcept
+    {
+        const std::scoped_lock lock{ Mutex };
+        if (const auto found = Workers.find(run.Value()); found != Workers.end())
+            SetEvent(found->second->Cancellation.get());
     }
 
     void RuntimeTaskOrchestrator::Impl::ClaimMessages(const TaskId& task) noexcept
@@ -509,6 +544,10 @@ namespace Microsoft::Terminal::TaskRuntime
         std::string reason) noexcept
     try
     {
+        // Helper shutdown releases resources but leaves durable work recoverable.
+        // User Stop/Close use the separate preparation cancellation event.
+        if (WaitForSingleObject(StopEvent.get(), 0) != WAIT_TIMEOUT)
+            return false;
         for (size_t attempt = 0; attempt < 3; ++attempt)
         {
             const auto aggregate = Store->LoadTask(task);

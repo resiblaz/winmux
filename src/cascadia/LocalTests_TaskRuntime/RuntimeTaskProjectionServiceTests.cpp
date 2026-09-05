@@ -6,6 +6,9 @@
 #include "RuntimeTaskProjectionService.h"
 #include "TaskCoreStoreTestFixtures.h"
 #include "TaskRuntimeTestFixtures.h"
+#include "TaskGitTestSupport.h"
+#include "GitRepositoryInspector.h"
+#include "GitWorktreeLayout.h"
 
 using namespace WEX::TestExecution;
 using namespace Microsoft::Terminal::TaskCore;
@@ -144,11 +147,20 @@ namespace TaskRuntimeLocalTests
 
     void RuntimeTaskProjectionServiceTests::WorktreeDraftProjectsDeterministicFuturePath()
     {
+        using namespace TaskGitLocalTests::TestSupport;
+        GitFixture git;
+        const auto repository = git.Temporary.Path() / L"Repository";
+        VERIFY_IS_TRUE(git.Initialize(repository));
+        const auto dataRoot = git.Temporary.Path() / L"RuntimeData";
+        std::filesystem::create_directory(dataRoot);
         TemporaryDatabasePath path;
         const auto store = std::make_shared<SqliteTaskStore>(path.Path());
-        RuntimeTaskProjectionService service{ store, nullptr, LR"(C:\runtime-data)" };
+        // The product identity lowercases its settings root, while Git and Win32
+        // return different slash styles and the on-disk casing.
+        RuntimeTaskProjectionService service{ store, nullptr, RequireIdentity(dataRoot).SettingsRoot };
         auto create = _create(30);
         create.Draft->ExecutionMode = TaskProjectionExecutionMode::Worktree;
+        create.Draft->SourceRoot = Utf8Path(repository);
         VERIFY_IS_TRUE(service.Execute(create, nullptr).Succeeded());
         TaskProjectionQueryRequest query;
         query.TaskId = create.TaskId;
@@ -159,6 +171,21 @@ namespace TaskRuntimeLocalTests
         VERIFY_IS_TRUE(execution.Mode == TaskProjectionExecutionMode::Worktree);
         VERIFY_IS_TRUE(execution.WorktreePath.find(create.TaskId) != std::string::npos);
         VERIFY_IS_TRUE(execution.Branch.find(create.TaskId) != std::string::npos);
+        VERIFY_IS_TRUE(service.Execute(_action(create, 31, TaskUiCommandOperation::Start, 1), nullptr).Succeeded());
+        const auto aggregate = store->LoadTask(TaskId{ create.TaskId });
+        CreateTaskCommand task;
+        task.Task = aggregate->Task;
+        task.ExecutionContext = aggregate->ExecutionContexts.front();
+        auto initialize = MakeInitializeGitWorktreeCommand(task, 32, aggregate->Task.Version, aggregate->Task.UpdatedAtUnixMilliseconds);
+        Microsoft::Terminal::TaskExecution::GitRepositoryInspector inspector{ git.GitExecutable };
+        const auto inspected = inspector.Inspect(repository, git.Cancellation.Get());
+        const auto layout = Microsoft::Terminal::TaskGit::PrepareGitWorktreeLayout(dataRoot, task.Task.Id);
+        VERIFY_IS_TRUE(inspected.Succeeded());
+        VERIFY_IS_TRUE(layout.Succeeded());
+        const auto common = inspected.Inspection->CommonDirectoryIdentity.CanonicalPath().u8string();
+        initialize.Worktree.RepositoryCommonDirectory.assign(reinterpret_cast<const char*>(common.data()), common.size());
+        initialize.Worktree.WorktreePath = layout.Layout->WorktreePathUtf8;
+        VERIFY_IS_TRUE(store->InitializeTaskGitWorktree(initialize).Succeeded());
     }
 
     void RuntimeTaskProjectionServiceTests::RejectsStaleAndInvalidCommandsWithoutMutation()

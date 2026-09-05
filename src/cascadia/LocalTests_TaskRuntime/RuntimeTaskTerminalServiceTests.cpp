@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <thread>
+#include <wil/resource.h>
 
 using namespace WEX::TestExecution;
 using namespace Microsoft::Terminal::TaskRuntime;
@@ -73,6 +74,7 @@ namespace TaskRuntimeLocalTests
 
         TEST_METHOD(OpenStreamsSnapshotInputInterruptAndGracefulClose);
         TEST_METHOD(SurfaceOwnerIsExclusiveUntilTerminalClientDetaches);
+        TEST_METHOD(InputAndInterruptDoNotBlockConcurrentProviderOutput);
     };
 
     void RuntimeTaskTerminalServiceTests::OpenStreamsSnapshotInputInterruptAndGracefulClose()
@@ -159,5 +161,57 @@ namespace TaskRuntimeLocalTests
         VERIFY_IS_TRUE(service.Open(competing).Status == RuntimeTaskTerminalServiceStatus::AlreadyOpen);
         VERIFY_IS_TRUE(service.Open({ std::string{ TaskId }, std::string{ SessionId }, 8, std::string{ ClientB }, "stale" }).Status == RuntimeTaskTerminalServiceStatus::StaleGeneration);
         VERIFY_IS_TRUE(service.Close(TaskId, 9, false).Succeeded());
+    }
+
+    void RuntimeTaskTerminalServiceTests::InputAndInterruptDoNotBlockConcurrentProviderOutput()
+    {
+        UniqueRuntimeRoot root;
+        const auto identity = RequireIdentity(root.Path());
+        wil::unique_handle entered{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        wil::unique_handle release{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        wil::unique_handle published{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        const auto callback = [&] {
+            SetEvent(entered.get());
+            WaitForSingleObject(release.get(), 5000);
+            return RuntimeTerminalBackendResult{ RuntimeTerminalBackendStatus::Succeeded, {} };
+        };
+        RuntimeTaskTerminalService service{
+            identity, std::string{ RuntimeInstance },
+            [&](auto&&, auto&&) { return callback(); },
+            [&](auto&&) { return callback(); }
+        };
+        const auto opened = service.Open({ std::string{ TaskId }, std::string{ SessionId }, 1, std::string{ ClientA }, "Lock regression" });
+        VERIFY_IS_TRUE(opened.Succeeded());
+        auto client = _connect(opened.Endpoint, RuntimeInstance, ClientA);
+        VERIFY_IS_TRUE(client.Receive(5000).Succeeded());
+        uint64_t sequence{ 3 };
+        for (const auto payload : { std::vector<uint8_t>{ 'x' }, std::vector<uint8_t>{ 0x1b } })
+        {
+            ResetEvent(entered.get());
+            ResetEvent(release.get());
+            ResetEvent(published.get());
+            TerminalFrame frame;
+            frame.Kind = TerminalFrameKind::Input;
+            frame.Sequence = sequence++;
+            frame.Generation = 1;
+            frame.Payload = payload;
+            VERIFY_IS_TRUE(client.Send(frame, 5000).Succeeded());
+            VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, WaitForSingleObject(entered.get(), 3000));
+            RuntimeTaskTerminalServiceResult output;
+            std::thread publisher{ [&] {
+                const std::array<uint8_t, 2> text{ 'o', 'k' };
+                output = service.PublishText(TaskId, text);
+                SetEvent(published.get());
+            } };
+            const auto publishedWhileCallbackBlocked = WaitForSingleObject(published.get(), 1000);
+            // Release the callback even on a regression so teardown stays bounded.
+            SetEvent(release.get());
+            publisher.join();
+            VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, publishedWhileCallbackBlocked);
+            VERIFY_IS_TRUE(output.Succeeded());
+            VERIFY_IS_TRUE(client.Receive(5000).Succeeded());
+        }
+        client.Close();
+        VERIFY_IS_TRUE(service.Close(TaskId, 1, false).Succeeded());
     }
 }

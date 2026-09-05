@@ -300,18 +300,24 @@ namespace Microsoft::Terminal::TaskRuntime
                     continue;
                 if (!received.Succeeded())
                     break;
-                const std::scoped_lock lock{ Mutex };
-                std::optional<RuntimeTerminalLeaseRevision> leaseRevision;
-                if (received.Frame.Kind == TerminalFrameKind::Input || received.Frame.Kind == TerminalFrameKind::Resize)
+                RuntimeTerminalSessionResult prepared;
                 {
-                    const auto acquired = Session.AcquireInputLease(clientId, GetTickCount64());
-                    if (acquired.Lease && acquired.Lease->OwnerClientInstanceId == clientId)
+                    const std::scoped_lock lock{ Mutex };
+                    std::optional<RuntimeTerminalLeaseRevision> leaseRevision;
+                    if (received.Frame.Kind == TerminalFrameKind::Input || received.Frame.Kind == TerminalFrameKind::Resize)
                     {
-                        leaseRevision = acquired.Lease->LeaseRevision;
+                        const auto acquired = Session.AcquireInputLease(clientId, GetTickCount64());
+                        if (acquired.Lease && acquired.Lease->OwnerClientInstanceId == clientId)
+                        {
+                            leaseRevision = acquired.Lease->LeaseRevision;
+                        }
                     }
+                    prepared = Session.PrepareFrame(
+                        clientId, received.Frame, GetTickCount64(), leaseRevision);
                 }
-                const auto handled = Session.HandleFrame(
-                    clientId, received.Frame, GetTickCount64(), leaseRevision);
+                // Provider callbacks can publish output back to this session.
+                // Never invoke them while holding Mutex.
+                const auto handled = Session.DispatchFrame(received.Frame, std::move(prepared));
                 if (handled.Status == RuntimeTerminalSessionStatus::InvalidFrame ||
                     handled.Status == RuntimeTerminalSessionStatus::StaleGeneration ||
                     handled.Status == RuntimeTerminalSessionStatus::ResourceFailure)

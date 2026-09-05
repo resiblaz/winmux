@@ -32,6 +32,8 @@ namespace Microsoft::Terminal::TaskProvider
             std::string_view sessionId,
             std::string_view runId,
             HANDLE cancellationEvent) = 0;
+        // One event consumer may wait concurrently with commands or Stop.
+        // Implementations must serialize access to their transport and state.
         [[nodiscard]] virtual TaskProviderEventResult NextEvent(
             uint32_t timeoutMilliseconds,
             HANDLE cancellationEvent) = 0;

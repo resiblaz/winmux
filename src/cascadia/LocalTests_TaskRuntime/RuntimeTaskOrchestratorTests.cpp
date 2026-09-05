@@ -9,8 +9,12 @@
 #include "RuntimeTaskSchedulingPolicy.h"
 #include "TaskCoreStoreTestFixtures.h"
 #include "TaskRuntimeTestFixtures.h"
+#include "TaskGitTestSupport.h"
+#include "RuntimeTaskProjectionService.h"
+#include "DirectDirectoryLease.h"
 
 #include <deque>
+#include <wil/resource.h>
 
 using namespace WEX::TestExecution;
 using namespace Microsoft::Terminal::TaskCore;
@@ -23,9 +27,20 @@ namespace TaskRuntimeLocalTests
 {
     namespace
     {
+        struct OrchestratorProviderState
+        {
+            bool CompleteOnStart{ true };
+            std::atomic<TaskProviderStatus> InterruptStatus{ TaskProviderStatus::Succeeded };
+            std::atomic_uint32_t InterruptCalls{};
+            std::atomic<TaskProviderEventKind> TerminalEvent{ TaskProviderEventKind::UnknownOptional };
+        };
+
         class CompletingProviderAdapter final : public ITaskProviderAdapter
         {
         public:
+            explicit CompletingProviderAdapter(std::shared_ptr<OrchestratorProviderState> state = std::make_shared<OrchestratorProviderState>()) :
+                _state{ std::move(state) } {}
+
             TaskProviderCapabilitiesResult ProbeCapabilities(HANDLE) override
             {
                 TaskProviderCapabilitiesResult result;
@@ -61,7 +76,8 @@ namespace TaskRuntimeLocalTests
                 event.SessionId = "test-thread";
                 event.RunId = "test-turn";
                 event.Text = "done";
-                _events.emplace_back(std::move(event));
+                if (_state->CompleteOnStart)
+                    _events.emplace_back(std::move(event));
                 TaskProviderRunResult result;
                 result.Status = TaskProviderStatus::Succeeded;
                 result.Value = TaskProviderRun{ "test-thread", "test-turn", TaskProviderRunState::Running };
@@ -69,7 +85,12 @@ namespace TaskRuntimeLocalTests
             }
 
             TaskProviderResult SteerRun(std::string_view, std::string_view, std::string_view, HANDLE) override { return { TaskProviderStatus::Succeeded, {} }; }
-            TaskProviderResult InterruptRun(std::string_view, std::string_view, HANDLE) override { return { TaskProviderStatus::Succeeded, {} }; }
+            TaskProviderResult InterruptRun(std::string_view, std::string_view, HANDLE) override
+            {
+                ++_state->InterruptCalls;
+                const auto status = _state->InterruptStatus.load();
+                return { status, status == TaskProviderStatus::Succeeded ? "" : "interrupt rejected" };
+            }
             TaskProviderResult RespondToApproval(std::string_view, std::string_view, std::string_view, TaskProviderApprovalDecision, HANDLE) override { return { TaskProviderStatus::Succeeded, {} }; }
             TaskProviderResult SuspendSession(std::string_view, HANDLE) override { return { TaskProviderStatus::Succeeded, {} }; }
             TaskProviderResult CloseSessionProjection(std::string_view, HANDLE) override { return { TaskProviderStatus::Succeeded, {} }; }
@@ -78,6 +99,16 @@ namespace TaskRuntimeLocalTests
             {
                 {
                     const std::scoped_lock lock{ _mutex };
+                    if (const auto terminal = _state->TerminalEvent.exchange(TaskProviderEventKind::UnknownOptional);
+                        terminal != TaskProviderEventKind::UnknownOptional)
+                    {
+                        TaskProviderEvent event;
+                        event.Sequence = ++_sequence;
+                        event.Kind = terminal;
+                        event.SessionId = "test-thread";
+                        event.RunId = "test-turn";
+                        _events.push_back(std::move(event));
+                    }
                     if (!_events.empty())
                     {
                         TaskProviderEventResult result;
@@ -107,6 +138,7 @@ namespace TaskRuntimeLocalTests
             void Stop() noexcept override {}
 
         private:
+            std::shared_ptr<OrchestratorProviderState> _state;
             std::mutex _mutex;
             std::deque<TaskProviderEvent> _events;
             uint64_t _sequence{};
@@ -131,6 +163,58 @@ namespace TaskRuntimeLocalTests
             }
             return predicate();
         }
+
+        struct OrchestratorFixture
+        {
+            TaskGitLocalTests::TestSupport::TemporaryDirectory Root;
+            TemporaryDatabasePath Database;
+            std::shared_ptr<SqliteTaskStore> Store{ std::make_shared<SqliteTaskStore>(Database.Path()) };
+            std::shared_ptr<OrchestratorProviderState> State{ std::make_shared<OrchestratorProviderState>() };
+            std::shared_ptr<RuntimeTaskTerminalService> Terminals;
+            std::shared_ptr<RuntimeTaskProviderService> Provider;
+            std::shared_ptr<RuntimeRtaskCommandService> Rtask;
+            std::unique_ptr<RuntimeTaskOrchestrator> Orchestrator;
+
+            explicit OrchestratorFixture(std::filesystem::path git = {})
+            {
+                Terminals = std::make_shared<RuntimeTaskTerminalService>(
+                    RequireIdentity(Root.Path()), "b4000000-0000-4000-8000-000000000004",
+                    [](auto&&, auto&&) { return RuntimeTerminalBackendResult{ RuntimeTerminalBackendStatus::Succeeded, {} }; },
+                    [](auto&&) { return RuntimeTerminalBackendResult{ RuntimeTerminalBackendStatus::Succeeded, {} }; });
+                Provider = std::make_shared<RuntimeTaskProviderService>(
+                    [state = State] { return std::make_unique<CompletingProviderAdapter>(state); },
+                    std::make_shared<RuntimeTaskProviderSink>(Store, Terminals));
+                auto tokens = std::make_shared<FakeRuntimeRtaskCapabilityTokenSource>();
+                for (char value = 'a'; value <= 'd'; ++value)
+                    tokens->Tokens.emplace_back(std::string(64, value));
+                Rtask = std::make_shared<RuntimeRtaskCommandService>(Store,
+                    std::make_shared<RuntimeRtaskCapabilityRegistry>(RuntimeRtaskCapabilityRegistryConfiguration{}, tokens));
+                RuntimeTaskOrchestratorConfiguration configuration;
+                configuration.ActivePollMilliseconds = 50;
+                configuration.IdlePollMilliseconds = 100;
+                configuration.TerminalIdleMilliseconds = 60'000;
+                Orchestrator = std::make_unique<RuntimeTaskOrchestrator>(
+                    Store, Provider, Rtask, Terminals, Root.Path(), std::move(git),
+                    LR"(C:\test\rtask.exe)", R"(\\.\pipe\orchestrator-regression)", configuration);
+            }
+
+            ~OrchestratorFixture()
+            {
+                Orchestrator->Stop();
+                Provider->Stop();
+                Terminals->Stop();
+            }
+
+            CreateTaskCommand CreateDirectTask()
+            {
+                auto task = MakeCreateTaskCommand();
+                task.ExecutionContext.Mode = ExecutionMode::Direct;
+                task.ExecutionContext.SourceRoot = _utf8(Root.Path().native());
+                task.ExecutionContext.RuntimeRoot = task.ExecutionContext.SourceRoot;
+                VERIFY_IS_TRUE(Store->CreateTask(task).Succeeded());
+                return task;
+            }
+        };
     }
 
     class RuntimeTaskOrchestratorTests
@@ -139,10 +223,183 @@ namespace TaskRuntimeLocalTests
 
         TEST_METHOD(RetryPolicyIsAllowlistedBoundedAndBackedOff);
         TEST_METHOD(FollowupPromptPreservesCanonicalMessageOrder);
+        TEST_METHOD(ManualAndAutomaticRetriesRetainFollowupInput);
         TEST_METHOD(DirectQueuedRunExecutesToCompletionAndReleasesRuntimeResources);
         TEST_METHOD(StopIntentCancelsPendingRunAndRetainsManualHold);
         TEST_METHOD(IdleTerminalWithoutProviderSessionSuspends);
+        TEST_METHOD(RecoversEveryPreparationStateWithoutAnAgentSession);
+        TEST_METHOD(SchedulerShutdownPreservesDirectoryWaitForRestart);
+        TEST_METHOD(StopCloseAndDeleteWaitForProviderCompletionAndKeepDirectoryLease);
+        TEST_METHOD(DeleteCancelsAnActualDirectoryWait);
+        TEST_METHOD(WorktreeTaskCreatedThroughProjectionRunsToCompletion);
     };
+
+    void RuntimeTaskOrchestratorTests::RecoversEveryPreparationStateWithoutAnAgentSession()
+    {
+        for (const auto state : { TaskRunState::Preparing, TaskRunState::WaitingForDirectory, TaskRunState::Starting })
+        {
+            OrchestratorFixture fixture;
+            const auto task = fixture.CreateDirectTask();
+            const auto run = MakeCreateRunCommand(task, 1, 2, 1, 1100);
+            VERIFY_IS_TRUE(fixture.Store->CreateTaskRun(run).Succeeded());
+            VERIFY_IS_TRUE(fixture.Store->ChangeTaskRunState(MakeRunStateCommand(run, 3, 2, 1200, TaskRunState::Preparing)).Succeeded());
+            if (state != TaskRunState::Preparing)
+                VERIFY_IS_TRUE(fixture.Store->ChangeTaskRunState(MakeRunStateCommand(run, 4, 3, 1300, state)).Succeeded());
+            VERIFY_IS_TRUE(fixture.Orchestrator->Start());
+            VERIFY_IS_TRUE(_waitUntil([&] {
+                const auto aggregate = fixture.Store->LoadTask(task.Task.Id);
+                return aggregate && aggregate->Runs.size() == 1 && aggregate->Runs.front().State == TaskRunState::Completed;
+            }));
+        }
+    }
+
+    void RuntimeTaskOrchestratorTests::SchedulerShutdownPreservesDirectoryWaitForRestart()
+    {
+        using namespace Microsoft::Terminal::TaskExecution;
+        OrchestratorFixture fixture;
+        const auto task = fixture.CreateDirectTask();
+        const auto directory = ResolveCanonicalDirectoryIdentity(fixture.Root.Path(), DirectoryIdentityPolicy::Direct);
+        VERIFY_IS_TRUE(directory.Succeeded());
+        DirectDirectoryLeaseManager owner;
+        wil::unique_handle cancellation{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        auto lease = owner.Acquire(*directory.Identity, cancellation.get());
+        VERIFY_IS_TRUE(lease.Acquired());
+        VERIFY_IS_TRUE(fixture.Store->CreateTaskRun(MakeCreateRunCommand(task, 1, 2, 1, 1100)).Succeeded());
+        VERIFY_IS_TRUE(fixture.Orchestrator->Start());
+        VERIFY_IS_TRUE(_waitUntil([&] { return owner.ParticipantCount(*directory.Identity) == 2; }));
+        fixture.Orchestrator->Stop();
+        VERIFY_IS_TRUE(fixture.Store->LoadTask(task.Task.Id)->Runs.front().State == TaskRunState::WaitingForDirectory);
+        static_cast<void>(lease.Lease.Release());
+        RuntimeTaskOrchestratorConfiguration configuration;
+        configuration.ActivePollMilliseconds = 50;
+        configuration.IdlePollMilliseconds = 100;
+        fixture.Orchestrator = std::make_unique<RuntimeTaskOrchestrator>(
+            fixture.Store, fixture.Provider, fixture.Rtask, fixture.Terminals, fixture.Root.Path(), std::filesystem::path{},
+            LR"(C:\test\rtask.exe)", R"(\\.\pipe\orchestrator-restart)", configuration);
+        VERIFY_IS_TRUE(fixture.Orchestrator->Start());
+        VERIFY_IS_TRUE(_waitUntil([&] {
+            const auto aggregate = fixture.Store->LoadTask(task.Task.Id);
+            return aggregate->Runs.size() == 1 && aggregate->Runs.front().State == TaskRunState::Completed;
+        }));
+    }
+
+    void RuntimeTaskOrchestratorTests::StopCloseAndDeleteWaitForProviderCompletionAndKeepDirectoryLease()
+    {
+        using namespace Microsoft::Terminal::TaskExecution;
+        for (const auto kind : { TaskIntentKind::Stop, TaskIntentKind::Close, TaskIntentKind::Delete })
+        {
+            OrchestratorFixture fixture;
+            fixture.State->CompleteOnStart = false;
+            fixture.State->InterruptStatus = TaskProviderStatus::Rejected;
+            const auto task = fixture.CreateDirectTask();
+            VERIFY_IS_TRUE(fixture.Store->CreateTaskRun(MakeCreateRunCommand(task, 1, 2, 1, 1100)).Succeeded());
+            const auto directory = ResolveCanonicalDirectoryIdentity(fixture.Root.Path(), DirectoryIdentityPolicy::Direct);
+            VERIFY_IS_TRUE(directory.Succeeded());
+            DirectDirectoryLeaseManager observer;
+            VERIFY_IS_TRUE(fixture.Orchestrator->Start());
+            VERIFY_IS_TRUE(_waitUntil([&] {
+                return fixture.Store->LoadTask(task.Task.Id)->Runs.front().State == TaskRunState::Running;
+            }));
+            auto aggregate = fixture.Store->LoadTask(task.Task.Id);
+            VERIFY_IS_TRUE(fixture.Store->StartTaskIntent(MakeStartIntentCommand(
+                task, 1, 20, aggregate->Task.Version, aggregate->Task.UpdatedAtUnixMilliseconds + 1, kind)).Succeeded());
+            fixture.Orchestrator->Notify();
+            VERIFY_IS_TRUE(_waitUntil([&] {
+                const auto current = fixture.Store->LoadTask(task.Task.Id);
+                return current && current->Intent && current->Intent->ReasonCode ==
+                    (kind == TaskIntentKind::Stop ? "provider-interrupt-failed" : "provider-close-failed");
+            }));
+            aggregate = fixture.Store->LoadTask(task.Task.Id);
+            VERIFY_IS_TRUE(aggregate.has_value());
+            VERIFY_IS_TRUE(aggregate->Runs.front().State == TaskRunState::Running);
+            VERIFY_ARE_EQUAL(size_t{ 1 }, observer.ParticipantCount(*directory.Identity));
+
+            fixture.State->InterruptStatus = TaskProviderStatus::Succeeded;
+            VERIFY_IS_TRUE(_waitUntil([&] {
+                const auto current = fixture.Store->LoadTask(task.Task.Id);
+                return current && current->Intent && current->Intent->ReasonCode ==
+                    (kind == TaskIntentKind::Stop ? "provider-interrupt-pending" : "provider-close-pending");
+            }));
+            aggregate = fixture.Store->LoadTask(task.Task.Id);
+            VERIFY_IS_TRUE(aggregate.has_value());
+            VERIFY_IS_TRUE(aggregate->Runs.front().State == TaskRunState::Running);
+            VERIFY_ARE_EQUAL(size_t{ 1 }, observer.ParticipantCount(*directory.Identity));
+
+            fixture.State->TerminalEvent = TaskProviderEventKind::RunInterrupted;
+            VERIFY_IS_TRUE(_waitUntil([&] {
+                const auto current = fixture.Store->LoadTask(task.Task.Id);
+                if (kind == TaskIntentKind::Delete)
+                    return !current;
+                return current && current->Intent->Stage == TaskIntentStage::Completed &&
+                       current->Runs.front().State == TaskRunState::Interrupted;
+            }));
+            VERIFY_ARE_EQUAL(size_t{ 0 }, observer.ParticipantCount(*directory.Identity));
+        }
+    }
+
+    void RuntimeTaskOrchestratorTests::DeleteCancelsAnActualDirectoryWait()
+    {
+        using namespace Microsoft::Terminal::TaskExecution;
+        OrchestratorFixture fixture;
+        const auto task = fixture.CreateDirectTask();
+        const auto directory = ResolveCanonicalDirectoryIdentity(fixture.Root.Path(), DirectoryIdentityPolicy::Direct);
+        VERIFY_IS_TRUE(directory.Succeeded());
+        DirectDirectoryLeaseManager owner;
+        wil::unique_handle cancellation{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        auto lease = owner.Acquire(*directory.Identity, cancellation.get());
+        VERIFY_IS_TRUE(lease.Acquired());
+        VERIFY_IS_TRUE(fixture.Store->CreateTaskRun(MakeCreateRunCommand(task, 1, 2, 1, 1100)).Succeeded());
+        VERIFY_IS_TRUE(fixture.Orchestrator->Start());
+        VERIFY_IS_TRUE(_waitUntil([&] {
+            return fixture.Store->LoadTask(task.Task.Id)->Runs.front().State == TaskRunState::WaitingForDirectory &&
+                   owner.ParticipantCount(*directory.Identity) == 2;
+        }));
+        const auto aggregate = fixture.Store->LoadTask(task.Task.Id);
+        VERIFY_IS_TRUE(fixture.Store->StartTaskIntent(MakeStartIntentCommand(
+            task, 1, 20, aggregate->Task.Version, aggregate->Task.UpdatedAtUnixMilliseconds + 1, TaskIntentKind::Delete)).Succeeded());
+        fixture.Orchestrator->Notify();
+        VERIFY_IS_TRUE(_waitUntil([&] { return !fixture.Store->LoadTask(task.Task.Id); }));
+        VERIFY_IS_TRUE(static_cast<bool>(lease.Lease));
+        VERIFY_ARE_EQUAL(size_t{ 1 }, owner.ParticipantCount(*directory.Identity));
+    }
+
+    void RuntimeTaskOrchestratorTests::WorktreeTaskCreatedThroughProjectionRunsToCompletion()
+    {
+        using namespace TaskGitLocalTests::TestSupport;
+        GitFixture git;
+        const auto repository = git.Temporary.Path() / L"SourceRepository";
+        VERIFY_IS_TRUE(git.Initialize(repository));
+        VERIFY_IS_TRUE(git.Run(repository, { L"config", L"user.name", L"Task Review Test" }).Succeeded());
+        VERIFY_IS_TRUE(git.Run(repository, { L"config", L"user.email", L"task-test@example.invalid" }).Succeeded());
+        VERIFY_IS_TRUE(git.Run(repository, { L"config", L"commit.gpgSign", L"false" }).Succeeded());
+        OrchestratorFixture fixture{ git.GitExecutable };
+        RuntimeTaskProjectionService projection{ fixture.Store, fixture.Provider, RequireIdentity(fixture.Root.Path()).SettingsRoot };
+        Microsoft::Terminal::TaskRuntimeProtocol::TaskUiCommandRequest create;
+        create.CommandId = MakeId<CommandId>(1).Value();
+        create.TaskId = MakeId<TaskId>(1).Value();
+        create.Operation = Microsoft::Terminal::TaskRuntimeProtocol::TaskUiCommandOperation::Create;
+        create.Draft.emplace();
+        create.Draft->WorkspaceId = MakeId<WorkspaceId>(1).Value();
+        create.Draft->Title = "Canonical Worktree run";
+        create.Draft->SourceRoot = Utf8Path(repository);
+        create.Draft->ExecutionMode = Microsoft::Terminal::TaskRuntimeProtocol::TaskProjectionExecutionMode::Worktree;
+        VERIFY_IS_TRUE(projection.Execute(create, nullptr).Succeeded());
+        auto start = create;
+        start.CommandId = MakeId<CommandId>(2).Value();
+        start.Operation = Microsoft::Terminal::TaskRuntimeProtocol::TaskUiCommandOperation::Start;
+        start.ExpectedTaskVersion = 1;
+        start.Draft.reset();
+        VERIFY_IS_TRUE(projection.Execute(start, nullptr).Succeeded());
+        VERIFY_IS_TRUE(fixture.Orchestrator->Start());
+        VERIFY_IS_TRUE(_waitUntil([&] {
+            const auto aggregate = fixture.Store->LoadTask(TaskId{ create.TaskId });
+            return aggregate && aggregate->Runs.front().State == TaskRunState::Completed &&
+                   aggregate->GitWorktree && aggregate->GitWorktree->State == TaskGitWorktreeState::Ready &&
+                   !aggregate->GitCheckpoints.empty() &&
+                   (aggregate->GitCheckpoints.front().State == TaskGitCheckpointState::Succeeded ||
+                    aggregate->GitCheckpoints.front().State == TaskGitCheckpointState::NotNeeded);
+        }, 30'000));
+    }
 
     void RuntimeTaskOrchestratorTests::RetryPolicyIsAllowlistedBoundedAndBackedOff()
     {
@@ -183,6 +440,36 @@ namespace TaskRuntimeLocalTests
         VERIFY_IS_FALSE(ShouldClaimRuntimeTaskMessages(aggregate));
         aggregate.Task.ManualHold = false;
         VERIFY_IS_TRUE(ShouldClaimRuntimeTaskMessages(aggregate));
+    }
+
+    void RuntimeTaskOrchestratorTests::ManualAndAutomaticRetriesRetainFollowupInput()
+    {
+        const auto task = MakeCreateTaskCommand();
+        auto original = MakeCreateRunCommand(task, 1, 2, 1, 1100).Run;
+        original.Trigger = TaskRunTrigger::FollowUp;
+        original.State = TaskRunState::Failed;
+        auto manual = original;
+        manual.Id = MakeId<TaskRunId>(3);
+        manual.Trigger = TaskRunTrigger::ManualRetry;
+        manual.RetryOfRunId = original.Id;
+        auto automatic = manual;
+        automatic.Id = MakeId<TaskRunId>(4);
+        automatic.Trigger = TaskRunTrigger::AutomaticRetry;
+        automatic.RetryOfRunId = manual.Id;
+        TaskAggregateSnapshot aggregate;
+        aggregate.Task = task.Task;
+        aggregate.Runs = { original, manual, automatic };
+        aggregate.RunMessages = {
+            { original.Id, MakeId<TaskMessageId>(1), 0, 2, "first canonical follow-up" },
+            { original.Id, MakeId<TaskMessageId>(2), 1, 1, "second canonical follow-up" },
+            { MakeId<TaskRunId>(99), MakeId<TaskMessageId>(3), 0, 1, "unrelated input" },
+        };
+        const auto prompt = BuildRuntimeTaskPrompt(aggregate, original);
+        VERIFY_IS_TRUE(prompt.has_value());
+        VERIFY_IS_TRUE(prompt->find("first canonical follow-up") != std::string::npos);
+        VERIFY_IS_TRUE(prompt->find("unrelated input") == std::string::npos);
+        VERIFY_IS_TRUE(BuildRuntimeTaskPrompt(aggregate, manual) == prompt);
+        VERIFY_IS_TRUE(BuildRuntimeTaskPrompt(aggregate, automatic) == prompt);
     }
 
     void RuntimeTaskOrchestratorTests::DirectQueuedRunExecutesToCompletionAndReleasesRuntimeResources()

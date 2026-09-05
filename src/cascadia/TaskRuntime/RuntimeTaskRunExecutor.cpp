@@ -109,7 +109,8 @@ namespace Microsoft::Terminal::TaskRuntime
         }
     }
 
-    void RuntimeTaskOrchestrator::Impl::ExecuteRun(TaskId task, TaskRunId run) noexcept
+    void RuntimeTaskOrchestrator::Impl::ExecuteRun(
+        TaskId task, TaskRunId run, const HANDLE preparationCancellation) noexcept
     try
     {
         auto aggregate = Store->LoadTask(task);
@@ -121,11 +122,12 @@ namespace Microsoft::Terminal::TaskRuntime
             FinalizeRun(*aggregate, *current);
             return;
         }
-        if (current->State != TaskRunState::Queued || aggregate->Task.ManualHold)
+        if (current->State == TaskRunState::Running || aggregate->Task.ManualHold)
             return;
         std::optional<DirectDirectoryLease> directLease;
         const auto context = _context(*aggregate);
-        if (!context || !TransitionRun(task, run, TaskRunState::Preparing))
+        const auto initialState = current->State;
+        if (!context || (initialState == TaskRunState::Queued && !TransitionRun(task, run, TaskRunState::Preparing)))
             return;
         const auto initialContext = *context;
 
@@ -139,7 +141,7 @@ namespace Microsoft::Terminal::TaskRuntime
                 const auto source = _wide(initialContext.SourceRoot);
                 const auto layout = PrepareGitWorktreeLayout(RuntimeDataRoot, task);
                 GitRepositoryInspector inspector{ GitExecutable };
-                const auto repository = source ? inspector.Inspect(*source, StopEvent.get()) : GitRepositoryInspectionResult{};
+                const auto repository = source ? inspector.Inspect(*source, preparationCancellation) : GitRepositoryInspectionResult{};
                 const auto nonce = NewRuntimeUuid();
                 if (!source || !layout.Succeeded() || !repository.Succeeded() || !nonce)
                 {
@@ -159,8 +161,6 @@ namespace Microsoft::Terminal::TaskRuntime
                 initialize.Worktree.SourceHead = repository.Inspection->Head;
                 initialize.Worktree.SourceReference = repository.Inspection->BranchRef;
                 initialize.Worktree.OwnershipNonce = *nonce;
-                initialize.Worktree.CreatedAtUnixMilliseconds = (std::max)(RuntimeUnixMilliseconds(), aggregate->Task.UpdatedAtUnixMilliseconds);
-                initialize.Worktree.UpdatedAtUnixMilliseconds = initialize.Worktree.CreatedAtUnixMilliseconds;
                 const auto metadata = MakeRuntimeTaskCommandMetadata(
                     "orchestrator-worktree-init-v1", task, run.Value(), aggregate->Task.Version, aggregate->Task.UpdatedAtUnixMilliseconds);
                 if (!metadata)
@@ -169,6 +169,8 @@ namespace Microsoft::Terminal::TaskRuntime
                     return;
                 }
                 initialize.Metadata = *metadata;
+                initialize.Worktree.CreatedAtUnixMilliseconds = metadata->TimestampUnixMilliseconds;
+                initialize.Worktree.UpdatedAtUnixMilliseconds = metadata->TimestampUnixMilliseconds;
                 if (!Store->InitializeTaskGitWorktree(initialize).Succeeded())
                 {
                     static_cast<void>(TransitionRun(task, run, TaskRunState::Failed, "git-worktree-initialize"));
@@ -188,7 +190,7 @@ namespace Microsoft::Terminal::TaskRuntime
                 const auto result = setup.Step(
                     task,
                     { CommandId{ *command }, TaskEventId{ *event }, RuntimeUnixMilliseconds() },
-                    StopEvent.get());
+                    preparationCancellation);
                 if (result.Status == RuntimeGitWorktreeSetupStatus::Ready)
                     break;
                 if (!result.Succeeded())
@@ -203,10 +205,30 @@ namespace Microsoft::Terminal::TaskRuntime
                 static_cast<void>(TransitionRun(task, run, TaskRunState::Failed, "git-setup-incomplete"));
                 return;
             }
+            if (!std::ranges::any_of(aggregate->GitCheckpoints, [&](const auto& value) { return value.Run == run; }))
+            {
+                const auto command = NewRuntimeUuid();
+                const auto event = NewRuntimeUuid();
+                const auto checkpointId = NewRuntimeUuid();
+                if (!command || !event || !checkpointId)
+                {
+                    static_cast<void>(TransitionRun(task, run, TaskRunState::Failed, "git-checkpoint-identity"));
+                    return;
+                }
+                RuntimeGitWorktreeCheckpointService checkpoint{ Store, GitExecutable, RuntimeDataRoot };
+                const auto captured = checkpoint.Start(
+                    task, run, { CommandId{ *command }, TaskEventId{ *event }, GitCheckpointId{ *checkpointId }, RuntimeUnixMilliseconds(), false }, preparationCancellation);
+                if (!captured.Succeeded())
+                {
+                    static_cast<void>(TransitionRun(task, run, TaskRunState::Failed, "git-checkpoint-start-failed"));
+                    return;
+                }
+            }
         }
         else
         {
-            if (!TransitionRun(task, run, TaskRunState::WaitingForDirectory))
+            if ((initialState == TaskRunState::Queued || initialState == TaskRunState::Preparing) &&
+                !TransitionRun(task, run, TaskRunState::WaitingForDirectory))
                 return;
             aggregate = Store->LoadTask(task);
             const auto currentContext = aggregate ? _context(*aggregate) : nullptr;
@@ -217,15 +239,20 @@ namespace Microsoft::Terminal::TaskRuntime
                 static_cast<void>(TransitionRun(task, run, TaskRunState::Failed, "direct-directory-invalid"));
                 return;
             }
-            auto acquired = DirectLeaseManager.Acquire(*identity.Identity, StopEvent.get());
+            auto acquired = DirectLeaseManager.Acquire(*identity.Identity, preparationCancellation);
             if (!acquired.Acquired())
             {
-                static_cast<void>(TransitionRun(task, run, TaskRunState::Interrupted, acquired.Status == TaskDirectoryLockStatus::Cancelled ? "runtime-stopping" : "direct-directory-lock"));
+                static_cast<void>(TransitionRun(task, run, TaskRunState::Cancelled, acquired.Status == TaskDirectoryLockStatus::Cancelled ? "preparation-cancelled" : "direct-directory-lock"));
                 return;
             }
             directLease.emplace(std::move(acquired.Lease));
         }
 
+        if (WaitForSingleObject(preparationCancellation, 0) != WAIT_TIMEOUT)
+        {
+            static_cast<void>(TransitionRun(task, run, TaskRunState::Cancelled, "preparation-cancelled"));
+            return;
+        }
         if (!TransitionRun(task, run, TaskRunState::Starting))
             return;
         aggregate = Store->LoadTask(task);
@@ -344,30 +371,22 @@ namespace Microsoft::Terminal::TaskRuntime
         if (aggregate->GitWorktree && aggregate->GitWorktree->State == TaskGitWorktreeState::Ready)
         {
             RuntimeGitWorktreeCheckpointService checkpoint{ Store, GitExecutable, RuntimeDataRoot };
-            auto existing = std::ranges::find_if(aggregate->GitCheckpoints, [&](const auto& value) { return value.Run == runRecord.Id; });
-            const auto checkpointId = existing == aggregate->GitCheckpoints.end() ? NewRuntimeUuid() :
-                                                                                    std::optional<std::string>{ existing->Id.Value() };
-            if (!checkpointId)
-                return;
+            const auto existing = std::ranges::find_if(aggregate->GitCheckpoints, [&](const auto& value) { return value.Run == runRecord.Id; });
             if (existing == aggregate->GitCheckpoints.end())
             {
-                const auto command = NewRuntimeUuid();
-                const auto event = NewRuntimeUuid();
-                if (!command || !event)
-                    return;
-                const auto started = checkpoint.Start(
-                    aggregate->Task.Id, runRecord.Id, { CommandId{ *command }, TaskEventId{ *event }, GitCheckpointId{ *checkpointId }, RuntimeUnixMilliseconds(), false }, StopEvent.get());
-                if (!started.Succeeded())
+                // Never invent run-start evidence after an Agent has executed.
+                // Preparation failures without a started turn have no run output.
+                if (runRecord.StartedAtUnixMilliseconds)
                     return;
             }
-            for (size_t step = 0; step < 4; ++step)
+            else for (size_t step = 0; step < 4; ++step)
             {
                 const auto command = NewRuntimeUuid();
                 const auto event = NewRuntimeUuid();
                 if (!command || !event)
                     return;
                 const auto advanced = checkpoint.Step(
-                    aggregate->Task.Id, runRecord.Id, { CommandId{ *command }, TaskEventId{ *event }, GitCheckpointId{ *checkpointId }, RuntimeUnixMilliseconds(), false }, StopEvent.get());
+                    aggregate->Task.Id, runRecord.Id, { CommandId{ *command }, TaskEventId{ *event }, existing->Id, RuntimeUnixMilliseconds(), false }, StopEvent.get());
                 if (advanced.Status == RuntimeGitWorktreeCheckpointStatus::Completed)
                     break;
                 if (!advanced.Succeeded())

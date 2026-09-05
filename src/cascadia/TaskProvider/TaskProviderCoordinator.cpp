@@ -368,6 +368,15 @@ namespace Microsoft::Terminal::TaskProvider
         if (!_adapter) return _from({ TaskProviderStatus::Unavailable, "Task provider is unavailable" });
         if (auto run = _activeRun(taskId))
         {
+            if (session->second.State == TaskProviderSessionState::Closing)
+            {
+                TaskProviderCoordinatorResult result;
+                result.Status = TaskProviderStatus::Succeeded;
+                result.ClosePending = true;
+                result.Session = session->second;
+                result.Run = *run;
+                return result;
+            }
             const auto interrupted = _adapter->InterruptRun(run->ProviderSessionId, run->ProviderRunId, cancellationEvent);
             if (interrupted.Status == TaskProviderStatus::Timeout || interrupted.Status == TaskProviderStatus::TransportClosed)
             {
@@ -387,7 +396,7 @@ namespace Microsoft::Terminal::TaskProvider
             if (!persisted.Succeeded()) return _from(persisted);
             TaskProviderCoordinatorResult result;
             result.Status = TaskProviderStatus::Succeeded;
-            result.ClosePending = false;
+            result.ClosePending = true;
             result.Session = session->second;
             result.Run = *run;
             return result;
@@ -483,9 +492,19 @@ namespace Microsoft::Terminal::TaskProvider
 
     TaskProviderCoordinatorResult TaskProviderCoordinator::PumpOneEvent(const HANDLE cancellationEvent)
     {
+        const std::scoped_lock eventLock{ _eventMutex };
+        std::shared_ptr<ITaskProviderAdapter> adapter;
+        {
+            const std::scoped_lock lock{ _mutex };
+            adapter = _adapter;
+        }
+        if (!adapter) return _from({ TaskProviderStatus::Unavailable, "Task provider is not running" });
+        // Keep the adapter alive while waiting, but let commands and Stop acquire
+        // the coordinator. The adapter serializes its own transport operations.
+        auto next = adapter->NextEvent(_configuration.EventPollMilliseconds, cancellationEvent);
         const std::scoped_lock lock{ _mutex };
-        if (!_adapter) return _from({ TaskProviderStatus::Unavailable, "Task provider is not running" });
-        auto next = _adapter->NextEvent(_configuration.EventPollMilliseconds, cancellationEvent);
+        if (_adapter != adapter)
+            return _from({ TaskProviderStatus::Succeeded, {} });
         if (!next.Succeeded())
         {
             if (next.Status == TaskProviderStatus::TransportClosed ||

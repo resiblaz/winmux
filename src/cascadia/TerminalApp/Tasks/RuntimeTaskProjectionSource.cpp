@@ -70,10 +70,11 @@ namespace winrt::TerminalApp::implementation::tasks
     RuntimeTaskProjectionSource::RuntimeTaskProjectionSource(
         TaskRuntimeClientConfiguration configuration,
         Windows::UI::Core::CoreDispatcher dispatcher,
-        std::shared_ptr<TaskAgentSessionRegistry> agentSessions) :
+        std::shared_ptr<TaskAgentSessionRegistry> agentSessions,
+        TaskRuntimeClientDependencies dependencies) :
         _identity{ configuration.Identity },
         _clientInstanceId{ configuration.Hello.ClientInstanceId },
-        _client{ std::make_shared<TaskRuntimeClient>(std::move(configuration)) },
+        _client{ std::make_shared<TaskRuntimeClient>(std::move(configuration), std::move(dependencies)) },
         _dispatcher{ std::move(dispatcher) },
         _agentSessions{ std::move(agentSessions) }
     {
@@ -211,9 +212,8 @@ namespace winrt::TerminalApp::implementation::tasks
                 }
                 else
                 {
-                    const auto snapshot = _coordinator.Snapshot();
-                    if (!std::ranges::any_of(snapshot, &TaskProjection::HasActiveRun))
-                        continue;
+                    // Intents and queued messages may complete after an idle
+                    // snapshot; other windows can also create or change Tasks.
                     item = { WorkKind::Refresh, std::nullopt, std::nullopt };
                 }
             }

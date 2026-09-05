@@ -7,6 +7,9 @@
 
 #include "SqliteTaskStore.h"
 #include "TaskCoreStoreTestFixtures.h"
+#include "DirectDirectoryLease.h"
+
+#include <wil/resource.h>
 
 #include "RuntimeFoundationRpc.h"
 
@@ -49,23 +52,16 @@ namespace TaskRuntimeLocalTests
         void _seedActiveRun(const ProductRuntimeTestIdentity& identity)
         {
             std::filesystem::create_directories(identity.SettingsRoot());
-            const auto task = MakeCreateTaskCommand();
+            auto task = MakeCreateTaskCommand();
+            const auto root = identity.SettingsRoot().u8string();
+            task.ExecutionContext.Mode = ExecutionMode::Direct;
+            task.ExecutionContext.SourceRoot.assign(reinterpret_cast<const char*>(root.data()), root.size());
+            task.ExecutionContext.RuntimeRoot = task.ExecutionContext.SourceRoot;
             const auto run = MakeCreateRunCommand(task, 1, 2, 1, 1100);
             SqliteTaskStore store{ identity.SettingsRoot() / L"workspace-tasks.db" };
             VERIFY_IS_TRUE(store.IsReady());
             VERIFY_IS_TRUE(store.CreateTask(task).Succeeded());
             VERIFY_IS_TRUE(store.CreateTaskRun(run).Succeeded());
-            // M7 consumes queued runs immediately. Move this synthetic M2
-            // fixture to an unmanaged active phase so the test isolates the
-            // idle policy without asking the orchestrator to execute it.
-            VERIFY_IS_TRUE(store.ChangeTaskRunState(
-                                    MakeRunStateCommand(
-                                        run,
-                                        3,
-                                        2,
-                                        1200,
-                                        TaskRunState::Preparing))
-                               .Succeeded());
         }
     }
 
@@ -127,6 +123,15 @@ namespace TaskRuntimeLocalTests
     {
         ProductRuntimeTestIdentity identity;
         _seedActiveRun(identity);
+        // Keep a real preparation waiting across UI disconnects. Recovery now
+        // consumes every persisted preparation state instead of ignoring it.
+        namespace execution = Microsoft::Terminal::TaskExecution;
+        const auto directory = execution::ResolveCanonicalDirectoryIdentity(identity.SettingsRoot(), execution::DirectoryIdentityPolicy::Direct);
+        VERIFY_IS_TRUE(directory.Succeeded());
+        execution::DirectDirectoryLeaseManager leaseManager;
+        wil::unique_handle cancellation{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        auto lease = leaseManager.Acquire(*directory.Identity, cancellation.get());
+        VERIFY_IS_TRUE(lease.Acquired());
         TaskRuntimeProcess process{
             identity,
             { .IdleExitMilliseconds = IdleExitMilliseconds }

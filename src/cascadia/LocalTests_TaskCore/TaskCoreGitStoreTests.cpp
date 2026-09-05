@@ -82,8 +82,30 @@ namespace TaskCoreLocalTests
         TEST_METHOD(FirstRunFreezesExecutionIdentityAndFailureRollsItBack);
         TEST_METHOD(InitializeIsAtomicReplayableAndLoadsTypedGitState);
         TEST_METHOD(InitializeRejectsUnfrozenDirectAndCrossTaskContexts);
+        TEST_METHOD(ExistingFrozenContextsAcceptCanonicalWindowsPathSpelling);
         TEST_METHOD(DeleteRequiresFinalizedDeliveredCleanupEvidence);
     };
+
+    void TaskCoreGitStoreTests::ExistingFrozenContextsAcceptCanonicalWindowsPathSpelling()
+    {
+        TemporaryDatabasePath path;
+        auto task = _makeWorktreeTask();
+        const auto canonical = task;
+        task.ExecutionContext.RepositoryCommonDirectory = "c:/src/repository-1\\.git";
+        task.ExecutionContext.WorktreePath = "c:/task-worktrees/" + task.Task.Id.Value();
+        task.ExecutionContext.RuntimeRoot = task.ExecutionContext.WorktreePath;
+        SqliteTaskStore store{ path.Path() };
+        VERIFY_IS_TRUE(store.CreateTask(task).Succeeded());
+        VERIFY_IS_TRUE(store.CreateTaskRun(MakeCreateRunCommand(task, 1, 2, 1, 1100)).Succeeded());
+        auto initialize = MakeInitializeGitWorktreeCommand(canonical, 3, 2, 1200);
+        initialize.Worktree.WorktreePath += "-different";
+        VERIFY_IS_TRUE(store.InitializeTaskGitWorktree(initialize).Status == TaskStoreCommandStatus::InvalidRecord);
+        initialize = MakeInitializeGitWorktreeCommand(canonical, 3, 2, 1200);
+        VERIFY_IS_TRUE(store.InitializeTaskGitWorktree(initialize).Succeeded());
+        const auto aggregate = store.LoadTask(task.Task.Id);
+        VERIFY_ARE_EQUAL(task.ExecutionContext.WorktreePath, aggregate->ExecutionContexts.front().WorktreePath);
+        VERIFY_ARE_EQUAL(canonical.ExecutionContext.WorktreePath, aggregate->GitWorktree->WorktreePath);
+    }
 
     void TaskCoreGitStoreTests::FirstRunFreezesExecutionIdentityAndFailureRollsItBack()
     {

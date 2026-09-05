@@ -51,12 +51,17 @@ namespace winrt::TerminalApp::implementation
             _CloseTaskSurface(
                 descriptor.TaskId,
                 descriptor.Generation,
-                tasks::TaskSurfaceCloseOrigin::TaskDetail);
+                tasks::TaskSurfaceCloseOrigin::TaskDetail,
+                descriptor.RuntimeInstanceId);
             co_return;
         }
         if (descriptor.OwnedElsewhere)
         {
             co_return;
+        }
+        if (_tabs.Size() > 0)
+        {
+            co_await wil::resume_foreground(Dispatcher(), CoreDispatcherPriority::Low);
         }
         if (const auto existing = _taskSurfacePolicy.Find(descriptor.TaskId))
         {
@@ -64,10 +69,22 @@ namespace winrt::TerminalApp::implementation
             {
                 if (_TaskSurfaceId(tab) == *existing)
                 {
-                    _SetWorkspaceToolPage(WorkspaceToolPage::None);
-                    static_cast<void>(_SelectTab(tab.TabViewIndex()));
-                    tab.Focus(FocusState::Programmatic);
-                    co_return;
+                    const auto control = winrt::get_self<implementation::Tab>(tab)->GetActiveTerminalControl();
+                    if (_taskSurfacePolicy.CanActivate(
+                            *existing, descriptor.Generation, descriptor.RuntimeInstanceId,
+                            control && control.ConnectionState() < ConnectionState::Closed))
+                    {
+                        _SetWorkspaceToolPage(WorkspaceToolPage::None);
+                        static_cast<void>(_SelectTab(tab.TabViewIndex()));
+                        tab.Focus(FocusState::Programmatic);
+                        co_return;
+                    }
+                    if (const auto ownership = _taskSurfacePolicy.Ownership(*existing))
+                    {
+                        _CloseTaskSurface(descriptor.TaskId, ownership->Generation,
+                                          tasks::TaskSurfaceCloseOrigin::TaskDetail, ownership->RuntimeInstanceId);
+                    }
+                    break;
                 }
             }
             _taskSurfacePolicy.Unregister(*existing);
@@ -93,15 +110,10 @@ namespace winrt::TerminalApp::implementation
             co_return;
         }
 
-        if (_tabs.Size() > 0)
-        {
-            co_await wil::resume_foreground(Dispatcher(), CoreDispatcherPriority::Low);
-        }
-
         const auto weakThis = get_weak();
         auto connectionImpl = winrt::make_self<tasks::TaskRuntimeConnection>(
             descriptor,
-            [weakThis](std::wstring taskId, const uint64_t generation) {
+            [weakThis, runtimeInstanceId = descriptor.RuntimeInstanceId](std::wstring taskId, const uint64_t generation) {
                 if (const auto page = weakThis.get())
                 {
                     try
@@ -109,13 +121,14 @@ namespace winrt::TerminalApp::implementation
                         const auto weakPage = page->get_weak();
                         static_cast<void>(page->Dispatcher().RunAsync(
                             CoreDispatcherPriority::Normal,
-                            [weakPage, taskId = std::move(taskId), generation] {
+                            [weakPage, taskId = std::move(taskId), generation, runtimeInstanceId] {
                                 if (const auto current = weakPage.get())
                                 {
                                     current->_CloseTaskSurface(
                                         taskId,
                                         generation,
-                                        tasks::TaskSurfaceCloseOrigin::RuntimeEndOfStream);
+                                        tasks::TaskSurfaceCloseOrigin::RuntimeEndOfStream,
+                                        runtimeInstanceId);
                                 }
                             }));
                     }
@@ -144,7 +157,7 @@ namespace winrt::TerminalApp::implementation
             co_return;
         }
         const auto surface = _TaskSurfaceId(tab);
-        if (!_taskSurfacePolicy.Register(surface, { descriptor.TaskId, descriptor.Generation }))
+        if (!_taskSurfacePolicy.Register(surface, { descriptor.TaskId, descriptor.Generation, descriptor.RuntimeInstanceId }))
         {
             tab.Close();
             co_return;
@@ -160,7 +173,8 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_CloseTaskSurface(
         const std::wstring_view taskId,
         const uint64_t generation,
-        const tasks::TaskSurfaceCloseOrigin origin)
+        const tasks::TaskSurfaceCloseOrigin origin,
+        const std::string_view runtimeInstanceId)
     {
         const auto surface = _taskSurfacePolicy.Find(taskId);
         if (!surface)
@@ -172,7 +186,7 @@ namespace winrt::TerminalApp::implementation
         {
             authorization = ++_nextTaskSurfaceCloseAuthorization;
         }
-        if (!_taskSurfacePolicy.AuthorizeClose(taskId, generation, authorization))
+        if (!_taskSurfacePolicy.AuthorizeClose(taskId, generation, authorization, runtimeInstanceId))
         {
             return;
         }

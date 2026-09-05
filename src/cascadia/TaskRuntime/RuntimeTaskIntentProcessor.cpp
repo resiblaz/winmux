@@ -52,60 +52,68 @@ namespace Microsoft::Terminal::TaskRuntime
             return;
         }
         auto intent = *aggregate->Intent;
-        if (intent.Kind == TaskIntentKind::Stop)
+        if (intent.Kind == TaskIntentKind::Stop || intent.Kind == TaskIntentKind::Close || intent.Kind == TaskIntentKind::Delete)
         {
             if (const auto run = _active(*aggregate))
             {
                 if (run->State == TaskRunState::Running)
                 {
-                    const auto interrupted = Provider->InterruptRun(
-                        aggregate->Task.Id.Value(), run->Id.Value(), StopEvent.get());
-                    if (!interrupted.Succeeded())
+                    if (intent.Kind == TaskIntentKind::Stop)
                     {
+                        if (intent.Stage == TaskIntentStage::WaitingForProvider && intent.ReasonCode == "provider-interrupt-pending")
+                            return;
+                        const auto interrupted = Provider->InterruptRun(
+                            aggregate->Task.Id.Value(), run->Id.Value(), StopEvent.get());
                         static_cast<void>(AdvanceIntent(
-                            aggregate->Task.Id, intent.Id, TaskIntentStage::WaitingForProvider, interrupted.Error, "{\"stopPending\":true}"));
-                        return;
+                            aggregate->Task.Id, intent.Id, TaskIntentStage::WaitingForProvider,
+                            interrupted.Succeeded() ? "provider-interrupt-pending" : "provider-interrupt-failed", intent.DetailJson));
                     }
-                    static_cast<void>(TransitionRun(
-                        aggregate->Task.Id, run->Id, TaskRunState::Interrupted, "user-stop"));
+                    else
+                    {
+                        const auto closed = Provider->CloseTask(aggregate->Task.Id.Value(), StopEvent.get());
+                        static_cast<void>(AdvanceIntent(
+                            aggregate->Task.Id, intent.Id, TaskIntentStage::WaitingForProvider,
+                            closed.Succeeded() ? "provider-close-pending" : "provider-close-failed", intent.DetailJson));
+                    }
+                    // An interrupt reply only acknowledges the request. The provider
+                    // terminal event owns the Run transition and releases the lease.
+                    return;
                 }
-                else
+                if (WorkerBusy(run->Id))
                 {
-                    static_cast<void>(TransitionRun(
-                        aggregate->Task.Id, run->Id, TaskRunState::Cancelled, "user-stop"));
+                    if (run->State != TaskRunState::Starting)
+                        CancelPreparation(run->Id);
+                    // A Starting worker may already be dispatching a provider turn.
+                    // Let it publish its outcome before attempting interruption.
+                    return;
                 }
+                static_cast<void>(TransitionRun(
+                    aggregate->Task.Id, run->Id, TaskRunState::Cancelled, "user-stop"));
                 return;
             }
+            if (std::ranges::any_of(aggregate->Runs, [&](const auto& run) { return WorkerBusy(run.Id); }))
+                return;
+        }
+
+        if (intent.Kind == TaskIntentKind::Stop)
+        {
             static_cast<void>(AdvanceIntent(aggregate->Task.Id, intent.Id, TaskIntentStage::Completed));
             return;
         }
 
         if (intent.Kind == TaskIntentKind::Close || intent.Kind == TaskIntentKind::Delete)
         {
-            if (const auto run = _active(*aggregate))
+            const auto closed = Provider->CloseTask(aggregate->Task.Id.Value(), StopEvent.get());
+            if (closed.ClosePending ||
+                (!closed.Succeeded() && closed.Status != Microsoft::Terminal::TaskProvider::TaskProviderStatus::NotFound))
             {
-                const auto closed = Provider->CloseTask(aggregate->Task.Id.Value(), StopEvent.get());
-                if (closed.ClosePending)
-                {
-                    static_cast<void>(AdvanceIntent(
-                        aggregate->Task.Id, intent.Id, TaskIntentStage::WaitingForProvider, "provider-close-pending", intent.DetailJson));
-                    return;
-                }
-                if (run->State == TaskRunState::Running || run->State == TaskRunState::Starting)
-                {
-                    static_cast<void>(TransitionRun(
-                        aggregate->Task.Id, run->Id, TaskRunState::Interrupted, intent.Kind == TaskIntentKind::Delete ? "user-delete" : "user-close"));
-                }
-                else
-                {
-                    static_cast<void>(TransitionRun(
-                        aggregate->Task.Id, run->Id, TaskRunState::Cancelled, intent.Kind == TaskIntentKind::Delete ? "user-delete" : "user-close"));
-                }
+                static_cast<void>(AdvanceIntent(
+                    aggregate->Task.Id, intent.Id, TaskIntentStage::WaitingForProvider, "provider-close-pending", intent.DetailJson));
                 return;
             }
 
             if (const auto terminalRun = _latestTerminal(*aggregate);
-                terminalRun && aggregate->GitWorktree &&
+                terminalRun && terminalRun->StartedAtUnixMilliseconds && aggregate->GitWorktree &&
                 aggregate->GitWorktree->State == TaskGitWorktreeState::Ready &&
                 !std::ranges::any_of(aggregate->GitCheckpoints, [&](const auto& checkpoint) {
                     return checkpoint.Run == terminalRun->Id &&
@@ -228,7 +236,8 @@ namespace Microsoft::Terminal::TaskRuntime
             const auto aggregate = Store->LoadTask(task);
             if (!aggregate || !aggregate->Intent || aggregate->Intent->Id != intentId)
                 return false;
-            if (aggregate->Intent->Stage == stage)
+            if (aggregate->Intent->Stage == stage && aggregate->Intent->ReasonCode == reason &&
+                aggregate->Intent->DetailJson == detailJson)
                 return true;
             AdvanceTaskIntentCommand command;
             command.Task = task;

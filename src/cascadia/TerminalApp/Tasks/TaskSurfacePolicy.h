@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 namespace winrt::TerminalApp::implementation::tasks
@@ -42,6 +43,7 @@ namespace winrt::TerminalApp::implementation::tasks
     {
         std::wstring TaskId;
         uint64_t Generation{};
+        std::string RuntimeInstanceId;
     };
 
     struct TaskSurfaceCloseDecision
@@ -58,10 +60,15 @@ namespace winrt::TerminalApp::implementation::tasks
         void Unregister(TaskSurfaceId surface) noexcept;
         [[nodiscard]] bool IsTaskOwned(TaskSurfaceId surface) const noexcept;
         [[nodiscard]] std::optional<TaskSurfaceId> Find(std::wstring_view taskId) const noexcept;
+        [[nodiscard]] const TaskSurfaceOwnership* Ownership(TaskSurfaceId surface) const noexcept;
+        [[nodiscard]] bool CanActivate(
+            TaskSurfaceId surface, uint64_t generation,
+            std::string_view runtimeInstanceId, bool connectionUsable) const noexcept;
         [[nodiscard]] bool AuthorizeClose(
             std::wstring_view taskId,
             uint64_t generation,
-            TaskSurfaceCloseAuthorization authorization) noexcept;
+            TaskSurfaceCloseAuthorization authorization,
+            std::string_view runtimeInstanceId = {}) noexcept;
         [[nodiscard]] TaskSurfaceCloseDecision Evaluate(
             TaskSurfaceId surface,
             TaskSurfaceCloseOrigin origin,

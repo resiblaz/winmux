@@ -129,6 +129,16 @@ namespace Microsoft::Terminal::TaskRuntime
             const Microsoft::Terminal::TaskRuntimeProtocol::TerminalFrame& frame,
             RuntimeTerminalLeaseMilliseconds now,
             std::optional<RuntimeTerminalLeaseRevision> inputLeaseRevision);
+        // Serialize preparation with session state, then dispatch the authorized
+        // backend operation without holding the transport/session lock.
+        [[nodiscard]] RuntimeTerminalSessionResult PrepareFrame(
+            std::string_view clientInstanceId,
+            const Microsoft::Terminal::TaskRuntimeProtocol::TerminalFrame& frame,
+            RuntimeTerminalLeaseMilliseconds now,
+            std::optional<RuntimeTerminalLeaseRevision> inputLeaseRevision);
+        [[nodiscard]] RuntimeTerminalSessionResult DispatchFrame(
+            const Microsoft::Terminal::TaskRuntimeProtocol::TerminalFrame& frame,
+            RuntimeTerminalSessionResult prepared);
         [[nodiscard]] RuntimeTerminalSessionResult Stop();
         [[nodiscard]] RuntimeTerminalSessionResult Pull(
             std::string_view clientInstanceId) noexcept;

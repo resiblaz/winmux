@@ -21,6 +21,7 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             std::thread Thread;
             std::atomic_bool Finished{};
+            wil::unique_handle Cancellation{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
         };
 
         std::shared_ptr<Microsoft::Terminal::TaskCore::ITaskStore> Store;
@@ -40,10 +41,12 @@ namespace Microsoft::Terminal::TaskRuntime
         std::thread Scheduler;
         std::unordered_map<std::string, std::shared_ptr<Worker>> Workers;
         std::unordered_map<std::string, std::string> KnownRuns;
+        std::unordered_set<std::string> RecoveringPreparations;
         std::unordered_map<std::string, uint64_t> TerminalIdleDeadlines;
         uint64_t LastMaintenance{};
         bool Started{};
         bool Stopping{};
+        bool WakeRequested{};
 
         Impl(
             std::shared_ptr<Microsoft::Terminal::TaskCore::ITaskStore> store,
@@ -66,7 +69,10 @@ namespace Microsoft::Terminal::TaskRuntime
             const Microsoft::Terminal::TaskCore::TaskRunId& run) noexcept;
         void ExecuteRun(
             Microsoft::Terminal::TaskCore::TaskId task,
-            Microsoft::Terminal::TaskCore::TaskRunId run) noexcept;
+            Microsoft::Terminal::TaskCore::TaskRunId run,
+            HANDLE preparationCancellation) noexcept;
+        [[nodiscard]] bool WorkerBusy(const Microsoft::Terminal::TaskCore::TaskRunId& run) noexcept;
+        void CancelPreparation(const Microsoft::Terminal::TaskCore::TaskRunId& run) noexcept;
         void FinalizeRun(
             const Microsoft::Terminal::TaskCore::TaskAggregateSnapshot& aggregate,
             const Microsoft::Terminal::TaskCore::TaskRunRecord& run) noexcept;

@@ -5,12 +5,36 @@
 #include "TaskStoreGitSqlite.h"
 
 #include "TaskStoreRowSqlite.h"
+#include "TaskRecordValidation.h"
 #include "TaskStoreSqlite.h"
+
+#include <filesystem>
 
 namespace Microsoft::Terminal::TaskCore::details
 {
     namespace
     {
+        bool _sameWindowsPath(const std::string_view left, const std::string_view right)
+        {
+            const auto normalize = [](const std::string_view text) -> std::optional<std::wstring> {
+                if (text.empty() || text.size() > MaximumTaskPathBytes)
+                    return std::nullopt;
+                const auto size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), static_cast<int>(text.size()), nullptr, 0);
+                if (size <= 0)
+                    return std::nullopt;
+                std::wstring value(static_cast<size_t>(size), L'\0');
+                if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), static_cast<int>(text.size()), value.data(), size) != size)
+                    return std::nullopt;
+                const std::filesystem::path path{ value };
+                if (!path.is_absolute())
+                    return std::nullopt;
+                return path.lexically_normal().make_preferred().native();
+            };
+            const auto lhs = normalize(left);
+            const auto rhs = normalize(right);
+            return lhs && rhs && CompareStringOrdinal(lhs->data(), static_cast<int>(lhs->size()), rhs->data(), static_cast<int>(rhs->size()), TRUE) == CSTR_EQUAL;
+        }
+
         bool _readExists(
             sqlite3* database,
             sqlite3_stmt* statement,
@@ -70,20 +94,30 @@ FROM task_git_worktree WHERE task_id=?1;
         std::string& error)
     {
         constexpr auto sql = R"SQL(
-SELECT EXISTS(
-    SELECT 1 FROM execution_context
-    WHERE id=?1 AND task_id=?2 AND mode=1 AND identity_frozen=1
-      AND repository_common_directory=?3 AND worktree_path=?4 AND branch=?5
-);
+SELECT repository_common_directory, worktree_path, branch
+FROM execution_context
+WHERE id=?1 AND task_id=?2 AND mode=1 AND identity_frozen=1;
 )SQL";
         SqliteStatement statement{ database, sql, error };
-        return statement &&
-               BindText(database, statement.Get(), 1, worktree.ExecutionContext.Value(), error) &&
-               BindText(database, statement.Get(), 2, worktree.Task.Value(), error) &&
-               BindText(database, statement.Get(), 3, worktree.RepositoryCommonDirectory, error) &&
-               BindText(database, statement.Get(), 4, worktree.WorktreePath, error) &&
-               BindText(database, statement.Get(), 5, worktree.BranchRef, error) &&
-               _readExists(database, statement.Get(), matches, error);
+        if (!statement ||
+            !BindText(database, statement.Get(), 1, worktree.ExecutionContext.Value(), error) ||
+            !BindText(database, statement.Get(), 2, worktree.Task.Value(), error))
+            return false;
+        const auto step = sqlite3_step(statement.Get());
+        matches = false;
+        if (step == SQLITE_DONE)
+            return true;
+        if (step != SQLITE_ROW)
+        {
+            error = SqliteError(database, step, "validate Task Worktree context");
+            return false;
+        }
+        // Older Tasks stored lowercased settings paths and Git's forward slashes.
+        // Preserve their frozen identity while accepting equivalent Windows spelling.
+        matches = _sameWindowsPath(ColumnText(statement.Get(), 0), worktree.RepositoryCommonDirectory) &&
+                  _sameWindowsPath(ColumnText(statement.Get(), 1), worktree.WorktreePath) &&
+                  ColumnText(statement.Get(), 2) == worktree.BranchRef;
+        return true;
     }
 
     bool TaskHasGitWorktree(

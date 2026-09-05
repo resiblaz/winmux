@@ -4,6 +4,7 @@
 #pragma once
 
 #include "TaskProjection.h"
+#include "TaskTerminalInput.h"
 
 #include "RuntimeTerminalChannel.h"
 
@@ -51,10 +52,9 @@ namespace winrt::TerminalApp::implementation::tasks
         ::Microsoft::Terminal::TaskRuntime::RuntimeTerminalChannel _channel;
         wil::unique_handle _stopEvent;
         std::thread _reader;
-        std::wstring _inputLine;
+        TaskTerminalInput _input;
         uint64_t _nextClientSequence{ 2 };
         uint64_t _lastOutputSequence{};
-        bool _lastInputWasCarriageReturn{};
 
         void _run() noexcept;
         void _transition(Microsoft::Terminal::TerminalConnection::ConnectionState state) noexcept;
@@ -63,6 +63,5 @@ namespace winrt::TerminalApp::implementation::tasks
             std::vector<uint8_t> payload,
             uint64_t generation);
         void _raiseOutput(std::wstring_view output) noexcept;
-        void _flushInputLine();
     };
 }

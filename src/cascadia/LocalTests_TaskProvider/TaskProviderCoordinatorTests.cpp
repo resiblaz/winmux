@@ -5,6 +5,9 @@
 
 #include "TaskProviderCoordinator.h"
 
+#include <thread>
+#include <wil/resource.h>
+
 using namespace WEX::TestExecution;
 using namespace Microsoft::Terminal::TaskProvider;
 
@@ -25,6 +28,8 @@ namespace TaskProviderLocalTests
             TaskProviderStatus InterruptStatus{ TaskProviderStatus::Succeeded };
             std::optional<TaskProviderStatus> NextFailure;
             std::deque<TaskProviderEvent> Events;
+            HANDLE EventWaitEntered{};
+            HANDLE ReleaseEventWait{};
         };
 
         class FakeAdapter final : public ITaskProviderAdapter
@@ -84,6 +89,11 @@ namespace TaskProviderLocalTests
 
             TaskProviderEventResult NextEvent(uint32_t, HANDLE) override
             {
+                if (_state->EventWaitEntered)
+                {
+                    SetEvent(_state->EventWaitEntered);
+                    WaitForSingleObject(_state->ReleaseEventWait, 5000);
+                }
                 TaskProviderEventResult result;
                 if (_state->NextFailure)
                 {
@@ -204,7 +214,54 @@ namespace TaskProviderLocalTests
         TEST_METHOD(DefersRejectedSteeringDurably);
         TEST_METHOD(ClosePendingDoesNotStopSharedProvider);
         TEST_METHOD(SuspendResumeAndApprovalRemainTaskScoped);
+        TEST_METHOD(EventWaitAllowsCommandsAndDiscardsEventsFromRestartedProvider);
     };
+
+    void TaskProviderCoordinatorTests::EventWaitAllowsCommandsAndDiscardsEventsFromRestartedProvider()
+    {
+        const auto state = std::make_shared<FakeAdapterState>();
+        const auto replacement = std::make_shared<FakeAdapterState>();
+        const auto sink = std::make_shared<RecordingSink>();
+        wil::unique_handle entered{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        wil::unique_handle release{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        wil::unique_handle commandCompleted{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+        state->EventWaitEntered = entered.get();
+        state->ReleaseEventWait = release.get();
+        size_t starts{};
+        TaskProviderCoordinator coordinator{
+            [&] { return std::make_unique<FakeAdapter>(starts++ == 0 ? state : replacement); }, sink
+        };
+        const auto session = coordinator.StartSession(_session(std::string{ Task1 }), nullptr);
+        VERIFY_IS_TRUE(session.Succeeded());
+        TaskProviderEvent stale;
+        stale.Sequence = 1;
+        stale.SessionId = session.Session->ProviderSessionId;
+        stale.Kind = TaskProviderEventKind::AgentMessageDelta;
+        stale.Text = "old provider output";
+        state->Events.push_back(stale);
+        TaskProviderCoordinatorResult pumped;
+        std::thread poller{ [&] { pumped = coordinator.PumpOneEvent(nullptr); } };
+        const auto waiting = WaitForSingleObject(entered.get(), 3000);
+        TaskProviderCoordinatorResult started;
+        std::thread command{ [&] {
+            started = coordinator.StartRun(Task1, _run(session.Session->ProviderSessionId, std::string{ Task1 }, std::string{ Run1 }), nullptr);
+            SetEvent(commandCompleted.get());
+        } };
+        const auto completedBeforeEvent = WaitForSingleObject(commandCompleted.get(), 1000);
+        TaskProviderCoordinatorResult restarted;
+        if (completedBeforeEvent == WAIT_OBJECT_0)
+            restarted = coordinator.RestartProvider(nullptr);
+        SetEvent(release.get());
+        command.join();
+        poller.join();
+        VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, waiting);
+        VERIFY_ARE_EQUAL(DWORD{ WAIT_OBJECT_0 }, completedBeforeEvent);
+        VERIFY_IS_TRUE(started.Succeeded());
+        VERIFY_IS_TRUE(restarted.Succeeded());
+        VERIFY_IS_TRUE(pumped.Succeeded());
+        VERIFY_IS_TRUE(sink->Events.empty());
+        VERIFY_ARE_EQUAL(size_t{ 1 }, state->Stops);
+    }
 
     void TaskProviderCoordinatorTests::LazilySharesOneProviderAndReconcilesCrashAcrossTasks()
     {

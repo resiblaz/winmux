@@ -68,6 +68,7 @@
     <ProjectReference Include="$(OpenConsoleDir)\src\cascadia\TerminalApp\dll\TerminalApp.vcxproj" />
     <ProjectReference Include="$(OpenConsoleDir)\src\cascadia\TerminalSettingsModel\dll\Microsoft.Terminal.Settings.Model.vcxproj" />
     <ProjectReference Include="$(OpenConsoleDir)\src\cascadia\TaskRuntimeProtocol\TaskRuntimeProtocol.vcxproj" />
+    <ProjectReference Include="$(OpenConsoleDir)\src\cascadia\TaskRuntimeClient\TaskRuntimeClient.vcxproj" />
     <ProjectReference Include="$(OpenConsoleDir)\src\cascadia\TerminalSettingsAppAdapterLib\TerminalSettingsAppAdapterLib.vcxproj">
       <Project>{3c46e2b0-ae6c-4132-9122-6772fb411959}</Project>
     </ProjectReference>
@@ -78,7 +79,7 @@
   <!-- ====================== Compiler & Linker Flags ===================== -->
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>..;$(OpenConsoleDir)\dep;$(OpenConsoleDir)src\cascadia\TaskRuntimeProtocol;$(OpenConsoleDir)src\inc;$(OpenConsoleDir)src\inc\test;$(WinRT_IncludePath)\..\cppwinrt\winrt;"$(OpenConsoleDir)\src\cascadia\TerminalApp\Generated Files";"$(OpenConsoleDir)\src\cascadia\TerminalApp\Generated Files\Tasks";%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..;$(OpenConsoleDir)\dep;$(OpenConsoleDir)src\cascadia\TaskRuntimeProtocol;$(OpenConsoleDir)src\cascadia\TaskRuntimeClient;$(OpenConsoleDir)src\cascadia\TaskRuntimeTransport;$(OpenConsoleDir)src\inc;$(OpenConsoleDir)src\inc\test;$(WinRT_IncludePath)\..\cppwinrt\winrt;"$(OpenConsoleDir)\src\cascadia\TerminalApp\Generated Files";"$(OpenConsoleDir)\src\cascadia\TerminalApp\Generated Files\Tasks";%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
 
       <!-- Manually disable unreachable code warning, because jconcpp has a ton of that. -->

@@ -7,6 +7,8 @@
 #include "../TerminalApp/Tasks/TaskPageViewModel.h"
 #include "../TerminalApp/Tasks/TaskProjectionCoordinator.h"
 #include "../TerminalApp/Tasks/TaskProjectionMapper.h"
+#include "../TerminalApp/Tasks/RuntimeTaskProjectionSource.h"
+#include "../LocalTests_TaskRuntimeClient/TaskRuntimeClientTestSupport.h"
 #include "CppWinrtTailored.h"
 
 using namespace WEX::TestExecution;
@@ -91,6 +93,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(ProjectionCoordinatorRejectsStaleGenerationAndAcceptsNewEpoch);
         TEST_METHOD(SourceChangeBatchesReloadAndPreservesSelection);
         TEST_METHOD(RuntimeProjectionMapsRunsMessagesAndDetails);
+        TEST_METHOD(IdleRuntimeProjectionObservesExternalCreationAndDeletion);
     };
 
     tasks::TaskProjection _task(std::wstring id,
@@ -347,6 +350,60 @@ namespace TerminalAppLocalTests
             VERIFY_IS_FALSE(static_cast<bool>(source->Handler));
         });
         VERIFY_SUCCEEDED(result);
+    }
+
+    void TaskPageViewModelTests::IdleRuntimeProjectionObservesExternalCreationAndDeletion()
+    {
+        using namespace TaskRuntimeClientLocalTests;
+        using namespace TaskRuntimeClientLocalTests::TestSupport;
+        namespace protocol = ::Microsoft::Terminal::TaskRuntimeProtocol;
+        RuntimeClientDependenciesFixture dependencies;
+        dependencies.EnqueueRequestIds();
+        auto connection = std::make_shared<FakeRuntimeClientConnectionState>();
+        std::atomic_bool visible{};
+        std::atomic_uint64_t generation{};
+        connection->SetAutoResponseHandler([&](const protocol::ControlRequest& request) {
+            auto response = EmptySuccessResponse(request);
+            if (request.Method == protocol::ControlMethod::QueryTask)
+            {
+                protocol::TaskProjectionQueryResult snapshot;
+                snapshot.Generation = ++generation;
+                if (visible.load())
+                {
+                    protocol::TaskProjectionRecord task;
+                    task.Id = "10000000-0000-4000-8000-000000000001";
+                    task.WorkspaceId = "20000000-0000-4000-8000-000000000002";
+                    task.Title = "Created in another window";
+                    task.Version = 1;
+                    task.CreatedAtUnixMilliseconds = 1000;
+                    task.UpdatedAtUnixMilliseconds = 1000;
+                    task.Execution.Id = "30000000-0000-4000-8000-000000000003";
+                    task.Execution.Revision = 1;
+                    task.Execution.Mode = protocol::TaskProjectionExecutionMode::Direct;
+                    task.Execution.SourceRoot = "C:/src";
+                    task.Execution.RuntimeRoot = "C:/src";
+                    task.Execution.Provider = "codex";
+                    task.LastEventSequence = 1;
+                    snapshot.Tasks.push_back(std::move(task));
+                }
+                response.ResultJson = protocol::EncodeTaskProjectionQueryResult(snapshot).Payload;
+            }
+            return response;
+        });
+        connection->EnableAutoResponse();
+        dependencies.Connector->EnqueueSuccess(connection, ValidHelloResponse());
+        auto configuration = ValidConfiguration();
+        configuration.Hello.ClientKind = protocol::ProtocolClientKind::TerminalUi;
+        tasks::RuntimeTaskProjectionSource source{ configuration, nullptr, nullptr, dependencies.Dependencies() };
+        VERIFY_IS_TRUE(source.Start());
+        VERIFY_IS_TRUE(WaitUntil([&] { return !source.IsLoading(); }));
+        VERIFY_IS_TRUE(source.Snapshot().empty());
+        visible = true;
+        VERIFY_IS_TRUE(WaitUntil([&] { return source.Snapshot().size() == 1; }, 5000));
+        VERIFY_IS_FALSE(source.Snapshot().front().HasActiveRun);
+        visible = false;
+        VERIFY_IS_TRUE(WaitUntil([&] { return source.Snapshot().empty(); }, 5000));
+        source.Stop();
     }
 
     void TaskPageViewModelTests::RuntimeProjectionMapsRunsMessagesAndDetails()

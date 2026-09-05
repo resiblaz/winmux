@@ -156,6 +156,7 @@
     <ClInclude Include="Tasks\TaskProjectionMapper.h" />
     <ClInclude Include="Tasks\RuntimeTaskProjectionSource.h" />
     <ClInclude Include="Tasks\TaskRuntimeConnection.h" />
+    <ClInclude Include="Tasks\TaskTerminalInput.h" />
     <ClInclude Include="Tasks\TaskSurfacePolicy.h" />
     <ClInclude Include="Tasks\TaskAgentSessionRegistry.h" />
     <ClInclude Include="ConclusionMarkdownView.h">

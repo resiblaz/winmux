@@ -47,10 +47,26 @@ namespace winrt::TerminalApp::implementation::tasks
         return std::nullopt;
     }
 
+    const TaskSurfaceOwnership* TaskSurfacePolicy::Ownership(const TaskSurfaceId surface) const noexcept
+    {
+        const auto found = _entries.find(surface);
+        return found == _entries.end() ? nullptr : &found->second.Ownership;
+    }
+
+    bool TaskSurfacePolicy::CanActivate(
+        const TaskSurfaceId surface, const uint64_t generation,
+        const std::string_view runtimeInstanceId, const bool connectionUsable) const noexcept
+    {
+        const auto ownership = Ownership(surface);
+        return connectionUsable && ownership && ownership->Generation == generation &&
+               ownership->RuntimeInstanceId == runtimeInstanceId;
+    }
+
     bool TaskSurfacePolicy::AuthorizeClose(
         const std::wstring_view taskId,
         const uint64_t generation,
-        const TaskSurfaceCloseAuthorization authorization) noexcept
+        const TaskSurfaceCloseAuthorization authorization,
+        const std::string_view runtimeInstanceId) noexcept
     {
         if (taskId.empty() || generation == 0 || authorization == 0)
         {
@@ -62,7 +78,8 @@ namespace winrt::TerminalApp::implementation::tasks
             return false;
         }
         const auto found = _entries.find(*surface);
-        if (found == _entries.end() || found->second.Ownership.Generation != generation)
+        if (found == _entries.end() || found->second.Ownership.Generation != generation ||
+            (!runtimeInstanceId.empty() && found->second.Ownership.RuntimeInstanceId != runtimeInstanceId))
         {
             return false;
         }

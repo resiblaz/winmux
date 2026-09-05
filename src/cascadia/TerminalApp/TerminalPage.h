@@ -498,7 +498,8 @@ namespace winrt::TerminalApp::implementation
         safe_void_coroutine _HandleTaskSurface(tasks::TaskSurfaceDescriptor descriptor);
         void _CloseTaskSurface(std::wstring_view taskId,
                                uint64_t generation,
-                               tasks::TaskSurfaceCloseOrigin origin);
+                               tasks::TaskSurfaceCloseOrigin origin,
+                               std::string_view runtimeInstanceId = {});
         [[nodiscard]] tasks::TaskSurfaceId _TaskSurfaceId(const winrt::TerminalApp::Tab& tab) const noexcept;
         [[nodiscard]] tasks::TaskSurfaceId _TaskSurfaceId(const winrt::com_ptr<Tab>& tab) const noexcept;
         [[nodiscard]] bool _IsTaskOwnedTab(const winrt::TerminalApp::Tab& tab) const noexcept;

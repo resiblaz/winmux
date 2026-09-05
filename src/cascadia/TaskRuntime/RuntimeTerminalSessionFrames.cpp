@@ -142,6 +142,15 @@ namespace Microsoft::Terminal::TaskRuntime
         const RuntimeTerminalLeaseMilliseconds now,
         const std::optional<RuntimeTerminalLeaseRevision> inputLeaseRevision)
     {
+        return DispatchFrame(frame, PrepareFrame(clientInstanceId, frame, now, inputLeaseRevision));
+    }
+
+    RuntimeTerminalSessionResult RuntimeTerminalSession::PrepareFrame(
+        const std::string_view clientInstanceId,
+        const TerminalFrame& frame,
+        const RuntimeTerminalLeaseMilliseconds now,
+        const std::optional<RuntimeTerminalLeaseRevision> inputLeaseRevision)
+    {
         RuntimeTerminalSessionResult result;
         if (!_valid)
         {
@@ -245,19 +254,13 @@ namespace Microsoft::Terminal::TaskRuntime
             {
                 if (frame.Payload.size() == 1 && frame.Payload.front() == 0x1b)
                 {
-                    return _interrupt();
+                    result.Status = RuntimeTerminalSessionStatus::Interrupted;
                 }
-                try
+                else
                 {
-                    return _backendResult(
-                        _backend->WriteInput(frame.Payload),
-                        RuntimeTerminalSessionStatus::InputAccepted);
+                    result.Status = RuntimeTerminalSessionStatus::InputAccepted;
                 }
-                catch (...)
-                {
-                    result.Status = RuntimeTerminalSessionStatus::BackendFailure;
-                    return result;
-                }
+                return result;
             }
             uint32_t columns{};
             uint32_t rows{};
@@ -266,17 +269,8 @@ namespace Microsoft::Terminal::TaskRuntime
                 result.Status = RuntimeTerminalSessionStatus::InvalidFrame;
                 return result;
             }
-            try
-            {
-                return _backendResult(
-                    _backend->Resize(columns, rows),
-                    RuntimeTerminalSessionStatus::ResizeAccepted);
-            }
-            catch (...)
-            {
-                result.Status = RuntimeTerminalSessionStatus::BackendFailure;
-                return result;
-            }
+            result.Status = RuntimeTerminalSessionStatus::ResizeAccepted;
+            return result;
         }
         case TerminalFrameKind::Ping:
         {
@@ -307,6 +301,40 @@ namespace Microsoft::Terminal::TaskRuntime
         default:
             result.Status = RuntimeTerminalSessionStatus::InvalidFrame;
             return result;
+        }
+    }
+
+    RuntimeTerminalSessionResult RuntimeTerminalSession::DispatchFrame(
+        const TerminalFrame& frame,
+        RuntimeTerminalSessionResult prepared)
+    {
+        try
+        {
+            switch (prepared.Status)
+            {
+            case RuntimeTerminalSessionStatus::InputAccepted:
+                return _backendResult(_backend->WriteInput(frame.Payload), prepared.Status);
+            case RuntimeTerminalSessionStatus::Interrupted:
+                return _interrupt();
+            case RuntimeTerminalSessionStatus::ResizeAccepted:
+            {
+                uint32_t columns{};
+                uint32_t rows{};
+                if (!DecodeResizePayload(frame.Payload, columns, rows))
+                {
+                    prepared.Status = RuntimeTerminalSessionStatus::InvalidFrame;
+                    return prepared;
+                }
+                return _backendResult(_backend->Resize(columns, rows), prepared.Status);
+            }
+            default:
+                return prepared;
+            }
+        }
+        catch (...)
+        {
+            prepared.Status = RuntimeTerminalSessionStatus::BackendFailure;
+            return prepared;
         }
     }
 

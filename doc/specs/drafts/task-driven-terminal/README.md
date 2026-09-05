@@ -19,6 +19,9 @@ feature:
 - [Implementation plan](implementation-plan.md) defines the accepted first
   native slice, component placement, milestone order, current progress, and
   verification gates.
+- [Custom Agent proposal](../custom-agents/README.md) defines reusable Agent
+  profiles, versioned Task execution configuration, and a staged native design
+  informed by Multica. It is a proposal, not an implemented or accepted milestone.
 - [M6 closure](m6-closure-report.md), [M7 closure](m7-closure-report.md), and
   [M8 closure](m8-closure-report.md) record the final Surface, orchestration,
   packaging, and verification evidence. [M8 release notes](m8-release-notes.md)

@@ -27,6 +27,8 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         ReleaseInputLease,
         RuntimeStatus,
         DrainRuntime,
+        QueryAgents,
+        AgentCommand,
         Count,
     };
 

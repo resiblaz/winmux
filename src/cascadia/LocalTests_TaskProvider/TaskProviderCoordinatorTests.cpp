@@ -238,7 +238,26 @@ namespace TaskProviderLocalTests
         TEST_METHOD(SlowRunDoesNotBlockOtherTaskCommandsOrEvents);
         TEST_METHOD(RestartDiscardsCompletionFromBlockedRun);
         TEST_METHOD(ReclaimsCompletedRunsForTheSameTaskAtCapacity);
+        TEST_METHOD(FreshConfigurationReplacesOnlyAnIdleTaskSession);
     };
+
+    void TaskProviderCoordinatorTests::FreshConfigurationReplacesOnlyAnIdleTaskSession()
+    {
+        const auto state = std::make_shared<FakeAdapterState>(); const auto sink = std::make_shared<RecordingSink>();
+        TaskProviderCoordinator coordinator{ [state] { return std::make_unique<FakeAdapter>(state); }, sink };
+        auto request = _session(std::string{ Task1 });
+        const auto original = coordinator.StartSession(request, nullptr); VERIFY_IS_TRUE(original.Succeeded());
+        const auto other = coordinator.StartSession(_session(std::string{ Task2 }), nullptr); VERIFY_IS_TRUE(other.Succeeded());
+        VERIFY_IS_TRUE(coordinator.StartRun(Task2, _run(other.Session->ProviderSessionId, std::string{ Task2 }, std::string{ Run2 }), nullptr).Succeeded());
+        request.ForceNew = true;
+        const auto fresh = coordinator.StartSession(request, nullptr); VERIFY_IS_TRUE(fresh.Succeeded());
+        VERIFY_IS_TRUE(fresh.Session->ProviderSessionId != original.Session->ProviderSessionId);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, state->CloseCalls); VERIFY_ARE_EQUAL(size_t{}, state->Stops);
+        VERIFY_IS_TRUE(coordinator.StartRun(Task1, _run(fresh.Session->ProviderSessionId, std::string{ Task1 }, std::string{ Run1 }), nullptr).Succeeded());
+        VERIFY_IS_TRUE(coordinator.StartSession(request, nullptr).Status == TaskProviderStatus::Conflict);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, state->CloseCalls);
+        VERIFY_IS_TRUE(std::ranges::all_of(coordinator.Runs(), [](const auto& run) { return run.State == TaskProviderRunState::Running; }));
+    }
 
     void TaskProviderCoordinatorTests::ReclaimsCompletedRunsForTheSameTaskAtCapacity()
     {

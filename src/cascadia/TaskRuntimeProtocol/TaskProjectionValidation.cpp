@@ -25,6 +25,11 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         {
             return !value || _id(*value);
         }
+
+        bool _agent(const std::optional<AgentProfileReference>& value, const std::string& name) noexcept
+        {
+            return value ? _id(value->Id) && value->Revision > 0 && value->Revision <= INT64_MAX && _text(name, 1024, true) : name.empty();
+        }
     }
 
     bool ValidateTaskProjectionQuery(const TaskProjectionQueryRequest& value, std::string& error) noexcept
@@ -61,6 +66,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             !_text(value.Execution.RelativeWorkingDirectory, 32 * 1024) ||
             !_text(value.Execution.Provider, 256, true) ||
             !_text(value.Execution.Model, 256) || !_text(value.Execution.Instructions, 64 * 1024) ||
+            !_agent(value.Execution.Agent, value.Execution.AgentName) ||
             value.Terminal.State > TaskProjectionTerminalState::Closed ||
             !_optionalId(value.Terminal.CurrentAgentSessionId))
         {
@@ -86,6 +92,8 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
                 error = "Task projection Run is invalid";
                 return false;
             }
+            if (!_agent(run.Agent, run.AgentName) || !_text(run.Provider, 256) || !_text(run.Model, 256))
+            { error = "Run Agent snapshot is invalid"; return false; }
         }
         for (const auto& session : value.AgentSessions)
         {
@@ -140,6 +148,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         case TaskUiCommandOperation::Delete: return "delete";
         case TaskUiCommandOperation::Derive: return "derive";
         case TaskUiCommandOperation::RestartProvider: return "restart_provider";
+        case TaskUiCommandOperation::UpdateAgent: return "update_agent";
         default: return {};
         }
     }
@@ -181,14 +190,17 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             (value.Operation == TaskUiCommandOperation::ReviseMessage && !value.Text) ||
             (value.Operation == TaskUiCommandOperation::RemoveMessage && value.Text) ||
             (value.Operation == TaskUiCommandOperation::Retry) != value.RelatedRunId.has_value() ||
-            derives != value.DerivedTaskId.has_value())
+            derives != value.DerivedTaskId.has_value() ||
+            (value.Operation == TaskUiCommandOperation::UpdateAgent) != value.AgentConfiguration.has_value())
         {
             error = "Task UI command arguments are invalid";
             return false;
         }
+        if (value.AgentConfiguration && !ValidateTaskAgentConfiguration(*value.AgentConfiguration, error)) return false;
         if (value.Draft)
         {
             const auto& draft = *value.Draft;
+            if (draft.Agent && !ValidateTaskAgentConfiguration({ draft.Agent, draft.Provider, draft.Model, draft.Instructions }, error)) return false;
             if (!_id(draft.WorkspaceId) || !_text(draft.Title, 1024, true) ||
                 !_text(draft.Description, 64 * 1024) || draft.Acceptance.size() > MaximumTaskProjectionAcceptance ||
                 draft.Priority > TaskProjectionPriority::High || draft.ExecutionMode > TaskProjectionExecutionMode::Worktree ||

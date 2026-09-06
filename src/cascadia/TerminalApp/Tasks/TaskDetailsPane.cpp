@@ -169,6 +169,11 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void TaskDetailsPane::_ConfigureAgent_Click(const Windows::Foundation::IInspectable&, const Windows::UI::Xaml::RoutedEventArgs&)
+    {
+        _Request(tasks::TaskCommand::ConfigureAgent);
+    }
+
     void TaskDetailsPane::_Request(const tasks::TaskCommand command) const
     {
         if (_commandHandler)

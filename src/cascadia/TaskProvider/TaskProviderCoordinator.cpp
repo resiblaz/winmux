@@ -151,15 +151,30 @@ namespace Microsoft::Terminal::TaskProvider
         std::unique_lock lock{ _mutex };
         if (const auto existing = _sessionsByTask.find(request.TaskId); existing != _sessionsByTask.end())
         {
-            if (existing->second.State != TaskProviderSessionState::Closed)
+            if (!request.ForceNew && existing->second.State != TaskProviderSessionState::Closed)
             {
                 TaskProviderCoordinatorResult result;
                 result.Status = TaskProviderStatus::AlreadyApplied;
                 result.Session = existing->second;
                 return result;
             }
-            _tasksByProviderSession.erase(existing->second.ProviderSessionId);
-            _sessionsByTask.erase(existing);
+            auto previous = existing->second;
+            if (request.ForceNew && previous.State != TaskProviderSessionState::Closed)
+            {
+                if (_activeRun(request.TaskId)) return _from({ TaskProviderStatus::Conflict, "Active Run prevents replacing the Task session" });
+                if (_adapter)
+                {
+                    const auto closed = _invoke(lock, [&](auto& adapter) { return adapter.CloseSessionProjection(previous.ProviderSessionId, cancellationEvent); });
+                    if (!closed) return _from({ TaskProviderStatus::TransportClosed, "Provider changed while replacing a session" });
+                    if (!closed->Succeeded() && closed->Status != TaskProviderStatus::NotFound) return _from(*closed);
+                }
+                previous.State = TaskProviderSessionState::Closed;
+                _sessionsByTask.at(request.TaskId).State = previous.State;
+                const auto persisted = _publishSession(previous);
+                if (!persisted.Succeeded()) return _from(persisted);
+            }
+            _tasksByProviderSession.erase(previous.ProviderSessionId);
+            _sessionsByTask.erase(request.TaskId);
         }
         if (_sessionsByTask.size() + _startingSessions >= _configuration.MaximumSessions)
         {

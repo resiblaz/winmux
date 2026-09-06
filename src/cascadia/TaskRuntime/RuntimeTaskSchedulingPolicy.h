@@ -18,6 +18,13 @@ namespace Microsoft::Terminal::TaskRuntime
     [[nodiscard]] RuntimeTaskRetryDecision EvaluateRuntimeTaskAutomaticRetry(
         const Microsoft::Terminal::TaskCore::TaskRunRecord& failedRun,
         const std::vector<Microsoft::Terminal::TaskCore::TaskRunRecord>& runs) noexcept;
+    [[nodiscard]] const Microsoft::Terminal::TaskCore::ExecutionContextRecord* FindRuntimeTaskRunContext(
+        const Microsoft::Terminal::TaskCore::TaskAggregateSnapshot& aggregate,
+        const Microsoft::Terminal::TaskCore::TaskRunRecord& run) noexcept;
+    [[nodiscard]] bool CanResumeRuntimeTaskAgentSession(
+        const Microsoft::Terminal::TaskCore::TaskAggregateSnapshot& aggregate,
+        const Microsoft::Terminal::TaskCore::TaskRunRecord& run,
+        const Microsoft::Terminal::TaskCore::AgentSessionRecord& session) noexcept;
     [[nodiscard]] bool ShouldClaimRuntimeTaskMessages(
         const Microsoft::Terminal::TaskCore::TaskAggregateSnapshot& aggregate) noexcept;
     [[nodiscard]] std::optional<std::string> BuildRuntimeTaskPrompt(

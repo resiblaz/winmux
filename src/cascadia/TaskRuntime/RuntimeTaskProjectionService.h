@@ -76,6 +76,8 @@ namespace Microsoft::Terminal::TaskRuntime
 
         [[nodiscard]] RuntimeTaskProjectionCommandResult _create(
             const Microsoft::Terminal::TaskRuntimeProtocol::TaskUiCommandRequest& request);
+        [[nodiscard]] RuntimeTaskProjectionCommandResult _updateAgent(
+            const Microsoft::Terminal::TaskRuntimeProtocol::TaskUiCommandRequest& request);
         [[nodiscard]] RuntimeTaskProjectionCommandResult _start(
             const Microsoft::Terminal::TaskRuntimeProtocol::TaskUiCommandRequest& request);
         [[nodiscard]] RuntimeTaskProjectionCommandResult _stop(

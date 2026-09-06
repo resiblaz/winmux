@@ -128,6 +128,12 @@ namespace winrt::TerminalApp::implementation::tasks
             result.ExecutionMode = _resource(source.Execution.Mode == TaskProjectionExecutionMode::Worktree ?
                                                  L"TaskPage_WorktreeExecutionMode" :
                                                  L"TaskPage_DirectExecutionMode");
+            result.Model = _wide(source.Execution.Model);
+            result.Instructions = _wide(source.Execution.Instructions);
+            result.AgentName = _wide(source.Execution.AgentName);
+            if (source.Execution.Agent) { result.AgentId = _wide(source.Execution.Agent->Id); result.AgentRevision = source.Execution.Agent->Revision; }
+            result.AgentSummary = (source.Execution.Agent ? result.AgentName + L" · v" + std::to_wstring(result.AgentRevision) : _resource(L"Agent_Custom")) +
+                                  L" · " + (result.Model.empty() ? _resource(L"Agent_ModelDefault") : result.Model);
             result.WorkingDirectory = _wide(source.Execution.RuntimeRoot);
             result.Worktree = source.Execution.WorktreePath.empty() ? _resource(L"TaskPage_NotApplicable") : _wide(source.Execution.WorktreePath);
             result.HasGitWorktree = source.Execution.Mode == TaskProjectionExecutionMode::Worktree;
@@ -165,12 +171,17 @@ namespace winrt::TerminalApp::implementation::tasks
             uint64_t latestTerminalSequence{};
             for (const auto& run : source.Runs)
             {
-                const auto summary = fmt::format(
+                auto summary = fmt::format(
                     FMT_COMPILE(L"#{} · {} · {}{}"),
                     run.Sequence,
                     _runState(run.State),
                     _time(run.StartedAtUnixMilliseconds.value_or(run.CreatedAtUnixMilliseconds)),
                     run.ReasonCode.empty() ? std::wstring{} : fmt::format(FMT_COMPILE(L" · {}"), _wide(run.ReasonCode)));
+                if (run.ExecutionRevision)
+                {
+                    summary += L" · " + (run.Agent ? _wide(run.AgentName) + L" v" + std::to_wstring(run.Agent->Revision) : _resource(L"Agent_Custom"));
+                    summary += L" · " + (run.Model.empty() ? _resource(L"Agent_ModelDefault") : _wide(run.Model));
+                }
                 result.Runs.emplace_back(summary);
                 if (_active(run.State) && !result.HasActiveRun)
                 {

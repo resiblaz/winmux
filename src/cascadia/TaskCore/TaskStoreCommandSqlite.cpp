@@ -119,7 +119,7 @@ namespace Microsoft::Terminal::TaskCore::details
         std::string& error)
     {
         constexpr auto sql = R"SQL(
-SELECT task_id, state, created_at, started_at, finished_at, result, reason_code
+SELECT task_id, state, created_at, started_at, finished_at, result, reason_code, agent_session_id
 FROM task_run WHERE id=?1;
 )SQL";
         SqliteStatement statement{ database, sql, error };
@@ -146,7 +146,12 @@ FROM task_run WHERE id=?1;
             ColumnOptionalInt64(statement.Get(), 4),
             ColumnText(statement.Get(), 5),
             ColumnText(statement.Get(), 6),
+            std::nullopt,
         };
+        if (const auto session = ColumnOptionalText(statement.Get(), 7))
+        {
+            state->AgentSession = AgentSessionId{ *session };
+        }
         return true;
     }
 

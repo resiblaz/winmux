@@ -61,7 +61,36 @@ namespace TaskRuntimeProtocolLocalTests
         TEST_METHOD(RemovedMessagesAllowEmptyContentWithoutHidingTasks);
         TEST_METHOD(UiCommandsRoundTripByOperation);
         TEST_METHOD(RejectsMalformedOversizedAndNoncanonicalPayloads);
+        TEST_METHOD(AgentConfigurationAndHistoricalSnapshotsAreVersionedAndOptIn);
     };
+
+    void TaskProjectionRpcTests::AgentConfigurationAndHistoricalSnapshotsAreVersionedAndOptIn()
+    {
+        TaskUiCommandRequest command;
+        command.CommandId = "80000000-0000-4000-8000-000000000008";
+        command.TaskId = "10000000-0000-4000-8000-000000000001";
+        command.Operation = TaskUiCommandOperation::UpdateAgent; command.ExpectedTaskVersion = 5;
+        command.AgentConfiguration = TaskAgentConfiguration{};
+        command.AgentConfiguration->Agent = AgentProfileReference{ "90000000-0000-4000-8000-000000000009", 2 };
+        const auto decoded = DecodeTaskUiCommandRequest(EncodeTaskUiCommandRequest(command).Payload);
+        VERIFY_IS_TRUE(decoded.Succeeded()); VERIFY_ARE_EQUAL(uint64_t{ 2 }, decoded.Value.AgentConfiguration->Agent->Revision);
+        command.AgentConfiguration->Model = "forbidden-override";
+        VERIFY_IS_FALSE(EncodeTaskUiCommandRequest(command).Succeeded);
+        auto task = _task();
+        task.Execution.Agent = AgentProfileReference{ "90000000-0000-4000-8000-000000000009", 2 };
+        task.Execution.AgentName = "Reviewer"; task.Execution.Model = "new-model";
+        task.Runs.front().Agent = AgentProfileReference{ task.Execution.Agent->Id, 1 };
+        task.Runs.front().AgentName = "Old reviewer"; task.Runs.front().Model = "old-model";
+        task.Runs.front().Provider = "codex"; task.Runs.front().ExecutionRevision = 1;
+        TaskProjectionQueryResult projection{ 1, { task } };
+        const auto extended = DecodeTaskProjectionQueryResult(EncodeTaskProjectionQueryResult(projection, true).Payload);
+        VERIFY_IS_TRUE(extended.Succeeded());
+        VERIFY_ARE_EQUAL(std::string{ "old-model" }, extended.Value.Tasks.front().Runs.front().Model);
+        VERIFY_ARE_EQUAL(uint64_t{ 1 }, extended.Value.Tasks.front().Runs.front().Agent->Revision);
+        const auto legacy = EncodeTaskProjectionQueryResult(projection);
+        VERIFY_IS_TRUE(legacy.Succeeded); VERIFY_IS_TRUE(legacy.Payload.find("executionAgent") == std::string::npos);
+        VERIFY_IS_FALSE(DecodeTaskProjectionQueryResult(legacy.Payload).Value.Tasks.front().Execution.Agent.has_value());
+    }
 
     void TaskProjectionRpcTests::RemovedMessagesAllowEmptyContentWithoutHidingTasks()
     {

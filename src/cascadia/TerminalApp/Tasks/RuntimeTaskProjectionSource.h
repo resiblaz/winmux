@@ -16,7 +16,7 @@
 
 namespace winrt::TerminalApp::implementation::tasks
 {
-    class RuntimeTaskProjectionSource final : public ITaskProjectionSource
+    class RuntimeTaskProjectionSource final : public ITaskProjectionSource, public std::enable_shared_from_this<RuntimeTaskProjectionSource>
     {
     public:
         RuntimeTaskProjectionSource(
@@ -28,6 +28,8 @@ namespace winrt::TerminalApp::implementation::tasks
 
         [[nodiscard]] std::vector<TaskProjection> Snapshot() const override;
         [[nodiscard]] TaskProjection CreateTask(const TaskDraft& draft, bool startImmediately) override;
+        void CreateTaskAsync(TaskCreationAttempt attempt, std::function<void(TaskCreationResult)> completed) override;
+        std::shared_ptr<agents::IAgentCatalogSource> AgentCatalog() const override { return _agentCatalog; }
         [[nodiscard]] std::optional<TaskProjection> Execute(const std::wstring& taskId, TaskCommand command) override;
         [[nodiscard]] bool QueueMessage(const std::wstring& taskId, const std::wstring& message) override;
         [[nodiscard]] bool ReviseMessage(
@@ -63,8 +65,11 @@ namespace winrt::TerminalApp::implementation::tasks
         ::Microsoft::Terminal::TaskRuntime::RuntimeIdentity _identity;
         std::string _clientInstanceId;
         std::shared_ptr<::Microsoft::Terminal::TaskRuntime::TaskRuntimeClient> _client;
+        std::shared_ptr<agents::IAgentCatalogSource> _agentCatalog;
         Windows::UI::Core::CoreDispatcher _dispatcher{ nullptr };
         TaskProjectionCoordinator _coordinator;
+        std::mutex _publicationMutex;
+        uint64_t _publicationRevision{};
         mutable std::mutex _mutex;
         std::condition_variable _condition;
         std::deque<WorkItem> _work;

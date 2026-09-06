@@ -522,6 +522,7 @@ try
                         '*CodexAppServerTests*',
                         '*WorkspaceGitMetadataTests*',
                         '*TaskPageViewModelTests*',
+                        '*AgentEditorViewModelTests*',
                         '*TaskSurfacePolicyTests*',
                         '*TaskAgentSessionRegistryTests*',
                         '*WorkspaceSidebarAdaptsToWindowModes*',

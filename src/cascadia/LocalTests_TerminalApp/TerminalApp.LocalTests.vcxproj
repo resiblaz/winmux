@@ -45,6 +45,7 @@
     <ClCompile Include="WorkspaceGitMetadataTests.cpp" />
     <ClCompile Include="SettingsTests.cpp" />
     <ClCompile Include="TabTests.cpp" />
+    <ClCompile Include="AgentEditorViewModelTests.cpp" />
 	<ClCompile Include="TaskPageViewModelTests.cpp" />
 	<ClCompile Include="TaskSurfacePolicyTests.cpp" />
 	<ClCompile Include="TaskAgentSessionRegistryTests.cpp" />

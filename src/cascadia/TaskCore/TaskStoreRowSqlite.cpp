@@ -62,6 +62,9 @@ namespace Microsoft::Terminal::TaskCore::details
         context.Instructions = ColumnText(statement, 12);
         context.IdentityFrozen = sqlite3_column_int(statement, 13) != 0;
         context.CreatedAtUnixMilliseconds = sqlite3_column_int64(statement, 14);
+        context.SourceAgentId = _optionalId<AgentProfileId>(statement, 15);
+        context.SourceAgentRevision = sqlite3_column_int64(statement, 16);
+        context.AgentNameSnapshot = ColumnText(statement, 17);
         return context;
     }
 

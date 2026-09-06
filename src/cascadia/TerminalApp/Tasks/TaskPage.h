@@ -28,6 +28,7 @@ namespace winrt::TerminalApp::implementation
         void Refresh();
 
         void _NewTask_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _ManageAgents_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _CancelDraft_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _SaveDraft_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _SaveAndRunDraft_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
@@ -49,11 +50,19 @@ namespace winrt::TerminalApp::implementation
         bool _syncingSelection{};
         tasks::ITaskProjectionSource::SurfaceHandler _surfaceHandler;
         winrt::weak_ref<winrt::TerminalApp::IDialogPresenter> _dialogPresenter;
+        TerminalApp::AgentCatalogPage _agentManager{ nullptr };
+        std::optional<tasks::TaskCreationAttempt> _pendingCreation;
+        bool _draftSaving{};
+        bool _draftOutcomeUnknown{};
+        uint64_t _draftGeneration{};
 
         implementation::TaskPageViewModel* _ViewModelImpl() const noexcept;
         void _ApplyViewModelUpdate(const std::function<void()>& update);
         void _ShowDraft(bool visible);
         void _CreateDraft(bool startImmediately);
+        void _SubmitDraft(tasks::TaskDraft draft, bool startImmediately);
+        void _UpdateDraftEnabled();
+        safe_void_coroutine _ConfigureSelectedAgent();
         safe_void_coroutine _Execute(tasks::TaskCommand command);
         void _SyncDraftWorkspace();
         void _SyncSelection();

@@ -1,0 +1,79 @@
+<UserControl x:Class="TerminalApp.AgentCatalogPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Padding="20" Background="{ThemeResource WorkspaceChromeSurfaceBrush}">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState x:Name="Wide">
+                    <VisualState.StateTriggers><AdaptiveTrigger MinWindowWidth="1000" /></VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="ListColumn.Width" Value="300" />
+                        <Setter Target="ListRow.Height" Value="*" />
+                        <Setter Target="EditorRow.Height" Value="0" />
+                        <Setter Target="EditorScroller.(Grid.Row)" Value="0" />
+                        <Setter Target="EditorScroller.(Grid.Column)" Value="1" />
+                        <Setter Target="EditorScroller.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="CatalogListPane.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="EditorScroller.Margin" Value="20,0,0,0" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBlock x:Uid="AgentCatalogTitle" FontSize="24" FontWeight="SemiBold" />
+            <Button x:Name="BackButton" x:Uid="AgentBack" Grid.Column="1" Click="_Back_Click" />
+        </Grid>
+        <StackPanel Grid.Row="1" Spacing="5" Margin="0,10,0,16">
+            <TextBlock x:Uid="AgentCatalogIntro" TextWrapping="Wrap" Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}" />
+            <TextBlock x:Name="WorkspaceTarget" TextWrapping="Wrap" />
+            <TextBlock x:Name="StatusText" TextWrapping="Wrap" Foreground="{ThemeResource WorkspaceChromeAccentBrush}" />
+            <ProgressBar x:Name="BusyProgress" IsIndeterminate="True" Visibility="Collapsed" />
+        </StackPanel>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions><ColumnDefinition x:Name="ListColumn" Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition x:Name="ListRow" Height="190" /><RowDefinition x:Name="EditorRow" Height="*" /></Grid.RowDefinitions>
+            <Grid x:Name="CatalogListPane" Grid.ColumnSpan="2">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="NewAgentButton" x:Uid="AgentNew" Click="_New_Click" />
+                    <Button x:Name="RefreshButton" x:Uid="AgentRefresh" Click="_Refresh_Click" />
+                    <CheckBox x:Name="IncludeArchived" x:Uid="AgentIncludeArchived" Click="_ArchivedFilter_Click" />
+                </StackPanel>
+                <TextBox x:Name="AgentSearch" x:Uid="AgentSearch" Grid.Row="1" Margin="0,8,0,4" TextChanged="_SearchChanged" />
+                <ListView x:Name="AgentList" Grid.Row="2" SelectionMode="Single" SelectionChanged="_AgentSelected"
+                          ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+                <Button x:Name="MoreAgentsButton" x:Uid="AgentMore" Grid.Row="3" Click="_More_Click" Visibility="Collapsed" />
+            </Grid>
+            <ScrollViewer x:Name="EditorScroller" Grid.Row="1" Grid.ColumnSpan="2" Margin="0,14,0,0"
+                          VerticalScrollMode="Enabled" HorizontalScrollMode="Disabled">
+                <StackPanel Spacing="12" MaxWidth="800" HorizontalAlignment="Stretch">
+                    <TextBlock x:Name="EditorTitle" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock x:Name="DraftStateText" TextWrapping="Wrap" Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}" />
+                    <TextBox x:Name="NameInput" x:Uid="AgentName" MaxLength="160" TextChanged="_DraftChanged" />
+                    <TextBox x:Name="DescriptionInput" x:Uid="AgentDescription" MaxLength="1024" TextWrapping="Wrap" TextChanged="_DraftChanged" />
+                    <TextBlock Text="Codex" />
+                    <TextBox x:Name="ModelInput" x:Uid="AgentModel" MaxLength="256" TextChanged="_DraftChanged" />
+                    <TextBox x:Name="InstructionsInput" x:Uid="AgentInstructions" MaxLength="32768" AcceptsReturn="True"
+                             MinHeight="150" MaxHeight="360" TextWrapping="Wrap" TextChanged="_DraftChanged" />
+                    <Button x:Name="PreviewButton" x:Uid="AgentPreview" Click="_Preview_Click" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="SaveAgentButton" x:Uid="AgentSave" Click="_Save_Click" />
+                        <Button x:Name="CopyAgentButton" x:Uid="AgentCopy" Click="_Copy_Click" />
+                        <Button x:Name="ReloadAgentButton" x:Uid="AgentReload" Click="_Reload_Click" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="ArchiveAgentButton" x:Uid="AgentArchive" Click="_Archive_Click" />
+                        <Button x:Name="RestoreAgentButton" x:Uid="AgentRestore" Click="_Restore_Click" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="SetDefaultButton" x:Uid="AgentSetDefault" Click="_SetDefault_Click" />
+                        <Button x:Name="ClearDefaultButton" x:Uid="AgentClearDefault" Click="_ClearDefault_Click" />
+                    </StackPanel>
+                    <TextBlock x:Uid="AgentCatalogScopeNote" TextWrapping="Wrap" Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

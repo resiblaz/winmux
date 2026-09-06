@@ -4,6 +4,7 @@
 #include "pch.h"
 
 #include "RuntimeProductRouter.h"
+#include "RuntimeAgentCatalogService.h"
 #include "RuntimeRtaskCommandTestSupport.h"
 
 #include "RuntimeFoundationRpc.h"
@@ -41,7 +42,8 @@ namespace TaskRuntimeLocalTests
                 std::make_shared<RuntimeTaskProjectionService>(
                     fixture.Store,
                     nullptr,
-                    LR"(C:\runtime-router-tests)"));
+                    LR"(C:\runtime-router-tests)"),
+                std::make_shared<RuntimeAgentCatalogService>(fixture.Store));
         }
 
         RuntimeControlCancellationToken _cancellation(const bool cancelled = false)
@@ -71,7 +73,32 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(RejectsUiCancelledMalformedAndUnauthorizedSubmit);
         TEST_METHOD(PreservesFoundationPingAndRuntimeStatusRoutes);
         TEST_METHOD(RoutesTerminalUiCreateAndQueryToTaskProjectionService);
+        TEST_METHOD(AgentCatalogRequiresDesktopCapabilityAndDoesNotStartTasks);
     };
+
+    void RuntimeProductRouterTests::AgentCatalogRequiresDesktopCapabilityAndDoesNotStartTasks()
+    {
+        Fixture fixture; const auto router = _router(fixture);
+        AgentCatalogCommandRequest command;
+        command.CommandId = MakeId<Microsoft::Terminal::TaskCore::CommandId>(9900).Value();
+        command.AgentId = MakeId<Microsoft::Terminal::TaskCore::AgentProfileId>(9901).Value();
+        command.Configuration = AgentProfileConfiguration{ "Reviewer", "Display", "codex", "", "Review only" };
+        ControlRequest request{ "catalog-request", ControlMethod::AgentCommand, EncodeAgentCatalogCommandRequest(command).Payload };
+        const auto before = fixture.Store->LoadTask(fixture.Task.Task.Id);
+        auto actor = _client(ProtocolClientKind::TaskCtl); actor.NegotiatedCapabilities |= static_cast<uint64_t>(ProtocolCapability::AgentProfiles);
+        VERIFY_IS_TRUE(router->Route(actor, request, _cancellation()).Error->Code == ProtocolRpcErrorCode::CapabilityRequired);
+        auto desktop = _client(ProtocolClientKind::TerminalUi);
+        VERIFY_IS_TRUE(router->Route(desktop, request, _cancellation()).Error->Code == ProtocolRpcErrorCode::CapabilityRequired);
+        desktop.NegotiatedCapabilities |= static_cast<uint64_t>(ProtocolCapability::AgentProfiles);
+        const auto created = router->Route(desktop, request, _cancellation()); VERIFY_IS_TRUE(created.Succeeded);
+        const auto replay = router->Route(desktop, request, _cancellation()); VERIFY_IS_TRUE(replay.Succeeded);
+        VERIFY_IS_TRUE(DecodeAgentCatalogCommandResult(replay.ResultJson).Value.Replayed);
+        request.Method = ControlMethod::QueryAgents; request.PayloadJson = EncodeAgentCatalogQueryRequest({}).Payload;
+        const auto query = router->Route(desktop, request, _cancellation()); VERIFY_IS_TRUE(query.Succeeded);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, DecodeAgentCatalogQueryResult(query.ResultJson).Value.Profiles.size());
+        const auto after = fixture.Store->LoadTask(fixture.Task.Task.Id);
+        VERIFY_ARE_EQUAL(before->Task.Version, after->Task.Version); VERIFY_ARE_EQUAL(before->Runs.size(), after->Runs.size());
+    }
 
     void RuntimeProductRouterTests::RoutesTaskCtlSubmitCommandToDurableService()
     {

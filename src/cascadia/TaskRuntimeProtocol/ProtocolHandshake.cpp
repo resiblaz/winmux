@@ -113,8 +113,13 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         {
             return _reject(HandshakeError::ProtocolMinorMismatch, "Protocol minor version ranges do not overlap");
         }
+        auto capabilities = runtime.Capabilities;
+        // Agent-aware Task projections add fields to an otherwise strict schema.
+        // Keep the old shape for clients that did not opt in to this extension.
+        if (negotiatedMinor < 3 || !HasCapability(request.RequiredCapabilities | request.OptionalCapabilities, ProtocolCapability::AgentProfiles))
+            capabilities &= ~static_cast<uint64_t>(ProtocolCapability::AgentProfiles);
         if (!request.UnknownRequiredCapabilities.empty() ||
-            (request.RequiredCapabilities & runtime.Capabilities) != request.RequiredCapabilities)
+            (request.RequiredCapabilities & capabilities) != request.RequiredCapabilities)
         {
             std::string message{ "Runtime is missing a required capability" };
             if (!request.UnknownRequiredCapabilities.empty())
@@ -132,7 +137,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         decision.Response.RuntimeInstanceId = runtime.RuntimeInstanceId;
         decision.Response.ProtocolMajor = runtime.Versions.Major;
         decision.Response.ProtocolMinor = negotiatedMinor;
-        decision.Response.Capabilities = runtime.Capabilities;
+        decision.Response.Capabilities = capabilities;
         decision.Response.MaximumControlFrameBytes = std::min(
             request.MaximumAcceptedControlFrameBytes,
             runtime.MaximumControlFrameBytes);

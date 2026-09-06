@@ -1519,4 +1519,63 @@
   <data name="TaskPage_TerminalOwnedElsewhereTitle" xml:space="preserve"><value>任务终端已在另一窗口打开</value></data>
   <data name="TaskPage_TerminalOwnedElsewhereBody" xml:space="preserve"><value>请切换到包含此任务终端的窗口。关闭那个窗口后，可以在这里重新打开终端。</value></data>
   <data name="TaskPage_CleanupFailed" xml:space="preserve"><value>Worktree 清理失败。请关闭占用任务目录的程序，然后重试清理。（{0}）</value></data>
+  <data name="AgentPicker.Header" xml:space="preserve"><value>Agent</value></data>
+  <data name="AgentPicker.PlaceholderText" xml:space="preserve"><value>选择 Agent</value></data>
+  <data name="AgentMore.Content" xml:space="preserve"><value>加载更多</value></data>
+  <data name="AgentRefresh.Content" xml:space="preserve"><value>刷新</value></data>
+  <data name="AgentModel.Header" xml:space="preserve"><value>模型覆盖（可选）</value></data>
+  <data name="AgentModel.PlaceholderText" xml:space="preserve"><value>使用运行环境默认模型</value></data>
+  <data name="AgentInstructions.Header" xml:space="preserve"><value>长期指令</value></data>
+  <data name="AgentInstructions.PlaceholderText" xml:space="preserve"><value>填写角色、工作要求和结果交付方式</value></data>
+  <data name="AgentCatalogTitle.Text" xml:space="preserve"><value>Agent 管理</value></data>
+  <data name="AgentCatalogIntro.Text" xml:space="preserve"><value>保存可复用的角色与长期指令，在创建 Task 时选用。</value></data>
+  <data name="AgentBack.Content" xml:space="preserve"><value>返回任务</value></data>
+  <data name="AgentNew.Content" xml:space="preserve"><value>新建</value></data>
+  <data name="AgentIncludeArchived.Content" xml:space="preserve"><value>显示已归档</value></data>
+  <data name="AgentSearch.PlaceholderText" xml:space="preserve"><value>搜索已加载的 Agent</value></data>
+  <data name="AgentName.Header" xml:space="preserve"><value>名称</value></data>
+  <data name="AgentDescription.Header" xml:space="preserve"><value>简介（仅展示，不发送给模型）</value></data>
+  <data name="AgentPreview.Content" xml:space="preserve"><value>预览执行指令</value></data>
+  <data name="AgentSave.Content" xml:space="preserve"><value>保存</value></data>
+  <data name="AgentCopy.Content" xml:space="preserve"><value>另存为新 Agent</value></data>
+  <data name="AgentReload.Content" xml:space="preserve"><value>重新加载 / 放弃草稿</value></data>
+  <data name="AgentArchive.Content" xml:space="preserve"><value>归档</value></data>
+  <data name="AgentRestore.Content" xml:space="preserve"><value>恢复</value></data>
+  <data name="AgentSetDefault.Content" xml:space="preserve"><value>设为 Workspace 默认</value></data>
+  <data name="AgentClearDefault.Content" xml:space="preserve"><value>清除 Workspace 默认</value></data>
+  <data name="AgentCatalogScopeNote.Text" xml:space="preserve"><value>当前应用中的工作区共用这个 Agent 库。改动用于之后选择的新配置，已有 Task 保留固定版本。</value></data>
+  <data name="AgentManage.Content" xml:space="preserve"><value>管理 Agent</value></data>
+  <data name="AgentConfigureTask.Content" xml:space="preserve"><value>Agent 配置</value></data>
+  <data name="Agent_Custom" xml:space="preserve"><value>本次自定义</value></data>
+  <data name="Agent_ModelDefault" xml:space="preserve"><value>运行环境默认模型</value></data>
+  <data name="Agent_Unavailable" xml:space="preserve"><value>此 Agent 当前不可用，请刷新或选择本次自定义。</value></data>
+  <data name="Agent_PinnedNote" xml:space="preserve"><value>保存 Task 时会固定所选 Agent 版本；之后编辑 Agent 不会自动改变这个 Task。</value></data>
+  <data name="Agent_CustomNote" xml:space="preserve"><value>这些设置仅用于本次 Task。模型留空时使用运行环境默认值。</value></data>
+  <data name="Agent_WorkspaceTarget" xml:space="preserve"><value>Workspace 默认值目标：</value></data>
+  <data name="Agent_Archived" xml:space="preserve"><value>已归档</value></data>
+  <data name="Agent_ActiveRuns" xml:space="preserve"><value>项运行中</value></data>
+  <data name="Agent_Idle" xml:space="preserve"><value>空闲</value></data>
+  <data name="Agent_ChangedElsewhere" xml:space="preserve"><value>此 Agent 已在另一窗口更改。草稿会保留，请重新加载或另存为新 Agent。</value></data>
+  <data name="Agent_RetryOperation" xml:space="preserve"><value>重试同一操作</value></data>
+  <data name="Agent_Save" xml:space="preserve"><value>保存</value></data>
+  <data name="Agent_NewTitle" xml:space="preserve"><value>新 Agent</value></data>
+  <data name="Agent_UnknownOutcome" xml:space="preserve"><value>请求结果暂未确认。重试会核对同一操作，防止重复创建。</value></data>
+  <data name="Agent_UnsavedDraft" xml:space="preserve"><value>有未保存的修改。可保存、另存为新 Agent，或重新加载以放弃草稿。</value></data>
+  <data name="Agent_Saved" xml:space="preserve"><value>已保存。</value></data>
+  <data name="Agent_CopySuffix" xml:space="preserve"><value>（副本）</value></data>
+  <data name="Agent_ArchiveBody" xml:space="preserve"><value>归档后此 Agent 不再用于新选择，并清除所有引用它的 Workspace 默认设置。现有 Task 和历史仍保留。当前默认关联：</value></data>
+  <data name="Agent_ArchiveTitle" xml:space="preserve"><value>归档此 Agent？</value></data>
+  <data name="Agent_Archive" xml:space="preserve"><value>归档</value></data>
+  <data name="Agent_Cancel" xml:space="preserve"><value>取消</value></data>
+  <data name="Agent_NoInstructions" xml:space="preserve"><value>尚未设置 Agent 长期指令。</value></data>
+  <data name="Agent_PreviewTitle" xml:space="preserve"><value>Agent 长期指令预览</value></data>
+  <data name="Agent_Close" xml:space="preserve"><value>关闭</value></data>
+  <data name="Agent_SelectionRequired" xml:space="preserve"><value>请选择可用的 Agent，或填写有效的本次自定义设置。</value></data>
+  <data name="Agent_RequestFailed" xml:space="preserve"><value>请求未能完成，请重试。</value></data>
+  <data name="Agent_Saving" xml:space="preserve"><value>正在保存…</value></data>
+  <data name="Agent_TaskSavedStartFailed" xml:space="preserve"><value>Task 已保存，但启动未确认：</value></data>
+  <data name="Agent_TaskConfigTitle" xml:space="preserve"><value>Task 的 Agent 配置</value></data>
+  <data name="Agent_TaskConfigBody" xml:space="preserve"><value>保存后用于后续执行，历史 Run 保留原配置。执行中或排队时不能更改。</value></data>
+  <data name="Agent_ReloadTaskVersion" xml:space="preserve"><value>刷新 Task 版本</value></data>
+  <data name="Agent_TaskBusy" xml:space="preserve"><value>此 Task 存在活动或排队的 Run，请先停止或等待完成。</value></data>
 </root>

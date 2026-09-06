@@ -72,7 +72,7 @@ version, manual_hold, created_at, updated_at
             constexpr auto sql = R"SQL(
 SELECT id, task_id, revision, mode, source_root, runtime_root, repository_common_directory,
        worktree_path, branch, relative_working_directory, provider, model, instructions,
-       identity_frozen, created_at
+       identity_frozen, created_at, source_agent_id, source_agent_revision, agent_name_snapshot
 FROM execution_context WHERE task_id=?1 ORDER BY revision;
 )SQL";
             return _loadTaskRows(database, sql, task, contexts, details::ReadExecutionContextRow, error);

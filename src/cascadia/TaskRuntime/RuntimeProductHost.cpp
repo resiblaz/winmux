@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 
 #include "pch.h"
+#include "RuntimeAgentCatalogService.h"
 #include "RuntimeProductHostInternal.h"
 #include "RuntimeProductExecutableDiscovery.h"
 
@@ -44,7 +45,8 @@ namespace Microsoft::Terminal::TaskRuntime
                 static_cast<uint64_t>(ProtocolCapability::InputControllerLease) |
                 static_cast<uint64_t>(ProtocolCapability::TaskTerminalSurfaces) |
                 static_cast<uint64_t>(ProtocolCapability::TaskOrchestration);
-            handshake.Capabilities |= static_cast<uint64_t>(ProtocolCapability::RuntimeDrain);
+            handshake.Capabilities |= static_cast<uint64_t>(ProtocolCapability::RuntimeDrain) |
+                                      static_cast<uint64_t>(ProtocolCapability::AgentProfiles);
             return handshake;
         }
     }
@@ -336,7 +338,8 @@ namespace Microsoft::Terminal::TaskRuntime
                     provider,
                     bootstrap.Identity.SettingsRoot,
                     terminals,
-                    orchestrator));
+                    orchestrator),
+                std::make_shared<RuntimeAgentCatalogService>(store));
             if (!router->Valid())
             {
                 result.Status = RuntimeProductHostStartStatus::TaskStoreFailure;

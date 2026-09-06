@@ -17,6 +17,7 @@ namespace TerminalApp
         String UpdatedLabel { get; };
         String AcceptanceSummary { get; };
         String ExecutionMode { get; };
+        String AgentSummary { get; };
         String TerminalLabel { get; };
         String WorkingDirectory { get; };
         String Worktree { get; };
@@ -38,6 +39,7 @@ namespace TerminalApp
         Boolean CanCancel { get; };
         Boolean CanFinalizeWorktree { get; };
         Boolean CanDelete { get; };
+        Boolean CanConfigureAgent { get; };
         Windows.Foundation.Collections.IObservableVector<String> AcceptanceItems { get; };
         Windows.Foundation.Collections.IObservableVector<String> RunItems { get; };
         Windows.Foundation.Collections.IObservableVector<String> QueuedMessageItems { get; };

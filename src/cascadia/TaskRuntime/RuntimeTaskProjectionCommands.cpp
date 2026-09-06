@@ -230,6 +230,9 @@ namespace Microsoft::Terminal::TaskRuntime
         case TaskUiCommandOperation::Create:
             result = _create(request);
             break;
+        case TaskUiCommandOperation::UpdateAgent:
+            result = _updateAgent(request);
+            break;
         case TaskUiCommandOperation::Start:
             result = _start(request);
             break;
@@ -318,6 +321,11 @@ namespace Microsoft::Terminal::TaskRuntime
             command.ExecutionContext.Provider = draft.Provider;
             command.ExecutionContext.Model = draft.Model;
             command.ExecutionContext.Instructions = draft.Instructions;
+            if (draft.Agent)
+            {
+                command.ExecutionContext.SourceAgentId = AgentProfileId{ draft.Agent->Id };
+                command.ExecutionContext.SourceAgentRevision = draft.Agent->Revision;
+            }
             command.ExecutionContext.CreatedAtUnixMilliseconds = now;
             if (command.ExecutionContext.Mode == ExecutionMode::Direct)
             {
@@ -359,6 +367,26 @@ namespace Microsoft::Terminal::TaskRuntime
         {
             return _failure(RuntimeTaskProjectionStatus::ResourceFailure, "Task creation exhausted resources");
         }
+    }
+
+    RuntimeTaskProjectionCommandResult RuntimeTaskProjectionService::_updateAgent(const TaskUiCommandRequest& request)
+    {
+        const auto task = ParseId<TaskId>(request.TaskId);
+        const auto aggregate = task ? _store->LoadTask(*task) : std::nullopt;
+        if (!aggregate || !request.AgentConfiguration) return _failure(RuntimeTaskProjectionStatus::NotFound, "Task configuration was not found");
+        const auto contextId = NewRuntimeUuid();
+        if (!contextId) return _failure(RuntimeTaskProjectionStatus::ResourceFailure, "Execution identity could not be created");
+        UpdateTaskExecutionAgentCommand command;
+        command.Task = *task; command.Context = ExecutionContextId{ *contextId };
+        const auto& configuration = *request.AgentConfiguration;
+        command.Provider = configuration.Provider; command.Model = configuration.Model; command.Instructions = configuration.Instructions;
+        if (configuration.Agent) command.Agent = AgentProfileSelection{ AgentProfileId{ configuration.Agent->Id }, configuration.Agent->Revision };
+        TaskUiCommandResult anticipated{ request.CommandId, request.TaskId, std::nullopt, aggregate->Task.Version + 1, aggregate->LastEventSequence + 1 };
+        const auto receipt = _receipt(anticipated);
+        std::string error;
+        if (!receipt || !_metadata(command.Metadata, request, request.ExpectedTaskVersion, aggregate->Task.UpdatedAtUnixMilliseconds, *receipt, error))
+            return _failure(RuntimeTaskProjectionStatus::ResourceFailure, "Execution metadata could not be created");
+        return _stored(_store->UpdateTaskExecutionAgent(command), std::move(anticipated));
     }
 
     RuntimeTaskProjectionCommandResult RuntimeTaskProjectionService::_start(const TaskUiCommandRequest& request)

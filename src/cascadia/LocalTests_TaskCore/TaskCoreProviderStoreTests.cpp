@@ -60,7 +60,97 @@ namespace TaskCoreLocalTests
         TEST_METHOD(AppendsOrderedProviderEventAndReplaysReceipt);
         TEST_METHOD(TelemetryDoesNotInvalidateBusinessCommandsOrDependOnTheirRevision);
         TEST_METHOD(RejectsCrossTaskBindingsAndRollsBackEventFailure);
+        TEST_METHOD(RunningBindsSessionAtomicallyAndPreservesHistory);
+        TEST_METHOD(RunSessionBindingRejectsForeignAndReplacementSessions);
     };
+
+    void TaskCoreProviderStoreTests::RunningBindsSessionAtomicallyAndPreservesHistory()
+    {
+        TemporaryDatabasePath path;
+        const auto task = MakeCreateTaskCommand();
+        const auto run = MakeCreateRunCommand(task, 1, 2, 1, 1100);
+        const auto session = _session(task, 3, 2, 1200);
+        {
+            SqliteTaskStore store{ path.Path() };
+            VERIFY_IS_TRUE(store.CreateTask(task).Succeeded());
+            VERIFY_IS_TRUE(store.CreateTaskRun(run).Succeeded());
+            VERIFY_IS_TRUE(store.RecordTaskAgentSession(session).Succeeded());
+            VERIFY_IS_TRUE(store.ChangeTaskRunState(MakeRunStateCommand(run, 4, 3, 1300, TaskRunState::Preparing)).Succeeded());
+            VERIFY_IS_TRUE(store.ChangeTaskRunState(MakeRunStateCommand(run, 5, 4, 1400, TaskRunState::Starting)).Succeeded());
+            auto running = MakeRunStateCommand(run, 6, 5, 1500, TaskRunState::Running);
+            running.AgentSession = session.Session.Id;
+
+            auto database = OpenRawDatabase(path.Path());
+            VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_exec(database,
+                "CREATE TRIGGER fail_run_binding BEFORE INSERT ON task_event "
+                "WHEN NEW.type='TaskRunStateChanged' BEGIN SELECT RAISE(ABORT, 'binding event failure'); END;",
+                nullptr, nullptr, nullptr));
+            VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
+            VERIFY_IS_TRUE(store.ChangeTaskRunState(running).Status == TaskStoreCommandStatus::StorageError);
+            const auto unchanged = store.LoadTask(task.Task.Id);
+            VERIFY_ARE_EQUAL(uint64_t{ 5 }, unchanged->Task.Version);
+            VERIFY_IS_TRUE(unchanged->Runs.front().State == TaskRunState::Starting);
+            VERIFY_IS_FALSE(unchanged->Runs.front().AgentSession.has_value());
+            VERIFY_IS_FALSE(unchanged->Runs.front().StartedAtUnixMilliseconds.has_value());
+
+            database = OpenRawDatabase(path.Path());
+            VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_exec(database, "DROP TRIGGER fail_run_binding;", nullptr, nullptr, nullptr));
+            VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
+            VERIFY_IS_TRUE(store.ChangeTaskRunState(running).Succeeded());
+            VERIFY_IS_TRUE(store.ChangeTaskRunState(running).Status == TaskStoreCommandStatus::Replayed);
+            VERIFY_IS_TRUE(store.ChangeTaskRunState(MakeRunStateCommand(run, 7, 6, 1600, TaskRunState::Completed)).Succeeded());
+        }
+        SqliteTaskStore reopened{ path.Path() };
+        const auto aggregate = reopened.LoadTask(task.Task.Id);
+        VERIFY_IS_TRUE(aggregate->Runs.front().AgentSession == std::optional{ session.Session.Id });
+        VERIFY_IS_TRUE(aggregate->Runs.front().State == TaskRunState::Completed);
+        VERIFY_IS_TRUE(aggregate->Runs.front().StartedAtUnixMilliseconds == std::optional<int64_t>{ 1500 });
+        VERIFY_ARE_EQUAL(uint64_t{ 7 }, aggregate->LastEventSequence);
+    }
+
+    void TaskCoreProviderStoreTests::RunSessionBindingRejectsForeignAndReplacementSessions()
+    {
+        TemporaryDatabasePath path;
+        SqliteTaskStore store{ path.Path() };
+        const auto first = MakeCreateTaskCommand();
+        const auto second = MakeCreateTaskCommand(2, 1, 2, 1000);
+        VERIFY_IS_TRUE(store.CreateTask(first).Succeeded());
+        VERIFY_IS_TRUE(store.CreateTask(second).Succeeded());
+        const auto run = MakeCreateRunCommand(first, 1, 3, 1, 1100);
+        VERIFY_IS_TRUE(store.CreateTaskRun(run).Succeeded());
+        const auto owned = _session(first, 4, 2, 1200);
+        VERIFY_IS_TRUE(store.RecordTaskAgentSession(owned).Succeeded());
+        auto foreign = _session(second, 5, 1, 1200);
+        foreign.Session.Id = MakeId<AgentSessionId>(7998);
+        foreign.Session.ProviderSessionId = "foreign-thread";
+        VERIFY_IS_TRUE(store.RecordTaskAgentSession(foreign).Succeeded());
+        VERIFY_IS_TRUE(store.ChangeTaskRunState(MakeRunStateCommand(run, 6, 3, 1300, TaskRunState::Preparing)).Succeeded());
+        VERIFY_IS_TRUE(store.ChangeTaskRunState(MakeRunStateCommand(run, 7, 4, 1400, TaskRunState::Starting)).Succeeded());
+        auto running = MakeRunStateCommand(run, 8, 5, 1500, TaskRunState::Running);
+        running.AgentSession = AgentSessionId{ "invalid" };
+        VERIFY_IS_TRUE(store.ChangeTaskRunState(running).Status == TaskStoreCommandStatus::InvalidCommand);
+        running.AgentSession = MakeId<AgentSessionId>(7997);
+        VERIFY_IS_TRUE(store.ChangeTaskRunState(running).Status == TaskStoreCommandStatus::InvalidRecord);
+        running.AgentSession = foreign.Session.Id;
+        VERIFY_IS_TRUE(store.ChangeTaskRunState(running).Status == TaskStoreCommandStatus::InvalidRecord);
+        VERIFY_ARE_EQUAL(uint64_t{ 5 }, store.LoadTask(first.Task.Id)->Task.Version);
+        running.AgentSession = owned.Session.Id;
+        VERIFY_IS_TRUE(store.ChangeTaskRunState(running).Succeeded());
+
+        auto replacement = _session(first, 9, 6, 1600);
+        replacement.Session.Id = MakeId<AgentSessionId>(7999);
+        replacement.Session.ProviderSessionId = "replacement-thread";
+        VERIFY_IS_TRUE(store.RecordTaskAgentSession(replacement).Succeeded());
+        auto rebind = MakeRunStateCommand(run, 10, 7, 1700, TaskRunState::Running);
+        rebind.AgentSession = replacement.Session.Id;
+        VERIFY_IS_TRUE(store.ChangeTaskRunState(rebind).Status == TaskStoreCommandStatus::InvalidTransition);
+        rebind.RequestedState = TaskRunState::Completed;
+        VERIFY_IS_TRUE(store.ChangeTaskRunState(rebind).Status == TaskStoreCommandStatus::InvalidCommand);
+        const auto aggregate = store.LoadTask(first.Task.Id);
+        VERIFY_ARE_EQUAL(uint64_t{ 7 }, aggregate->Task.Version);
+        VERIFY_IS_TRUE(aggregate->Runs.front().State == TaskRunState::Running);
+        VERIFY_IS_TRUE(aggregate->Runs.front().AgentSession == std::optional{ owned.Session.Id });
+    }
 
     void TaskCoreProviderStoreTests::RecordsAndTransitionsCurrentAgentSessionAtomically()
     {

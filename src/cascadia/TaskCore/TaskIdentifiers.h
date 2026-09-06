@@ -48,6 +48,7 @@ namespace Microsoft::Terminal::TaskCore
     struct TaskTerminalIdTag;
     struct ExecutionContextIdTag;
     struct AgentSessionIdTag;
+    struct AgentProfileIdTag;
     struct TaskMessageIdTag;
     struct TaskEventIdTag;
     struct CommandIdTag;
@@ -60,6 +61,7 @@ namespace Microsoft::Terminal::TaskCore
     using TaskTerminalId = StrongId<TaskTerminalIdTag>;
     using ExecutionContextId = StrongId<ExecutionContextIdTag>;
     using AgentSessionId = StrongId<AgentSessionIdTag>;
+    using AgentProfileId = StrongId<AgentProfileIdTag>;
     using TaskMessageId = StrongId<TaskMessageIdTag>;
     using TaskEventId = StrongId<TaskEventIdTag>;
     using CommandId = StrongId<CommandIdTag>;

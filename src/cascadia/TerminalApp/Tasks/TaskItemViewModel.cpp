@@ -117,6 +117,13 @@ namespace winrt::TerminalApp::implementation
         return winrt::hstring{ _projection.ExecutionMode };
     }
 
+    winrt::hstring TaskItemViewModel::AgentSummary() const
+    {
+        return _projection.AgentSummary.empty() ? RS_(L"Agent_Custom") : winrt::hstring{ _projection.AgentSummary };
+    }
+
+    bool TaskItemViewModel::CanConfigureAgent() const noexcept { return !_projection.HasActiveRun; }
+
     winrt::hstring TaskItemViewModel::TerminalLabel() const
     {
         switch (_projection.TerminalState)

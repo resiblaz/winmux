@@ -148,7 +148,53 @@ namespace TaskCoreLocalTests
         TEST_METHOD(PersistsCheckpointAndReusesReadyWorktreeAcrossRuns);
         TEST_METHOD(RecoversFailedCheckpointAndBlocksNextRunUntilResolved);
         TEST_METHOD(RollsBackCheckpointAndWorktreeEvidenceTogether);
+        TEST_METHOD(AgentRevisionsReuseOnlyTheSameFrozenWorktreeLocation);
     };
+
+    void TaskCoreGitCheckpointTests::AgentRevisionsReuseOnlyTheSameFrozenWorktreeLocation()
+    {
+        TemporaryDatabasePath path;
+        SqliteTaskStore store{ path.Path() };
+        auto fixture = _ready(store, 204);
+        VERIFY_IS_TRUE(store.ChangeTaskRunState(MakeRunStateCommand(
+            fixture.Run, 80, fixture.TaskVersion++, 2000, TaskRunState::Cancelled)).Succeeded());
+        UpdateTaskExecutionAgentCommand update;
+        update.Metadata = MakeMetadata(81, fixture.TaskVersion++, 2100);
+        update.Task = fixture.Task.Task.Id;
+        update.Context = MakeId<ExecutionContextId>(132000);
+        update.Model = "new-model";
+        update.Instructions = "new instructions";
+        VERIFY_IS_TRUE(store.UpdateTaskExecutionAgent(update).Succeeded());
+        auto run = MakeCreateRunCommand(fixture.Task, 205, 82, fixture.TaskVersion++, 2200);
+        run.Run.ExecutionContext = update.Context;
+        VERIFY_IS_TRUE(store.CreateTaskRun(run).Succeeded());
+        const auto begin = MakeBeginGitCheckpointCommand(run, 4, 83, fixture.TaskVersion, 2300);
+        // Deliberately corrupt one location field at a time to exercise the storage guard.
+        for (const auto column : { "source_root", "runtime_root", "repository_common_directory",
+                                  "worktree_path", "branch", "relative_working_directory", "mode", "identity_frozen" })
+        {
+            const std::string field{ column };
+            const auto value = field == "mode" || field == "identity_frozen" ? "0" : field + " || '-other'";
+            _executeSql(path.Path(), "UPDATE execution_context SET " + field + "=" + value + " WHERE id='" + update.Context.Value() + "';");
+            VERIFY_IS_TRUE(store.BeginTaskRunGitCheckpoint(begin).Status == TaskStoreCommandStatus::InvalidRecord);
+            _executeSql(path.Path(), "UPDATE execution_context SET " + field + "=(SELECT " + field +
+                " FROM execution_context WHERE id='" + fixture.Task.ExecutionContext.Id.Value() + "') WHERE id='" + update.Context.Value() + "';");
+        }
+        VERIFY_IS_TRUE(store.BeginTaskRunGitCheckpoint(begin).Succeeded());
+        ++fixture.TaskVersion;
+        _terminalRun(store, run, fixture.TaskVersion, 84, 2400, TaskRunState::Completed);
+        auto advance = MakeAdvanceGitCheckpointCommand(begin, 88, fixture.TaskVersion++, 1,
+            fixture.WorktreeRevision++, 2500, TaskGitCheckpointState::Inspecting);
+        VERIFY_IS_TRUE(store.AdvanceTaskRunGitCheckpoint(advance).Succeeded());
+        advance = MakeAdvanceGitCheckpointCommand(begin, 89, fixture.TaskVersion, 2,
+            fixture.WorktreeRevision, 2600, TaskGitCheckpointState::NotNeeded);
+        advance.EndCommit = begin.Checkpoint.StartCommit;
+        VERIFY_IS_TRUE(store.AdvanceTaskRunGitCheckpoint(advance).Succeeded());
+        const auto aggregate = store.LoadTask(fixture.Task.Task.Id);
+        VERIFY_IS_TRUE(aggregate->GitWorktree->ExecutionContext == fixture.Task.ExecutionContext.Id);
+        VERIFY_IS_TRUE(aggregate->Runs.front().ExecutionContext == fixture.Task.ExecutionContext.Id);
+        VERIFY_IS_TRUE(aggregate->Runs.back().ExecutionContext == update.Context);
+    }
 
     void TaskCoreGitCheckpointTests::CheckpointPolicyAllowsDurableForwardAndRetryEdges()
     {

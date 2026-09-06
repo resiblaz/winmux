@@ -11,6 +11,26 @@ namespace Microsoft::Terminal::TaskRuntime
 {
     using namespace Microsoft::Terminal::TaskCore;
 
+    const ExecutionContextRecord* FindRuntimeTaskRunContext(const TaskAggregateSnapshot& aggregate, const TaskRunRecord& run) noexcept
+    {
+        const auto found = std::ranges::find(aggregate.ExecutionContexts, run.ExecutionContext, &ExecutionContextRecord::Id);
+        return found != aggregate.ExecutionContexts.end() && found->Task == run.Task ? &*found : nullptr;
+    }
+
+    bool CanResumeRuntimeTaskAgentSession(const TaskAggregateSnapshot& aggregate, const TaskRunRecord& run, const AgentSessionRecord& session) noexcept
+    {
+        const TaskRunRecord* previous{};
+        for (const auto& candidate : aggregate.Runs)
+        {
+            if (candidate.Id != run.Id && candidate.AgentSession == std::optional{ session.Id } && candidate.StartedAtUnixMilliseconds &&
+                (!previous || candidate.Sequence > previous->Sequence)) previous = &candidate;
+        }
+        const auto desired = FindRuntimeTaskRunContext(aggregate, run);
+        const auto prior = previous ? FindRuntimeTaskRunContext(aggregate, *previous) : nullptr;
+        return desired && prior && desired->SourceAgentId == prior->SourceAgentId && desired->Provider == prior->Provider &&
+               desired->Model == prior->Model && desired->Instructions == prior->Instructions;
+    }
+
     namespace
     {
         std::pair<uint32_t, uint32_t> _retryPolicy(const std::string_view reason) noexcept

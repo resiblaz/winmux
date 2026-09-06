@@ -4,6 +4,8 @@
 #include "pch.h"
 
 #include "RuntimeTaskProjectionService.h"
+#include "RuntimeAgentCatalogService.h"
+#include "RuntimeTaskSchedulingPolicy.h"
 #include "TaskCoreStoreTestFixtures.h"
 #include "TaskRuntimeTestFixtures.h"
 #include "TaskGitTestSupport.h"
@@ -63,7 +65,56 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(RejectsStaleAndInvalidCommandsWithoutMutation);
         TEST_METHOD(MessageRetryAndDerivedTaskCommandsAreDurable);
         TEST_METHOD(OpenTerminalCreatesOneGenerationAndEnforcesSurfaceOwner);
+        TEST_METHOD(AgentUpdatesKeepQueuedAndRetriedRunsOnTheirOriginalConfiguration);
     };
+
+    void RuntimeTaskProjectionServiceTests::AgentUpdatesKeepQueuedAndRetriedRunsOnTheirOriginalConfiguration()
+    {
+        TemporaryDatabasePath path;
+        const auto store = std::make_shared<SqliteTaskStore>(path.Path());
+        RuntimeAgentCatalogService agents{ store };
+        RuntimeTaskProjectionService tasks{ store, nullptr, path.Path().parent_path() };
+        AgentCatalogCommandRequest profile;
+        profile.CommandId = MakeId<CommandId>(900).Value(); profile.AgentId = MakeId<AgentProfileId>(901).Value();
+        profile.Configuration = AgentProfileConfiguration{ "Reviewer", "Not an instruction", "codex", "model-one", "Role one" };
+        VERIFY_IS_TRUE(agents.Execute(profile).Succeeded());
+        auto create = _create(20); create.Draft->Instructions.clear(); create.Draft->Agent = AgentProfileReference{ profile.AgentId, 1 };
+        VERIFY_IS_TRUE(tasks.Execute(create, nullptr).Succeeded());
+        profile.CommandId = MakeId<CommandId>(902).Value(); profile.ExpectedVersion = 1; profile.Operation = AgentCatalogOperation::Update;
+        profile.Configuration->Model = "model-two"; profile.Configuration->Instructions = "Role two";
+        VERIFY_IS_TRUE(agents.Execute(profile).Succeeded());
+        const auto started = tasks.Execute(_action(create, 21, TaskUiCommandOperation::Start, 1), nullptr); VERIFY_IS_TRUE(started.Succeeded());
+        auto aggregate = store->LoadTask(TaskId{ create.TaskId });
+        VERIFY_ARE_EQUAL(std::string{ "Role one" }, FindRuntimeTaskRunContext(*aggregate, aggregate->Runs.front())->Instructions);
+        auto apply = _action(create, 22, TaskUiCommandOperation::UpdateAgent, 2);
+        apply.AgentConfiguration = TaskAgentConfiguration{}; apply.AgentConfiguration->Agent = AgentProfileReference{ profile.AgentId, 2 };
+        VERIFY_IS_TRUE(tasks.Execute(apply, nullptr).Status == RuntimeTaskProjectionStatus::Conflict);
+        ChangeTaskRunStateCommand cancel;
+        cancel.Metadata = MakeMetadata(903, 2, aggregate->Task.UpdatedAtUnixMilliseconds + 1); cancel.Task = aggregate->Task.Id;
+        cancel.Run = aggregate->Runs.front().Id; cancel.RequestedState = TaskRunState::Cancelled;
+        VERIFY_IS_TRUE(store->ChangeTaskRunState(cancel).Succeeded());
+        apply.ExpectedTaskVersion = 3; VERIFY_IS_TRUE(tasks.Execute(apply, nullptr).Succeeded());
+        auto retry = _action(create, 23, TaskUiCommandOperation::Retry, 4); retry.RelatedRunId = *started.Result.RunId;
+        VERIFY_IS_TRUE(tasks.Execute(retry, nullptr).Succeeded());
+        aggregate = store->LoadTask(TaskId{ create.TaskId });
+        const auto& retried = aggregate->Runs.back();
+        VERIFY_ARE_EQUAL(std::string{ "model-one" }, FindRuntimeTaskRunContext(*aggregate, retried)->Model);
+        TaskProjectionQueryRequest query; query.TaskId = create.TaskId;
+        const auto projection = tasks.Query(query); VERIFY_IS_TRUE(projection.Succeeded());
+        VERIFY_ARE_EQUAL(uint64_t{ 2 }, projection.Projection.Tasks.front().Execution.Agent->Revision);
+        for (const auto& run : projection.Projection.Tasks.front().Runs) VERIFY_ARE_EQUAL(uint64_t{ 1 }, run.Agent->Revision);
+        AgentSessionRecord session; session.Id = MakeId<AgentSessionId>(950);
+        aggregate->Runs.front().AgentSession = session.Id; aggregate->Runs.front().StartedAtUnixMilliseconds = 1000;
+        VERIFY_IS_TRUE(CanResumeRuntimeTaskAgentSession(*aggregate, retried, session));
+        auto future = retried; future.Id = MakeId<TaskRunId>(951); future.ExecutionContext = aggregate->ExecutionContexts.back().Id;
+        VERIFY_IS_FALSE(CanResumeRuntimeTaskAgentSession(*aggregate, future, session));
+        aggregate->ExecutionContexts.back().Model = aggregate->ExecutionContexts.front().Model;
+        aggregate->ExecutionContexts.back().Instructions = aggregate->ExecutionContexts.front().Instructions;
+        aggregate->ExecutionContexts.back().AgentNameSnapshot = "Renamed display";
+        VERIFY_IS_TRUE(CanResumeRuntimeTaskAgentSession(*aggregate, future, session));
+        aggregate->ExecutionContexts.back().SourceAgentId = MakeId<AgentProfileId>(999);
+        VERIFY_IS_FALSE(CanResumeRuntimeTaskAgentSession(*aggregate, future, session));
+    }
 
     void RuntimeTaskProjectionServiceTests::CreateQueryStartStopAndCloseUseDurableReceipts()
     {

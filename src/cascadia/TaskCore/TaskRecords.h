@@ -53,6 +53,9 @@ namespace Microsoft::Terminal::TaskCore
         std::string Instructions;
         bool IdentityFrozen{};
         int64_t CreatedAtUnixMilliseconds{};
+        std::optional<AgentProfileId> SourceAgentId;
+        uint64_t SourceAgentRevision{};
+        std::string AgentNameSnapshot;
     };
 
     struct TaskGitWorktreeRecord

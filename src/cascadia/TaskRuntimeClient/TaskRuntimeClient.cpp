@@ -114,6 +114,8 @@ namespace Microsoft::Terminal::TaskRuntime
             {
             case ControlMethod::Ping:
             case ControlMethod::QueryTask:
+            case ControlMethod::QueryAgents:
+            case ControlMethod::AgentCommand:
             case ControlMethod::SubmitCommand:
             case ControlMethod::AcquireInputLease:
             case ControlMethod::ReleaseInputLease:

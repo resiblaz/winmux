@@ -54,6 +54,7 @@ namespace winrt::TerminalApp::implementation::tasks
         FinalizeWorktree,
         Delete,
         RestartProvider,
+        ConfigureAgent,
     };
 
     struct TaskAcceptanceProjection
@@ -93,6 +94,12 @@ namespace winrt::TerminalApp::implementation::tasks
         std::vector<std::wstring> QueuedMessageIds;
         std::vector<uint64_t> QueuedMessageRevisions;
         std::vector<std::wstring> RunDetails;
+        std::wstring AgentId;
+        uint64_t AgentRevision{};
+        std::wstring AgentName;
+        std::wstring AgentSummary;
+        std::wstring Model;
+        std::wstring Instructions;
     };
 
     struct TaskDraft
@@ -107,6 +114,26 @@ namespace winrt::TerminalApp::implementation::tasks
         std::wstring Model;
         std::wstring Instructions;
         bool UseWorktree{ true };
+        std::wstring AgentId;
+        uint64_t AgentRevision{};
+        std::wstring AgentName;
+    };
+
+    struct TaskCreationAttempt
+    {
+        TaskDraft Draft;
+        bool StartImmediately{};
+        std::string TaskId;
+        std::string CommandId;
+        std::string StartCommandId;
+    };
+
+    struct TaskCreationResult
+    {
+        bool Created{};
+        bool OutcomeUnknown{};
+        TaskProjection Task;
+        std::wstring Error;
     };
 
     enum class TaskSurfaceAction : uint8_t

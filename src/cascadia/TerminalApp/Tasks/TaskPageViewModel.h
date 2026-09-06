@@ -27,6 +27,7 @@ namespace winrt::TerminalApp::implementation
         void DetachSource();
         void Reload();
         void SelectTask(const TerminalApp::TaskItemViewModel& task);
+        void SelectCreatedTask(std::wstring id);
         void SetSearchText(const winrt::hstring& value);
         void SetShowAllWorkspaces(bool value);
         void SetStatusFilter(int32_t value);

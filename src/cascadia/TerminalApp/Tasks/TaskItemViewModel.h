@@ -23,6 +23,7 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring UpdatedLabel() const noexcept;
         winrt::hstring AcceptanceSummary() const;
         winrt::hstring ExecutionMode() const noexcept;
+        winrt::hstring AgentSummary() const;
         winrt::hstring TerminalLabel() const;
         winrt::hstring WorkingDirectory() const noexcept;
         winrt::hstring Worktree() const noexcept;
@@ -44,6 +45,7 @@ namespace winrt::TerminalApp::implementation
         bool CanCancel() const noexcept;
         bool CanFinalizeWorktree() const noexcept;
         bool CanDelete() const noexcept;
+        bool CanConfigureAgent() const noexcept;
         Windows::Foundation::Collections::IObservableVector<winrt::hstring> AcceptanceItems() const noexcept;
         Windows::Foundation::Collections::IObservableVector<winrt::hstring> RunItems() const noexcept;
         Windows::Foundation::Collections::IObservableVector<winrt::hstring> QueuedMessageItems() const noexcept;

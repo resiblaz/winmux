@@ -44,7 +44,8 @@ namespace Microsoft::Terminal::TaskCore
 
             constexpr auto sql = R"SQL(
 UPDATE task_run
-SET state=?1, started_at=?2, finished_at=?3, result=?4, reason_code=?5
+SET state=?1, started_at=?2, finished_at=?3, result=?4, reason_code=?5,
+    agent_session_id=COALESCE(?9, agent_session_id)
 WHERE id=?6 AND task_id=?7 AND state=?8;
 )SQL";
             details::SqliteStatement statement{ database, sql, error };
@@ -57,6 +58,8 @@ WHERE id=?6 AND task_id=?7 AND state=?8;
                    details::BindText(database, statement.Get(), 6, command.Run.Value(), error) &&
                    details::BindText(database, statement.Get(), 7, command.Task.Value(), error) &&
                    details::BindInt64(database, statement.Get(), 8, static_cast<int64_t>(current.State), error) &&
+                   details::BindOptionalText(database, statement.Get(), 9,
+                                             command.AgentSession ? std::optional{ command.AgentSession->Value() } : std::nullopt, error) &&
                    details::StepDone(database, statement.Get(), error) &&
                    sqlite3_changes(database) == 1;
         }
@@ -145,6 +148,31 @@ WHERE id=?6 AND task_id=?7 AND state=?8;
         {
             return details::CommandFailure(TaskStoreCommandStatus::InvalidCommand, "Command timestamp precedes the TaskRun state");
         }
+        if (command.AgentSession)
+        {
+            if (run->AgentSession && run->AgentSession != command.AgentSession)
+            {
+                return details::CommandFailure(TaskStoreCommandStatus::InvalidTransition, "TaskRun AgentSession binding is immutable", TransitionError::InvalidTransition);
+            }
+            details::SqliteStatement session{ _impl->Database,
+                                             "SELECT 1 FROM agent_session WHERE id=?1 AND task_id=?2;", error };
+            if (!session ||
+                !details::BindText(_impl->Database, session.Get(), 1, command.AgentSession->Value(), error) ||
+                !details::BindText(_impl->Database, session.Get(), 2, command.Task.Value(), error))
+            {
+                return details::CommandFailure(TaskStoreCommandStatus::StorageError, std::move(error));
+            }
+            const auto step = sqlite3_step(session.Get());
+            if (step == SQLITE_DONE)
+            {
+                return details::CommandFailure(TaskStoreCommandStatus::InvalidRecord, "AgentSession does not belong to the Task");
+            }
+            if (step != SQLITE_ROW)
+            {
+                return details::CommandFailure(TaskStoreCommandStatus::StorageError,
+                                               details::SqliteError(_impl->Database, step, "validate TaskRun AgentSession"));
+            }
+        }
         if (IsTaskRunTerminal(run->State) &&
             (command.Result != run->Result || command.ReasonCode != run->ReasonCode))
         {
@@ -162,7 +190,8 @@ WHERE id=?6 AND task_id=?7 AND state=?8;
         const auto committedVersion = task->Version + 1;
         if (!details::NextAggregateSequence(_impl->Database, command.Task, eventSequence, error) ||
             !details::NextRunEventSequence(_impl->Database, command.Run, runEventSequence, error) ||
-            (decision.Changed && !_updateRunState(_impl->Database, command, run.value(), error)) ||
+            ((decision.Changed || (command.AgentSession && !run->AgentSession)) &&
+             !_updateRunState(_impl->Database, command, run.value(), error)) ||
             !details::UpdateTaskVersion(
                 _impl->Database,
                 command.Task,

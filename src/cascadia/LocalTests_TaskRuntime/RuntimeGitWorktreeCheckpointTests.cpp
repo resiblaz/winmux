@@ -220,12 +220,20 @@ namespace TaskRuntimeLocalTests
                 { L"rev-parse", L"HEAD^" })));
 
         auto aggregate = fixture->Aggregate();
+        UpdateTaskExecutionAgentCommand update;
+        update.Metadata = MakeMetadata(2999, aggregate.Task.Version, 4900);
+        update.Task = fixture->Task.Task.Id;
+        update.Context = MakeId<ExecutionContextId>(131099);
+        update.Instructions = "Updated Agent instructions, same Worktree";
+        VERIFY_IS_TRUE(fixture->Store->UpdateTaskExecutionAgent(update).Succeeded());
+        aggregate = fixture->Aggregate();
         fixture->Run = MakeCreateRunCommand(
             fixture->Task,
             311,
             3000,
             aggregate.Task.Version,
             5000);
+        fixture->Run.Run.ExecutionContext = update.Context;
         VERIFY_IS_TRUE(fixture->Store->CreateTaskRun(fixture->Run).Succeeded());
         const auto secondCheckpoint = MakeId<GitCheckpointId>(131001);
         VERIFY_IS_TRUE(_start(*fixture, service, secondCheckpoint, 20, 5100).Succeeded());

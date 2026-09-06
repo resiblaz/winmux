@@ -28,6 +28,10 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             return "runtime_status";
         case ControlMethod::DrainRuntime:
             return "drain_runtime";
+        case ControlMethod::QueryAgents:
+            return "query_agents";
+        case ControlMethod::AgentCommand:
+            return "agent_command";
         case ControlMethod::Count:
             return {};
         default:
@@ -70,6 +74,9 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             return static_cast<uint64_t>(ProtocolCapability::RuntimeLifecycle);
         case ControlMethod::DrainRuntime:
             return static_cast<uint64_t>(ProtocolCapability::RuntimeDrain);
+        case ControlMethod::QueryAgents:
+        case ControlMethod::AgentCommand:
+            return static_cast<uint64_t>(ProtocolCapability::AgentProfiles);
         case ControlMethod::Count:
             return AllProtocolCapabilities;
         default:

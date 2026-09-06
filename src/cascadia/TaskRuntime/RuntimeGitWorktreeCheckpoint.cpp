@@ -61,6 +61,22 @@ namespace Microsoft::Terminal::TaskRuntime
             return found == aggregate.Runs.end() ? nullptr : &*found;
         }
 
+        bool _runUsesWorktree(const TaskAggregateSnapshot& aggregate, const TaskRunRecord& run)
+        {
+            if (!aggregate.GitWorktree || aggregate.GitWorktree->Task != run.Task) return false;
+            const auto context = std::ranges::find(aggregate.ExecutionContexts, run.ExecutionContext, &ExecutionContextRecord::Id);
+            const auto owner = std::ranges::find(aggregate.ExecutionContexts, aggregate.GitWorktree->ExecutionContext, &ExecutionContextRecord::Id);
+            // Agent revisions may differ while the frozen execution location stays the same.
+            return context != aggregate.ExecutionContexts.end() && owner != aggregate.ExecutionContexts.end() &&
+                   context->Task == run.Task && owner->Task == run.Task &&
+                   context->Mode == ExecutionMode::Worktree && owner->Mode == ExecutionMode::Worktree &&
+                   context->IdentityFrozen && owner->IdentityFrozen &&
+                   context->SourceRoot == owner->SourceRoot && context->RuntimeRoot == owner->RuntimeRoot &&
+                   context->RepositoryCommonDirectory == owner->RepositoryCommonDirectory &&
+                   context->WorktreePath == owner->WorktreePath && context->Branch == owner->Branch &&
+                   context->RelativeWorkingDirectory == owner->RelativeWorkingDirectory;
+        }
+
         const TaskRunGitCheckpointRecord* _findCheckpoint(
             const TaskAggregateSnapshot& aggregate,
             const TaskRunId& run)
@@ -188,8 +204,7 @@ namespace Microsoft::Terminal::TaskRuntime
             }
             if (IsTaskRunTerminal(taskRun->State) ||
                 aggregate->GitWorktree->State != TaskGitWorktreeState::Ready ||
-                taskRun->ExecutionContext !=
-                    aggregate->GitWorktree->ExecutionContext)
+                !_runUsesWorktree(*aggregate, *taskRun))
             {
                 return _result(
                     RuntimeGitWorktreeCheckpointStatus::UnsupportedState,

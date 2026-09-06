@@ -4,6 +4,8 @@
 #include "pch.h"
 #include "TaskPage.h"
 #include "TaskDetailsPane.h"
+#include "../Agents/AgentSelectionControl.h"
+#include "../Agents/AgentCatalogPage.h"
 
 #include "TaskPage.g.cpp"
 
@@ -54,6 +56,9 @@ namespace winrt::TerminalApp::implementation
     {
         InitializeComponent();
         const auto weakThis = get_weak();
+        winrt::get_self<implementation::AgentSelectionControl>(DraftAgent())->SetChangedHandler([weakThis] {
+            if (const auto self = weakThis.get()) self->_UpdateDraftEnabled();
+        });
         const auto details = winrt::get_self<implementation::TaskDetailsPane>(DetailsPane());
         details->SetCommandHandler([weakThis](const auto command) {
             if (const auto self = weakThis.get())
@@ -197,9 +202,14 @@ namespace winrt::TerminalApp::implementation
 
     void TaskPage::_Root_KeyDown(const IInspectable&, const KeyRoutedEventArgs& args)
     {
+        if (args.Key() == VirtualKey::Escape && AgentManagerHost().Visibility() == Visibility::Visible)
+        {
+            if (_agentManager) winrt::get_self<implementation::AgentCatalogPage>(_agentManager)->_Back_Click(nullptr, nullptr);
+            args.Handled(true); return;
+        }
         if (args.Key() == VirtualKey::Escape && DraftLayer().Visibility() == Visibility::Visible)
         {
-            _ShowDraft(false);
+            if (!_draftSaving) _ShowDraft(false);
             args.Handled(true);
             return;
         }
@@ -228,10 +238,16 @@ namespace winrt::TerminalApp::implementation
 
     void TaskPage::_ShowDraft(const bool visible)
     {
+        if (_draftSaving) return;
+        ++_draftGeneration;
+        _pendingCreation.reset(); _draftOutcomeUnknown = false;
+        DraftError().Text({});
         DraftLayer().Visibility(visible ? Visibility::Visible : Visibility::Collapsed);
         if (visible)
         {
             _SyncDraftWorkspace();
+            winrt::get_self<implementation::AgentSelectionControl>(DraftAgent())->Configure(
+                _source ? _source->AgentCatalog() : nullptr, til::u16u8(_currentWorkspaceId));
             DraftTitle().Focus(FocusState::Programmatic);
         }
         else
@@ -241,10 +257,13 @@ namespace winrt::TerminalApp::implementation
             DraftAcceptance().Text({});
             NewTaskButton().Focus(FocusState::Programmatic);
         }
+        _UpdateDraftEnabled();
     }
 
     void TaskPage::_CreateDraft(const bool startImmediately)
     {
+        if (_draftSaving || !_source) return;
+        if (_draftOutcomeUnknown && _pendingCreation) { _SubmitDraft(_pendingCreation->Draft, _pendingCreation->StartImmediately); return; }
         const auto title = DraftTitle().Text();
         if (title.empty())
         {
@@ -279,13 +298,16 @@ namespace winrt::TerminalApp::implementation
         draft.Description = std::wstring{ DraftDescription().Text() };
         draft.Acceptance = _lines(DraftAcceptance().Text());
         draft.UseWorktree = DraftExecutionMode().SelectedIndex() == 0;
-        bool created{};
-        _ApplyViewModelUpdate([&]() { created = _ViewModelImpl()->CreateTask(draft, startImmediately); });
-        if (!created)
+        const auto selector = winrt::get_self<implementation::AgentSelectionControl>(DraftAgent());
+        const auto selection = selector->Selection();
+        if (!selection) { DraftError().Text(RS_(L"Agent_SelectionRequired")); return; }
+        draft.Model = til::u8u16(selection->Model); draft.Instructions = til::u8u16(selection->Instructions);
+        if (selection->Agent)
         {
-            return;
+            draft.AgentId = til::u8u16(selection->Agent->Id); draft.AgentRevision = selection->Agent->Revision;
+            draft.AgentName = selector->SelectedName();
         }
-        _ShowDraft(false);
+        _SubmitDraft(std::move(draft), startImmediately);
     }
 
     safe_void_coroutine TaskPage::_Execute(const tasks::TaskCommand command)
@@ -293,6 +315,7 @@ namespace winrt::TerminalApp::implementation
         const auto strong = get_strong();
         const auto selectedTask = _viewModel.SelectedTask();
         const auto presenter = _dialogPresenter.get();
+        if (command == tasks::TaskCommand::ConfigureAgent) { _ConfigureSelectedAgent(); co_return; }
         if (command == tasks::TaskCommand::Delete)
         {
             if (!presenter) co_return;
@@ -345,6 +368,7 @@ namespace winrt::TerminalApp::implementation
 
     void TaskPage::_SyncDraftWorkspace()
     {
+        if (_draftSaving || _draftOutcomeUnknown) return;
         if (_source && !_source->IsPrototype())
         {
             const auto root = !_currentRepositoryRoot.empty() ? _currentRepositoryRoot : _currentWorkingDirectory;

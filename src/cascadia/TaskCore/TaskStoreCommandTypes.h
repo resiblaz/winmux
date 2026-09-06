@@ -136,6 +136,7 @@ namespace Microsoft::Terminal::TaskCore
         TaskRunState RequestedState{ TaskRunState::Queued };
         std::string Result;
         std::string ReasonCode;
+        std::optional<AgentSessionId> AgentSession;
     };
 
     enum class TaskAgentMutationKind : uint8_t

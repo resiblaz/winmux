@@ -23,6 +23,7 @@ namespace winrt::TerminalApp::implementation
         void SetMessageMutationHandler(std::function<bool(uint32_t, const std::optional<std::wstring>&)> handler);
 
         void _StartTask_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _ConfigureAgent_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _StopTask_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _OpenTerminal_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _CloseTask_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);

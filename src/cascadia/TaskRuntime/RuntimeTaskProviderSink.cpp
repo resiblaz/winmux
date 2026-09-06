@@ -280,14 +280,28 @@ namespace Microsoft::Terminal::TaskRuntime
             if (!aggregate) return _failure(TaskProviderStatus::NotFound, "Runtime provider Run Task was not found");
             const auto run = std::find_if(aggregate->Runs.begin(), aggregate->Runs.end(), [&](const auto& candidate) { return candidate.Id == *runId; });
             if (run == aggregate->Runs.end()) return _failure(TaskProviderStatus::NotFound, "Runtime provider TaskRun was not found");
-            if (run->State == target) return { TaskProviderStatus::AlreadyApplied, {} };
-            const auto next = _nextRunState(run->State, target);
+            std::optional<AgentSessionId> agentSession;
+            if (target == TaskRunState::Running || run->AgentSession)
+            {
+                const auto session = std::find_if(aggregate->AgentSessions.begin(), aggregate->AgentSessions.end(), [&](const auto& candidate) {
+                    return candidate.Provider == "codex" && candidate.ProviderSessionId == binding.ProviderSessionId;
+                });
+                if (session == aggregate->AgentSessions.end() || (run->AgentSession && run->AgentSession != std::optional{ session->Id }))
+                {
+                    return _failure(TaskProviderStatus::InvalidRequest, "Runtime provider session does not match the TaskRun");
+                }
+                agentSession = session->Id;
+            }
+            const auto needsBinding = target == TaskRunState::Running && !run->AgentSession;
+            if (run->State == target && !needsBinding) return { TaskProviderStatus::AlreadyApplied, {} };
+            const auto next = run->State == target && needsBinding ? std::optional{ target } : _nextRunState(run->State, target);
             if (!next) return { TaskProviderStatus::AlreadyApplied, {} };
 
             ChangeTaskRunStateCommand command;
             command.Task = *taskId;
             command.Run = *runId;
             command.RequestedState = *next;
+            if (*next == TaskRunState::Running) command.AgentSession = agentSession;
             if (failure && (*next == TaskRunState::Failed || *next == TaskRunState::Interrupted))
             {
                 command.ReasonCode = failure->ReasonCode;
@@ -297,6 +311,7 @@ namespace Microsoft::Terminal::TaskRuntime
             payload["providerSessionId"] = binding.ProviderSessionId;
             payload["providerRunId"] = binding.ProviderRunId;
             payload["state"] = static_cast<uint32_t>(*next);
+            if (command.AgentSession) payload["agentSessionId"] = command.AgentSession->Value();
             if (failure)
             {
                 payload["failureClass"] = static_cast<uint32_t>(failure->Classification);

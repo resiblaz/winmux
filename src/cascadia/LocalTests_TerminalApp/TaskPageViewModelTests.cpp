@@ -94,6 +94,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(SourceChangeBatchesReloadAndPreservesSelection);
         TEST_METHOD(RuntimeProjectionMapsRunsMessagesAndDetails);
         TEST_METHOD(IdleRuntimeProjectionObservesExternalCreationAndDeletion);
+        TEST_METHOD(ConfirmedAsyncCreationSurvivesAnOlderQueryResponse);
     };
 
     tasks::TaskProjection _task(std::wstring id,
@@ -404,6 +405,47 @@ namespace TerminalAppLocalTests
         visible = false;
         VERIFY_IS_TRUE(WaitUntil([&] { return source.Snapshot().empty(); }, 5000));
         source.Stop();
+    }
+
+    void TaskPageViewModelTests::ConfirmedAsyncCreationSurvivesAnOlderQueryResponse()
+    {
+        using namespace TaskRuntimeClientLocalTests;
+        using namespace TaskRuntimeClientLocalTests::TestSupport;
+        namespace protocol = ::Microsoft::Terminal::TaskRuntimeProtocol;
+        RuntimeClientDependenciesFixture dependencies; dependencies.EnqueueRequestIds();
+        auto connection = std::make_shared<FakeRuntimeClientConnectionState>();
+        dependencies.Connector->EnqueueSuccess(connection, ValidHelloResponse());
+        auto configuration = ValidConfiguration(); configuration.Hello.ClientKind = protocol::ProtocolClientKind::TerminalUi;
+        auto source = std::make_shared<tasks::RuntimeTaskProjectionSource>(configuration, nullptr, nullptr, dependencies.Dependencies());
+        VERIFY_IS_TRUE(source->Start());
+        VERIFY_IS_TRUE(WaitUntil([&] { return std::ranges::any_of(connection->OutboundRequests(), [](const auto& request) { return request.Method == protocol::ControlMethod::QueryTask; }); }));
+        const auto first = connection->OutboundRequests();
+        const auto older = *std::ranges::find_if(first, [](const auto& request) { return request.Method == protocol::ControlMethod::QueryTask; });
+        tasks::TaskCreationAttempt attempt;
+        attempt.TaskId = "10000000-0000-4000-8000-000000000011";
+        attempt.CommandId = "10000000-0000-4000-8000-000000000012";
+        attempt.Draft.WorkspaceId = L"10000000-0000-4000-8000-000000000013";
+        attempt.Draft.Title = L"Confirmed task"; attempt.Draft.SourceRoot = L"C:/src"; attempt.Draft.UseWorktree = false;
+        auto completed = std::make_shared<std::promise<tasks::TaskCreationResult>>(); auto future = completed->get_future();
+        source->CreateTaskAsync(attempt, [completed](auto result) { completed->set_value(std::move(result)); });
+        VERIFY_IS_TRUE(WaitUntil([&] { return std::ranges::any_of(connection->OutboundRequests(), [](const auto& request) { return request.Method == protocol::ControlMethod::SubmitCommand; }); }));
+        const auto sent = connection->OutboundRequests();
+        const auto create = *std::ranges::find_if(sent, [](const auto& request) { return request.Method == protocol::ControlMethod::SubmitCommand; });
+        auto response = EmptySuccessResponse(create);
+        protocol::TaskUiCommandResult receipt; receipt.CommandId = attempt.CommandId; receipt.TaskId = attempt.TaskId; receipt.TaskVersion = receipt.EventSequence = 1;
+        response.ResultJson = protocol::EncodeTaskUiCommandResult(receipt).Payload;
+        VERIFY_IS_TRUE(connection->QueueInboundResponse(response));
+        VERIFY_IS_TRUE(future.wait_for(std::chrono::seconds{ 5 }) == std::future_status::ready);
+        VERIFY_IS_TRUE(future.get().Created); VERIFY_ARE_EQUAL(size_t{ 1 }, source->Snapshot().size());
+        auto late = EmptySuccessResponse(older);
+        late.ResultJson = protocol::EncodeTaskProjectionQueryResult({ 1, {} }).Payload;
+        VERIFY_IS_TRUE(connection->QueueInboundResponse(late));
+        VERIFY_IS_TRUE(WaitUntil([&] {
+            return std::ranges::count_if(connection->OutboundRequests(), [](const auto& request) { return request.Method == protocol::ControlMethod::QueryTask; }) >= 2;
+        }));
+        VERIFY_ARE_EQUAL(size_t{ 1 }, source->Snapshot().size());
+        VERIFY_ARE_EQUAL(std::wstring{ L"10000000-0000-4000-8000-000000000011" }, source->Snapshot().front().Id);
+        source->Stop();
     }
 
     void TaskPageViewModelTests::RuntimeProjectionMapsRunsMessagesAndDetails()

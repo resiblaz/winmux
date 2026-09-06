@@ -13,6 +13,8 @@
   <Import Project="$(SolutionDir)src\common.nugetversions.props" />
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="AgentProfile.h" />
+    <ClInclude Include="TaskStoreAgentSqlite.h" />
     <ClInclude Include="ITaskStore.h" />
     <ClInclude Include="SqliteTaskStore.h" />
     <ClInclude Include="SqliteTaskStoreInternal.h" />
@@ -48,6 +50,11 @@
     <ClCompile Include="TaskIntentStatePolicy.cpp" />
     <ClCompile Include="TaskGitWorktreeStatePolicy.cpp" />
     <ClCompile Include="TaskGitCheckpointStatePolicy.cpp" />
+    <ClCompile Include="AgentProfile.cpp" />
+    <ClCompile Include="TaskStoreAgentSqlite.cpp" />
+    <ClCompile Include="SqliteTaskStoreAgents.cpp" />
+    <ClCompile Include="SqliteTaskStoreAgentQueries.cpp" />
+    <ClCompile Include="SqliteTaskStoreExecutionAgents.cpp" />
     <ClCompile Include="SqliteTaskStore.cpp" />
     <ClCompile Include="SqliteTaskStoreDeletion.cpp" />
     <ClCompile Include="SqliteTaskStoreHolds.cpp" />

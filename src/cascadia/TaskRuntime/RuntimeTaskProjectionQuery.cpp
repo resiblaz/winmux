@@ -50,6 +50,8 @@ namespace Microsoft::Terminal::TaskRuntime
                 result.Execution.Provider = context->Provider;
                 result.Execution.Model = context->Model;
                 result.Execution.Instructions = context->Instructions;
+                if (context->SourceAgentId) result.Execution.Agent = AgentProfileReference{ context->SourceAgentId->Value(), context->SourceAgentRevision };
+                result.Execution.AgentName = context->AgentNameSnapshot;
             }
             result.Terminal.State = static_cast<TaskProjectionTerminalState>(aggregate.Terminal.State);
             result.Terminal.Generation = aggregate.Terminal.Generation;
@@ -79,6 +81,15 @@ namespace Microsoft::Terminal::TaskRuntime
                 projected.FinishedAtUnixMilliseconds = run.FinishedAtUnixMilliseconds;
                 projected.Result = run.Result;
                 projected.ReasonCode = run.ReasonCode;
+                if (const auto context = std::ranges::find(aggregate.ExecutionContexts, run.ExecutionContext, &ExecutionContextRecord::Id);
+                    context != aggregate.ExecutionContexts.end())
+                {
+                    if (context->SourceAgentId) projected.Agent = AgentProfileReference{ context->SourceAgentId->Value(), context->SourceAgentRevision };
+                    projected.AgentName = context->AgentNameSnapshot;
+                    projected.Provider = context->Provider;
+                    projected.Model = context->Model;
+                    projected.ExecutionRevision = context->Revision;
+                }
                 result.Runs.emplace_back(std::move(projected));
             }
             std::ranges::sort(result.Runs, [](const auto& left, const auto& right) {

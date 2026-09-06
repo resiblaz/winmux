@@ -173,6 +173,8 @@ namespace Microsoft::Terminal::TaskProvider
         std::string Model;
         // A new durable thread has no rollout to resume until its first turn.
         std::optional<TaskProviderRunContext> InitialRunContext;
+        // Replace an idle binding, preserving the previous session's history.
+        bool ForceNew{};
     };
 
     struct TaskProviderRunRequest

@@ -499,7 +499,9 @@ namespace Microsoft::Terminal::TaskCore::details
         if (!ValidateCommandMetadata(command.Metadata, error) ||
             !IsCanonicalUuid(command.Task.Value()) || !IsCanonicalUuid(command.Run.Value()) ||
             command.Metadata.ExpectedTaskVersion == 0 ||
-            !_enumInRange(command.RequestedState, TaskRunState::Interrupted))
+            !_enumInRange(command.RequestedState, TaskRunState::Interrupted) ||
+            !_validOptionalId(command.AgentSession) ||
+            (command.AgentSession && command.RequestedState != TaskRunState::Running))
         {
             if (error.empty())
             {

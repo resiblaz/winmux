@@ -43,6 +43,7 @@ namespace Microsoft::Terminal::TaskCore::details
         std::optional<int64_t> FinishedAtUnixMilliseconds;
         std::string Result;
         std::string ReasonCode;
+        std::optional<AgentSessionId> AgentSession;
     };
 
     struct StoredTaskTerminalState

@@ -1,0 +1,19 @@
+<UserControl x:Class="TerminalApp.AgentSelectionControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Spacing="8">
+        <ComboBox x:Name="AgentPicker" x:Uid="AgentPicker"
+                  HorizontalAlignment="Stretch" SelectionChanged="_SelectionChanged" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="MoreAgentsButton" x:Uid="AgentMore" Click="_More_Click" Visibility="Collapsed" />
+            <Button x:Name="RefreshAgentsButton" x:Uid="AgentRefresh" Click="_Refresh_Click" />
+        </StackPanel>
+        <TextBlock x:Name="SelectionNote" TextWrapping="Wrap"
+                   Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}" />
+        <TextBlock x:Name="SelectionError" TextWrapping="Wrap" Visibility="Collapsed"
+                   Foreground="{ThemeResource WorkspaceChromeAccentBrush}" />
+        <TextBox x:Name="AgentModel" x:Uid="AgentModel" MaxLength="256" TextChanged="_TextChanged" />
+        <TextBox x:Name="AgentInstructions" x:Uid="AgentInstructions" AcceptsReturn="True"
+                 MinHeight="100" MaxHeight="220" MaxLength="32768" TextWrapping="Wrap" TextChanged="_TextChanged" />
+    </StackPanel>
+</UserControl>

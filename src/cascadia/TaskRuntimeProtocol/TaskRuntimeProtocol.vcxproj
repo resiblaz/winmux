@@ -19,6 +19,8 @@
     <ClInclude Include="ProtocolCapabilities.h" />
     <ClInclude Include="ProtocolHandshake.h" />
     <ClInclude Include="ProtocolJson.h" />
+    <ClInclude Include="AgentCatalogRpc.h" />
+    <ClInclude Include="AgentCatalogJson.h" />
     <ClInclude Include="ProtocolRpc.h" />
     <ClInclude Include="ProtocolRpcJson.h" />
     <ClInclude Include="ProtocolValidation.h" />
@@ -41,6 +43,7 @@
     <ClCompile Include="ProtocolCapabilities.cpp" />
     <ClCompile Include="ProtocolHandshake.cpp" />
     <ClCompile Include="ProtocolJson.cpp" />
+    <ClCompile Include="AgentCatalogJson.cpp" />
     <ClCompile Include="ProtocolRpc.cpp" />
     <ClCompile Include="ProtocolRpcJson.cpp" />
     <ClCompile Include="ProtocolValidation.cpp" />

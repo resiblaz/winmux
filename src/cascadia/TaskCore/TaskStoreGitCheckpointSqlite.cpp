@@ -106,9 +106,15 @@ SELECT EXISTS(
     SELECT 1
     FROM task_run r
     JOIN execution_context e ON e.id=r.execution_context_id
-    JOIN task_git_worktree w ON w.execution_context_id=e.id
-    WHERE r.id=?1 AND r.task_id=?2 AND r.execution_context_id=?3
-      AND e.mode=1 AND e.identity_frozen=1 AND w.task_id=r.task_id
+    JOIN task_git_worktree w ON w.task_id=r.task_id
+    JOIN execution_context owner ON owner.id=w.execution_context_id
+    WHERE r.id=?1 AND r.task_id=?2 AND w.execution_context_id=?3
+      AND e.task_id=r.task_id AND owner.task_id=r.task_id
+      AND e.mode=1 AND owner.mode=1 AND e.identity_frozen=1 AND owner.identity_frozen=1
+      AND e.source_root=owner.source_root AND e.runtime_root=owner.runtime_root
+      AND e.repository_common_directory=owner.repository_common_directory
+      AND e.worktree_path=owner.worktree_path AND e.branch=owner.branch
+      AND e.relative_working_directory=owner.relative_working_directory
 );
 )SQL";
         SqliteStatement statement{ database, sql, error };

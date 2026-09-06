@@ -103,7 +103,26 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             return result;
         }
 
-        Json::Value _execution(const TaskProjectionExecutionRecord& value)
+        Json::Value _agentSnapshot(const std::optional<AgentProfileReference>& agent, const std::string& name)
+        {
+            Json::Value result{ Json::objectValue };
+            result["id"] = agent ? Json::Value{ agent->Id } : Json::Value{};
+            result["revision"] = Json::UInt64{ agent ? agent->Revision : 0 };
+            result["name"] = name;
+            return result;
+        }
+
+        bool _readAgentSnapshot(const Json::Value& value, std::optional<AgentProfileReference>& agent, std::string& name)
+        {
+            if (!_exact(value, { "id", "revision", "name" }) ||
+                (!value["id"].isNull() && !value["id"].isString()) || !_unsigned(value["revision"]) || !value["name"].isString()) return false;
+            if (value["id"].isString()) agent = AgentProfileReference{ value["id"].asString(), value["revision"].asUInt64() };
+            else if (value["revision"].asUInt64()) return false;
+            name = value["name"].asString();
+            return true;
+        }
+
+        Json::Value _execution(const TaskProjectionExecutionRecord& value, const bool includeAgents)
         {
             Json::Value result{ Json::objectValue };
             result["id"] = value.Id;
@@ -117,10 +136,11 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             result["provider"] = value.Provider;
             result["model"] = value.Model;
             result["instructions"] = value.Instructions;
+            if (includeAgents) result["agent"] = _agentSnapshot(value.Agent, value.AgentName);
             return result;
         }
 
-        Json::Value _task(const TaskProjectionRecord& value)
+        Json::Value _task(const TaskProjectionRecord& value, const bool includeAgents)
         {
             Json::Value result{ Json::objectValue };
             result["id"] = value.Id;
@@ -141,7 +161,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             result["manualHold"] = value.ManualHold;
             result["createdAt"] = Json::Int64{ value.CreatedAtUnixMilliseconds };
             result["updatedAt"] = Json::Int64{ value.UpdatedAtUnixMilliseconds };
-            result["execution"] = _execution(value.Execution);
+            result["execution"] = _execution(value.Execution, includeAgents);
             result["terminal"]["state"] = static_cast<uint32_t>(value.Terminal.State);
             result["terminal"]["generation"] = Json::UInt64{ value.Terminal.Generation };
             result["terminal"]["currentAgentSessionId"] = _optional(value.Terminal.CurrentAgentSessionId);
@@ -172,6 +192,14 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
                 encoded["finishedAt"] = _optional(run.FinishedAtUnixMilliseconds);
                 encoded["result"] = run.Result;
                 encoded["reasonCode"] = run.ReasonCode;
+                if (includeAgents)
+                {
+                    auto execution = _agentSnapshot(run.Agent, run.AgentName);
+                    execution["provider"] = run.Provider;
+                    execution["model"] = run.Model;
+                    execution["contextRevision"] = Json::UInt64{ run.ExecutionRevision };
+                    encoded["executionAgent"] = std::move(execution);
+                }
                 result["runs"].append(std::move(encoded));
             }
             result["messages"] = Json::Value{ Json::arrayValue };
@@ -205,8 +233,13 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             return result;
         }
 
-        bool _decodeExecution(const Json::Value& value, TaskProjectionExecutionRecord& result)
+        bool _decodeExecution(Json::Value value, TaskProjectionExecutionRecord& result)
         {
+            if (value.isMember("agent"))
+            {
+                if (!_readAgentSnapshot(value["agent"], result.Agent, result.AgentName)) return false;
+                value.removeMember("agent");
+            }
             if (!_exact(value, { "id", "revision", "mode", "sourceRoot", "runtimeRoot", "worktreePath", "branch", "relativeWorkingDirectory", "provider", "model", "instructions" }) ||
                 !value["id"].isString() || !_unsigned(value["revision"]) || !_unsigned(value["mode"]) ||
                 !value["sourceRoot"].isString() || !value["runtimeRoot"].isString() ||
@@ -267,15 +300,25 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
                     !_unsigned(item["state"]) || !item["isCurrent"].isBool()) return false;
                 result.AgentSessions.push_back({ item["id"].asString(), item["provider"].asString(), item["providerSessionId"].asString(), static_cast<uint8_t>(item["state"].asUInt()), item["isCurrent"].asBool() });
             }
-            for (const auto& item : value["runs"])
+            for (auto item : value["runs"])
             {
+                TaskProjectionRunRecord run;
+                if (item.isMember("executionAgent"))
+                {
+                    auto execution = item["executionAgent"];
+                    if (!execution.isObject() || !execution["provider"].isString() || !execution["model"].isString() ||
+                        !_unsigned(execution["contextRevision"]) || !execution["contextRevision"].asUInt64() || execution["contextRevision"].asUInt64() > INT64_MAX) return false;
+                    run.Provider = execution["provider"].asString(); run.Model = execution["model"].asString(); run.ExecutionRevision = execution["contextRevision"].asUInt64();
+                    execution.removeMember("provider"); execution.removeMember("model"); execution.removeMember("contextRevision");
+                    if (!_readAgentSnapshot(execution, run.Agent, run.AgentName)) return false;
+                    item.removeMember("executionAgent");
+                }
                 if (!_exact(item, { "id", "executionContextId", "agentSessionId", "retryOfRunId", "trigger", "state", "sequence", "createdAt", "startedAt", "finishedAt", "result", "reasonCode" }) ||
                     !item["id"].isString() || !item["executionContextId"].isString() || !_unsigned(item["trigger"]) ||
                     !_unsigned(item["state"]) || !_unsigned(item["sequence"]) || !item["createdAt"].isInt64() ||
                     (!item["startedAt"].isNull() && !item["startedAt"].isInt64()) ||
                     (!item["finishedAt"].isNull() && !item["finishedAt"].isInt64()) ||
                     !item["result"].isString() || !item["reasonCode"].isString()) return false;
-                TaskProjectionRunRecord run;
                 run.Id = item["id"].asString();
                 run.ExecutionContextId = item["executionContextId"].asString();
                 if (!_optionalString(item["agentSessionId"], run.AgentSessionId) || !_optionalString(item["retryOfRunId"], run.RetryOfRunId)) return false;
@@ -375,7 +418,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         return result;
     }
 
-    ProtocolRpcJsonEncodeResult EncodeTaskProjectionQueryResult(const TaskProjectionQueryResult& value)
+    ProtocolRpcJsonEncodeResult EncodeTaskProjectionQueryResult(const TaskProjectionQueryResult& value, const bool includeAgentProfiles)
     {
         if (value.Tasks.size() > MaximumTaskProjectionItems) return { false, {}, "Task projection result exceeds item capacity" };
         Json::Value root{ Json::objectValue };
@@ -385,7 +428,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         {
             std::string error;
             if (!ValidateTaskProjection(task, error)) return { false, {}, std::move(error) };
-            root["tasks"].append(_task(task));
+            root["tasks"].append(_task(task, includeAgentProfiles));
         }
         return _encode(std::move(root));
     }

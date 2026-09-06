@@ -5,6 +5,7 @@
 
 #include "SqliteTaskStore.h"
 #include "TaskStoreSchema.h"
+#include "TaskCoreSchemaV4Fixture.h"
 
 #include <filesystem>
 #include <fstream>
@@ -61,6 +62,13 @@ namespace TaskCoreLocalTests
             const auto utf8 = _utf8Path(path);
             VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_open_v2(utf8.c_str(), &database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr));
             return database;
+        }
+
+        void _createVersionFour(const std::filesystem::path& path)
+        {
+            auto database = _openRaw(path);
+            VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_exec(database, FrozenTaskSchemaV4, nullptr, nullptr, nullptr));
+            VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
         }
 
         int64_t _queryInteger(sqlite3* database, const char* sql)
@@ -205,7 +213,7 @@ COMMIT;
 
         auto database = _openRaw(path.Path());
         VERIFY_ARE_EQUAL(int64_t{ details::TaskDatabaseApplicationId }, _queryInteger(database, "PRAGMA application_id;"));
-        VERIFY_ARE_EQUAL(int64_t{ 4 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(int64_t{ details::CurrentTaskDatabaseSchemaVersion }, _queryInteger(database, "PRAGMA user_version;"));
         VERIFY_ARE_EQUAL(std::string{ "wal" }, _queryText(database, "PRAGMA journal_mode;"));
         VERIFY_ARE_EQUAL(int64_t{ 14 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('task','task_acceptance','execution_context','task_terminal','agent_session','task_run','task_message','task_run_message','task_event','git_checkpoint','command_receipt','delete_tombstone','task_intent','task_git_worktree');"));
         VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='task_run_one_active' AND sql LIKE '%WHERE state IN (0, 1, 2, 3, 4)%';"));
@@ -227,7 +235,7 @@ COMMIT;
         {
             SqliteTaskStore reopened{ path.Path() };
             VERIFY_IS_TRUE(reopened.IsReady());
-            VERIFY_ARE_EQUAL(4, reopened.SchemaVersion());
+            VERIFY_ARE_EQUAL(details::CurrentTaskDatabaseSchemaVersion, reopened.SchemaVersion());
         }
         VERIFY_IS_TRUE(std::filesystem::file_size(path.Path()) >= sizeBefore);
     }
@@ -298,10 +306,7 @@ COMMIT;
     void TaskCoreSchemaTests::MigratesVersionOneSchemaAndPreservesTombstones()
     {
         TemporaryDatabasePath path;
-        {
-            SqliteTaskStore store{ path.Path() };
-            VERIFY_IS_TRUE(store.IsReady());
-        }
+        _createVersionFour(path.Path());
 
         constexpr auto taskId = "00000000-0000-4000-8000-000000000111";
         auto database = _openRaw(path.Path());
@@ -319,14 +324,14 @@ COMMIT;
 
         SqliteTaskStore migrated{ path.Path() };
         VERIFY_IS_TRUE(migrated.IsReady());
-        VERIFY_ARE_EQUAL(4, migrated.SchemaVersion());
+        VERIFY_ARE_EQUAL(details::CurrentTaskDatabaseSchemaVersion, migrated.SchemaVersion());
         const auto tombstone = migrated.LoadDeleteTombstone(TaskId{ taskId });
         VERIFY_IS_TRUE(tombstone.has_value());
         VERIFY_ARE_EQUAL(std::string{ "legacy" }, tombstone->ReplayDigest);
         VERIFY_IS_FALSE(tombstone->Command.has_value());
 
         database = _openRaw(path.Path());
-        VERIFY_ARE_EQUAL(int64_t{ 4 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(int64_t{ details::CurrentTaskDatabaseSchemaVersion }, _queryInteger(database, "PRAGMA user_version;"));
         VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='task_intent';"));
         VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
     }
@@ -334,10 +339,7 @@ COMMIT;
     void TaskCoreSchemaTests::FailedMigrationRollsBackWithoutVersionAdvance()
     {
         TemporaryDatabasePath path;
-        {
-            SqliteTaskStore store{ path.Path() };
-            VERIFY_IS_TRUE(store.IsReady());
-        }
+        _createVersionFour(path.Path());
 
         auto database = _openRaw(path.Path());
         _downgradeToVersionOne(database);
@@ -360,10 +362,7 @@ COMMIT;
     void TaskCoreSchemaTests::MigratesVersionTwoMessageSchema()
     {
         TemporaryDatabasePath path;
-        {
-            SqliteTaskStore store{ path.Path() };
-            VERIFY_IS_TRUE(store.IsReady());
-        }
+        _createVersionFour(path.Path());
 
         auto database = _openRaw(path.Path());
         _downgradeToVersionTwo(database);
@@ -380,10 +379,10 @@ COMMIT;
 
         SqliteTaskStore migrated{ path.Path() };
         VERIFY_IS_TRUE(migrated.IsReady());
-        VERIFY_ARE_EQUAL(4, migrated.SchemaVersion());
+        VERIFY_ARE_EQUAL(details::CurrentTaskDatabaseSchemaVersion, migrated.SchemaVersion());
 
         database = _openRaw(path.Path());
-        VERIFY_ARE_EQUAL(int64_t{ 4 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(int64_t{ details::CurrentTaskDatabaseSchemaVersion }, _queryInteger(database, "PRAGMA user_version;"));
         VERIFY_ARE_EQUAL(int64_t{ 0 }, _queryInteger(database, "SELECT author FROM task_message LIMIT 1;"));
         VERIFY_ARE_EQUAL(int64_t{ 20 }, _queryInteger(database, "SELECT updated_at FROM task_message LIMIT 1;"));
         VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('task_run_message') WHERE name='position';"));
@@ -393,10 +392,7 @@ COMMIT;
     void TaskCoreSchemaTests::FailedVersionTwoMigrationRollsBack()
     {
         TemporaryDatabasePath path;
-        {
-            SqliteTaskStore store{ path.Path() };
-            VERIFY_IS_TRUE(store.IsReady());
-        }
+        _createVersionFour(path.Path());
 
         auto database = _openRaw(path.Path());
         _downgradeToVersionTwo(database);
@@ -427,10 +423,7 @@ COMMIT;
         constexpr auto secondCheckpointId = "00000000-0000-4000-8000-000000000317";
         const std::string commit(40, 'c');
         const std::string secondCommit(40, 'd');
-        {
-            SqliteTaskStore store{ path.Path() };
-            VERIFY_IS_TRUE(store.IsReady());
-        }
+        _createVersionFour(path.Path());
 
         auto database = _openRaw(path.Path());
         _downgradeToVersionThree(database);
@@ -452,7 +445,7 @@ COMMIT;
 
         SqliteTaskStore migrated{ path.Path() };
         VERIFY_IS_TRUE(migrated.IsReady());
-        VERIFY_ARE_EQUAL(4, migrated.SchemaVersion());
+        VERIFY_ARE_EQUAL(details::CurrentTaskDatabaseSchemaVersion, migrated.SchemaVersion());
         const auto snapshot = migrated.LoadTask(TaskId{ taskId });
         VERIFY_IS_TRUE(snapshot.has_value());
         VERIFY_ARE_EQUAL(size_t{ 2 }, snapshot->GitCheckpoints.size());
@@ -474,7 +467,7 @@ COMMIT;
         VERIFY_ARE_EQUAL(std::string{ "{\"legacy\":2}" }, secondCheckpoint.DiffSummaryJson);
 
         database = _openRaw(path.Path());
-        VERIFY_ARE_EQUAL(int64_t{ 4 }, _queryInteger(database, "PRAGMA user_version;"));
+        VERIFY_ARE_EQUAL(int64_t{ details::CurrentTaskDatabaseSchemaVersion }, _queryInteger(database, "PRAGMA user_version;"));
         VERIFY_ARE_EQUAL(int64_t{ 1 }, _queryInteger(database, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='task_git_worktree';"));
         VERIFY_ARE_EQUAL(int64_t{ 0 }, _queryInteger(database, "SELECT count(*) FROM pragma_table_info('git_checkpoint') WHERE name='commit_id';"));
         VERIFY_ARE_EQUAL(SQLITE_OK, sqlite3_close(database));
@@ -483,10 +476,7 @@ COMMIT;
     void TaskCoreSchemaTests::FailedVersionThreeMigrationRollsBack()
     {
         TemporaryDatabasePath path;
-        {
-            SqliteTaskStore store{ path.Path() };
-            VERIFY_IS_TRUE(store.IsReady());
-        }
+        _createVersionFour(path.Path());
 
         auto database = _openRaw(path.Path());
         _downgradeToVersionThree(database);

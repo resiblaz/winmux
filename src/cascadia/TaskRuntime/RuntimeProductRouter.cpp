@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "RuntimeProductRouter.h"
+#include "RuntimeAgentCatalogService.h"
 
 #include "RuntimeCrypto.h"
 
@@ -161,12 +162,13 @@ namespace Microsoft::Terminal::TaskRuntime
             const auto queried = service.Query(decoded.Value);
             if (!queried.Succeeded()) return _error(_taskRpcCode(queried.Status), queried.Error);
             auto projection = queried.Projection;
-            auto encoded = EncodeTaskProjectionQueryResult(projection);
+            const auto agentAware = HasCapability(client.NegotiatedCapabilities, ProtocolCapability::AgentProfiles);
+            auto encoded = EncodeTaskProjectionQueryResult(projection, agentAware);
             while (!encoded.Succeeded && encoded.Error == "Encoded Task projection exceeds protocol bounds" &&
                    !decoded.Value.TaskId && projection.Tasks.size() > 1)
             {
                 projection.Tasks.resize((projection.Tasks.size() + 1) / 2);
-                encoded = EncodeTaskProjectionQueryResult(projection);
+                encoded = EncodeTaskProjectionQueryResult(projection, agentAware);
             }
             if (!encoded.Succeeded) return _error(ProtocolRpcErrorCode::InternalError, "Task projection could not be encoded");
             RuntimeControlRouteResult result;
@@ -187,6 +189,9 @@ namespace Microsoft::Terminal::TaskRuntime
             }
             const auto decoded = DecodeTaskUiCommandRequest(request.PayloadJson);
             if (!decoded.Succeeded()) return _error(ProtocolRpcErrorCode::InvalidRequest, "Task UI command is invalid");
+            if ((decoded.Value.Operation == TaskUiCommandOperation::UpdateAgent || (decoded.Value.Draft && decoded.Value.Draft->Agent)) &&
+                !HasCapability(client.NegotiatedCapabilities, ProtocolCapability::AgentProfiles))
+                return _error(ProtocolRpcErrorCode::CapabilityRequired, "Task Agent configuration requires Agent Profiles support");
             if (cancellation.IsCancellationRequested()) return _error(ProtocolRpcErrorCode::RuntimeUnavailable, "Task UI command was cancelled");
             const auto executed = service.Execute(decoded.Value, nullptr, client.ClientInstanceId);
             if (!executed.Succeeded()) return _error(_taskRpcCode(executed.Status), executed.Error);
@@ -203,11 +208,13 @@ namespace Microsoft::Terminal::TaskRuntime
         std::shared_ptr<RuntimeFoundationRouter> foundation,
         std::shared_ptr<RuntimeRtaskCommandService> rtask,
         std::shared_ptr<RuntimeTaskProviderService> provider,
-        std::shared_ptr<RuntimeTaskProjectionService> tasks) noexcept :
+        std::shared_ptr<RuntimeTaskProjectionService> tasks,
+        std::shared_ptr<RuntimeAgentCatalogService> agents) noexcept :
         _foundation{ std::move(foundation) },
         _rtask{ std::move(rtask) },
         _provider{ std::move(provider) },
-        _tasks{ std::move(tasks) }
+        _tasks{ std::move(tasks) },
+        _agents{ std::move(agents) }
     {
         _valid = _foundation && _foundation->Valid() && _rtask && _rtask->Valid();
     }
@@ -242,6 +249,42 @@ namespace Microsoft::Terminal::TaskRuntime
                 }
                 return _tasks ? _routeTaskCommand(*_tasks, client, request, cancellation) :
                                 _error(ProtocolRpcErrorCode::RuntimeUnavailable, "Runtime Task command service is unavailable");
+            }
+            if (request.Method == ControlMethod::QueryAgents || request.Method == ControlMethod::AgentCommand)
+            {
+                if (client.ClientKind != ProtocolClientKind::TerminalUi || !HasCapability(client.NegotiatedCapabilities, ProtocolCapability::AgentProfiles))
+                    return _error(ProtocolRpcErrorCode::CapabilityRequired, "Agent catalog requires an Agent-aware desktop client");
+                if (!_agents || !_agents->Valid() || cancellation.IsCancellationRequested())
+                    return _error(ProtocolRpcErrorCode::RuntimeUnavailable, "Agent catalog is unavailable");
+                const auto failure = [&](const auto& result) {
+                    using Microsoft::Terminal::TaskCore::TaskStoreCommandStatus;
+                    const auto code = result.Status == TaskStoreCommandStatus::NotFound ? ProtocolRpcErrorCode::NotFound :
+                                      result.Status == TaskStoreCommandStatus::VersionConflict || result.Status == TaskStoreCommandStatus::IdempotencyConflict ? ProtocolRpcErrorCode::Conflict :
+                                      result.Status == TaskStoreCommandStatus::NotReady ? ProtocolRpcErrorCode::RuntimeUnavailable :
+                                      result.Status == TaskStoreCommandStatus::StorageError ? ProtocolRpcErrorCode::InternalError : ProtocolRpcErrorCode::InvalidRequest;
+                    return _error(code, result.Error);
+                };
+                ProtocolRpcJsonEncodeResult encoded;
+                if (request.Method == ControlMethod::QueryAgents)
+                {
+                    const auto decoded = DecodeAgentCatalogQueryRequest(request.PayloadJson);
+                    if (!decoded.Succeeded()) return _error(ProtocolRpcErrorCode::InvalidRequest, decoded.Error);
+                    const auto queried = _agents->Query(decoded.Value);
+                    if (!queried.Succeeded()) return failure(queried);
+                    encoded = EncodeAgentCatalogQueryResult(queried.Value);
+                }
+                else
+                {
+                    const auto decoded = DecodeAgentCatalogCommandRequest(request.PayloadJson);
+                    if (!decoded.Succeeded()) return _error(ProtocolRpcErrorCode::InvalidRequest, decoded.Error);
+                    const auto executed = _agents->Execute(decoded.Value);
+                    if (!executed.Succeeded()) return failure(executed);
+                    encoded = EncodeAgentCatalogCommandResult(executed.Value);
+                }
+                if (!encoded.Succeeded) return _error(ProtocolRpcErrorCode::InternalError, encoded.Error);
+                RuntimeControlRouteResult result;
+                result.Succeeded = true; result.ResultJson = std::move(encoded.Payload);
+                return result;
             }
             if (request.Method == ControlMethod::QueryTask)
             {

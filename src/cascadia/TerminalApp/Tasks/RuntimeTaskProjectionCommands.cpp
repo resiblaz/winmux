@@ -5,6 +5,7 @@
 #include "RuntimeTaskProjectionSource.h"
 
 #include "RuntimeCrypto.h"
+#include "../Agents/IAgentCatalogSource.h"
 
 namespace winrt::TerminalApp::implementation::tasks
 {
@@ -22,6 +23,29 @@ namespace winrt::TerminalApp::implementation::tasks
         {
             const auto value = RS_(key);
             return std::wstring{ std::wstring_view{ value } };
+        }
+
+        TaskUiCommandRequest _createCommand(const TaskDraft& draft, const std::string& taskId, const std::string& commandId)
+        {
+            TaskUiCommandRequest create;
+            create.CommandId = commandId;
+            create.Operation = TaskUiCommandOperation::Create;
+            create.TaskId = taskId;
+            create.Draft = TaskUiCreateDraft{};
+            create.Draft->WorkspaceId = til::u16u8(draft.WorkspaceId);
+            create.Draft->Title = til::u16u8(draft.Title);
+            create.Draft->Description = til::u16u8(draft.Description);
+            for (const auto& item : draft.Acceptance)
+            {
+                create.Draft->Acceptance.emplace_back(til::u16u8(item));
+            }
+            create.Draft->ExecutionMode = draft.UseWorktree ? TaskProjectionExecutionMode::Worktree : TaskProjectionExecutionMode::Direct;
+            create.Draft->SourceRoot = til::u16u8(draft.SourceRoot);
+            create.Draft->RelativeWorkingDirectory = til::u16u8(draft.RelativeWorkingDirectory);
+            create.Draft->Model = til::u16u8(draft.Model);
+            create.Draft->Instructions = til::u16u8(draft.Instructions);
+            if (!draft.AgentId.empty()) create.Draft->Agent = AgentProfileReference{ til::u16u8(draft.AgentId), draft.AgentRevision };
+            return create;
         }
 
         TaskProjection _optimistic(
@@ -43,6 +67,11 @@ namespace winrt::TerminalApp::implementation::tasks
             result.WorkingDirectory = draft.SourceRoot;
             result.Worktree = draft.UseWorktree ? _resource(L"TaskPage_WorktreePreparing") : _resource(L"TaskPage_NotApplicable");
             result.Branch = draft.UseWorktree ? _resource(L"TaskPage_WorktreePreparing") : _resource(L"TaskPage_CurrentBranch");
+            result.AgentId = draft.AgentId;
+            result.AgentRevision = draft.AgentRevision;
+            result.AgentName = draft.AgentName;
+            result.Model = draft.Model;
+            result.Instructions = draft.Instructions;
             result.Version = 1;
             result.SupportsTerminalSurface = true;
             result.HasActiveRun = startImmediately;
@@ -63,23 +92,7 @@ namespace winrt::TerminalApp::implementation::tasks
         const auto createId = _uuid();
         if (!taskId || !createId || draft.WorkspaceId.empty() || draft.SourceRoot.empty())
             return {};
-        TaskUiCommandRequest create;
-        create.CommandId = *createId;
-        create.Operation = TaskUiCommandOperation::Create;
-        create.TaskId = *taskId;
-        create.Draft = TaskUiCreateDraft{};
-        create.Draft->WorkspaceId = til::u16u8(draft.WorkspaceId);
-        create.Draft->Title = til::u16u8(draft.Title);
-        create.Draft->Description = til::u16u8(draft.Description);
-        for (const auto& item : draft.Acceptance)
-        {
-            create.Draft->Acceptance.emplace_back(til::u16u8(item));
-        }
-        create.Draft->ExecutionMode = draft.UseWorktree ? TaskProjectionExecutionMode::Worktree : TaskProjectionExecutionMode::Direct;
-        create.Draft->SourceRoot = til::u16u8(draft.SourceRoot);
-        create.Draft->RelativeWorkingDirectory = til::u16u8(draft.RelativeWorkingDirectory);
-        create.Draft->Model = til::u16u8(draft.Model);
-        create.Draft->Instructions = til::u16u8(draft.Instructions);
+        auto create = _createCommand(draft, *taskId, *createId);
         auto projection = _optimistic(draft, *taskId, startImmediately);
         if (!_enqueue({ WorkKind::Command, create, std::nullopt }))
             return {};
@@ -99,6 +112,43 @@ namespace winrt::TerminalApp::implementation::tasks
         }
         _notify();
         return projection;
+    }
+
+    void RuntimeTaskProjectionSource::CreateTaskAsync(TaskCreationAttempt attempt, std::function<void(TaskCreationResult)> completed)
+    {
+        const auto source = _agentCatalog;
+        const auto weak = weak_from_this();
+        const auto create = _createCommand(attempt.Draft, attempt.TaskId, attempt.CommandId);
+        source->ExecuteTask(create, [weak, source, attempt = std::move(attempt), completed = std::move(completed)](auto reply) mutable {
+            if (!reply.Succeeded)
+            {
+                completed({ false, reply.OutcomeUnknown, {}, til::u8u16(reply.Error) });
+                return;
+            }
+            const auto finish = [weak, attempt, completed](bool started, std::wstring error) {
+                auto projection = _optimistic(attempt.Draft, attempt.TaskId, started);
+                if (const auto self = weak.lock())
+                {
+                    {
+                        const std::scoped_lock publication{ self->_publicationMutex };
+                        ++self->_publicationRevision;
+                        self->_coordinator.UpsertOptimistic(projection);
+                    }
+                    self->SelectTask(projection.Id);
+                    self->_notify();
+                }
+                completed({ true, false, std::move(projection), std::move(error) });
+            };
+            if (!attempt.StartImmediately) { finish(false, {}); return; }
+            TaskUiCommandRequest start;
+            start.CommandId = attempt.StartCommandId;
+            start.Operation = TaskUiCommandOperation::Start;
+            start.TaskId = attempt.TaskId;
+            start.ExpectedTaskVersion = reply.Value.TaskVersion;
+            source->ExecuteTask(start, [finish](auto started) mutable {
+                finish(started.Succeeded, started.Succeeded ? std::wstring{} : til::u8u16(started.Error));
+            });
+        });
     }
 
     std::optional<TaskProjection> RuntimeTaskProjectionSource::Execute(

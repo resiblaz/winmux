@@ -4,6 +4,7 @@
 #include "pch.h"
 
 #include "RuntimeTaskProviderSink.h"
+#include "RuntimeTaskSchedulingPolicy.h"
 #include "TaskCoreStoreTestFixtures.h"
 
 using namespace WEX::TestExecution;
@@ -43,6 +44,8 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(PersistsSessionRunEventsFailureAndDeferredSteering);
         TEST_METHOD(BatchesSequentialProviderEventsWithoutLosingOrder);
         TEST_METHOD(RejectsUnknownAndCrossTaskProviderIdentity);
+        TEST_METHOD(RejectsUnownedSessionAndSessionReplacement);
+        TEST_METHOD(BindsAnUnboundRunningRunWithoutResettingItsStartTime);
     };
 
     void RuntimeTaskProviderSinkTests::PersistsSessionRunEventsFailureAndDeferredSteering()
@@ -54,16 +57,21 @@ namespace TaskRuntimeLocalTests
         RuntimeTaskProviderSink sink{ store };
         VERIFY_IS_TRUE(sink.Valid());
 
+        const auto run = MakeCreateRunCommand(task, 1, 20, 1, 1100);
+        VERIFY_IS_TRUE(store->CreateTaskRun(run).Succeeded());
         auto session = _session(task);
         VERIFY_IS_TRUE(sink.OnSessionStateChanged(session).Succeeded());
         auto aggregate = store->LoadTask(task.Task.Id);
         VERIFY_ARE_EQUAL(size_t{ 1 }, aggregate->AgentSessions.size());
         VERIFY_IS_TRUE(aggregate->AgentSessions.front().IsCurrent);
 
-        auto run = MakeCreateRunCommand(task, 1, 20, aggregate->Task.Version, aggregate->Task.UpdatedAtUnixMilliseconds + 1);
-        run.Run.AgentSession = aggregate->AgentSessions.front().Id;
-        VERIFY_IS_TRUE(store->CreateTaskRun(run).Succeeded());
+        VERIFY_IS_FALSE(aggregate->Runs.front().AgentSession.has_value());
         VERIFY_IS_TRUE(sink.OnRunStateChanged(_binding(task, run, TaskProviderRunState::Running), std::nullopt).Succeeded());
+        aggregate = store->LoadTask(task.Task.Id);
+        VERIFY_IS_TRUE(aggregate->Runs.front().AgentSession == std::optional{ aggregate->AgentSessions.front().Id });
+        const auto boundVersion = aggregate->Task.Version;
+        VERIFY_IS_TRUE(sink.OnRunStateChanged(_binding(task, run, TaskProviderRunState::Running), std::nullopt).Status == TaskProviderStatus::AlreadyApplied);
+        VERIFY_ARE_EQUAL(boundVersion, store->LoadTask(task.Task.Id)->Task.Version);
 
         TaskProviderEvent event;
         event.Sequence = 1;
@@ -94,6 +102,11 @@ namespace TaskRuntimeLocalTests
         VERIFY_IS_TRUE(aggregate->Runs.front().State == TaskRunState::Interrupted);
         VERIFY_ARE_EQUAL(std::string{ "runtime_recovery" }, aggregate->Runs.front().ReasonCode);
         VERIFY_IS_TRUE(aggregate->AgentSessions.front().State == AgentSessionState::Suspended);
+        VERIFY_IS_TRUE(aggregate->Runs.front().AgentSession == std::optional{ aggregate->AgentSessions.front().Id });
+        auto nextRun = run.Run;
+        nextRun.Id = MakeId<TaskRunId>(9000);
+        nextRun.Sequence = 2;
+        VERIFY_IS_TRUE(CanResumeRuntimeTaskAgentSession(*aggregate, nextRun, aggregate->AgentSessions.front()));
         VERIFY_ARE_EQUAL(size_t{ 1 }, aggregate->Messages.size());
         VERIFY_IS_TRUE(aggregate->Messages.front().State == TaskMessageState::Deferred);
         const auto events = store->ListEvents(task.Task.Id, 0, 32);
@@ -101,6 +114,61 @@ namespace TaskRuntimeLocalTests
             return value.Type == "Provider_agent_message_delta" &&
                    value.PayloadJson.find("hello from provider") != std::string::npos;
         }));
+    }
+
+    void RuntimeTaskProviderSinkTests::RejectsUnownedSessionAndSessionReplacement()
+    {
+        TemporaryDatabasePath path;
+        const auto task = MakeCreateTaskCommand();
+        const auto other = MakeCreateTaskCommand(2, 1, 2, 1000);
+        const auto store = std::make_shared<SqliteTaskStore>(path.Path());
+        VERIFY_IS_TRUE(store->CreateTask(task).Succeeded());
+        VERIFY_IS_TRUE(store->CreateTask(other).Succeeded());
+        const auto run = MakeCreateRunCommand(task, 1, 3, 1, 1100);
+        VERIFY_IS_TRUE(store->CreateTaskRun(run).Succeeded());
+        RuntimeTaskProviderSink sink{ store };
+        auto binding = _binding(task, run, TaskProviderRunState::Running);
+        VERIFY_IS_TRUE(sink.OnRunStateChanged(binding, std::nullopt).Status == TaskProviderStatus::InvalidRequest);
+        auto foreign = _session(other);
+        foreign.ProviderSessionId = "foreign-thread";
+        VERIFY_IS_TRUE(sink.OnSessionStateChanged(foreign).Succeeded());
+        binding.ProviderSessionId = foreign.ProviderSessionId;
+        VERIFY_IS_TRUE(sink.OnRunStateChanged(binding, std::nullopt).Status == TaskProviderStatus::InvalidRequest);
+        VERIFY_IS_TRUE(store->LoadTask(task.Task.Id)->Runs.front().State == TaskRunState::Queued);
+
+        VERIFY_IS_TRUE(sink.OnSessionStateChanged(_session(task)).Succeeded());
+        binding = _binding(task, run, TaskProviderRunState::Running);
+        VERIFY_IS_TRUE(sink.OnRunStateChanged(binding, std::nullopt).Succeeded());
+        const auto original = store->LoadTask(task.Task.Id)->Runs.front().AgentSession;
+        auto replacement = _session(task);
+        replacement.ProviderSessionId = "replacement-thread";
+        VERIFY_IS_TRUE(sink.OnSessionStateChanged(replacement).Succeeded());
+        binding.ProviderSessionId = replacement.ProviderSessionId;
+        VERIFY_IS_TRUE(sink.OnRunStateChanged(binding, std::nullopt).Status == TaskProviderStatus::InvalidRequest);
+        binding.State = TaskProviderRunState::Completed;
+        VERIFY_IS_TRUE(sink.OnRunStateChanged(binding, std::nullopt).Status == TaskProviderStatus::InvalidRequest);
+        const auto aggregate = store->LoadTask(task.Task.Id);
+        VERIFY_IS_TRUE(aggregate->Runs.front().AgentSession == original);
+        VERIFY_IS_TRUE(aggregate->Runs.front().State == TaskRunState::Running);
+    }
+
+    void RuntimeTaskProviderSinkTests::BindsAnUnboundRunningRunWithoutResettingItsStartTime()
+    {
+        TemporaryDatabasePath path;
+        const auto task = MakeCreateTaskCommand();
+        const auto run = MakeCreateRunCommand(task, 1, 2, 1, 1100);
+        const auto store = std::make_shared<SqliteTaskStore>(path.Path());
+        VERIFY_IS_TRUE(store->CreateTask(task).Succeeded());
+        VERIFY_IS_TRUE(store->CreateTaskRun(run).Succeeded());
+        VERIFY_IS_TRUE(store->ChangeTaskRunState(MakeRunStateCommand(run, 3, 2, 1200, TaskRunState::Preparing)).Succeeded());
+        VERIFY_IS_TRUE(store->ChangeTaskRunState(MakeRunStateCommand(run, 4, 3, 1300, TaskRunState::Starting)).Succeeded());
+        VERIFY_IS_TRUE(store->ChangeTaskRunState(MakeRunStateCommand(run, 5, 4, 1400, TaskRunState::Running)).Succeeded());
+        RuntimeTaskProviderSink sink{ store };
+        VERIFY_IS_TRUE(sink.OnSessionStateChanged(_session(task)).Succeeded());
+        VERIFY_IS_TRUE(sink.OnRunStateChanged(_binding(task, run, TaskProviderRunState::Running), std::nullopt).Succeeded());
+        const auto aggregate = store->LoadTask(task.Task.Id);
+        VERIFY_IS_TRUE(aggregate->Runs.front().AgentSession == std::optional{ aggregate->AgentSessions.front().Id });
+        VERIFY_IS_TRUE(aggregate->Runs.front().StartedAtUnixMilliseconds == std::optional<int64_t>{ 1400 });
     }
 
     void RuntimeTaskProviderSinkTests::BatchesSequentialProviderEventsWithoutLosingOrder()

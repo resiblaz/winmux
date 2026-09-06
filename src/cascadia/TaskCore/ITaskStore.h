@@ -6,6 +6,7 @@
 #include "TaskStoreStatus.h"
 #include "TaskStoreCommandTypes.h"
 #include "TaskStoreResults.h"
+#include "AgentProfile.h"
 
 #include <cstdint>
 #include <optional>
@@ -25,6 +26,9 @@ namespace Microsoft::Terminal::TaskCore
         [[nodiscard]] virtual const std::string& LastError() const noexcept = 0;
 
         [[nodiscard]] virtual TaskStoreCommandResult CreateTask(const CreateTaskCommand& command) = 0;
+        [[nodiscard]] virtual AgentProfileQueryResult QueryAgentProfiles(const AgentProfileQuery& query) const = 0;
+        [[nodiscard]] virtual AgentProfileCommandResult ExecuteAgentProfileCommand(const AgentProfileCommand& command) = 0;
+        [[nodiscard]] virtual TaskStoreCommandResult UpdateTaskExecutionAgent(const UpdateTaskExecutionAgentCommand& command) = 0;
         [[nodiscard]] virtual TaskStoreCommandResult ChangeTaskStatus(const ChangeTaskStatusCommand& command) = 0;
         [[nodiscard]] virtual TaskStoreCommandResult CreateTaskRun(const CreateTaskRunCommand& command) = 0;
         [[nodiscard]] virtual TaskStoreCommandResult RecordTaskAgentSession(const RecordTaskAgentSessionCommand& command) = 0;

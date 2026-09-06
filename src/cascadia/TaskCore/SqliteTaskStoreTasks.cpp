@@ -9,6 +9,7 @@
 #include "TaskStoreCommandSqlite.h"
 #include "TaskStoreCommandValidation.h"
 #include "TaskStoreSqlite.h"
+#include "TaskStoreAgentSqlite.h"
 
 #include <limits>
 
@@ -65,35 +66,6 @@ VALUES(?1, ?2, ?3, ?4);
                 }
             }
             return true;
-        }
-
-        bool _insertExecutionContext(sqlite3* database, const ExecutionContextRecord& context, std::string& error)
-        {
-            constexpr auto sql = R"SQL(
-INSERT INTO execution_context(id, task_id, revision, mode, source_root, runtime_root,
-                              repository_common_directory, worktree_path, branch,
-                              relative_working_directory, provider, model, instructions,
-                              identity_frozen, created_at)
-VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15);
-)SQL";
-            details::SqliteStatement statement{ database, sql, error };
-            return statement &&
-                   details::BindText(database, statement.Get(), 1, context.Id.Value(), error) &&
-                   details::BindText(database, statement.Get(), 2, context.Task.Value(), error) &&
-                   details::BindInt64(database, statement.Get(), 3, static_cast<int64_t>(context.Revision), error) &&
-                   details::BindInt64(database, statement.Get(), 4, static_cast<int64_t>(context.Mode), error) &&
-                   details::BindText(database, statement.Get(), 5, context.SourceRoot, error) &&
-                   details::BindText(database, statement.Get(), 6, context.RuntimeRoot, error) &&
-                   details::BindText(database, statement.Get(), 7, context.RepositoryCommonDirectory, error) &&
-                   details::BindText(database, statement.Get(), 8, context.WorktreePath, error) &&
-                   details::BindText(database, statement.Get(), 9, context.Branch, error) &&
-                   details::BindText(database, statement.Get(), 10, context.RelativeWorkingDirectory, error) &&
-                   details::BindText(database, statement.Get(), 11, context.Provider, error) &&
-                   details::BindText(database, statement.Get(), 12, context.Model, error) &&
-                   details::BindText(database, statement.Get(), 13, context.Instructions, error) &&
-                   details::BindInt64(database, statement.Get(), 14, context.IdentityFrozen ? 1 : 0, error) &&
-                   details::BindInt64(database, statement.Get(), 15, context.CreatedAtUnixMilliseconds, error) &&
-                   details::StepDone(database, statement.Get(), error);
         }
 
         bool _insertTerminal(sqlite3* database, const TaskTerminalRecord& terminal, std::string& error)
@@ -159,8 +131,9 @@ WHERE id=?4 AND version=?5;
         }
     }
 
-    TaskStoreCommandResult SqliteTaskStore::CreateTask(const CreateTaskCommand& command)
+    TaskStoreCommandResult SqliteTaskStore::CreateTask(const CreateTaskCommand& request)
     {
+        auto command = request;
         if (!IsReady())
         {
             return details::CommandFailure(TaskStoreCommandStatus::NotReady, LastError());
@@ -187,6 +160,8 @@ WHERE id=?4 AND version=?5;
         {
             return replay.value();
         }
+        const auto resolved = details::ResolveExecutionAgent(_impl->Database, command.ExecutionContext, error);
+        if (resolved != TaskStoreCommandStatus::Succeeded) return details::CommandFailure(resolved, error);
         if (!details::ValidateCreateTaskCommand(command, error))
         {
             return details::CommandFailure(TaskStoreCommandStatus::InvalidRecord, std::move(error));
@@ -227,7 +202,7 @@ WHERE id=?4 AND version=?5;
         constexpr uint64_t eventSequence{ 1 };
         if (!_insertTask(_impl->Database, command.Task, error) ||
             !_insertAcceptanceCriteria(_impl->Database, command.Task, error) ||
-            !_insertExecutionContext(_impl->Database, command.ExecutionContext, error) ||
+            !details::InsertExecutionContext(_impl->Database, command.ExecutionContext, error) ||
             !_insertTerminal(_impl->Database, command.Terminal, error) ||
             !details::AppendEvent(
                 _impl->Database,

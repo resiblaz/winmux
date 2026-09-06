@@ -6,6 +6,8 @@
 #include "TaskRuntimeProcessTestFixtures.h"
 
 #include "RuntimeBootstrap.h"
+#include "RuntimeControlHandshake.h"
+#include "AgentCatalogRpc.h"
 
 #include "ProtocolCapabilities.h"
 #include "ProtocolValidation.h"
@@ -68,7 +70,36 @@ namespace TaskRuntimeLocalTests
         TEST_METHOD(ShutdownEventStopsGracefullyAndReleasesIdentityResources);
         TEST_METHOD(RealRuntimePersistsTerminalUiCreateAndQuery);
         TEST_METHOD(DrainStopsQuiescentRuntimeWithoutForcedCleanup);
+        TEST_METHOD(RealHostNegotiatesAgentCatalogAndPersistsProfiles);
     };
+
+    void RuntimeProductHostProcessTests::RealHostNegotiatesAgentCatalogAndPersistsProfiles()
+    {
+        ProductRuntimeTestIdentity identity; TaskRuntimeProcess process{ identity }; _verifyReady(process);
+        auto connection = ConnectRuntimeControlChannel(identity.Identity(), ProductControlTimeoutMilliseconds);
+        VERIFY_IS_TRUE(connection.Succeeded());
+        HelloRequest hello;
+        hello.ClientInstanceId = "71000000-0000-4000-8000-000000000080";
+        hello.ClientKind = ProtocolClientKind::TerminalUi;
+        hello.ExpectedRuntimeIdentity = identity.Identity().ProtocolIdentity;
+        hello.RequiredCapabilities = static_cast<uint64_t>(ProtocolCapability::AgentProfiles);
+        const auto handshake = PerformRuntimeClientHandshake(connection.Channel, hello, ProductControlTimeoutMilliseconds);
+        VERIFY_IS_TRUE(handshake.Succeeded());
+        VERIFY_IS_TRUE(HasCapability(handshake.Response.Capabilities, ProtocolCapability::AgentProfiles));
+        AgentCatalogCommandRequest create;
+        create.CommandId = "72000000-0000-4000-8000-000000000080";
+        create.AgentId = "73000000-0000-4000-8000-000000000080";
+        create.Configuration = AgentProfileConfiguration{ "Host Agent", "Display", "codex", "", "Host instructions" };
+        const auto saved = RequireProductResponse(connection.Channel, "74000000-0000-4000-8000-000000000080", ControlMethod::AgentCommand, EncodeAgentCatalogCommandRequest(create).Payload);
+        VERIFY_IS_TRUE(saved.Succeeded);
+        VERIFY_ARE_EQUAL(uint64_t{ 1 }, DecodeAgentCatalogCommandResult(saved.ResultJson).Value.Version);
+        AgentCatalogQueryRequest query; query.AgentId = create.AgentId;
+        const auto queried = RequireProductResponse(connection.Channel, "74000000-0000-4000-8000-000000000081", ControlMethod::QueryAgents, EncodeAgentCatalogQueryRequest(query).Payload);
+        VERIFY_IS_TRUE(queried.Succeeded);
+        const auto profile = DecodeAgentCatalogQueryResult(queried.ResultJson); VERIFY_IS_TRUE(profile.Succeeded());
+        VERIFY_ARE_EQUAL(size_t{ 1 }, profile.Value.Profiles.size());
+        VERIFY_ARE_EQUAL(create.Configuration->Instructions, profile.Value.Profiles.front().Configuration.Instructions);
+    }
 
     void RuntimeProductHostProcessTests::RealServeAcceptsHelloWithNegotiatedContract()
     {

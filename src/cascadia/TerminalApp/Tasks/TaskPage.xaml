@@ -161,12 +161,16 @@
                            Margin="0,3,0,0"
                            Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
                            FontSize="12" />
+                <TextBlock x:Name="TaskOperationStatus" TextWrapping="Wrap" FontSize="12"
+                           Foreground="{ThemeResource WorkspaceChromeAccentBrush}" />
             </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <Button x:Name="ManageAgentsButton" x:Uid="AgentManage" Click="_ManageAgents_Click" />
             <Button x:Name="NewTaskButton"
                     x:Uid="TaskPageNewTaskButton"
-                    Grid.Column="2"
                     Click="_NewTask_Click"
                     IsEnabled="{x:Bind ViewModel.IsSourceAttached, Mode=OneWay}" />
+            </StackPanel>
         </Grid>
 
         <Grid x:Name="FilterGrid"
@@ -359,6 +363,9 @@
                             <ComboBoxItem x:Uid="TaskPageDraftDirectMode" />
                         </ComboBox>
                     </Grid>
+                    <local:AgentSelectionControl x:Name="DraftAgent" />
+                    <Button x:Name="ManageDraftAgentsButton" x:Uid="AgentManage" Click="_ManageAgents_Click" />
+                    <TextBlock x:Name="DraftError" TextWrapping="Wrap" Foreground="{ThemeResource WorkspaceChromeAccentBrush}" />
                     <Border Padding="14"
                             Background="{ThemeResource WorkspaceChromeStatusFillBrush}"
                             CornerRadius="8">
@@ -369,17 +376,16 @@
                     <StackPanel HorizontalAlignment="Right"
                                 Orientation="Horizontal"
                                 Spacing="8">
-                        <Button x:Uid="TaskPageDraftCancelButton"
+                        <Button x:Name="CancelDraftButton" x:Uid="TaskPageDraftCancelButton"
                                 Click="_CancelDraft_Click" />
-                        <Button x:Uid="TaskPageDraftSaveButton"
-                                Click="_SaveDraft_Click"
-                                IsEnabled="{x:Bind ViewModel.IsSourceAttached, Mode=OneWay}" />
-                        <Button x:Uid="TaskPageDraftSaveRunButton"
-                                Click="_SaveAndRunDraft_Click"
-                                IsEnabled="{x:Bind ViewModel.IsSourceAttached, Mode=OneWay}" />
+                        <Button x:Name="SaveDraftButton" x:Uid="TaskPageDraftSaveButton"
+                                Click="_SaveDraft_Click" />
+                        <Button x:Name="SaveRunDraftButton" x:Uid="TaskPageDraftSaveRunButton"
+                                Click="_SaveAndRunDraft_Click" />
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>
         </Grid>
+        <Grid x:Name="AgentManagerHost" Grid.RowSpan="4" Visibility="Collapsed" />
     </Grid>
 </UserControl>

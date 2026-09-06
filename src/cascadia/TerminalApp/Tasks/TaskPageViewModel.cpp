@@ -186,6 +186,12 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void TaskPageViewModel::SelectCreatedTask(std::wstring id)
+    {
+        _selectedTaskId = std::move(id);
+        Reload();
+    }
+
     bool TaskPageViewModel::CreateTask(const tasks::TaskDraft& draft, const bool startImmediately)
     {
         if (!_source || draft.Title.empty())

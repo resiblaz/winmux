@@ -37,6 +37,7 @@
     <ClInclude Include="RuntimeProductHost.h" />
     <ClInclude Include="RuntimeProductHostInternal.h" />
     <ClInclude Include="RuntimeProductExecutableDiscovery.h" />
+    <ClInclude Include="RuntimeAgentCatalogService.h" />
     <ClInclude Include="RuntimeProductRouter.h" />
     <ClInclude Include="RuntimeCodexDiscovery.h" />
     <ClInclude Include="RuntimeTaskProviderService.h" />
@@ -88,6 +89,7 @@
     <ClCompile Include="RuntimeProductHost.cpp" />
     <ClCompile Include="RuntimeProductHostIdle.cpp" />
     <ClCompile Include="RuntimeProductExecutableDiscovery.cpp" />
+    <ClCompile Include="RuntimeAgentCatalogService.cpp" />
     <ClCompile Include="RuntimeProductRouter.cpp" />
     <ClCompile Include="RuntimeCodexDiscovery.cpp" />
     <ClCompile Include="RuntimeTaskProviderService.cpp" />

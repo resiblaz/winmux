@@ -5,6 +5,7 @@
 #include "RuntimeTaskProjectionSource.h"
 
 #include "TaskProjectionMapper.h"
+#include "../Agents/RuntimeAgentCatalogSource.h"
 
 #include "RuntimeCrypto.h"
 #include "RuntimeIdentity.h"
@@ -53,7 +54,8 @@ namespace winrt::TerminalApp::implementation::tasks
                     static_cast<uint64_t>(ProtocolCapability::InputControllerLease) |
                     static_cast<uint64_t>(ProtocolCapability::TaskTerminalSurfaces) |
                     static_cast<uint64_t>(ProtocolCapability::TaskOrchestration) |
-                    static_cast<uint64_t>(ProtocolCapability::RuntimeDrain);
+                    static_cast<uint64_t>(ProtocolCapability::RuntimeDrain) |
+                    static_cast<uint64_t>(ProtocolCapability::AgentProfiles);
                 configuration.Activation = TaskRuntimeClientActivationConfiguration{
                     runtime,
                     module.parent_path(),
@@ -78,6 +80,7 @@ namespace winrt::TerminalApp::implementation::tasks
         _dispatcher{ std::move(dispatcher) },
         _agentSessions{ std::move(agentSessions) }
     {
+        _agentCatalog = agents::MakeRuntimeAgentCatalogSource(_client, _dispatcher);
     }
 
     RuntimeTaskProjectionSource::~RuntimeTaskProjectionSource()
@@ -268,6 +271,11 @@ namespace winrt::TerminalApp::implementation::tasks
 
     void RuntimeTaskProjectionSource::_refresh(const std::optional<std::string>& taskId) noexcept
     {
+        uint64_t publicationRevision;
+        {
+            const std::scoped_lock publication{ _publicationMutex };
+            publicationRevision = _publicationRevision;
+        }
         const auto finishLoading = wil::scope_exit([&]() noexcept {
             if (_loading.exchange(false, std::memory_order_acq_rel))
                 _notify();
@@ -300,6 +308,10 @@ namespace winrt::TerminalApp::implementation::tasks
         const auto decoded = DecodeTaskProjectionQueryResult(completed.Response->ResultJson);
         if (!decoded.Succeeded())
             return;
+        std::unique_lock publication{ _publicationMutex };
+        // Async creation may finish while this query is in flight. Never
+        // publish that older snapshot over the acknowledged new Task.
+        if (publicationRevision != _publicationRevision) return;
         if (_agentSessions)
         {
             if (taskId && decoded.Value.Tasks.size() == 1)
@@ -320,6 +332,7 @@ namespace winrt::TerminalApp::implementation::tasks
                 static_cast<void>(_coordinator.Apply(_client->RuntimeInstanceId(), decoded.Value.Generation, std::move(*mapped)));
             }
         }
+        publication.unlock();
         _notify();
     }
 

@@ -13,6 +13,7 @@
 
 namespace Microsoft::Terminal::TaskRuntime
 {
+    class RuntimeAgentCatalogService;
     class RuntimeProductRouter final : public IRuntimeControlRequestRouter
     {
     public:
@@ -20,7 +21,8 @@ namespace Microsoft::Terminal::TaskRuntime
             std::shared_ptr<RuntimeFoundationRouter> foundation,
             std::shared_ptr<RuntimeRtaskCommandService> rtask,
             std::shared_ptr<RuntimeTaskProviderService> provider = nullptr,
-            std::shared_ptr<RuntimeTaskProjectionService> tasks = nullptr) noexcept;
+            std::shared_ptr<RuntimeTaskProjectionService> tasks = nullptr,
+            std::shared_ptr<RuntimeAgentCatalogService> agents = nullptr) noexcept;
 
         [[nodiscard]] bool Valid() const noexcept;
         [[nodiscard]] RuntimeControlRouteResult Route(
@@ -37,6 +39,7 @@ namespace Microsoft::Terminal::TaskRuntime
         std::shared_ptr<RuntimeRtaskCommandService> _rtask;
         std::shared_ptr<RuntimeTaskProviderService> _provider;
         std::shared_ptr<RuntimeTaskProjectionService> _tasks;
+        std::shared_ptr<RuntimeAgentCatalogService> _agents;
         bool _valid{};
     };
 }

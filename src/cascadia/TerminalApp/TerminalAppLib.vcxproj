@@ -64,6 +64,8 @@
     <Page Include="ConclusionSidebar.xaml">
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Agents\AgentSelectionControl.xaml"><SubType>Designer</SubType></Page>
+    <Page Include="Agents\AgentCatalogPage.xaml"><SubType>Designer</SubType></Page>
     <Page Include="Tasks\TaskPage.xaml">
       <SubType>Designer</SubType>
     </Page>
@@ -149,6 +151,15 @@
     </ClInclude>
     <ClInclude Include="Tasks\TaskItemViewModel.h">
       <DependentUpon>TaskItemViewModel.idl</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="Agents\IAgentCatalogSource.h" />
+    <ClInclude Include="Agents\RuntimeAgentCatalogSource.h" />
+    <ClInclude Include="Agents\AgentEditorViewModel.h" />
+    <ClInclude Include="Agents\AgentSelectionControl.h">
+      <DependentUpon>AgentSelectionControl.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="Agents\AgentCatalogPage.h">
+      <DependentUpon>AgentCatalogPage.xaml</DependentUpon>
     </ClInclude>
     <ClInclude Include="Tasks\TaskProjection.h" />
     <ClInclude Include="Tasks\ITaskProjectionSource.h" />
@@ -364,6 +375,14 @@
     <ClCompile Include="Tasks\TaskItemViewModel.cpp">
       <DependentUpon>TaskItemViewModel.idl</DependentUpon>
     </ClCompile>
+    <ClCompile Include="Agents\RuntimeAgentCatalogSource.cpp" />
+    <ClCompile Include="Agents\AgentSelectionControl.cpp">
+      <DependentUpon>AgentSelectionControl.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="Agents\AgentCatalogPage.cpp">
+      <DependentUpon>AgentCatalogPage.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="Tasks\TaskPage.Agents.cpp" />
     <ClCompile Include="Tasks\PrototypeTaskProjectionSource.cpp" />
     <ClCompile Include="Tasks\TaskProjectionCoordinator.cpp" />
     <ClCompile Include="Tasks\TaskProjectionMapper.cpp" />
@@ -509,6 +528,14 @@
     </Midl>
     <Midl Include="ConclusionSidebar.idl">
       <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="Agents\AgentSelectionControl.idl">
+      <DependentUpon>AgentSelectionControl.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="Agents\AgentCatalogPage.idl">
+      <DependentUpon>AgentCatalogPage.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="Tasks\TaskPage.idl">
@@ -696,7 +723,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(GeneratedFilesDir)Tasks;$(OpenConsoleDir)src\cascadia\TaskRuntimeClient;$(OpenConsoleDir)src\cascadia\TaskRuntimeActivation;$(OpenConsoleDir)src\cascadia\TaskRuntimeTransport;$(OpenConsoleDir)src\cascadia\TaskRuntimeProtocol;..;%(AdditionalIncludeDirectories);</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(GeneratedFilesDir)Tasks;$(GeneratedFilesDir)Agents;$(OpenConsoleDir)src\cascadia\TaskRuntimeClient;$(OpenConsoleDir)src\cascadia\TaskRuntimeActivation;$(OpenConsoleDir)src\cascadia\TaskRuntimeTransport;$(OpenConsoleDir)src\cascadia\TaskRuntimeProtocol;..;%(AdditionalIncludeDirectories);</AdditionalIncludeDirectories>
       <!-- Manually disable unreachable code warning, because jconcpp has a ton of that. -->
       <DisableSpecificWarnings>4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>

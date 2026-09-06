@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ProtocolRpcJson.h"
+#include "AgentCatalogRpc.h"
 
 #include <cstdint>
 #include <optional>
@@ -87,6 +88,8 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         std::string Provider;
         std::string Model;
         std::string Instructions;
+        std::optional<AgentProfileReference> Agent;
+        std::string AgentName;
     };
 
     struct TaskProjectionTerminalRecord
@@ -119,6 +122,11 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         std::optional<int64_t> FinishedAtUnixMilliseconds;
         std::string Result;
         std::string ReasonCode;
+        std::optional<AgentProfileReference> Agent;
+        std::string AgentName;
+        std::string Provider;
+        std::string Model;
+        uint64_t ExecutionRevision{};
     };
 
     struct TaskProjectionMessageRecord
@@ -198,6 +206,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         Delete,
         Derive,
         RestartProvider,
+        UpdateAgent,
         Count,
     };
 
@@ -214,6 +223,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         std::string Provider{ "codex" };
         std::string Model;
         std::string Instructions;
+        std::optional<AgentProfileReference> Agent;
     };
 
     struct TaskUiCommandRequest
@@ -228,6 +238,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         std::optional<std::string> Text;
         std::optional<std::string> RelatedRunId;
         std::optional<std::string> DerivedTaskId;
+        std::optional<TaskAgentConfiguration> AgentConfiguration;
     };
 
     struct TaskUiSurfaceDescriptor
@@ -261,7 +272,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
     [[nodiscard]] ProtocolRpcJsonDecodeResult<TaskProjectionQueryRequest> DecodeTaskProjectionQueryRequest(std::string_view payload);
     [[nodiscard]] ProtocolRpcJsonEncodeResult EncodeTaskProjectionQueryRequest(const TaskProjectionQueryRequest& value);
     [[nodiscard]] ProtocolRpcJsonDecodeResult<TaskProjectionQueryResult> DecodeTaskProjectionQueryResult(std::string_view payload);
-    [[nodiscard]] ProtocolRpcJsonEncodeResult EncodeTaskProjectionQueryResult(const TaskProjectionQueryResult& value);
+    [[nodiscard]] ProtocolRpcJsonEncodeResult EncodeTaskProjectionQueryResult(const TaskProjectionQueryResult& value, bool includeAgentProfiles = false);
     [[nodiscard]] ProtocolRpcJsonDecodeResult<TaskUiCommandRequest> DecodeTaskUiCommandRequest(std::string_view payload);
     [[nodiscard]] ProtocolRpcJsonEncodeResult EncodeTaskUiCommandRequest(const TaskUiCommandRequest& value);
     [[nodiscard]] ProtocolRpcJsonDecodeResult<TaskUiCommandResult> DecodeTaskUiCommandResult(std::string_view payload);

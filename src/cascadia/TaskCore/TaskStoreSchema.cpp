@@ -5,6 +5,7 @@
 #include "TaskStoreSchema.h"
 
 #include "TaskStoreSqlite.h"
+#include "TaskStoreAgentSqlite.h"
 
 namespace Microsoft::Terminal::TaskCore::details
 {
@@ -507,6 +508,11 @@ SELECT
             }
             observedVersion = 4;
         }
+        if (observedVersion == 4)
+        {
+            if (!MigrateAgentProfileSchema(database, error)) return TaskStoreOpenStatus::IOError;
+            observedVersion = 5;
+        }
         if (!_hasRequiredTables(database, observedVersion, error))
         {
             if (error.empty())
@@ -531,6 +537,7 @@ SELECT
             }
             return TaskStoreOpenStatus::RecoveryRequired;
         }
+        if (observedVersion >= 5 && !ValidateAgentProfileSchema(database, error)) return TaskStoreOpenStatus::RecoveryRequired;
         return TaskStoreOpenStatus::Ready;
     }
 }

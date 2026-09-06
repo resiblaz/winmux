@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "TaskProjectionRpc.h"
+#include "AgentCatalogJson.h"
 
 #include "ProtocolValidation.h"
 #include "ProtocolVersion.h"
@@ -93,11 +94,22 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             result["provider"] = draft.Provider;
             result["model"] = draft.Model;
             result["instructions"] = draft.Instructions;
+            if (draft.Agent)
+            {
+                result["agentId"] = draft.Agent->Id;
+                result["agentRevision"] = Json::UInt64{ draft.Agent->Revision };
+            }
             return result;
         }
 
-        bool _decodeDraft(const Json::Value& value, TaskUiCreateDraft& draft)
+        bool _decodeDraft(Json::Value value, TaskUiCreateDraft& draft)
         {
+            if (value.isMember("agentId") || value.isMember("agentRevision"))
+            {
+                if (!value["agentId"].isString() || !_unsigned(value["agentRevision"])) return false;
+                draft.Agent = AgentProfileReference{ value["agentId"].asString(), value["agentRevision"].asUInt64() };
+                value.removeMember("agentId"); value.removeMember("agentRevision");
+            }
             if (!_exact(value, { "workspaceId", "title", "description", "acceptance", "priority", "executionMode", "sourceRoot", "relativeWorkingDirectory", "provider", "model", "instructions" }) ||
                 !value["workspaceId"].isString() || !value["title"].isString() || !value["description"].isString() ||
                 !value["acceptance"].isArray() || value["acceptance"].size() > MaximumTaskProjectionAcceptance ||
@@ -132,11 +144,18 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             result["text"] = value.Text ? Json::Value{ *value.Text } : Json::Value{};
             result["relatedRunId"] = value.RelatedRunId ? Json::Value{ *value.RelatedRunId } : Json::Value{};
             result["derivedTaskId"] = value.DerivedTaskId ? Json::Value{ *value.DerivedTaskId } : Json::Value{};
+            if (value.AgentConfiguration) result["agentConfiguration"] = details::TaskAgentConfigurationJson(*value.AgentConfiguration);
             return result;
         }
 
-        bool _decodeArguments(const Json::Value& value, TaskUiCommandRequest& request)
+        bool _decodeArguments(Json::Value value, TaskUiCommandRequest& request)
         {
+            if (value.isMember("agentConfiguration"))
+            {
+                request.AgentConfiguration.emplace();
+                if (!details::ReadTaskAgentConfigurationJson(value["agentConfiguration"], *request.AgentConfiguration)) return false;
+                value.removeMember("agentConfiguration");
+            }
             if (!_exact(value, { "messageId", "expectedMessageRevision", "text", "relatedRunId", "derivedTaskId" }) ||
                 (!value["messageId"].isNull() && !value["messageId"].isString()) ||
                 (!value["expectedMessageRevision"].isNull() && !_unsigned(value["expectedMessageRevision"])) ||
@@ -224,7 +243,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         root["taskId"] = value.TaskId;
         root["expectedTaskVersion"] = Json::UInt64{ value.ExpectedTaskVersion };
         root["draft"] = value.Draft ? _draft(*value.Draft) : Json::Value{};
-        if (value.MessageId || value.ExpectedMessageRevision || value.Text || value.RelatedRunId || value.DerivedTaskId)
+        if (value.MessageId || value.ExpectedMessageRevision || value.Text || value.RelatedRunId || value.DerivedTaskId || value.AgentConfiguration)
         {
             root["arguments"] = _arguments(value);
         }

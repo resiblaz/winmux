@@ -13,7 +13,7 @@
 namespace Microsoft::Terminal::TaskCore::details
 {
     inline constexpr int32_t TaskDatabaseApplicationId{ 0x54534B31 }; // TSK1
-    inline constexpr int32_t CurrentTaskDatabaseSchemaVersion{ 4 };
+    inline constexpr int32_t CurrentTaskDatabaseSchemaVersion{ 5 };
 
     [[nodiscard]] TaskStoreOpenStatus InitializeOrValidateTaskSchema(
         sqlite3* database,

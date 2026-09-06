@@ -56,10 +56,10 @@ namespace Microsoft::Terminal::TaskRuntime
                        std::nullopt;
         }
 
-        const ExecutionContextRecord* _context(const TaskAggregateSnapshot& aggregate) noexcept
+        const ExecutionContextRecord* _context(const TaskAggregateSnapshot& aggregate, const TaskRunId& runId) noexcept
         {
-            return aggregate.ExecutionContexts.empty() ? nullptr :
-                                                         &*std::ranges::max_element(aggregate.ExecutionContexts, {}, &ExecutionContextRecord::Revision);
+            const auto run = std::ranges::find(aggregate.Runs, runId, &TaskRunRecord::Id);
+            return run == aggregate.Runs.end() ? nullptr : FindRuntimeTaskRunContext(aggregate, *run);
         }
 
         const TaskRunRecord* _run(const TaskAggregateSnapshot& aggregate, const TaskRunId& run) noexcept
@@ -125,7 +125,7 @@ namespace Microsoft::Terminal::TaskRuntime
         if (current->State == TaskRunState::Running || aggregate->Task.ManualHold)
             return;
         std::optional<DirectDirectoryLease> directLease;
-        const auto context = _context(*aggregate);
+        const auto context = _context(*aggregate, run);
         const auto initialState = current->State;
         if (!context || (initialState == TaskRunState::Queued && !TransitionRun(task, run, TaskRunState::Preparing)))
             return;
@@ -231,7 +231,7 @@ namespace Microsoft::Terminal::TaskRuntime
                 !TransitionRun(task, run, TaskRunState::WaitingForDirectory))
                 return;
             aggregate = Store->LoadTask(task);
-            const auto currentContext = aggregate ? _context(*aggregate) : nullptr;
+            const auto currentContext = aggregate ? _context(*aggregate, run) : nullptr;
             const auto directory = aggregate && currentContext ? _workingDirectory(*aggregate, *currentContext) : std::nullopt;
             const auto identity = directory ? ResolveCanonicalDirectoryIdentity(*directory, DirectoryIdentityPolicy::Direct) : DirectoryIdentityResult{};
             if (!identity.Succeeded())
@@ -286,7 +286,7 @@ namespace Microsoft::Terminal::TaskRuntime
 
         aggregate = Store->LoadTask(task);
         const auto runRecord = aggregate ? _run(*aggregate, run) : nullptr;
-        const auto runContext = aggregate ? _context(*aggregate) : nullptr;
+        const auto runContext = aggregate ? _context(*aggregate, run) : nullptr;
         const auto directory = aggregate && runContext ? _workingDirectory(*aggregate, *runContext) : std::nullopt;
         if (!aggregate || !runRecord || !runContext || !directory)
         {
@@ -310,6 +310,8 @@ namespace Microsoft::Terminal::TaskRuntime
         request.Context.WorkingDirectory = *directory;
         request.Context.Model = runContext->Model;
         request.Context.Instructions = runContext->Instructions;
+        if (runContext->SourceAgentId && !request.Context.Instructions.empty())
+            request.Context.Instructions.insert(0, "Agent instructions:\n");
         request.Context.RtaskExecutable = RtaskExecutable;
         request.Context.RtaskEndpoint = RtaskEndpoint;
         request.Context.RtaskCapability = capability.Grant->Capability;
@@ -317,13 +319,13 @@ namespace Microsoft::Terminal::TaskRuntime
         const auto currentSession = std::ranges::find_if(aggregate->AgentSessions, [](const auto& value) {
             return value.IsCurrent && value.State != AgentSessionState::Poisoned && value.State != AgentSessionState::Closed;
         });
-        if (currentSession != aggregate->AgentSessions.end())
+        if (currentSession != aggregate->AgentSessions.end() && CanResumeRuntimeTaskAgentSession(*aggregate, *runRecord, *currentSession))
         {
             session = Provider->ResumeSession(task.Value(), currentSession->ProviderSessionId, StopEvent.get());
         }
         if (!session.Succeeded())
         {
-            session = Provider->StartSession({ task.Value(), *directory, runContext->Model, request.Context }, StopEvent.get());
+            session = Provider->StartSession({ task.Value(), *directory, runContext->Model, request.Context, true }, StopEvent.get());
         }
         if (!session.Succeeded() || !session.Session)
         {

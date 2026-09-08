@@ -10,6 +10,7 @@
 #include <functional>
 
 namespace winrt::TerminalApp::implementation::agents { class IAgentCatalogSource; }
+namespace winrt::TerminalApp::implementation::projects { class IWorkspaceSource; }
 
 namespace winrt::TerminalApp::implementation::tasks
 {
@@ -18,6 +19,7 @@ namespace winrt::TerminalApp::implementation::tasks
     public:
         virtual ~ITaskProjectionSource() = default;
         virtual std::shared_ptr<agents::IAgentCatalogSource> AgentCatalog() const { return nullptr; }
+        virtual std::shared_ptr<projects::IWorkspaceSource> WorkspaceSource() const { return nullptr; }
 
         using ChangedHandler = std::function<void()>;
         using SurfaceHandler = std::function<void(const TaskSurfaceDescriptor&)>;
@@ -43,12 +45,19 @@ namespace winrt::TerminalApp::implementation::tasks
         [[nodiscard]] virtual bool Start() { return true; }
         virtual void Stop() noexcept {}
         virtual void SelectTask(std::wstring_view) {}
+        virtual void ConfigureQuery(const TaskListQuery&) {}
+        virtual void RequestRefresh() {}
+        virtual void LoadMore(std::optional<TaskStatus> = std::nullopt) {}
+        virtual bool UsesSummaries() const noexcept { return false; }
+        virtual bool HasMoreTasks(std::optional<TaskStatus> = std::nullopt) const noexcept { return false; }
+        virtual uint64_t QueryTotal() const noexcept { return 0; }
         [[nodiscard]] virtual std::wstring ResolveWorkspaceKey(std::wstring_view workspaceId,
                                                                std::wstring_view,
                                                                std::wstring_view) const
         {
             return std::wstring{ workspaceId };
         }
+        virtual std::array<uint64_t, 7> QueryCounts() const noexcept { return {}; }
     };
 
     [[nodiscard]] std::shared_ptr<ITaskProjectionSource> MakePrototypeTaskProjectionSource();

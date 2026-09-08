@@ -639,6 +639,7 @@ namespace winrt::TerminalApp::implementation
         auto unsetRemoving = wil::scope_exit([&]() noexcept { _removing = wasRemoving; });
 
         const auto focusedTab{ _GetFocusedTab() };
+        const auto keepTaskPanel = _ProjectModeEnabled() && _activeWorkspaceToolPage == WorkspaceToolPage::Tasks;
 
         // NOTE: Workspace persistence for named windows used to live here,
         // but by the time _RemoveTab runs the pane content may already be
@@ -685,7 +686,8 @@ namespace winrt::TerminalApp::implementation
             _removing = wasRemoving;
             unsetRemoving.release();
             topology.Commit();
-            CloseWindowRequested.raise(*this, nullptr);
+            if (keepTaskPanel) _SetWorkspaceToolPage(WorkspaceToolPage::Tasks);
+            else CloseWindowRequested.raise(*this, nullptr);
         }
         else if (focusedTab == tab)
         {
@@ -713,6 +715,7 @@ namespace winrt::TerminalApp::implementation
     // - Sets focus to the tab to the right or left the currently selected tab.
     void TerminalPage::_SelectNextTab(const bool bMoveRight, const Windows::Foundation::IReference<Microsoft::Terminal::Settings::Model::TabSwitcherMode>& customTabSwitcherMode)
     {
+        if (_tabs.Size() == 0) return;
         const auto index{ _GetFocusedTabIndex().value_or(0) };
         const auto tabSwitchMode = customTabSwitcherMode ? customTabSwitcherMode.Value() : _currentWindowSettings().TabSwitcherMode();
         if (tabSwitchMode == TabSwitcherMode::Disabled)

@@ -32,6 +32,7 @@
     <ClCompile Include="TaskCoreRecoveryTests.cpp" />
     <ClCompile Include="TaskCoreRuntimeActivityTests.cpp" />
     <ClCompile Include="AgentProfileStoreTests.cpp" />
+    <ClCompile Include="ProjectBoardStoreTests.cpp" />
     <ClCompile Include="TaskCoreSchemaTests.cpp" />
     <ClCompile Include="TaskCoreStoreRunTests.cpp" />
     <ClCompile Include="TaskCoreStoreTaskTests.cpp" />

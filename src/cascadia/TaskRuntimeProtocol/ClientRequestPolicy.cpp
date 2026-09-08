@@ -6,7 +6,7 @@
 
 namespace Microsoft::Terminal::TaskRuntimeProtocol
 {
-    static_assert(static_cast<uint8_t>(ControlMethod::Count) == 11,
+    static_assert(static_cast<uint8_t>(ControlMethod::Count) == 17,
                   "Review disconnect/replay policy whenever a control method is added");
 
     bool IsReadOnlyControlMethod(const ControlMethod method) noexcept
@@ -16,12 +16,18 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         case ControlMethod::Ping:
         case ControlMethod::QueryTask:
         case ControlMethod::QueryAgents:
+        case ControlMethod::QueryProjects:
+        case ControlMethod::QueryTaskSummaries:
+        case ControlMethod::QueryBoardOperation:
+        case ControlMethod::QueryTaskSessionIndex:
         case ControlMethod::RuntimeStatus:
             return true;
         case ControlMethod::SnapshotAndSubscribe:
         case ControlMethod::Unsubscribe:
         case ControlMethod::SubmitCommand:
         case ControlMethod::AgentCommand:
+        case ControlMethod::ProjectCommand:
+        case ControlMethod::TaskBoardCommand:
         case ControlMethod::AcquireInputLease:
         case ControlMethod::ReleaseInputLease:
         case ControlMethod::DrainRuntime:
@@ -45,10 +51,16 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         case ControlMethod::Ping:
         case ControlMethod::QueryTask:
         case ControlMethod::QueryAgents:
+        case ControlMethod::QueryProjects:
+        case ControlMethod::QueryTaskSummaries:
+        case ControlMethod::QueryBoardOperation:
+        case ControlMethod::QueryTaskSessionIndex:
         case ControlMethod::RuntimeStatus:
             return ClientDisconnectAction::RetryWithNewRequestId;
         case ControlMethod::SubmitCommand:
         case ControlMethod::AgentCommand:
+        case ControlMethod::ProjectCommand:
+        case ControlMethod::TaskBoardCommand:
         case ControlMethod::AcquireInputLease:
         case ControlMethod::ReleaseInputLease:
         case ControlMethod::DrainRuntime:

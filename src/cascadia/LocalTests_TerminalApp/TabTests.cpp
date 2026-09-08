@@ -18,6 +18,7 @@
 #include "../TerminalApp/CommandPalette.h"
 #include "../TerminalApp/ContentManager.h"
 #include "CppWinrtTailored.h"
+#include "ProjectTestSource.h"
 
 using namespace Microsoft::Console;
 using namespace TerminalApp;
@@ -45,6 +46,7 @@ namespace winrt
 
 namespace TerminalAppLocalTests
 {
+    using winrt::TerminalApp::implementation::WorkspaceToolPage;
     namespace
     {
         struct MarkdownInspection
@@ -171,6 +173,13 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
         TEST_METHOD(WorkspaceGroupsMultipleTerminalSurfaces);
         TEST_METHOD(WorkspaceSurfaceShortcutActions);
+        TEST_METHOD(WorkspaceCloseKeepsOtherWorkspaceOpen);
+        TEST_METHOD(WorkspaceCloseAllSurfacesKeepsOtherWorkspaceOpen);
+        TEST_METHOD(ProjectCloseLastTerminalKeepsProjectAndWindow);
+        TEST_METHOD(ProjectCloseViewKeepsWorkspaceTerminals);
+        TEST_METHOD(ProjectCloseLastSurfaceKeepsOtherWorkspace);
+        TEST_METHOD(ProjectNavigationIsScopedToTaskPanel);
+        TEST_METHOD(ProjectNavigationRefreshesAfterDropdownLayout);
         TEST_METHOD(WorkspaceEnvironmentUsesAuthoritativeRoutingMetadata);
         TEST_METHOD(WorkspaceWorkingDirectoryDisplayIsCompact);
         TEST_METHOD(WorkspaceGitBranchParsesStructuredOutput);
@@ -735,6 +744,282 @@ namespace TerminalAppLocalTests
             VERIFY_IS_NOT_NULL(newWorkspace);
             VERIFY_ARE_EQUAL(1u, newWorkspace.SurfaceCount());
             VERIFY_IS_TRUE(workspace.WorkspaceId() != newWorkspace.WorkspaceId());
+        });
+    }
+
+    void TabTests::WorkspaceCloseKeepsOtherWorkspaceOpen()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            page->_settings.GlobalSettings().ConfirmOnClose(ConfirmOnClose::Never);
+            uint32_t closeWindowRequests{};
+            const auto closed = page->CloseWindowRequested([&](const auto&, const auto&) { ++closeWindowRequests; });
+            const auto revokeClosed = wil::scope_exit([&] { page->CloseWindowRequested(closed); });
+
+            // Exercise both positions and both selection states. In particular,
+            // closing the selected last tab used to leave a stale TabView index
+            // while the workspace collection notified its observers.
+            for (const auto closeFirst : { false, true })
+            {
+                for (const auto closeFocused : { true, false })
+                {
+                    VERIFY_IS_TRUE(page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::NewWorkspace, nullptr }));
+                    VERIFY_ARE_EQUAL(2u, page->_WorkspaceItems().Size());
+                    VERIFY_ARE_EQUAL(2u, page->_tabs.Size());
+
+                    const auto closeIndex = closeFirst ? 0u : 1u;
+                    const auto keepIndex = 1u - closeIndex;
+                    const auto closing = page->_WorkspaceItems().GetAt(closeIndex);
+                    const auto remaining = page->_WorkspaceItems().GetAt(keepIndex);
+                    const auto remainingTab = remaining.SourceTab();
+                    VERIFY_IS_TRUE(page->_SelectTab(closeFocused ? closeIndex : keepIndex));
+                    VERIFY_ARE_EQUAL(closeFocused ? closing.SourceTab() : remainingTab, page->_GetFocusedTab());
+
+                    page->_WorkspaceCloseRequested(page->_workspaceSidebar, closing);
+
+                    VERIFY_ARE_EQUAL(0u, closeWindowRequests);
+                    VERIFY_ARE_EQUAL(1u, page->_WorkspaceItems().Size());
+                    VERIFY_ARE_EQUAL(remaining, page->_WorkspaceItems().GetAt(0));
+                    VERIFY_ARE_EQUAL(1u, page->_tabs.Size());
+                    VERIFY_ARE_EQUAL(remainingTab, page->_tabs.GetAt(0));
+                    VERIFY_ARE_EQUAL(remainingTab, page->_GetFocusedTab());
+                    VERIFY_ARE_EQUAL(remaining, page->_workspaceList.SelectedItem().as<winrt::TerminalApp::WorkspaceItemViewModel>());
+                    VERIFY_ARE_EQUAL(remainingTab, page->_workspaceSurfaceTabs.SelectedItem().as<winrt::TerminalApp::Tab>());
+                    page->_workspaceFeatures->Workspaces().AssertInvariants(page->_tabs);
+                }
+            }
+
+            // The window should close only after its final workspace is closed.
+            const auto last = page->_WorkspaceItems().GetAt(0);
+            page->_WorkspaceCloseRequested(page->_workspaceSidebar, last);
+            VERIFY_ARE_EQUAL(1u, closeWindowRequests);
+            VERIFY_ARE_EQUAL(0u, page->_WorkspaceItems().Size());
+            VERIFY_ARE_EQUAL(0u, page->_tabs.Size());
+            VERIFY_ARE_EQUAL(0u, page->_tabView.TabItems().Size());
+            VERIFY_IS_NULL(page->_GetFocusedTab());
+        });
+    }
+
+    void TabTests::WorkspaceCloseAllSurfacesKeepsOtherWorkspaceOpen()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            page->_settings.GlobalSettings().ConfirmOnClose(ConfirmOnClose::Never);
+            const auto remaining = page->_WorkspaceItems().GetAt(0);
+            const auto remainingTab = remaining.SourceTab();
+            uint32_t closeWindowRequests{};
+            const auto closed = page->CloseWindowRequested([&](const auto&, const auto&) { ++closeWindowRequests; });
+            const auto revokeClosed = wil::scope_exit([&] { page->CloseWindowRequested(closed); });
+
+            VERIFY_IS_TRUE(page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::NewWorkspace, nullptr }));
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+            page->_OpenNewTab(NewTerminalArgs{ 2 });
+            const auto closing = page->_WorkspaceItems().GetAt(1);
+            VERIFY_ARE_EQUAL(3u, closing.SurfaceCount());
+            VERIFY_ARE_EQUAL(4u, page->_tabs.Size());
+
+            page->_WorkspaceCloseRequested(page->_workspaceSidebar, closing);
+
+            VERIFY_ARE_EQUAL(0u, closeWindowRequests);
+            VERIFY_ARE_EQUAL(1u, page->_WorkspaceItems().Size());
+            VERIFY_ARE_EQUAL(remaining, page->_WorkspaceItems().GetAt(0));
+            VERIFY_ARE_EQUAL(1u, page->_tabs.Size());
+            VERIFY_ARE_EQUAL(1u, page->_tabView.TabItems().Size());
+            VERIFY_ARE_EQUAL(1u, page->_mruTabs.Size());
+            VERIFY_ARE_EQUAL(remainingTab, page->_GetFocusedTab());
+            VERIFY_ARE_EQUAL(remainingTab, page->_workspaceSurfaceTabs.SelectedItem().as<winrt::TerminalApp::Tab>());
+            page->_workspaceFeatures->Workspaces().AssertInvariants(page->_tabs);
+        });
+    }
+
+    void TabTests::ProjectCloseLastTerminalKeepsProjectAndWindow()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&] {
+            page->_SidebarController().Enabled = true;
+            page->_settings.GlobalSettings().ConfirmOnClose(ConfirmOnClose::Never);
+            const auto workspace = page->_WorkspaceItems().GetAt(0);
+            const auto source = std::make_shared<ProjectTestSource>();
+            project_ui::protocol::ProjectProjection record;
+            record.Id = til::u16u8(winrt::to_hstring(workspace.WorkspaceId()));
+            if (record.Id.size() == 38) record.Id = record.Id.substr(1, 36);
+            record.Name = "Project without a terminal"; record.Version = 1; record.Binding = 1; record.RootPath = "C:\\project";
+            source->Projects.push_back(record);
+            page->_projects = std::make_shared<project_ui::ProjectNavigationState>(source);
+            page->_projects->Catalog[record.Id] = record; page->_projects->Open(record.Id);
+            page->_projects->Views[record.Id] = project_ui::ProjectView::Tasks;
+            page->_SetWorkspaceToolPage(WorkspaceToolPage::Tasks);
+            uint32_t closeRequests{};
+            const auto closed = page->CloseWindowRequested([&](const auto&, const auto&) { ++closeRequests; });
+            const auto revoke = wil::scope_exit([&] { page->CloseWindowRequested(closed); });
+            VERIFY_IS_TRUE(page->_ProjectModeEnabled());
+            workspace.SourceTab().Close();
+            VERIFY_ARE_EQUAL(0u, closeRequests); VERIFY_ARE_EQUAL(0u, page->_tabs.Size());
+            VERIFY_ARE_EQUAL(record.Id, page->_projects->ActiveProjectId);
+            VERIFY_ARE_EQUAL(size_t{ 1 }, page->_projects->OpenProjects.size());
+            VERIFY_IS_TRUE(page->_taskPage.Visibility() == Visibility::Visible);
+            page->_SelectNextTab(true, nullptr); // No modulo by zero in an empty project.
+            const auto layout = page->GetWindowLayout(); VERIFY_IS_NOT_NULL(layout);
+            const auto serialized = WindowLayout::ToJson(layout); const auto restored = WindowLayout::FromJson(serialized);
+            VERIFY_ARE_EQUAL(layout.ProjectViewsJson(), restored.ProjectViewsJson());
+            page->_settings.GlobalSettings().ConfirmOnClose(ConfirmOnClose::Automatic);
+            page->CloseWindow(); VERIFY_ARE_EQUAL(1u, closeRequests);
+        });
+    }
+    void TabTests::ProjectCloseViewKeepsWorkspaceTerminals()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&] {
+            page->_SidebarController().Enabled = true; page->_settings.GlobalSettings().ConfirmOnClose(ConfirmOnClose::Never);
+            page->_OpenNewWorkspace();
+            const auto source = std::make_shared<ProjectTestSource>();
+            page->_projects = std::make_shared<project_ui::ProjectNavigationState>(source);
+            for (const auto& workspace : page->_WorkspaceItems())
+            {
+                project_ui::protocol::ProjectProjection record;
+                record.Id = til::u16u8(winrt::to_hstring(workspace.WorkspaceId())); if (record.Id.size() == 38) record.Id = record.Id.substr(1, 36);
+                record.Name = "Project"; record.Version = 1; source->Projects.push_back(record);
+                page->_projects->Catalog[record.Id] = record; page->_projects->Open(record.Id);
+            }
+            const auto first = source->Projects[0].Id, second = source->Projects[1].Id;
+            const auto focused = page->_GetFocusedTab();
+            page->_SetWorkspaceToolPage(WorkspaceToolPage::Tasks);
+            uint32_t closeRequests{};
+            const auto closed = page->CloseWindowRequested([&](const auto&, const auto&) { ++closeRequests; });
+            const auto revoke = wil::scope_exit([&] { page->CloseWindowRequested(closed); });
+            page->_CloseProjectView(second);
+            VERIFY_ARE_EQUAL(0u, closeRequests); VERIFY_ARE_EQUAL(2u, page->_tabs.Size());
+            VERIFY_ARE_EQUAL(first, page->_projects->ActiveProjectId);
+            page->_CloseProjectView(first);
+            VERIFY_ARE_EQUAL(0u, closeRequests); VERIFY_ARE_EQUAL(2u, page->_tabs.Size());
+            VERIFY_IS_TRUE(page->_projects->OpenProjects.empty()); VERIFY_IS_TRUE(page->_projects->ActiveProjectId.empty());
+            VERIFY_IS_TRUE(page->_projectControls->Content.Visibility() == Visibility::Visible);
+            VERIFY_ARE_EQUAL(focused, page->_GetFocusedTab());
+            VERIFY_ARE_EQUAL(2u, page->_WorkspaceItems().Size());
+            page->_workspaceFeatures->Workspaces().AssertInvariants(page->_tabs);
+        });
+    }
+
+    void TabTests::ProjectCloseLastSurfaceKeepsOtherWorkspace()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&] {
+            page->_SidebarController().Enabled = true; page->_settings.GlobalSettings().ConfirmOnClose(ConfirmOnClose::Never);
+            page->_OpenNewWorkspace();
+            const auto firstTab = page->_WorkspaceItems().GetAt(0).SourceTab();
+            const auto closing = page->_WorkspaceItems().GetAt(1);
+            const auto source = std::make_shared<ProjectTestSource>();
+            page->_projects = std::make_shared<project_ui::ProjectNavigationState>(source);
+            for (const auto& workspace : page->_WorkspaceItems())
+            {
+                project_ui::protocol::ProjectProjection record;
+                record.Id = til::u16u8(winrt::to_hstring(workspace.WorkspaceId())); if (record.Id.size() == 38) record.Id = record.Id.substr(1, 36);
+                record.Name = "Project"; record.Version = 1; source->Projects.push_back(record);
+                page->_projects->Catalog[record.Id] = record; page->_projects->Open(record.Id);
+            }
+            const auto selected = page->_projects->ActiveProjectId;
+            page->_projects->Views[selected] = project_ui::ProjectView::Tasks;
+            closing.SourceTab().Close();
+            VERIFY_ARE_EQUAL(1u, page->_tabs.Size()); VERIFY_ARE_EQUAL(firstTab, page->_tabs.GetAt(0));
+            VERIFY_ARE_EQUAL(source->Projects[0].Id, page->_projects->ActiveProjectId);
+            VERIFY_ARE_EQUAL(firstTab, page->_GetFocusedTab());
+            VERIFY_IS_TRUE(page->_taskPage.Visibility() == Visibility::Collapsed);
+            VERIFY_IS_TRUE(page->_projectControls->Toolbar.Visibility() == Visibility::Collapsed);
+            page->_workspaceFeatures->Workspaces().AssertInvariants(page->_tabs);
+        });
+    }
+
+    void TabTests::ProjectNavigationIsScopedToTaskPanel()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&] {
+            page->_SidebarController().Enabled = true;
+            const auto workspace = page->_WorkspaceItems().GetAt(0);
+            const auto focused = page->_GetFocusedTab();
+            const auto source = std::make_shared<ProjectTestSource>();
+            project_ui::protocol::ProjectProjection project;
+            project.Id = "10000000-0000-4000-8000-000000000001";
+            project.Name = "Task-only project"; project.Version = 1; // Deliberately unbound.
+            source->Projects.push_back(project);
+            page->_projects = std::make_shared<project_ui::ProjectNavigationState>(source);
+            page->_projects->Catalog[project.Id] = project; page->_projects->Open(project.Id);
+            page->_projects->SetChangedHandler([weak = page->get_weak()] {
+                if (const auto self = weak.get()) self->_RenderProjectNavigation();
+            });
+            page->_UpdateTabView();
+            VERIFY_IS_TRUE(page->_workspaceSidebar.Visibility() == Visibility::Visible);
+            VERIFY_IS_TRUE(page->_projectControls->Toolbar.Parent() == page->TaskPanelHost());
+            uint32_t index{};
+            VERIFY_IS_FALSE(page->Root().Children().IndexOf(page->_projectControls->Toolbar, index));
+            const auto surfaces = page->_workspaceSurfaceTabs.ItemsSource();
+            page->_SetWorkspaceToolPage(WorkspaceToolPage::Tasks);
+            VERIFY_IS_TRUE(page->_projectControls->Toolbar.Visibility() == Visibility::Visible);
+            VERIFY_IS_TRUE(page->_taskPage.Visibility() == Visibility::Visible);
+            page->_ProjectNavigationRequested(project_ui::ProjectNavigationAction::Library, {});
+            VERIFY_IS_TRUE(page->_activeWorkspaceToolPage == WorkspaceToolPage::Tasks);
+            VERIFY_IS_TRUE(page->_projectControls->Content.Visibility() == Visibility::Visible);
+            page->_ProjectNavigationRequested(project_ui::ProjectNavigationAction::SelectProject, project.Id);
+            VERIFY_ARE_EQUAL(focused, page->_GetFocusedTab());
+            VERIFY_IS_TRUE(page->_workspaceSurfaceTabs.ItemsSource() == surfaces);
+            VERIFY_ARE_EQUAL(workspace.WorkspaceId(), page->_WorkspaceIdForNewTab());
+            VERIFY_IS_TRUE(page->_workspaceSidebar.Visibility() == Visibility::Visible);
+            page->_SetWorkspaceToolPage(WorkspaceToolPage::Summary);
+            VERIFY_IS_TRUE(page->_conclusionSidebar.Visibility() == Visibility::Visible);
+            VERIFY_IS_TRUE(page->_projectControls->Toolbar.Visibility() == Visibility::Collapsed);
+            VERIFY_IS_TRUE(page->_projectControls->Content.Visibility() == Visibility::Collapsed);
+            page->_SetWorkspaceToolPage(WorkspaceToolPage::None);
+            VERIFY_IS_TRUE(page->TaskPanelHost().Visibility() == Visibility::Collapsed);
+            VERIFY_ARE_EQUAL(S_OK, page->_OpenNewTab(NewTerminalArgs{ 1 }));
+            VERIFY_ARE_EQUAL(1u, page->_WorkspaceItems().Size());
+            VERIFY_ARE_EQUAL(2u, workspace.SurfaceCount());
+            VERIFY_IS_TRUE(page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::NewWorkspace, nullptr }));
+            VERIFY_ARE_EQUAL(2u, page->_WorkspaceItems().Size());
+            VERIFY_ARE_EQUAL(3u, page->_tabs.Size());
+            VERIFY_IS_FALSE(std::ranges::any_of(source->Commands, [](const auto& command) {
+                return command.Operation == project_ui::protocol::ProjectCatalogOperation::Create ||
+                       command.Operation == project_ui::protocol::ProjectCatalogOperation::BindDirectory;
+            }));
+            page->_workspaceFeatures->Workspaces().AssertInvariants(page->_tabs);
+        });
+    }
+
+    void TabTests::ProjectNavigationRefreshesAfterDropdownLayout()
+    {
+        const auto page = _commonSetup();
+        const std::string id{ "10000000-0000-4000-8000-000000000001" };
+        TestOnUIThread([&] {
+            page->_SidebarController().Enabled = true;
+            const auto source = std::make_shared<ProjectTestSource>();
+            project_ui::protocol::ProjectProjection project;
+            project.Id = id; project.Name = "Before rename"; project.Version = 1;
+            source->Projects.push_back(project);
+            page->_projects = std::make_shared<project_ui::ProjectNavigationState>(source);
+            page->_projects->Catalog[id] = project; page->_projects->Open(id);
+            page->_projects->SetChangedHandler([weak = page->get_weak()] {
+                if (const auto self = weak.get()) self->_RenderProjectNavigation();
+            });
+            page->_SetWorkspaceToolPage(WorkspaceToolPage::Tasks);
+        });
+        // Let XAML materialize the selected-item presenter before refreshing its content.
+        TestOnUIThread([&] {
+            const auto picker = page->_projectControls->Toolbar.FindName(L"Projects").as<ComboBox>();
+            picker.ApplyTemplate(); picker.UpdateLayout();
+            picker.IsDropDownOpen(true); picker.UpdateLayout(); picker.IsDropDownOpen(false);
+        });
+        TestOnUIThread([&] {
+            page->_ProjectNavigationRequested(project_ui::ProjectNavigationAction::Overview, id);
+            page->_projects->Catalog[id].Name = "After rename";
+            page->_RenderProjectNavigation();
+            const auto picker = page->_projectControls->Toolbar.FindName(L"Projects").as<ComboBox>();
+            const auto selected = picker.SelectedItem().as<ComboBoxItem>();
+            VERIFY_ARE_EQUAL(L"After rename", winrt::unbox_value<winrt::hstring>(selected.Content()));
+            VERIFY_ARE_EQUAL(winrt::hstring{ til::u8u16(id) }, winrt::unbox_value<winrt::hstring>(selected.Tag()));
+            VERIFY_IS_TRUE(page->_projectControls->Content.Visibility() == Visibility::Visible);
+            page->_ProjectNavigationRequested(project_ui::ProjectNavigationAction::Tasks, id);
+            VERIFY_IS_TRUE(page->_taskPage.Visibility() == Visibility::Visible);
+            VERIFY_ARE_EQUAL(1u, page->_WorkspaceItems().Size());
         });
     }
 

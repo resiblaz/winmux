@@ -180,6 +180,8 @@ namespace Microsoft::Terminal::Settings::Model::JsonUtils
             GetValueForKey(json, PinnedWorkspaceIndicesKey, layout->_PinnedWorkspaceIndices);
             GetValueForKey(json, AgentResumeEntriesKey, layout->_AgentResumeEntries);
             GetValueForKey(json, WorkspaceSnapshotSourcesKey, layout->_WorkspaceSnapshotSources);
+            if (json["projectViewsJson"].isString() && json["projectViewsJson"].asString().size() <= 65536)
+                GetValueForKey(json, "projectViewsJson", layout->_ProjectViewsJson);
 
             return *layout;
         }
@@ -204,6 +206,7 @@ namespace Microsoft::Terminal::Settings::Model::JsonUtils
             SetValueForKey(json, PinnedWorkspaceIndicesKey, val.PinnedWorkspaceIndices());
             SetValueForKey(json, AgentResumeEntriesKey, val.AgentResumeEntries());
             SetValueForKey(json, WorkspaceSnapshotSourcesKey, val.WorkspaceSnapshotSources());
+            if (!val.ProjectViewsJson().empty()) SetValueForKey(json, "projectViewsJson", val.ProjectViewsJson());
 
             return json;
         }

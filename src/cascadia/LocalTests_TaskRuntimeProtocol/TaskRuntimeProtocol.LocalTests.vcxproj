@@ -33,6 +33,7 @@
     <ClCompile Include="SubscriptionCursorTests.cpp" />
     <ClCompile Include="TerminalFrameTests.cpp" />
     <ClCompile Include="AgentCatalogRpcTests.cpp" />
+    <ClCompile Include="ProjectBoardRpcTests.cpp" />
     <ClCompile Include="TaskProjectionRpcTests.cpp" />
   </ItemGroup>
   <ItemGroup>

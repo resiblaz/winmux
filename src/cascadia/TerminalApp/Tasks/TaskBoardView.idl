@@ -1,0 +1,9 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+namespace TerminalApp
+{
+    [default_interface] runtimeclass TaskBoardView : Windows.UI.Xaml.Controls.UserControl
+    {
+        TaskBoardView();
+    }
+}

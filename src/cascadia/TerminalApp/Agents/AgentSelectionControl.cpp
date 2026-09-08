@@ -29,6 +29,7 @@ namespace winrt::TerminalApp::implementation
     {
         ++_generation; ++_selectionGeneration;
         _source = std::move(source); _workspace = std::move(workspaceId); _initial = std::move(initial);
+        _explicitSelection = _initial.has_value();
         _initialLoad = true;
         _profiles.clear(); _selected.reset(); _after.clear();
         _syncing = true;
@@ -148,6 +149,7 @@ namespace winrt::TerminalApp::implementation
     void AgentSelectionControl::_SelectionChanged(const IInspectable&, const SelectionChangedEventArgs&)
     {
         if (_syncing) return;
+        _explicitSelection = true;
         const auto index = AgentPicker().SelectedIndex();
         if (index == 0)
         {
@@ -164,6 +166,7 @@ namespace winrt::TerminalApp::implementation
     void AgentSelectionControl::_TextChanged(const IInspectable&, const TextChangedEventArgs&)
     {
         if (_syncing) return;
+        _explicitSelection = true;
         if (_ready && !_selected)
         {
             TaskAgentConfiguration config;
@@ -187,4 +190,40 @@ namespace winrt::TerminalApp::implementation
         return result;
     }
     std::wstring AgentSelectionControl::SelectedName() const { return _selected ? til::u8u16(_selected->Configuration.Name) : std::wstring{}; }
+
+    agents::AgentSelectionState AgentSelectionControl::CaptureState()
+    {
+        agents::AgentSelectionState state;
+        state.Profiles = _profiles; state.Selected = _selected; state.Model = AgentModel().Text(); state.Instructions = AgentInstructions().Text();
+        state.Ready = _ready; state.ExplicitSelection = _explicitSelection; state.After = _after;
+        const auto index = AgentPicker().SelectedIndex();
+        if (!_selected && index > 0 && static_cast<size_t>(index) <= _profiles.size()) state.PendingAgentId = _profiles[index - 1].Id;
+        return state;
+    }
+
+    void AgentSelectionControl::RestoreState(std::shared_ptr<agents::IAgentCatalogSource> source, std::string workspaceId, const agents::AgentSelectionState& state)
+    {
+        if (!state.ExplicitSelection && !state.Ready) { Configure(std::move(source), std::move(workspaceId)); return; }
+        ++_generation; ++_selectionGeneration;
+        _source = std::move(source); _workspace = std::move(workspaceId); _initial.reset(); _initialLoad = false;
+        _profiles = state.Profiles; _selected = state.Selected; _after = state.After;
+        _explicitSelection = state.ExplicitSelection; _ready = state.Ready; _syncing = true;
+        AgentPicker().Items().Clear(); AgentPicker().Items().Append(box_value(RS_(L"Agent_Custom")));
+        int32_t selectedIndex{};
+        for (size_t index = 0; index < _profiles.size(); ++index)
+        {
+            const auto& profile = _profiles[index];
+            AgentPicker().Items().Append(box_value(hstring{ til::u8u16(profile.Configuration.Name) + L" · v" + std::to_wstring(profile.Revision) + L" · " + til::u8u16(profile.Id.substr(0, 8)) }));
+            if (_selected && profile.Id == _selected->Id) selectedIndex = static_cast<int32_t>(index + 1);
+        }
+        AgentPicker().SelectedIndex(selectedIndex); AgentPicker().IsEnabled(true);
+        AgentModel().Text(state.Model); AgentInstructions().Text(state.Instructions);
+        AgentModel().IsReadOnly(_selected.has_value()); AgentInstructions().IsReadOnly(_selected.has_value());
+        SelectionNote().Text(_selected ? RS_(L"Agent_PinnedNote") : RS_(L"Agent_CustomNote"));
+        MoreAgentsButton().Visibility(_after.empty() ? Visibility::Collapsed : Visibility::Visible);
+        RefreshAgentsButton().Visibility(_source ? Visibility::Visible : Visibility::Collapsed);
+        _syncing = false; _error({});
+        if (!state.PendingAgentId.empty() && _source) _select(state.PendingAgentId);
+        else _notify();
+    }
 }

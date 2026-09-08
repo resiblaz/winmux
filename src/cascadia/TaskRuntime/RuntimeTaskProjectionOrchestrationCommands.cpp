@@ -293,6 +293,12 @@ namespace Microsoft::Terminal::TaskRuntime
         command.ExecutionContext.Task = *derivedId;
         command.ExecutionContext.Mode = static_cast<ExecutionMode>(draft.ExecutionMode);
         command.ExecutionContext.SourceRoot = draft.SourceRoot;
+        command.ExecutionContext.ProjectVersion = draft.ProjectVersion;
+        if (draft.Agent)
+        {
+            command.ExecutionContext.SourceAgentId = AgentProfileId{ draft.Agent->Id };
+            command.ExecutionContext.SourceAgentRevision = draft.Agent->Revision;
+        }
         command.ExecutionContext.RelativeWorkingDirectory = draft.RelativeWorkingDirectory;
         command.ExecutionContext.Provider = draft.Provider;
         command.ExecutionContext.Model = draft.Model;

@@ -8,6 +8,8 @@
 #include <string_view>
 #include <vector>
 #include <functional>
+#include <array>
+#include <optional>
 
 namespace winrt::TerminalApp::implementation::tasks
 {
@@ -55,12 +57,14 @@ namespace winrt::TerminalApp::implementation::tasks
         Delete,
         RestartProvider,
         ConfigureAgent,
+        EditAcceptance,
     };
 
     struct TaskAcceptanceProjection
     {
         std::wstring Text;
         bool Done{};
+        bool operator==(const TaskAcceptanceProjection&) const = default;
     };
 
     struct TaskProjection
@@ -100,6 +104,25 @@ namespace winrt::TerminalApp::implementation::tasks
         std::wstring AgentSummary;
         std::wstring Model;
         std::wstring Instructions;
+        bool IsSummary{};
+        bool ManualHold{};
+        bool HasPendingMessages{};
+        bool HasPendingIntent{};
+        bool ArchivedProject{};
+        int64_t BoardRank{};
+        uint64_t ColumnRevision{};
+        std::wstring ActiveRunId;
+        std::optional<uint8_t> LatestRunState;
+        bool operator==(const TaskProjection&) const = default;
+    };
+
+    struct TaskListQuery
+    {
+        std::wstring ProjectId;
+        std::wstring Search;
+        std::array<bool, 7> Statuses{ true, true, true, true, true, false, false };
+        bool Board{};
+        bool operator==(const TaskListQuery&) const = default;
     };
 
     struct TaskDraft
@@ -117,6 +140,7 @@ namespace winrt::TerminalApp::implementation::tasks
         std::wstring AgentId;
         uint64_t AgentRevision{};
         std::wstring AgentName;
+        uint64_t ProjectVersion{};
     };
 
     struct TaskCreationAttempt

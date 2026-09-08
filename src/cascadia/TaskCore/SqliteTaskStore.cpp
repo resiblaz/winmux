@@ -29,12 +29,12 @@ namespace Microsoft::Terminal::TaskCore
             const auto version = details::QueryInt64(source, "PRAGMA user_version;", error);
             const auto application = details::QueryInt64(source, "PRAGMA application_id;", error);
             if (!version || !application) { error.clear(); return true; }
-            if (*version <= 0 || *version >= 5 || *application != details::TaskDatabaseApplicationId) return true;
+            if (*version <= 0 || *version >= details::CurrentTaskDatabaseSchemaVersion || *application != details::TaskDatabaseApplicationId) return true;
             FILETIME time;
             GetSystemTimePreciseAsFileTime(&time);
             const auto ticks = (static_cast<uint64_t>(time.dwHighDateTime) << 32) | time.dwLowDateTime;
             auto destination = path;
-            destination += L".pre-agent-profiles-" + std::to_wstring(ticks) + L".db";
+            destination += (*version < 5 ? L".pre-agent-profiles-" : L".pre-project-board-") + std::to_wstring(ticks) + L".db";
             auto partial = destination;
             partial += L".partial";
             wil::unique_handle reservation{ CreateFileW(partial.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr) };

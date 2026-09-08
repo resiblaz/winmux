@@ -88,7 +88,8 @@ namespace winrt::TerminalApp::implementation
         // This method may be called for a window even if it hasn't had a tab yet or lost all of them.
         // We shouldn't persist such windows.
         const auto tabCount = _tabs.Size();
-        if (_startupState != StartupState::Initialized || tabCount == 0)
+        const auto taskPanel = _ProjectModeEnabled() && _activeWorkspaceToolPage == WorkspaceToolPage::Tasks;
+        if (_startupState != StartupState::Initialized || (tabCount == 0 && !taskPanel))
         {
             return nullptr;
         }
@@ -102,8 +103,8 @@ namespace winrt::TerminalApp::implementation
             actions.insert(actions.end(), std::make_move_iterator(tabActions.begin()), std::make_move_iterator(tabActions.end()));
         }
 
-        // Avoid persisting a window with zero tabs, because `BuildStartupActions` happened to return an empty vector.
-        if (actions.empty())
+        // A project window can persist its navigation without terminal startup actions.
+        if (actions.empty() && !taskPanel)
         {
             return nullptr;
         }
@@ -133,6 +134,7 @@ namespace winrt::TerminalApp::implementation
 
         WindowLayout layout;
         layout.TabLayout(winrt::single_threaded_vector<ActionAndArgs>(std::move(actions)));
+        if (_ProjectModeEnabled()) layout.ProjectViewsJson(winrt::hstring{ til::u8u16(_projects->SerializeLayout()) });
 
         auto mode = LaunchMode::DefaultMode;
         WI_SetFlagIf(mode, LaunchMode::FullscreenMode, _isFullscreen);
@@ -142,8 +144,8 @@ namespace winrt::TerminalApp::implementation
         layout.LaunchMode({ mode });
 
         // Only save the content size because the tab size will be added on load.
-        const auto contentWidth = static_cast<float>(_tabContent.ActualWidth());
-        const auto contentHeight = static_cast<float>(_tabContent.ActualHeight());
+        const auto contentWidth = static_cast<float>(_ProjectModeEnabled() ? WorkspaceContentHost().ActualWidth() : _tabContent.ActualWidth());
+        const auto contentHeight = static_cast<float>(_ProjectModeEnabled() ? WorkspaceContentHost().ActualHeight() : _tabContent.ActualHeight());
         const winrt::Windows::Foundation::Size windowSize{ contentWidth, contentHeight };
 
         layout.InitialSize(windowSize);
@@ -276,7 +278,7 @@ namespace winrt::TerminalApp::implementation
         case ConfirmOnClose::Automatic:
         {
             // Warn if there's more than one tab, or the one tab has more than one pane.
-            return _HasMultipleTabs() || _GetTabImpl(_tabs.GetAt(0))->GetLeafPaneCount() > 1;
+            return _HasMultipleTabs() || (_tabs.Size() > 0 && _GetTabImpl(_tabs.GetAt(0))->GetLeafPaneCount() > 1);
         }
         case ConfirmOnClose::Never:
         default:

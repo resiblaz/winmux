@@ -323,6 +323,7 @@ namespace winrt::TerminalApp::implementation
         {
             container.StartBringIntoView();
         }
+        _SyncActiveProjectFromTab(tab);
     }
 
     void TerminalPage::_SetWorkspaceToolPage(const WorkspaceToolPage requestedPage)
@@ -365,6 +366,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         _tabContent.Visibility(page == WorkspaceToolPage::None ? Visibility::Visible : Visibility::Collapsed);
+        TaskPanelHost().Visibility(page == WorkspaceToolPage::Tasks ? Visibility::Visible : Visibility::Collapsed);
         _taskPage.Visibility(page == WorkspaceToolPage::Tasks ? Visibility::Visible : Visibility::Collapsed);
         _conclusionSidebar.Visibility(page == WorkspaceToolPage::Summary ? Visibility::Visible : Visibility::Collapsed);
 
@@ -379,7 +381,7 @@ namespace winrt::TerminalApp::implementation
         if (page == WorkspaceToolPage::Tasks)
         {
             const auto taskPage = winrt::get_self<implementation::TaskPage>(_taskPage);
-            if (const auto workspace = _WorkspaceItemForTab(_GetFocusedTab()))
+            if (const auto workspace = _WorkspaceItemForTab(_GetFocusedTab()); !_SyncProjectTaskContext() && workspace)
             {
                 taskPage->SetCurrentWorkspace(workspace.WorkspaceId(), workspace.GitRepositoryRoot(), workspace.WorkingDirectory());
             }
@@ -397,6 +399,7 @@ namespace winrt::TerminalApp::implementation
                 _workspaceSummaryToolTab.Focus(FocusState::Programmatic);
             }
         }
+        _RenderProjectNavigation();
     }
 
     void TerminalPage::_ApplyRestoredWorkspaceActiveSurfaces()

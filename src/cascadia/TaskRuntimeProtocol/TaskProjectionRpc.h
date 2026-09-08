@@ -90,6 +90,9 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         std::string Instructions;
         std::optional<AgentProfileReference> Agent;
         std::string AgentName;
+        uint64_t ProjectVersion{};
+        std::string ProjectNameSnapshot;
+        std::string ProjectDescriptionSnapshot;
     };
 
     struct TaskProjectionTerminalRecord
@@ -172,6 +175,8 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         std::vector<TaskProjectionMessageRecord> Messages;
         std::vector<TaskProjectionEventRecord> Events;
         uint64_t LastEventSequence{};
+        std::string BoardNote;
+        bool BoardNoteIsBlocked{};
     };
 
     struct TaskProjectionQueryRequest
@@ -224,6 +229,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         std::string Model;
         std::string Instructions;
         std::optional<AgentProfileReference> Agent;
+        uint64_t ProjectVersion{};
     };
 
     struct TaskUiCommandRequest
@@ -272,7 +278,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
     [[nodiscard]] ProtocolRpcJsonDecodeResult<TaskProjectionQueryRequest> DecodeTaskProjectionQueryRequest(std::string_view payload);
     [[nodiscard]] ProtocolRpcJsonEncodeResult EncodeTaskProjectionQueryRequest(const TaskProjectionQueryRequest& value);
     [[nodiscard]] ProtocolRpcJsonDecodeResult<TaskProjectionQueryResult> DecodeTaskProjectionQueryResult(std::string_view payload);
-    [[nodiscard]] ProtocolRpcJsonEncodeResult EncodeTaskProjectionQueryResult(const TaskProjectionQueryResult& value, bool includeAgentProfiles = false);
+    [[nodiscard]] ProtocolRpcJsonEncodeResult EncodeTaskProjectionQueryResult(const TaskProjectionQueryResult& value, bool includeAgentProfiles = false, bool includeProjectState = false);
     [[nodiscard]] ProtocolRpcJsonDecodeResult<TaskUiCommandRequest> DecodeTaskUiCommandRequest(std::string_view payload);
     [[nodiscard]] ProtocolRpcJsonEncodeResult EncodeTaskUiCommandRequest(const TaskUiCommandRequest& value);
     [[nodiscard]] ProtocolRpcJsonDecodeResult<TaskUiCommandResult> DecodeTaskUiCommandResult(std::string_view payload);

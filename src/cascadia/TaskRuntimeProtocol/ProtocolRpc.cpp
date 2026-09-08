@@ -32,6 +32,18 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             return "query_agents";
         case ControlMethod::AgentCommand:
             return "agent_command";
+        case ControlMethod::QueryProjects:
+            return "query_projects";
+        case ControlMethod::ProjectCommand:
+            return "project_command";
+        case ControlMethod::QueryTaskSummaries:
+            return "query_task_summaries";
+        case ControlMethod::TaskBoardCommand:
+            return "task_board_command";
+        case ControlMethod::QueryBoardOperation:
+            return "query_board_operation";
+        case ControlMethod::QueryTaskSessionIndex:
+            return "query_task_session_index";
         case ControlMethod::Count:
             return {};
         default:
@@ -77,6 +89,14 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         case ControlMethod::QueryAgents:
         case ControlMethod::AgentCommand:
             return static_cast<uint64_t>(ProtocolCapability::AgentProfiles);
+        case ControlMethod::QueryProjects:
+        case ControlMethod::ProjectCommand:
+            return static_cast<uint64_t>(ProtocolCapability::ProjectCatalog);
+        case ControlMethod::QueryTaskSummaries:
+        case ControlMethod::TaskBoardCommand:
+        case ControlMethod::QueryBoardOperation:
+        case ControlMethod::QueryTaskSessionIndex:
+            return static_cast<uint64_t>(ProtocolCapability::TaskBoard);
         case ControlMethod::Count:
             return AllProtocolCapabilities;
         default:

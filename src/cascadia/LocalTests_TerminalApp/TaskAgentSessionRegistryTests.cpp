@@ -20,7 +20,21 @@ namespace TerminalAppLocalTests
         END_TEST_CLASS()
 
         TEST_METHOD(FullAndIncrementalSnapshotsExcludeOnlyCurrentTaskSessions);
+        TEST_METHOD(OwnershipIndexProtectsUnloadedAndDeletedTaskSessions);
     };
+
+    void TaskAgentSessionRegistryTests::OwnershipIndexProtectsUnloadedAndDeletedTaskSessions()
+    {
+        TaskAgentSessionRegistry registry; registry.RequireOwnershipIndex();
+        VERIFY_IS_TRUE(registry.Contains(L"unknown-while-loading"));
+        registry.MergeOwnedSessions({ "task-not-on-loaded-page" }, true);
+        VERIFY_IS_TRUE(registry.Contains(L"task-not-on-loaded-page"));
+        VERIFY_IS_FALSE(registry.Contains(L"manual-session"));
+        registry.ReplaceAll({}); registry.RemoveTask("deleted-task");
+        VERIFY_IS_TRUE(registry.Contains(L"task-not-on-loaded-page"));
+        registry.RequireOwnershipIndex(); registry.MergeOwnedSessions({}, true);
+        VERIFY_IS_TRUE(registry.Contains(L"task-not-on-loaded-page"));
+    }
 
     void TaskAgentSessionRegistryTests::FullAndIncrementalSnapshotsExcludeOnlyCurrentTaskSessions()
     {

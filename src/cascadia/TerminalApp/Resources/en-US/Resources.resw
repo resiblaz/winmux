@@ -1711,4 +1711,99 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="Agent_TaskConfigBody" xml:space="preserve"><value>Save to use this configuration for future Runs. Historical Runs keep their original configuration. Finish active or queued Runs before changing it.</value></data>
   <data name="Agent_ReloadTaskVersion" xml:space="preserve"><value>Reload Task version</value></data>
   <data name="Agent_TaskBusy" xml:space="preserve"><value>The Task has an active or queued Run. Stop or finish it before changing configuration.</value></data>
+  <data name="TaskBoardTodo.Text" xml:space="preserve"><value>Todo</value></data>
+  <data name="TaskBoardHint.Text" xml:space="preserve"><value>Drag to In progress to run</value></data>
+  <data name="TaskBoardHorizontalHint.Text" xml:space="preserve"><value>Scroll horizontally to see all status columns</value></data>
+  <data name="TaskBoardCardPending.Text" xml:space="preserve"><value>Operation in progress…</value></data>
+  <data name="TaskBoardEmptyTodoHint.Text" xml:space="preserve"><value>Create a task or drop a card here</value></data>
+  <data name="TaskBoardEmptyDoingHint.Text" xml:space="preserve"><value>Drop a to-do card here to start execution</value></data>
+  <data name="TaskBoardEmptyReviewHint.Text" xml:space="preserve"><value>Review delivered task results here</value></data>
+  <data name="TaskBoardEmptyDoneHint.Text" xml:space="preserve"><value>Accepted tasks remain here</value></data>
+  <data name="TaskBoard_Empty" xml:space="preserve"><value>No tasks yet</value></data>
+  <data name="TaskBoard_NoVisibleTasks" xml:space="preserve"><value>No tasks to display</value></data>
+  <data name="TaskBoard_Loading" xml:space="preserve"><value>Loading tasks…</value></data>
+  <data name="TaskBoard_NotStarted" xml:space="preserve"><value>Not started</value></data>
+  <data name="TaskBoard_Executing" xml:space="preserve"><value>Executing</value></data>
+  <data name="TaskBoard_ReadyForReview" xml:space="preserve"><value>Delivered · Awaiting review</value></data>
+  <data name="TaskBoard_Accepted" xml:space="preserve"><value>Accepted</value></data>
+  <data name="TaskBoard_Paused" xml:space="preserve"><value>Paused · Awaiting scheduling</value></data>
+  <data name="TaskBoard_ResumeFromMenu" xml:space="preserve"><value>Use task actions to resume execution. Reorder within the blocked group.</value></data>
+  <data name="TaskBoard_ReorderCurrentProject" xml:space="preserve"><value>Switch to the current project to reorder cards.</value></data>
+  <data name="TaskBoard_AuxiliaryCount" xml:space="preserve"><value>{} {}</value></data>
+  <data name="TaskBoardDoing.Text" xml:space="preserve"><value>In progress</value></data>
+  <data name="TaskBoardBlocked.Text" xml:space="preserve"><value>Blocked</value></data>
+  <data name="TaskBoardReview.Text" xml:space="preserve"><value>In review</value></data>
+  <data name="TaskBoardDone.Text" xml:space="preserve"><value>Done</value></data>
+  <data name="TaskBoardCardActions.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Task actions</value></data>
+  <data name="TaskBoardLoadMore.Content" xml:space="preserve"><value>Load more</value></data>
+  <data name="TaskBoardRetry.Content" xml:space="preserve"><value>Retry the same operation</value></data>
+  <data name="TaskBoardListMode.Content" xml:space="preserve"><value>List</value></data>
+  <data name="TaskBoardBoardMode.Content" xml:space="preserve"><value>Board</value></data>
+  <data name="TaskBoardBacklog.Content" xml:space="preserve"><value>Backlog</value></data>
+  <data name="TaskBoardCancelled.Content" xml:space="preserve"><value>Cancelled</value></data>
+  <data name="TaskBoardBacklogFilter.Content" xml:space="preserve"><value>Backlog</value></data>
+  <data name="TaskBoardCancelledFilter.Content" xml:space="preserve"><value>Cancelled</value></data>
+  <data name="TaskBoardCloseDetails.Content" xml:space="preserve"><value>Back to board</value></data>
+  <data name="TaskBoard_InvalidMove" xml:space="preserve"><value>This status change is not available. Use the task actions menu.</value></data>
+  <data name="TaskBoard_ProjectArchived" xml:space="preserve"><value>Restore the project before changing tasks.</value></data>
+  <data name="TaskBoard_Reorder" xml:space="preserve"><value>Reorder task</value></data>
+  <data name="TaskBoard_PendingOperation" xml:space="preserve"><value>This task has an operation in progress. Wait for its result.</value></data>
+  <data name="TaskBoard_StopThenMove" xml:space="preserve"><value>Stop this run and move the task after it stops?</value></data>
+  <data name="TaskBoard_ActiveRun" xml:space="preserve"><value>Wait for the current run to finish, or stop it first.</value></data>
+  <data name="TaskBoard_ReopenOnly" xml:space="preserve"><value>Reopen as Todo; keep execution paused</value></data>
+  <data name="TaskBoard_Start" xml:space="preserve"><value>Start execution</value></data>
+  <data name="TaskBoard_RequestChanges" xml:space="preserve"><value>Request changes and start another run</value></data>
+  <data name="TaskBoard_SubmitReview" xml:space="preserve"><value>Submit a delivery for review</value></data>
+  <data name="TaskBoard_PendingMessages" xml:space="preserve"><value>Resolve pending messages before completing this task.</value></data>
+  <data name="TaskBoard_ConfirmDone" xml:space="preserve"><value>Confirm all acceptance criteria and complete the task?</value></data>
+  <data name="TaskBoard_MovePlanning" xml:space="preserve"><value>Move task</value></data>
+  <data name="TaskBoard_BlockReason" xml:space="preserve"><value>Record a blocker</value></data>
+  <data name="TaskBoard_Submitting" xml:space="preserve"><value>Submitting the task operation…</value></data>
+  <data name="TaskBoard_WaitingForStop" xml:space="preserve"><value>Waiting for the run to stop. The task will move when stopping completes.</value></data>
+  <data name="TaskBoard_Applied" xml:space="preserve"><value>Task updated.</value></data>
+  <data name="TaskBoard_OpenDetails" xml:space="preserve"><value>Open full task details</value></data>
+  <data name="TaskBoard_MoveBacklog" xml:space="preserve"><value>Move to Backlog</value></data>
+  <data name="TaskBoard_MoveTodo" xml:space="preserve"><value>Move to Todo</value></data>
+  <data name="TaskBoard_Confirm" xml:space="preserve"><value>Confirm</value></data>
+  <data name="TaskBoard_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="TaskBoard_Explanation" xml:space="preserve"><value>Explanation</value></data>
+  <data name="Project_New" xml:space="preserve"><value>New project…</value></data>
+  <data name="Project_Library" xml:space="preserve"><value>Project library</value></data>
+  <data name="Project_Agents" xml:space="preserve"><value>Agents</value></data>
+  <data name="Project_Overview" xml:space="preserve"><value>Project overview</value></data>
+  <data name="Project_Manage" xml:space="preserve"><value>Manage projects</value></data>
+  <data name="Project_Tasks" xml:space="preserve"><value>Tasks</value></data>
+  <data name="Project_Terminal" xml:space="preserve"><value>Terminals</value></data>
+  <data name="Project_Summary" xml:space="preserve"><value>Summary &amp; history</value></data>
+  <data name="Project_CloseView" xml:space="preserve"><value>Close project view</value></data>
+  <data name="Project_NewTerminal" xml:space="preserve"><value>Open terminal</value></data>
+  <data name="Project_DefaultAgent" xml:space="preserve"><value>Default Agent</value></data>
+  <data name="Project_Save" xml:space="preserve"><value>Save project</value></data>
+  <data name="Project_Bind" xml:space="preserve"><value>Bind directory…</value></data>
+  <data name="Project_Archive" xml:space="preserve"><value>Archive project</value></data>
+  <data name="Project_Restore" xml:space="preserve"><value>Restore project</value></data>
+  <data name="Project_Retry" xml:space="preserve"><value>Retry the same operation</value></data>
+  <data name="Project_Name" xml:space="preserve"><value>Project name</value></data>
+  <data name="Project_Description" xml:space="preserve"><value>Project background for new tasks</value></data>
+  <data name="Project_Archived" xml:space="preserve"><value>Archived</value></data>
+  <data name="Project_Unbound" xml:space="preserve"><value>This project needs a directory before you can create new tasks. Existing task configurations are preserved.</value></data>
+  <data name="Project_Counts" xml:space="preserve"><value>{} tasks · {} active runs</value></data>
+  <data name="Project_Saving" xml:space="preserve"><value>Saving project…</value></data>
+  <data name="Project_Saved" xml:space="preserve"><value>Project saved.</value></data>
+  <data name="Project_ArchiveExplanation" xml:space="preserve"><value>Archive only when all task runs, queued work and lifecycle operations have settled. Task history and files are kept.</value></data>
+  <data name="TaskBoardEditAcceptance.Content" xml:space="preserve"><value>Acceptance checklist</value></data>
+  <data name="TaskBoard_EditAcceptanceTitle" xml:space="preserve"><value>Update acceptance checklist</value></data>
+  <data name="TaskBoard_NoDelivery" xml:space="preserve"><value>Run ended without submitting for review</value></data>
+  <data name="TaskBoardUndo.Content" xml:space="preserve"><value>Undo last board change</value></data>
+  <data name="TaskBoard_Undone" xml:space="preserve"><value>Board change undone.</value></data>
+  <data name="TaskBoard_UndoConflict" xml:space="preserve"><value>The task or column changed after this action. It cannot be undone; the view has been refreshed.</value></data>
+  <data name="TaskBoard_ColumnCount" xml:space="preserve"><value>{} · {}</value></data>
+  <data name="Project_Offline" xml:space="preserve"><value>Project service is unavailable. Your last view and drafts are retained; reconnect to apply changes.</value></data>
+  <data name="Project_Back" xml:space="preserve"><value>Back to project</value></data>
+  <data name="Project_AgentTarget" xml:space="preserve"><value>Project default: </value></data>
+  <data name="Project_SetDefaultAgent" xml:space="preserve"><value>Set as project default</value></data>
+  <data name="Project_ClearDefaultAgent" xml:space="preserve"><value>Clear project default</value></data>
+  <data name="Project_CurrentScope" xml:space="preserve"><value>Current project</value></data>
+  <data name="Project_AllScope" xml:space="preserve"><value>All projects</value></data>
+  <data name="Project_Label" xml:space="preserve"><value>Project</value></data>
 </root>

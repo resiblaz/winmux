@@ -522,11 +522,15 @@ try
                         '*CodexAppServerTests*',
                         '*WorkspaceGitMetadataTests*',
                         '*TaskPageViewModelTests*',
+                        '*TaskBoardViewTests*',
                         '*AgentEditorViewModelTests*',
                         '*TaskSurfacePolicyTests*',
                         '*TaskAgentSessionRegistryTests*',
                         '*WorkspaceSidebarAdaptsToWindowModes*',
                         '*WorkspaceSurfaceShortcutActions*',
+                        '*WorkspaceClose*',
+                        '*ProjectClose*',
+                        '*ProjectNavigation*',
                         '*TabTests*WorkspaceSnapshot*',
                         '*WorkspaceLayoutPersistsMetadata*'))
                 {

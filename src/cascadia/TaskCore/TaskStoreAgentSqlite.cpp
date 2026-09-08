@@ -144,8 +144,9 @@ WHERE p.id=?1;
         SqliteStatement statement{ database, R"SQL(
 INSERT INTO execution_context(id,task_id,revision,mode,source_root,runtime_root,
  repository_common_directory,worktree_path,branch,relative_working_directory,provider,model,instructions,
- identity_frozen,created_at,source_agent_id,source_agent_revision,agent_name_snapshot)
-VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18);
+ identity_frozen,created_at,source_agent_id,source_agent_revision,agent_name_snapshot,
+ project_version,project_name_snapshot,project_description_snapshot)
+VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21);
 )SQL", error };
         return statement && BindText(database, statement.Get(), 1, context.Id.Value(), error) &&
                BindText(database, statement.Get(), 2, context.Task.Value(), error) &&
@@ -164,6 +165,9 @@ VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18);
                BindInt64(database, statement.Get(), 15, context.CreatedAtUnixMilliseconds, error) &&
                BindOptionalText(database, statement.Get(), 16, context.SourceAgentId ? std::optional{ context.SourceAgentId->Value() } : std::nullopt, error) &&
                BindInt64(database, statement.Get(), 17, context.SourceAgentRevision, error) &&
-               BindText(database, statement.Get(), 18, context.AgentNameSnapshot, error) && StepDone(database, statement.Get(), error);
+               BindText(database, statement.Get(), 18, context.AgentNameSnapshot, error) &&
+               BindInt64(database, statement.Get(), 19, static_cast<int64_t>(context.ProjectVersion), error) &&
+               BindText(database, statement.Get(), 20, context.ProjectNameSnapshot, error) &&
+               BindText(database, statement.Get(), 21, context.ProjectDescriptionSnapshot, error) && StepDone(database, statement.Get(), error);
     }
 }

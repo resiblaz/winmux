@@ -4,6 +4,7 @@
 #pragma once
 #include "AgentSelectionControl.g.h"
 #include "IAgentCatalogSource.h"
+#include "AgentSelectionState.h"
 
 namespace winrt::TerminalApp::implementation
 {
@@ -14,6 +15,8 @@ namespace winrt::TerminalApp::implementation
                        std::optional<agents::protocol::TaskProjectionExecutionRecord> initial = std::nullopt);
         std::optional<agents::protocol::TaskAgentConfiguration> Selection();
         std::wstring SelectedName() const;
+        agents::AgentSelectionState CaptureState();
+        void RestoreState(std::shared_ptr<agents::IAgentCatalogSource> source, std::string workspaceId, const agents::AgentSelectionState& state);
         void SetChangedHandler(std::function<void()> handler) { _changed = std::move(handler); }
         void _SelectionChanged(const Windows::Foundation::IInspectable&, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs&);
         void _TextChanged(const Windows::Foundation::IInspectable&, const Windows::UI::Xaml::Controls::TextChangedEventArgs&);
@@ -32,6 +35,7 @@ namespace winrt::TerminalApp::implementation
         bool _syncing{};
         bool _ready{};
         bool _initialLoad{ true };
+        bool _explicitSelection{};
         void _load(bool more);
         void _select(std::string id);
         void _manual();

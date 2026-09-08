@@ -47,6 +47,7 @@
     <ClCompile Include="TabTests.cpp" />
     <ClCompile Include="AgentEditorViewModelTests.cpp" />
 	<ClCompile Include="TaskPageViewModelTests.cpp" />
+	<ClCompile Include="TaskBoardViewTests.cpp" />
 	<ClCompile Include="TaskSurfacePolicyTests.cpp" />
 	<ClCompile Include="TaskAgentSessionRegistryTests.cpp" />
 	<ClCompile Include="FilteredCommandTests.cpp" />

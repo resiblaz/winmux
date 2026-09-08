@@ -20,6 +20,10 @@
     <ClInclude Include="ProtocolHandshake.h" />
     <ClInclude Include="ProtocolJson.h" />
     <ClInclude Include="AgentCatalogRpc.h" />
+    <ClInclude Include="ProjectCatalogRpc.h" />
+    <ClInclude Include="TaskBoardRpc.h" />
+    <ClInclude Include="TaskSessionIndexRpc.h" />
+    <ClInclude Include="WorkspaceRpcJson.h" />
     <ClInclude Include="AgentCatalogJson.h" />
     <ClInclude Include="ProtocolRpc.h" />
     <ClInclude Include="ProtocolRpcJson.h" />
@@ -44,6 +48,10 @@
     <ClCompile Include="ProtocolHandshake.cpp" />
     <ClCompile Include="ProtocolJson.cpp" />
     <ClCompile Include="AgentCatalogJson.cpp" />
+    <ClCompile Include="ProjectCatalogJson.cpp" />
+    <ClCompile Include="TaskSummaryJson.cpp" />
+    <ClCompile Include="TaskBoardJson.cpp" />
+    <ClCompile Include="TaskSessionIndexJson.cpp" />
     <ClCompile Include="ProtocolRpc.cpp" />
     <ClCompile Include="ProtocolRpcJson.cpp" />
     <ClCompile Include="ProtocolValidation.cpp" />

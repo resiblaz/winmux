@@ -19,9 +19,13 @@ feature:
 - [Implementation plan](implementation-plan.md) defines the accepted first
   native slice, component placement, milestone order, current progress, and
   verification gates.
-- [Custom Agent proposal](../custom-agents/README.md) defines reusable Agent
-  profiles, versioned Task execution configuration, and a staged native design
-  informed by Multica. It is a proposal, not an implemented or accepted milestone.
+- [Custom Agent design](../custom-agents/README.md) defines reusable Agent
+  profiles and versioned Task execution configuration. Its first native slice
+  is implemented; see the [implementation record](../custom-agents/implementation.md).
+- [Project Workspaces and task boards](../workspace-projects/README.md) defines
+  the 2026-09-07 interaction-approved extension: persistent projects, shared
+  list/board views, preserved full Task details, and global Agent navigation.
+  Its detailed design is documented; native implementation has not started.
 - [M6 closure](m6-closure-report.md), [M7 closure](m7-closure-report.md), and
   [M8 closure](m8-closure-report.md) record the final Surface, orchestration,
   packaging, and verification evidence. [M8 release notes](m8-release-notes.md)

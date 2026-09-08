@@ -317,6 +317,7 @@ namespace Microsoft::Terminal::TaskRuntime
             command.ExecutionContext.Revision = 1;
             command.ExecutionContext.Mode = static_cast<ExecutionMode>(draft.ExecutionMode);
             command.ExecutionContext.SourceRoot = draft.SourceRoot;
+            command.ExecutionContext.ProjectVersion = draft.ProjectVersion;
             command.ExecutionContext.RelativeWorkingDirectory = draft.RelativeWorkingDirectory;
             command.ExecutionContext.Provider = draft.Provider;
             command.ExecutionContext.Model = draft.Model;

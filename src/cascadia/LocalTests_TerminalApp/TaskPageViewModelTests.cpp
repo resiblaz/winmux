@@ -7,9 +7,12 @@
 #include "../TerminalApp/Tasks/TaskPageViewModel.h"
 #include "../TerminalApp/Tasks/TaskProjectionCoordinator.h"
 #include "../TerminalApp/Tasks/TaskProjectionMapper.h"
+#include "../TerminalApp/Tasks/TaskBoardView.h"
+#include "../TerminalApp/Projects/ProjectNavigationControls.h"
 #include "../TerminalApp/Tasks/RuntimeTaskProjectionSource.h"
 #include "../LocalTests_TaskRuntimeClient/TaskRuntimeClientTestSupport.h"
 #include "CppWinrtTailored.h"
+#include "ProjectTestSource.h"
 
 using namespace WEX::TestExecution;
 
@@ -95,6 +98,13 @@ namespace TerminalAppLocalTests
         TEST_METHOD(RuntimeProjectionMapsRunsMessagesAndDetails);
         TEST_METHOD(IdleRuntimeProjectionObservesExternalCreationAndDeletion);
         TEST_METHOD(ConfirmedAsyncCreationSurvivesAnOlderQueryResponse);
+        TEST_METHOD(RuntimeSummarySourceLoadsTheNextPageWithoutLoadingHistory);
+        TEST_METHOD(SummaryCacheKeepsSelectedDetailsAndSupportsFiveThousandRows);
+        TEST_METHOD(UnchangedProjectionPreservesListContainers);
+        TEST_METHOD(FollowupDraftSurvivesRefreshAndTaskSwitch);
+        TEST_METHOD(BoardPolicySeparatesPlanningExecutionAndAcceptance);
+        TEST_METHOD(ProjectLayoutAndMetadataDraftsSurviveViewChanges);
+        TEST_METHOD(SnapshotProjectRegistrationWaitsForRuntimeAndKeepsIdentity);
     };
 
     tasks::TaskProjection _task(std::wstring id,
@@ -110,6 +120,109 @@ namespace TerminalAppLocalTests
         task.Status = status;
         task.TerminalState = tasks::TaskTerminalState::Ready;
         return task;
+    }
+
+    void TaskPageViewModelTests::SummaryCacheKeepsSelectedDetailsAndSupportsFiveThousandRows()
+    {
+        tasks::TaskProjectionCoordinator cache;
+        std::vector<tasks::TaskProjection> page;
+        for (size_t i = 0; i < 5000; ++i)
+        {
+            auto task = _task(L"task-" + std::to_wstring(i), L"project", tasks::TaskStatus::Todo);
+            task.IsSummary = true; task.UpdatedAtUnixMilliseconds = 10000 - static_cast<int64_t>(i); page.push_back(std::move(task));
+        }
+        VERIFY_IS_TRUE(cache.ApplySummaries("epoch", page, {})); VERIFY_ARE_EQUAL(size_t{ 5000 }, cache.Size());
+        auto detail = page.front(); detail.IsSummary = false; detail.Description = L"Complete task description";
+        VERIFY_IS_TRUE(cache.Merge("epoch", 1, detail));
+        VERIFY_IS_TRUE(cache.ApplySummaries("epoch", {}, detail.Id));
+        VERIFY_ARE_EQUAL(size_t{ 1 }, cache.Size()); VERIFY_ARE_EQUAL(detail.Description, cache.Snapshot().front().Description);
+        cache.RemoveTask("old-epoch", detail.Id); VERIFY_ARE_EQUAL(size_t{ 1 }, cache.Size());
+        cache.RemoveTask("epoch", detail.Id); VERIFY_ARE_EQUAL(size_t{}, cache.Size());
+        page.push_back(page.front()); VERIFY_IS_FALSE(cache.ApplySummaries("epoch", page, {}));
+    }
+    void TaskPageViewModelTests::UnchangedProjectionPreservesListContainers()
+    {
+        VERIFY_SUCCEEDED(RunOnUIThread([] {
+            const auto source = std::make_shared<RecordingTaskProjectionSource>();
+            source->Items = { _task(L"one", L"win_terminal", tasks::TaskStatus::Todo), _task(L"two", L"win_terminal", tasks::TaskStatus::Todo) };
+            const auto view = winrt::make_self<winrt::TerminalApp::implementation::TaskPageViewModel>(); view->AttachSource(source);
+            const auto first = view->Tasks().GetAt(0), second = view->Tasks().GetAt(1);
+            source->TriggerChanged(); VERIFY_IS_TRUE(first == view->Tasks().GetAt(0)); VERIFY_IS_TRUE(second == view->Tasks().GetAt(1));
+            ++source->Items[1].Version; source->Items[1].Title = L"Changed title"; source->TriggerChanged();
+            VERIFY_IS_TRUE(first == view->Tasks().GetAt(0)); VERIFY_IS_FALSE(second == view->Tasks().GetAt(1));
+            VERIFY_ARE_EQUAL(L"Changed title", view->Tasks().GetAt(1).Title());
+        }));
+    }
+    void TaskPageViewModelTests::FollowupDraftSurvivesRefreshAndTaskSwitch()
+    {
+        VERIFY_SUCCEEDED(RunOnUIThread([] {
+            const auto details = winrt::make_self<winrt::TerminalApp::implementation::TaskDetailsPane>();
+            auto one = _task(L"one", L"project", tasks::TaskStatus::Todo), two = _task(L"two", L"project", tasks::TaskStatus::Todo);
+            details->Task(winrt::make<winrt::TerminalApp::implementation::TaskItemViewModel>(one));
+            const auto input = details->FindName(L"FollowupInput").as<winrt::Windows::UI::Xaml::Controls::TextBox>();
+            input.Text(L"first draft"); input.Select(3, 2);
+            ++one.Version; one.RunDetails.push_back(L"new log entry");
+            details->Task(winrt::make<winrt::TerminalApp::implementation::TaskItemViewModel>(one));
+            VERIFY_ARE_EQUAL(L"first draft", input.Text()); VERIFY_ARE_EQUAL(3, input.SelectionStart());
+            details->Task(winrt::make<winrt::TerminalApp::implementation::TaskItemViewModel>(two));
+            VERIFY_IS_TRUE(input.Text().empty()); input.Text(L"second draft");
+            details->Task(winrt::make<winrt::TerminalApp::implementation::TaskItemViewModel>(one));
+            VERIFY_ARE_EQUAL(L"first draft", input.Text());
+        }));
+    }
+    void TaskPageViewModelTests::BoardPolicySeparatesPlanningExecutionAndAcceptance()
+    {
+        namespace protocol = Microsoft::Terminal::TaskRuntimeProtocol;
+        auto task = _task(L"one", L"project", tasks::TaskStatus::Todo);
+        auto action = tasks::ResolveBoardAction(task, tasks::TaskStatus::InProgress);
+        VERIFY_IS_TRUE(action.Allowed && action.Operation == protocol::TaskBoardOperation::Start);
+        VERIFY_IS_FALSE(tasks::ResolveBoardAction(task, tasks::TaskStatus::Done).Allowed);
+        task.Status = tasks::TaskStatus::InProgress; task.HasActiveRun = true;
+        action = tasks::ResolveBoardAction(task, tasks::TaskStatus::Todo);
+        VERIFY_IS_TRUE(action.Allowed && action.Confirm && action.Operation == protocol::TaskBoardOperation::StopThenMove);
+        VERIFY_IS_FALSE(tasks::ResolveBoardAction(task, tasks::TaskStatus::InReview).Allowed);
+        task.HasActiveRun = false; action = tasks::ResolveBoardAction(task, tasks::TaskStatus::InReview);
+        VERIFY_IS_TRUE(action.Allowed && action.RequiresText);
+        task.Status = tasks::TaskStatus::InReview; task.HasPendingMessages = true;
+        VERIFY_IS_FALSE(tasks::ResolveBoardAction(task, tasks::TaskStatus::Done).Allowed);
+        task.HasPendingMessages = false; action = tasks::ResolveBoardAction(task, tasks::TaskStatus::InProgress);
+        VERIFY_IS_TRUE(action.Allowed && action.RequiresText && action.Operation == protocol::TaskBoardOperation::Continue);
+        task.Status = tasks::TaskStatus::Done; action = tasks::ResolveBoardAction(task, tasks::TaskStatus::Todo);
+        VERIFY_IS_TRUE(action.Allowed && action.Operation == protocol::TaskBoardOperation::ReopenOnly);
+        task.ArchivedProject = true; VERIFY_IS_FALSE(tasks::ResolveBoardAction(task, tasks::TaskStatus::Todo).Allowed);
+    }
+    void TaskPageViewModelTests::ProjectLayoutAndMetadataDraftsSurviveViewChanges()
+    {
+        VERIFY_SUCCEEDED(RunOnUIThread([] {
+            namespace projects = winrt::TerminalApp::implementation::projects;
+            const std::string first{ "10000000-0000-4000-8000-000000000001" }, second{ "20000000-0000-4000-8000-000000000002" };
+            projects::ProjectNavigationState state{ nullptr }; state.Open(first); state.Open(second); state.Show(projects::ProjectView::Tasks);
+            projects::ProjectNavigationState restored{ nullptr }; VERIFY_IS_TRUE(restored.RestoreLayout(state.SerializeLayout()));
+            VERIFY_ARE_EQUAL(second, restored.ActiveProjectId); VERIFY_IS_TRUE(restored.CurrentView() == projects::ProjectView::Tasks);
+            restored.CloseView(second); VERIFY_ARE_EQUAL(first, restored.ActiveProjectId); restored.CloseView(first);
+            VERIFY_IS_TRUE(restored.ActiveProjectId.empty()); VERIFY_IS_TRUE(restored.RestoreLayout(restored.SerializeLayout()));
+            VERIFY_IS_FALSE(restored.RestoreLayout("{\"version\":1,\"active\":\"invalid\",\"open\":[]}"));
+            projects::protocol::ProjectProjection project; project.Id = first; project.Name = "First"; project.Version = 1;
+            state.Catalog[first] = project; project.Id = second; project.Name = "Second"; state.Catalog[second] = project;
+            projects::ProjectNavigationControls controls; state.Open(first); controls.Render(state, false);
+            controls.Content.FindName(L"Name").as<winrt::Windows::UI::Xaml::Controls::TextBox>().Text(L"Unsaved name");
+            state.Open(second); controls.Render(state, false); state.Open(first); controls.Render(state, false);
+            VERIFY_ARE_EQUAL(std::wstring{ L"Unsaved name" }, controls.Draft().Name);
+            const auto board = winrt::make_self<winrt::TerminalApp::implementation::TaskBoardView>();
+            VERIFY_IS_NOT_NULL(board->FindName(L"TodoList")); VERIFY_IS_NOT_NULL(board->FindName(L"BlockedList"));
+        }));
+    }
+
+    void TaskPageViewModelTests::SnapshotProjectRegistrationWaitsForRuntimeAndKeepsIdentity()
+    {
+        const auto source = std::make_shared<ProjectTestSource>(); source->IsConnected = false;
+        const auto state = std::make_shared<project_ui::ProjectNavigationState>(source);
+        const std::string id{ "10000000-0000-4000-8000-000000000001" };
+        state->RegisterLegacy(id, "Saved layout"); VERIFY_IS_TRUE(source->Commands.empty());
+        source->IsConnected = true; state->Refresh();
+        VERIFY_ARE_EQUAL(size_t{ 1 }, source->Commands.size()); VERIFY_ARE_EQUAL(id, source->Commands.front().ProjectId);
+        VERIFY_IS_TRUE(source->Commands.front().Operation == project_ui::protocol::ProjectCatalogOperation::RegisterLegacy);
+        state->Refresh(); VERIFY_ARE_EQUAL(size_t{ 1 }, source->Commands.size());
     }
 
     void TaskPageViewModelTests::StartsEmptyAndLoadsInjectedProjection()
@@ -392,7 +505,9 @@ namespace TerminalAppLocalTests
             return response;
         });
         connection->EnableAutoResponse();
-        dependencies.Connector->EnqueueSuccess(connection, ValidHelloResponse());
+        auto hello = ValidHelloResponse();
+        hello.Capabilities &= ~static_cast<uint64_t>(protocol::ProtocolCapability::TaskBoard);
+        dependencies.Connector->EnqueueSuccess(connection, hello);
         auto configuration = ValidConfiguration();
         configuration.Hello.ClientKind = protocol::ProtocolClientKind::TerminalUi;
         tasks::RuntimeTaskProjectionSource source{ configuration, nullptr, nullptr, dependencies.Dependencies() };
@@ -414,7 +529,9 @@ namespace TerminalAppLocalTests
         namespace protocol = ::Microsoft::Terminal::TaskRuntimeProtocol;
         RuntimeClientDependenciesFixture dependencies; dependencies.EnqueueRequestIds();
         auto connection = std::make_shared<FakeRuntimeClientConnectionState>();
-        dependencies.Connector->EnqueueSuccess(connection, ValidHelloResponse());
+        auto hello = ValidHelloResponse();
+        hello.Capabilities &= ~static_cast<uint64_t>(protocol::ProtocolCapability::TaskBoard);
+        dependencies.Connector->EnqueueSuccess(connection, hello);
         auto configuration = ValidConfiguration(); configuration.Hello.ClientKind = protocol::ProtocolClientKind::TerminalUi;
         auto source = std::make_shared<tasks::RuntimeTaskProjectionSource>(configuration, nullptr, nullptr, dependencies.Dependencies());
         VERIFY_IS_TRUE(source->Start());
@@ -446,6 +563,46 @@ namespace TerminalAppLocalTests
         VERIFY_ARE_EQUAL(size_t{ 1 }, source->Snapshot().size());
         VERIFY_ARE_EQUAL(std::wstring{ L"10000000-0000-4000-8000-000000000011" }, source->Snapshot().front().Id);
         source->Stop();
+    }
+
+    void TaskPageViewModelTests::RuntimeSummarySourceLoadsTheNextPageWithoutLoadingHistory()
+    {
+        using namespace TaskRuntimeClientLocalTests;
+        using namespace TaskRuntimeClientLocalTests::TestSupport;
+        namespace protocol = ::Microsoft::Terminal::TaskRuntimeProtocol;
+        RuntimeClientDependenciesFixture dependencies; dependencies.EnqueueRequestIds();
+        const auto connection = std::make_shared<FakeRuntimeClientConnectionState>();
+        connection->SetAutoResponseHandler([](const protocol::ControlRequest& request) {
+            auto response = EmptySuccessResponse(request);
+            if (request.Method == protocol::ControlMethod::QueryTaskSummaries)
+            {
+                const auto query = protocol::DecodeTaskSummaryQueryRequest(request.PayloadJson); VERIFY_IS_TRUE(query.Succeeded());
+                protocol::TaskSummaryQueryResult page; page.Generation = 1; page.Total = page.Counts[1] = 51;
+                const size_t begin = query.Value.AfterId.empty() ? 0 : 50;
+                const auto end = (std::min)(size_t{ 51 }, begin + query.Value.Limit);
+                for (size_t i = begin; i < end; ++i)
+                {
+                    protocol::TaskSummaryProjection task;
+                    task.Id = fmt::format("10000000-0000-4000-8000-{:012x}", i + 1);
+                    task.ProjectId = "20000000-0000-4000-8000-000000000001"; task.ProjectName = "Project"; task.Title = "Paged task";
+                    task.Version = 1; task.ColumnRevision = 1; task.ExecutionContextId = "30000000-0000-4000-8000-000000000001";
+                    task.UpdatedAtUnixMilliseconds = 1000 - static_cast<int64_t>(i); page.Tasks.push_back(std::move(task));
+                }
+                if (end < 51) { page.NextAfterId = page.Tasks.back().Id; page.NextAfterValue = page.Tasks.back().UpdatedAtUnixMilliseconds; }
+                const auto encoded = protocol::EncodeTaskSummaryQueryResult(page); VERIFY_IS_TRUE(encoded.Succeeded); response.ResultJson = encoded.Payload;
+            }
+            return response;
+        });
+        connection->EnableAutoResponse(); dependencies.Connector->EnqueueSuccess(connection, ValidHelloResponse());
+        auto configuration = ValidConfiguration(); configuration.Hello.ClientKind = protocol::ProtocolClientKind::TerminalUi;
+        tasks::RuntimeTaskProjectionSource source{ configuration, nullptr, nullptr, dependencies.Dependencies() };
+        tasks::TaskListQuery query; query.Statuses.fill(false); query.Statuses[1] = true; source.ConfigureQuery(query);
+        VERIFY_IS_TRUE(source.Start()); VERIFY_IS_TRUE(WaitUntil([&] { return source.Snapshot().size() == 50; }, 6000));
+        VERIFY_ARE_EQUAL(uint64_t{ 51 }, source.QueryTotal()); VERIFY_IS_TRUE(source.HasMoreTasks());
+        source.LoadMore(); VERIFY_IS_TRUE(WaitUntil([&] { return source.Snapshot().size() == 51; }, 6000));
+        VERIFY_IS_FALSE(source.HasMoreTasks());
+        VERIFY_IS_TRUE(std::ranges::none_of(connection->OutboundRequests(), [](const auto& request) { return request.Method == protocol::ControlMethod::QueryTask; }));
+        source.Stop();
     }
 
     void TaskPageViewModelTests::RuntimeProjectionMapsRunsMessagesAndDetails()

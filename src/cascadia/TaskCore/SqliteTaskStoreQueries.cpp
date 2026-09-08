@@ -72,7 +72,8 @@ version, manual_hold, created_at, updated_at
             constexpr auto sql = R"SQL(
 SELECT id, task_id, revision, mode, source_root, runtime_root, repository_common_directory,
        worktree_path, branch, relative_working_directory, provider, model, instructions,
-       identity_frozen, created_at, source_agent_id, source_agent_revision, agent_name_snapshot
+       identity_frozen, created_at, source_agent_id, source_agent_revision, agent_name_snapshot,
+       project_version, project_name_snapshot, project_description_snapshot
 FROM execution_context WHERE task_id=?1 ORDER BY revision;
 )SQL";
             return _loadTaskRows(database, sql, task, contexts, details::ReadExecutionContextRow, error);
@@ -268,6 +269,11 @@ FROM task_terminal WHERE task_id=?1;
             return std::nullopt;
         }
         snapshot.Terminal = std::move(terminal.value());
+        details::SqliteStatement note{ _impl->Database, "SELECT text,kind FROM task_board_note WHERE task_id=?1;", error };
+        if (!note || !details::BindText(_impl->Database, note.Get(), 1, task.Value(), error)) return std::nullopt;
+        const auto noteStep = sqlite3_step(note.Get());
+        if (noteStep == SQLITE_ROW) { snapshot.BoardNote = details::ColumnText(note.Get(), 0); snapshot.BoardNoteIsBlocked = sqlite3_column_int(note.Get(), 1) != 0; }
+        else if (noteStep != SQLITE_DONE) return std::nullopt;
         return snapshot;
     }
 

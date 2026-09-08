@@ -6,6 +6,7 @@
 
 #include "RuntimeCrypto.h"
 #include "../Agents/IAgentCatalogSource.h"
+#include "../Projects/IWorkspaceSource.h"
 
 namespace winrt::TerminalApp::implementation::tasks
 {
@@ -41,6 +42,7 @@ namespace winrt::TerminalApp::implementation::tasks
             }
             create.Draft->ExecutionMode = draft.UseWorktree ? TaskProjectionExecutionMode::Worktree : TaskProjectionExecutionMode::Direct;
             create.Draft->SourceRoot = til::u16u8(draft.SourceRoot);
+            create.Draft->ProjectVersion = draft.ProjectVersion;
             create.Draft->RelativeWorkingDirectory = til::u16u8(draft.RelativeWorkingDirectory);
             create.Draft->Model = til::u16u8(draft.Model);
             create.Draft->Instructions = til::u16u8(draft.Instructions);
@@ -127,6 +129,7 @@ namespace winrt::TerminalApp::implementation::tasks
             }
             const auto finish = [weak, attempt, completed](bool started, std::wstring error) {
                 auto projection = _optimistic(attempt.Draft, attempt.TaskId, started);
+                if (started && attempt.Draft.ProjectVersion) projection.Status = TaskStatus::InProgress;
                 if (const auto self = weak.lock())
                 {
                     {
@@ -140,6 +143,17 @@ namespace winrt::TerminalApp::implementation::tasks
                 completed({ true, false, std::move(projection), std::move(error) });
             };
             if (!attempt.StartImmediately) { finish(false, {}); return; }
+            if (attempt.Draft.ProjectVersion)
+            {
+                const auto self = weak.lock();
+                const auto board = self ? self->WorkspaceSource() : nullptr;
+                if (!board) { finish(false, std::wstring{ RS_(L"Agent_Unavailable") }); return; }
+                TaskBoardCommandRequest start;
+                start.CommandId = attempt.StartCommandId; start.TaskId = attempt.TaskId; start.ProjectId = til::u16u8(attempt.Draft.WorkspaceId);
+                start.ExpectedTaskVersion = reply.Value.TaskVersion; start.Operation = TaskBoardOperation::Start; start.Target = TaskProjectionStatus::InProgress;
+                board->ExecuteBoard(start, [finish](auto started) mutable { finish(started.Succeeded, started.Succeeded ? std::wstring{} : til::u8u16(started.Error)); });
+                return;
+            }
             TaskUiCommandRequest start;
             start.CommandId = attempt.StartCommandId;
             start.Operation = TaskUiCommandOperation::Start;

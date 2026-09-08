@@ -163,12 +163,14 @@ namespace Microsoft::Terminal::TaskRuntime
             if (!queried.Succeeded()) return _error(_taskRpcCode(queried.Status), queried.Error);
             auto projection = queried.Projection;
             const auto agentAware = HasCapability(client.NegotiatedCapabilities, ProtocolCapability::AgentProfiles);
-            auto encoded = EncodeTaskProjectionQueryResult(projection, agentAware);
+            const auto projectAware = HasCapability(client.NegotiatedCapabilities, ProtocolCapability::ProjectCatalog) ||
+                                      HasCapability(client.NegotiatedCapabilities, ProtocolCapability::TaskBoard);
+            auto encoded = EncodeTaskProjectionQueryResult(projection, agentAware, projectAware);
             while (!encoded.Succeeded && encoded.Error == "Encoded Task projection exceeds protocol bounds" &&
                    !decoded.Value.TaskId && projection.Tasks.size() > 1)
             {
                 projection.Tasks.resize((projection.Tasks.size() + 1) / 2);
-                encoded = EncodeTaskProjectionQueryResult(projection, agentAware);
+                encoded = EncodeTaskProjectionQueryResult(projection, agentAware, projectAware);
             }
             if (!encoded.Succeeded) return _error(ProtocolRpcErrorCode::InternalError, "Task projection could not be encoded");
             RuntimeControlRouteResult result;
@@ -189,6 +191,9 @@ namespace Microsoft::Terminal::TaskRuntime
             }
             const auto decoded = DecodeTaskUiCommandRequest(request.PayloadJson);
             if (!decoded.Succeeded()) return _error(ProtocolRpcErrorCode::InvalidRequest, "Task UI command is invalid");
+            if (decoded.Value.Draft && decoded.Value.Draft->ProjectVersion &&
+                !HasCapability(client.NegotiatedCapabilities, ProtocolCapability::ProjectCatalog))
+                return _error(ProtocolRpcErrorCode::CapabilityRequired, "Project Task creation requires project catalog support");
             if ((decoded.Value.Operation == TaskUiCommandOperation::UpdateAgent || (decoded.Value.Draft && decoded.Value.Draft->Agent)) &&
                 !HasCapability(client.NegotiatedCapabilities, ProtocolCapability::AgentProfiles))
                 return _error(ProtocolRpcErrorCode::CapabilityRequired, "Task Agent configuration requires Agent Profiles support");
@@ -209,12 +214,16 @@ namespace Microsoft::Terminal::TaskRuntime
         std::shared_ptr<RuntimeRtaskCommandService> rtask,
         std::shared_ptr<RuntimeTaskProviderService> provider,
         std::shared_ptr<RuntimeTaskProjectionService> tasks,
-        std::shared_ptr<RuntimeAgentCatalogService> agents) noexcept :
+        std::shared_ptr<RuntimeAgentCatalogService> agents,
+        std::shared_ptr<RuntimeProjectCatalogService> projects,
+        std::shared_ptr<RuntimeTaskBoardService> board) noexcept :
         _foundation{ std::move(foundation) },
         _rtask{ std::move(rtask) },
         _provider{ std::move(provider) },
         _tasks{ std::move(tasks) },
-        _agents{ std::move(agents) }
+        _agents{ std::move(agents) },
+        _projects{ std::move(projects) },
+        _board{ std::move(board) }
     {
         _valid = _foundation && _foundation->Valid() && _rtask && _rtask->Valid();
     }
@@ -237,6 +246,10 @@ namespace Microsoft::Terminal::TaskRuntime
                     ProtocolRpcErrorCode::RuntimeUnavailable,
                     "Runtime product router is unavailable");
             }
+            if (request.Method == ControlMethod::QueryProjects || request.Method == ControlMethod::ProjectCommand ||
+                request.Method == ControlMethod::QueryTaskSummaries || request.Method == ControlMethod::TaskBoardCommand ||
+                request.Method == ControlMethod::QueryBoardOperation || request.Method == ControlMethod::QueryTaskSessionIndex)
+                return _RouteWorkspace(client, request, cancellation);
             if (request.Method == ControlMethod::SubmitCommand)
             {
                 if (client.ClientKind == ProtocolClientKind::TaskCtl)

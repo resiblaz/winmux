@@ -74,6 +74,13 @@ WHERE id=?1 AND task_id=?2 AND identity_frozen=0;
         const TaskRunRecord& run,
         std::string& error)
     {
+        SqliteStatement project{ database, R"SQL(
+SELECT EXISTS(SELECT 1 FROM task t JOIN project p ON p.workspace_id=t.workspace_id WHERE t.id=?1 AND p.archived_at IS NOT NULL)
+ OR EXISTS(SELECT 1 FROM task_board_operation WHERE task_id=?1 AND stage=0);
+)SQL", error };
+        if (!project || !BindText(database, project.Get(), 1, run.Task.Value(), error) || sqlite3_step(project.Get()) != SQLITE_ROW)
+            return TaskRunReferenceValidation::StorageError;
+        if (sqlite3_column_int(project.Get(), 0)) { error = "project_archived_or_board_operation_pending"; return TaskRunReferenceValidation::Invalid; }
         bool incompleteCheckpoint{};
         if (!TaskHasIncompleteGitCheckpoint(
                 database,
@@ -179,7 +186,7 @@ VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL, NULL, ?10, ?11);
         const auto retryOf = run.RetryOfRunId ?
                                  std::optional<std::string>{ run.RetryOfRunId->Value() } :
                                  std::nullopt;
-        return statement &&
+        const auto inserted = statement &&
                BindText(database, statement.Get(), 1, run.Id.Value(), error) &&
                BindText(database, statement.Get(), 2, run.Task.Value(), error) &&
                BindText(database, statement.Get(), 3, run.ExecutionContext.Value(), error) &&
@@ -192,5 +199,15 @@ VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL, NULL, ?10, ?11);
                BindText(database, statement.Get(), 10, run.Result, error) &&
                BindText(database, statement.Get(), 11, run.ReasonCode, error) &&
                StepDone(database, statement.Get(), error);
+        if (!inserted) return false;
+        // A modern project Run is an execution request, including queued follow-up
+        // messages. Keep its planning status in the same transaction as the Run.
+        // Legacy execution contexts retain the pre-project command semantics.
+        SqliteStatement progress{ database, R"SQL(
+UPDATE task SET status=2 WHERE id=?1 AND status IN(1,3,4)
+ AND EXISTS(SELECT 1 FROM execution_context WHERE id=?2 AND task_id=?1 AND project_version>0);
+)SQL", error };
+        return progress && BindText(database, progress.Get(), 1, run.Task.Value(), error) &&
+               BindText(database, progress.Get(), 2, run.ExecutionContext.Value(), error) && StepDone(database, progress.Get(), error);
     }
 }

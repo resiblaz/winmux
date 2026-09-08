@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workspace Project Tasks - interaction reference</title>
+<style>
+html { color-scheme: light dark; }
+body { margin: 0; padding: 16px; background: light-dark(#ffffff, #18191d); }
+</style>
+</head>
+<body>
+<div id="wt-project-board" lang="zh-CN">
+  <style>
+    #wt-project-board {
+      --wt-bg: light-dark(#f8f9fb, #202126);
+      --wt-panel: light-dark(#ffffff, #292b32);
+      --wt-side: light-dark(#eff0f3, #191a1f);
+      --wt-line: light-dark(#d5d8df, #484b56);
+      --wt-ink: light-dark(#242830, #f0f1f5);
+      --wt-muted: light-dark(#5c6473, #b9bfcc);
+      --wt-accent: light-dark(#255ec2, #a7c5ff);
+      --wt-accent-bg: light-dark(#e8effd, #2c3a53);
+      --wt-action: light-dark(#255ec2, #a7c5ff);
+      --wt-action-ink: light-dark(#ffffff, #122343);
+      --wt-good: light-dark(#23744b, #91d5ae);
+      --wt-warn: light-dark(#85540c, #f2c477);
+      --wt-warn-bg: light-dark(#fff4df, #423720);
+      --wt-danger: light-dark(#ae303b, #ffabb4);
+      color: var(--wt-ink); font: 400 1rem/1.5 "Segoe UI Variable", "Microsoft YaHei UI", system-ui, sans-serif;
+      width: 100%; color-scheme: inherit;
+    }
+    #wt-project-board * { box-sizing: border-box; }
+    #wt-project-board [hidden] { display: none !important; }
+    #wt-project-board button, #wt-project-board input, #wt-project-board textarea, #wt-project-board select { font: inherit; color: inherit; }
+    #wt-project-board button { cursor: pointer; }
+    #wt-project-board button:disabled { cursor: default; opacity: .55; }
+    #wt-project-board .wt-window { background: var(--wt-bg); border: 1px solid var(--wt-line); border-radius: 9px; }
+    #wt-project-board .wt-chrome { background: var(--wt-side); border-radius: 9px 9px 0 0; border-bottom: 1px solid var(--wt-line); padding: 9px 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: .875rem; }
+    #wt-project-board .wt-mark { color: var(--wt-accent); font-family: monospace; font-size: 1.125rem; }
+    #wt-project-board .wt-draft { margin-left: auto; color: var(--wt-muted); }
+    #wt-project-board .wt-shell { display: grid; grid-template-columns: 150px minmax(0, 1fr); }
+    #wt-project-board .wt-sidebar { background: var(--wt-side); border-right: 1px solid var(--wt-line); padding: 16px 9px; border-radius: 0 0 0 9px; }
+    #wt-project-board .wt-caption { color: var(--wt-muted); font-size: .875rem; }
+    #wt-project-board .wt-side-label { padding: 0 9px 11px; display: block; }
+    #wt-project-board .wt-project { width: 100%; border: 1px solid transparent; padding: 11px 9px; margin-bottom: 5px; background: transparent; text-align: left; border-radius: 6px; overflow-wrap: anywhere; }
+    #wt-project-board .wt-project[aria-pressed="true"] { background: var(--wt-accent-bg); border-color: var(--wt-line); }
+    #wt-project-board .wt-project strong { display: block; font-weight: 500; }
+    #wt-project-board .wt-project small { display: block; color: var(--wt-muted); font-size: .875rem; margin-top: 4px; }
+    #wt-project-board .wt-main { min-width: 0; padding: 16px; }
+    #wt-project-board .wt-heading { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+    #wt-project-board h2 { font-family: inherit; font-size: 1.25rem; line-height: 1.4; font-weight: 500; margin: 0 0 3px; }
+    #wt-project-board h3 { font-family: inherit; font-size: 1.125rem; line-height: 1.4; font-weight: 500; margin: 0; }
+    #wt-project-board h4 { font-family: inherit; font-size: 1rem; font-weight: 500; margin: 0; }
+    #wt-project-board .wt-tabs { display: flex; flex-wrap: wrap; gap: 16px; border-bottom: 1px solid var(--wt-line); margin: 15px 0 14px; }
+    #wt-project-board .wt-tab { border: 0; border-bottom: 2px solid transparent; padding: 7px 2px; background: transparent; font-size: .875rem; }
+    #wt-project-board .wt-tab[aria-pressed="true"] { border-color: var(--wt-accent); color: var(--wt-accent); font-weight: 500; }
+    #wt-project-board .wt-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
+    #wt-project-board .wt-button { border: 1px solid var(--wt-line); background: var(--wt-panel); border-radius: 5px; padding: 7px 10px; min-height: 36px; font-size: .875rem; }
+    #wt-project-board .wt-primary { background: var(--wt-action); border-color: var(--wt-action); color: var(--wt-action-ink); }
+    #wt-project-board .wt-quiet { background: transparent; }
+    #wt-project-board .wt-button:hover { filter: brightness(.97); }
+    #wt-project-board .wt-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    #wt-project-board .wt-stage { min-width: 0; }
+    #wt-project-board .wt-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
+    #wt-project-board .wt-column { min-width: 0; min-height: 300px; border: 1px solid transparent; border-radius: 7px; padding: 0 3px 12px; }
+    #wt-project-board .wt-column.wt-over { border-color: var(--wt-accent); background: var(--wt-accent-bg); }
+    #wt-project-board .wt-column-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: .875rem; margin-bottom: 11px; padding: 3px 1px; }
+    #wt-project-board .wt-dot { border: 2px solid currentColor; display: inline-block; width: 9px; height: 9px; border-radius: 50%; color: var(--wt-muted); flex-shrink: 0; }
+    #wt-project-board [data-column="doing"] .wt-dot { color: var(--wt-accent); background: var(--wt-accent); }
+    #wt-project-board [data-column="review"] .wt-dot { color: var(--wt-warn); }
+    #wt-project-board [data-column="done"] .wt-dot { color: var(--wt-good); background: var(--wt-good); }
+    #wt-project-board .wt-count { color: var(--wt-muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+    #wt-project-board .wt-task { border: 1px solid var(--wt-line); background: var(--wt-panel); border-radius: 7px; padding: 11px 10px; margin-bottom: 10px; cursor: grab; overflow-wrap: anywhere; }
+    #wt-project-board .wt-task[aria-current="true"] { border-color: var(--wt-accent); box-shadow: 0 0 0 1px var(--wt-accent); }
+    #wt-project-board .wt-task.wt-dragging { opacity: .45; }
+    #wt-project-board .wt-task-top { display: flex; justify-content: space-between; gap: 6px; color: var(--wt-muted); font-size: .875rem; margin-bottom: 7px; }
+    #wt-project-board .wt-open { display: block; width: 100%; text-align: left; background: transparent; border: 0; padding: 0; line-height: 1.5; font-size: 1rem; }
+    #wt-project-board .wt-task-meta { display: flex; flex-wrap: wrap; gap: 5px 8px; color: var(--wt-muted); font-size: .875rem; margin-top: 12px; }
+    #wt-project-board .wt-agent { color: var(--wt-muted); }
+    #wt-project-board .wt-state { display: block; font-size: .875rem; margin-top: 9px; color: var(--wt-muted); }
+    #wt-project-board .wt-state.running { color: var(--wt-accent); }
+    #wt-project-board .wt-state.waiting, #wt-project-board .wt-state.blocked { color: var(--wt-warn); }
+    #wt-project-board .wt-state.finished { color: var(--wt-good); }
+    #wt-project-board .wt-empty { color: var(--wt-muted); padding: 24px 8px; text-align: center; border: 1px dashed var(--wt-line); border-radius: 6px; font-size: .875rem; }
+    #wt-project-board .wt-inspector { background: var(--wt-panel); border: 1px solid var(--wt-line); border-radius: 7px; padding: 16px; margin-top: 16px; min-width: 0; overflow-wrap: anywhere; }
+    #wt-project-board .wt-inspector[hidden] { display: none; }
+    #wt-project-board .wt-detail-head { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+    #wt-project-board .wt-detail-head .wt-button { flex: 0 0 auto; }
+    #wt-project-board .wt-field { display: grid; gap: 5px; margin: 12px 0; font-size: .875rem; color: var(--wt-muted); }
+    #wt-project-board input, #wt-project-board textarea, #wt-project-board select { min-width: 0; width: 100%; border: 1px solid var(--wt-line); border-radius: 5px; padding: 8px; background: var(--wt-bg); color: var(--wt-ink); font-size: 1rem; }
+    #wt-project-board textarea { resize: vertical; min-height: 76px; }
+    #wt-project-board .wt-description { margin: 12px 0; }
+    #wt-project-board .wt-detail-block { border-top: 1px solid var(--wt-line); padding-top: 13px; margin-top: 16px; }
+    #wt-project-board .wt-timeline { margin: 10px 0 0; padding-left: 20px; color: var(--wt-muted); font-size: .875rem; }
+    #wt-project-board .wt-timeline li { margin: 7px 0; }
+    #wt-project-board .wt-warning { background: var(--wt-warn-bg); color: var(--wt-warn); border-radius: 5px; padding: 11px; margin-bottom: 12px; }
+    #wt-project-board .wt-note { border-top: 1px solid var(--wt-line); padding-top: 12px; margin-top: 12px; font-size: .875rem; color: var(--wt-muted); }
+    #wt-project-board .wt-feedback { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; min-height: 45px; padding: 8px 15px; border-top: 1px solid var(--wt-line); font-size: .875rem; color: var(--wt-muted); }
+    #wt-project-board .wt-feedback button { font-size: .875rem; background: transparent; border: 0; text-decoration: underline; color: var(--wt-accent); padding: 4px; }
+    #wt-project-board .wt-terminal { background: light-dark(#20242c, #16191f); color: light-dark(#e3e9f3, #e3e9f3); padding: 15px; border-radius: 6px; min-height: 220px; }
+    #wt-project-board .wt-terminal pre { font: 400 .875rem/1.8 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+    #wt-project-board .wt-summary-row { padding: 14px 0; border-bottom: 1px solid var(--wt-line); }
+    #wt-project-board .wt-view-switch { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--wt-line); border-radius: 7px; background: var(--wt-side); }
+    #wt-project-board .wt-view-switch button { border: 0; background: transparent; border-radius: 4px; padding: 5px 12px; font-size: .875rem; }
+    #wt-project-board .wt-view-switch button[aria-pressed="true"] { background: var(--wt-panel); color: var(--wt-accent); }
+    #wt-project-board .wt-filters { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+    #wt-project-board .wt-filters label { display: flex; align-items: center; gap: 5px; font-size: .875rem; }
+    #wt-project-board .wt-filters input[type="radio"] { width: auto; accent-color: var(--wt-accent); }
+    #wt-project-board .wt-filters input[type="search"] { flex: 1 1 190px; font-size: .875rem; }
+    #wt-project-board .wt-filters select { flex: 0 1 145px; width: auto; font-size: .875rem; }
+    #wt-project-board .wt-task-list { display: grid; gap: 5px; }
+    #wt-project-board .wt-list-item { border: 1px solid transparent; border-radius: 6px; background: transparent; padding: 11px; text-align: left; min-width: 0; overflow-wrap: anywhere; }
+    #wt-project-board .wt-list-item[aria-pressed="true"] { background: var(--wt-accent-bg); border-color: var(--wt-line); }
+    #wt-project-board .wt-list-item strong { display: block; font-weight: 500; margin: 5px 0; }
+    #wt-project-board .wt-list-item span { display: block; font-size: .875rem; color: var(--wt-muted); }
+    #wt-project-board .wt-list-item-head { display: flex; justify-content: space-between; gap: 8px; }
+    #wt-project-board .wt-picker { display: none; }
+    #wt-project-board #wt-stage.wt-full-detail { display: block; }
+    #wt-project-board .wt-full-detail .wt-inspector { margin-top: 0; }
+    #wt-project-board .wt-detail-columns { display: grid; gap: 16px; min-width: 0; }
+    #wt-project-board .wt-detail-body { min-width: 0; }
+    #wt-project-board .wt-properties { padding: 13px; border: 1px solid var(--wt-line); border-radius: 6px; background: var(--wt-bg); min-width: 0; }
+    #wt-project-board .wt-properties dl { margin: 12px 0 0; font-size: .875rem; }
+    #wt-project-board .wt-properties dt { color: var(--wt-muted); margin-top: 12px; }
+    #wt-project-board .wt-properties dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+    #wt-project-board .wt-criterion { display: flex; align-items: flex-start; gap: 8px; margin: 9px 0; }
+    #wt-project-board .wt-criterion input { width: auto; margin-top: 6px; accent-color: var(--wt-accent); flex-shrink: 0; }
+    #wt-project-board .wt-selection-title { margin-bottom: 8px; }
+    #wt-project-board .wt-global-nav { border-top: 1px solid var(--wt-line); margin-top: 18px; padding-top: 12px; }
+    #wt-project-board .wt-agent-catalog { display: grid; gap: 18px; min-width: 0; }
+    #wt-project-board .wt-agent-editor { padding: 16px; background: var(--wt-panel); border: 1px solid var(--wt-line); border-radius: 7px; min-width: 0; }
+    #wt-project-board .wt-agent-list { display: grid; gap: 6px; margin-top: 12px; }
+    #wt-project-board .wt-agent-description { margin-bottom: 14px; color: var(--wt-muted); }
+    #wt-project-board .wt-agent-preview { white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--wt-line); border-radius: 6px; padding: 12px; margin-top: 12px; background: var(--wt-bg); }
+    #wt-project-board .wt-overrides { margin-top: 12px; }
+    #wt-project-board .wt-overrides summary { cursor: pointer; color: var(--wt-muted); font-size: .875rem; }
+    #wt-project-board .wt-save-state { color: var(--wt-muted); font-size: .875rem; margin: 5px 0 12px; }
+    @media (min-width: 950px) { #wt-project-board .wt-agent-catalog { grid-template-columns: 235px minmax(0,1fr); align-items: start; } }
+    @media (max-width: 700px) { #wt-project-board .wt-global-nav { border-top: 0; padding: 0; margin: 0; } }
+    @media (min-width: 901px) { #wt-project-board #wt-stage.wt-list-layout { display: grid; grid-template-columns: 220px minmax(0,1fr); gap: 16px; align-items: start; } #wt-project-board .wt-list-layout .wt-inspector { margin-top: 0; } }
+    @media (max-width: 900px) { #wt-project-board .wt-task-list, #wt-project-board .wt-selection-title { display: none; } #wt-project-board .wt-picker { display: grid; gap: 6px; font-size: .875rem; color: var(--wt-muted); } }
+    @media (min-width: 1250px) { #wt-project-board .wt-detail-columns { grid-template-columns: minmax(0,1fr) 215px; align-items: start; } }
+    @media (min-width: 1080px) { #wt-project-board .wt-stage.wt-detail-open { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; } #wt-project-board .wt-stage.wt-detail-open .wt-inspector { margin-top: 0; } }
+    @media (max-width: 700px) { #wt-project-board .wt-shell { display: block; } #wt-project-board .wt-sidebar { border-right: 0; border-bottom: 1px solid var(--wt-line); border-radius: 0; padding: 8px; display: flex; gap: 7px; align-items: center; flex-wrap: wrap; } #wt-project-board .wt-side-label { padding: 4px; } #wt-project-board #wt-projects { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; } #wt-project-board .wt-project { width: auto; margin: 0; padding: 6px 10px; } #wt-project-board .wt-project small { display: none; } }
+    @media (max-width: 580px) { #wt-project-board .wt-board { grid-template-columns: repeat(2, minmax(0, 1fr)); } #wt-project-board .wt-column { min-height: 170px; } #wt-project-board .wt-main { padding: 12px; } }
+    @media (max-width: 350px) { #wt-project-board .wt-board { grid-template-columns: minmax(0, 1fr); } }
+    @media (prefers-reduced-motion: reduce) { #wt-project-board .wt-column { transition: none; } }
+  </style>
+  <div class="wt-window">
+    <div class="wt-chrome"><span class="wt-mark" aria-hidden="true">&gt;_</span><span>Windows Terminal</span><span class="wt-draft">交互草案 · 演示数据</span></div>
+    <div class="wt-shell">
+      <aside class="wt-sidebar" aria-label="项目切换"><span class="wt-caption wt-side-label">项目</span><div id="wt-projects"></div><div class="wt-global-nav"><button type="button" class="wt-project" id="wt-agents-global" aria-pressed="false">Agent 管理</button></div></aside>
+      <main class="wt-main">
+        <div class="wt-heading"><div><h2 id="wt-project-name">Win Terminal</h2><div id="wt-project-context" class="wt-caption"></div></div><div class="wt-actions" id="wt-task-header-actions"><button type="button" class="wt-button" data-action="manage-agents">管理 Agent</button><button type="button" class="wt-button wt-primary" id="wt-new-task">＋ 新建任务</button></div></div>
+        <nav class="wt-tabs" id="wt-project-tabs" aria-label="项目视图"><button type="button" class="wt-tab" data-view="board" aria-pressed="true">任务</button><button type="button" class="wt-tab" data-view="terminal" aria-pressed="false">终端</button><button type="button" class="wt-tab" data-view="summary" aria-pressed="false">结论</button></nav>
+        <div class="wt-toolbar" id="wt-toolbar"><div class="wt-actions"><div class="wt-view-switch" role="group" aria-label="任务显示方式"><button type="button" data-layout="board" aria-pressed="false">看板</button><button type="button" data-layout="list" aria-pressed="true">列表</button></div><button type="button" class="wt-button wt-quiet" id="wt-backlog">待规划</button><button type="button" class="wt-button wt-quiet" id="wt-cancelled" hidden>已取消</button></div><span id="wt-view-caption" class="wt-caption">任务列表与完整详情</span></div>
+        <div class="wt-filters" id="wt-filters"><label><input type="radio" name="task-scope" value="current" checked>当前项目</label><label><input type="radio" name="task-scope" value="all">全部项目</label><input id="wt-search" type="search" aria-label="搜索任务" placeholder="搜索任务、编号或项目"><select id="wt-filter" aria-label="筛选任务状态"><option value="all">全部状态</option><option value="open">未完成</option><option value="todo">待办</option><option value="doing">进行中</option><option value="review">待验收</option><option value="blocked">受阻</option><option value="done">已完成</option></select></div>
+        <div class="wt-stage" id="wt-stage"><div id="wt-content"></div><section class="wt-inspector" id="wt-inspector" aria-label="任务详情" hidden></section></div>
+      </main>
+    </div>
+    <div class="wt-feedback" role="status" aria-live="polite" aria-atomic="true"><span id="wt-feedback-text">项目中的任务、终端和执行记录保存在一起。</span><button type="button" id="wt-undo" hidden>撤销</button></div>
+  </div>
+  <script>
+  (() => {
+    const root = document.getElementById('wt-project-board');
+    const byId = id => root.querySelector('#' + id);
+    const projects = [{id:'wt',name:'Win Terminal',folder:'win_terminal',agent:'Codex'}, {id:'rl',name:'RicherLife',folder:'richerlife',agent:'代码审查'}];
+    const agents=[
+      {id:'codex',name:'Codex',description:'日常开发与问题修复',model:'',instructions:'理解项目要求后完成任务，并提供验证结果。',version:1,archived:false},
+      {id:'review',name:'代码审查',description:'关注正确性、资源生命周期和测试覆盖',model:'',instructions:'检查代码变更，说明问题的影响和位置，给出可操作的修改建议。',version:2,archived:false},
+      {id:'tests',name:'测试助手',description:'围绕验收条件补充与执行测试',model:'',instructions:'围绕任务的验收条件设计测试，报告执行结果和未覆盖的场景。',version:1,archived:false}
+    ];
+    const labels = {backlog:'待规划',todo:'待办',doing:'进行中',review:'待验收',blocked:'受阻',done:'已完成',cancelled:'已取消'};
+    const allowed = {backlog:['todo','cancelled'],todo:['backlog','doing','cancelled'],doing:['todo','review','blocked','cancelled'],review:['doing','done','cancelled'],blocked:['todo','doing','cancelled'],done:['todo'],cancelled:['todo']};
+    const tasks = [
+      {id:'WT-24',project:'wt',title:'按项目组织任务看板',state:'todo',agent:'Codex',priority:'高',run:'idle',round:0,description:'一个 Workspace 对应一个项目。任务可按状态拖拽，切换项目时保留各自的看板和终端。',history:['创建任务，等待执行']},
+      {id:'WT-25',project:'wt',title:'项目默认 Agent 配置',state:'todo',agent:'',priority:'中',run:'idle',round:0,description:'在项目中设置默认执行者，新建任务继承该设置，也可以单独指定。',history:['创建任务，尚未选择 Agent']},
+      {id:'WT-23',project:'wt',title:'恢复项目终端会话',state:'doing',agent:'Codex',priority:'高',run:'waiting',round:1,description:'再次打开项目时，恢复上次的终端布局，并保留任务与终端的关联。',history:['第 1 次执行已开始','Agent 等待输入：重开项目时，需要恢复全部终端吗？']},
+      {id:'WT-21',project:'wt',title:'修复关闭 Workspace 闪退',state:'review',agent:'Codex',priority:'高',run:'finished',round:1,description:'关闭当前工作区后，其他工作区应继续可用。只有关闭最后一个工作区时才退出窗口。',result:'已复测当前及后台 Workspace 关闭，新增两项回归测试，完整验收通过。',history:['第 1 次执行完成','提交结果，等待人工验收']},
+      {id:'WT-18',project:'wt',title:'精简侧栏目录显示',state:'done',agent:'Codex',priority:'中',run:'finished',round:1,description:'目录显示项目名和必要的父路径，完整路径可在项目详情中查看。',result:'目录显示已调整，已完成验收。',history:['第 1 次执行完成','你已验收通过']},
+      {id:'WT-26',project:'wt',title:'跨项目任务总览',state:'backlog',agent:'',priority:'中',run:'idle',round:0,description:'在统一入口查看多个项目需要处理的任务。',history:['收录到待规划']},
+      {id:'RL-12',project:'rl',title:'整理首页交互草图',state:'todo',agent:'代码审查',priority:'中',run:'idle',round:0,description:'梳理首页的信息层次和主要入口。',history:['创建任务，等待执行']},
+      {id:'RL-10',project:'rl',title:'确认项目需求范围',state:'review',agent:'代码审查',priority:'高',run:'finished',round:1,description:'将首期需求和后续想法分开整理。',result:'首期范围已整理，等待确认。',history:['第 1 次执行完成','提交需求范围草案']}
+    ].map((t,i) => ({...t,order:i,revision:0,runToken:0,executionMode:'Task 专属 Worktree',acceptance:t.id==='WT-21'?['关闭当前 Workspace 后，其余 Workspace 继续可用','关闭后台 Workspace 不影响当前终端']:['满足任务描述中的要求，并提供可检查的结果'],checked:t.state==='done',runAgent:t.round?structuredClone(agents.find(a=>a.name===t.agent)||agents[0]):null}));
+    let projectId='wt', view='board', layout='list', selected='WT-21', panelMode='view', scope='current', query='', statusFilter='all', targetState=null, dragId=null, undo=null, draft={};
+    const viewPreferences={wt:{layout:'list',selected:'WT-21'},rl:{layout:'list',selected:'RL-10'}};
+    let selectedAgentId='codex', agentDraft=structuredClone(agents[0]), agentQuery='', includeArchived=false, agentPreview=false, agentReturn=null;
+    const noteDrafts={};
+    const agentDraftCache=new Map();
+    const timers = new Map();
+    const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const taskById = id => tasks.find(t => t.id === id);
+    const project = () => projects.find(p => p.id === projectId);
+    const projectTasks = () => tasks.filter(t => t.project === projectId).sort((a,b) => a.order-b.order);
+    const taskProject = t => projects.find(p=>p.id===t.project);
+    const shownTasks = () => (scope==='all'?[...tasks]:projectTasks()).filter(t=>{
+      const text=(t.title+' '+t.id+' '+taskProject(t).name).toLowerCase();
+      return (!query||text.includes(query.toLowerCase()))&&(statusFilter==='all'||(statusFilter==='open'?!['done','cancelled'].includes(t.state):t.state===statusFilter));
+    }).sort((a,b)=>a.order-b.order);
+    const column = t => t.state === 'blocked' ? 'doing' : t.state;
+    const isActive = t => ['queued','running','waiting','stopping'].includes(t.run);
+    const enabledAgent = name => agents.find(a=>a.name===name&&!a.archived);
+    const agentOptions = name => '<option value="">稍后选择</option>'+agents.filter(a=>!a.archived).map(a=>`<option value="${escape(a.name)}" ${a.name===name?'selected':''}>${escape(a.name)}</option>`).join('');
+    const agentDirty = () => {const saved=agents.find(a=>a.id===selectedAgentId);return !saved||['name','description','model','instructions'].some(k=>saved[k]!==agentDraft[k]);};
+    const runLabel = t => ({idle:'未执行',queued:'◷ 排队中',running:'● 正在执行',waiting:'！等待你的输入',stopping:'◷ 正在停止',finished:t.state==='done'?'✓ 已验收':'✓ 已交付',stopped:'已停止 · 记录保留'}[t.run]);
+    function feedback(message, action=null) { byId('wt-feedback-text').textContent=message; undo=action; byId('wt-undo').hidden=!action; }
+    function stopTimers(t) { (timers.get(t.id)||[]).forEach(clearTimeout); timers.delete(t.id); }
+    function record(t,message) { t.history.push(message); t.revision++; }
+    function taskMarkup(t) {
+      return `<article class="wt-task" data-task="${t.id}" draggable="true" aria-current="${selected===t.id}" aria-label="${escape(t.id+' '+t.title+'，'+labels[t.state])}"><div class="wt-task-top"><span>${t.id}</span><span aria-hidden="true">⠿</span></div><button type="button" class="wt-open" data-open="${t.id}">${escape(t.title)}</button><div class="wt-task-meta"><span>${t.priority}优先级</span><span class="wt-agent">${escape(t.agent||'待选 Agent')}</span></div><span class="wt-state ${t.state==='blocked'?'blocked':t.run}">${t.state==='blocked'?'！受阻 · '+escape(runLabel(t)):escape(runLabel(t))}</span></article>`;
+    }
+    function showPanel(id,mode='view',target=null) { selected=id; panelMode=mode; targetState=target; draft={}; render(); const field=byId('wt-inspector').querySelector('input,textarea,select'); if(mode!=='view' && field) field.focus(); }
+    function finish(t,token) { if(t.runToken!==token || !isActive(t) || t.run==='stopping') return; t.run='finished'; t.state='review'; t.result='已完成本轮任务，执行摘要和结果已归档，请检查后验收。'; record(t,`第 ${t.round} 次执行完成，已提交验收`); feedback(`${t.id} 已交付，等待你的验收。`); render(); }
+    function launch(t,comment='',resume=false) {
+      stopTimers(t); const token=++t.runToken; if(!resume) t.round++; t.state='doing'; t.run='queued';
+      t.worktreeCleaned=false;
+      if(!resume) t.runAgent=structuredClone(enabledAgent(t.agent)||agents[0]);
+      if(comment) record(t,'你：'+comment);
+      record(t,resume?'继续当前执行':`开始第 ${t.round} 次执行 · ${t.agent}`);
+      panelMode='view'; targetState=null; feedback(`${t.id} 已进入执行队列。`); render();
+      const start=setTimeout(() => { if(t.runToken!==token || t.run!=='queued') return; t.run='running'; record(t,'Agent 正在处理任务'); render(); },650);
+      const complete=setTimeout(() => finish(t,token),6500);
+      timers.set(t.id,[start,complete]);
+    }
+    function applyMove(t,to,canUndo=true) {
+      const before=structuredClone(t); const from=t.state;
+      if(to==='done'){t.checked=true;t.criteriaChecks=t.acceptance.map(()=>true);}
+      t.state=to; t.order=Math.max(0,...tasks.filter(x=>x.project===t.project && column(x)===column(t)).map(x=>x.order))+1;
+      record(t,`状态：${labels[from]} → ${labels[to]}`); const revision=t.revision;
+      feedback(`${t.id} 已移到${labels[to]}。`,canUndo?() => { if(t.revision!==revision) { feedback('任务已有新的变化，无法撤销上一次操作。'); return; } Object.assign(t,before); record(t,'撤销上一次状态调整'); feedback(`${t.id} 已恢复为${labels[t.state]}。`); render(); }:null);
+      panelMode='view'; targetState=null; render();
+    }
+    function requestMove(t,to) {
+      if(!t || t.state===to) return;
+      if(!allowed[t.state].includes(to)) { feedback(`${labels[t.state]}不能直接移到${labels[to]}。${to==='done'?'请先提交并验收结果。':''}`); return; }
+      if(isActive(t)) {
+        if(['todo','blocked','cancelled'].includes(to)) { showPanel(t.id,'stop',to); return; }
+        feedback('Agent 仍在执行，交付后才能进入待验收。'); return;
+      }
+      if(to==='doing') { if(!enabledAgent(t.agent)) showPanel(t.id,'start'); else if(t.state==='review') showPanel(t.id,'rework'); else launch(t); return; }
+      applyMove(t,to);
+    }
+    function renderPanel() {
+      const panel=byId('wt-inspector');
+      if(!selected) { panel.hidden=true; panel.innerHTML=''; return; }
+      panel.hidden=false;
+      const close=`<button type="button" class="wt-button wt-quiet" data-action="close-panel" aria-label="关闭任务详情">${layout==='board'?'返回看板':'关闭详情'}</button>`;
+      if(panelMode==='backlog' || panelMode==='cancelled') {
+        const state=panelMode==='backlog'?'backlog':'cancelled';
+        panel.innerHTML=`<div class="wt-detail-head"><h3>${labels[state]}</h3>${close}</div>`+projectTasks().filter(t=>t.state===state).map(t=>`<div class="wt-summary-row"><button type="button" class="wt-open" data-open="${t.id}">${escape(t.title)}</button><div class="wt-actions" style="margin-top:10px"><span class="wt-caption">${t.id}</span><button type="button" class="wt-button" data-restore="${t.id}">${state==='backlog'?'加入待办':'重新打开'}</button></div></div>`).join('');
+        return;
+      }
+      if(panelMode==='new') {
+        panel.innerHTML=`<div class="wt-detail-head"><h3>新建任务</h3>${close}</div><form id="wt-task-form"><label class="wt-field">任务标题<input name="title" required maxlength="70" value="${escape(draft.title||'')}" placeholder="需要完成什么？"></label><label class="wt-field">目标与背景<textarea name="description" placeholder="背景和要求">${escape(draft.description||'')}</textarea></label><label class="wt-field">验收条件<textarea name="acceptance" placeholder="每行一项验收条件">${escape(draft.acceptance||'')}</textarea></label><label class="wt-field">执行者<select name="agent">${agentOptions(draft.agent??project().agent)}</select></label><button type="button" class="wt-button" data-action="manage-agents">管理 Agent</button><details class="wt-overrides" ${(draft.model||draft.instructions)?'open':''}><summary>本任务的模型与附加指令</summary><label class="wt-field">模型<input name="model" value="${escape(draft.model||'')}" placeholder="留空时使用 Agent 配置"></label><label class="wt-field">附加指令<textarea name="instructions">${escape(draft.instructions||'')}</textarea></label></details><div class="wt-actions" style="margin-top:14px"><button type="button" data-submit="wt-task-form" class="wt-button wt-primary">创建到待办</button></div></form>`;
+        return;
+      }
+      const t=taskById(selected); if(!t) {panel.hidden=true;panel.innerHTML='';return;}
+      let body=`<div class="wt-detail-head"><div><div class="wt-caption">${t.id} · ${escape(taskProject(t).name)} · ${t.priority}优先级</div><h3>${escape(t.title)}</h3></div>${close}</div>`;
+      if(panelMode==='finalize'||panelMode==='delete') {
+        const deleting=panelMode==='delete';
+        body+=`<div class="wt-warning">${deleting?'删除这项任务及其记录？':'交付并清理任务 Worktree？'}</div><div class="wt-description">${deleting?'已产生的代码和结果分支保留。':'任务、执行历史和结果分支保留；清理该任务的临时工作目录。'}</div><div class="wt-actions"><button type="button" class="wt-button wt-primary" data-action="${deleting?'confirm-delete':'confirm-finalize'}">${deleting?'确认删除':'确认交付并清理'}</button><button type="button" class="wt-button" data-action="cancel-change">取消</button></div>`;
+      } else if(panelMode==='stop') {
+        body+=`<div class="wt-warning">停止执行并移到${labels[targetState]}？</div><div class="wt-description">保留已经产生的修改和执行记录。</div><div class="wt-actions"><button type="button" class="wt-button wt-primary" data-action="confirm-stop">停止并移到${labels[targetState]}</button><button type="button" class="wt-button" data-action="cancel-change">继续执行</button></div>`;
+      } else if(panelMode==='start' || panelMode==='rework') {
+        body+=`<form id="wt-run-form"><label class="wt-field">执行者<select name="agent" required>${agentOptions(t.agent)}</select></label><button type="button" class="wt-button" data-action="manage-agents">管理 Agent</button>${panelMode==='rework'?'<label class="wt-field">需要修改什么？<textarea name="comment" required placeholder="补充修改意见，继续同一张任务卡片"></textarea></label>':''}<div class="wt-note">使用项目目录 ${escape(taskProject(t).folder)}，执行记录保留在此任务中。</div><div class="wt-actions" style="margin-top:12px"><button type="button" data-submit="wt-run-form" class="wt-button wt-primary">${panelMode==='rework'?'继续修改':'保存并执行'}</button><button type="button" class="wt-button" data-action="cancel-change">取消</button></div></form>`;
+      } else {
+        body+=`<div class="wt-detail-columns"><div class="wt-detail-body"><div class="wt-actions">${['todo','blocked','backlog'].includes(t.state)?`<button type="button" class="wt-button wt-primary" data-action="run-task">交给 ${escape(t.agent||'Agent')}</button>`:''}<button type="button" class="wt-button" data-action="open-terminal">打开终端</button>${allowed[t.state].includes('cancelled')?'<button type="button" class="wt-button" data-action="cancel-task">取消任务</button>':''}</div><div class="wt-detail-block"><h4>目标与背景</h4><div class="wt-description">${escape(t.description)}</div></div><div class="wt-detail-block"><h4>验收条件</h4>${t.acceptance.map((text,i)=>`<label class="wt-criterion"><input type="checkbox" data-criterion="${i}" ${t.checked?'checked':''}><span>${escape(text)}</span></label>`).join('')}</div>`;
+        if(t.run==='waiting') body+=`<div class="wt-warning">需要你的输入：重新打开项目时，是否恢复全部终端？</div><form id="wt-reply-form"><label class="wt-field">回复<textarea name="reply" required placeholder="补充信息后继续执行"></textarea></label><button type="button" data-submit="wt-reply-form" class="wt-button wt-primary">发送并继续</button></form>`;
+        if(t.state==='review') body+=`<div class="wt-detail-block"><h4>交付结果</h4><div class="wt-description">${escape(t.result)}</div><div class="wt-actions"><button type="button" class="wt-button wt-primary" data-action="accept">验收通过</button><button type="button" class="wt-button" data-action="rework">继续修改</button></div></div>`;
+        body+=`<div class="wt-detail-block"><div class="wt-actions">${isActive(t)&&t.run!=='stopping'?'<button type="button" class="wt-button" data-action="stop">停止执行</button>':''}</div><h4 style="margin-top:12px">执行记录</h4><ol class="wt-timeline">${t.history.map(h=>`<li>${escape(h)}</li>`).join('')}</ol></div>${t.run!=='waiting'?'<form id="wt-note-form" class="wt-detail-block"><label class="wt-field">补充要求<textarea name="note" required placeholder="补充要求，或告诉 Agent 下一步……"></textarea></label><button type="button" class="wt-button" data-submit="wt-note-form">保存补充要求</button></form>':''}</div><aside class="wt-properties" aria-label="任务属性"><h4>属性</h4><label class="wt-field">任务状态<select id="wt-status" aria-label="任务状态">${Object.entries(labels).map(([key,label])=>`<option value="${key}" ${key===t.state?'selected':''} ${key!==t.state&&!allowed[t.state].includes(key)?'disabled':''}>${label}</option>`).join('')}</select></label><dl><dt>所属项目</dt><dd>${escape(taskProject(t).name)}</dd><dt>执行者</dt><dd>${escape(t.agent||'尚未配置')}</dd><dt>执行方式</dt><dd>${escape(t.executionMode)}</dd><dt>终端</dt><dd>${escape(runLabel(t))}</dd><dt>执行轮次</dt><dd>${t.round||'尚未执行'}</dd><dt>工作目录</dt><dd>${escape(taskProject(t).folder)}</dd><dt>分支</dt><dd>wt/task/${t.id.toLowerCase()}</dd></dl></aside></div>`;
+      }
+      panel.innerHTML=body;
+      const propertyList=panel.querySelector('.wt-properties dl');if(propertyList&&t.runAgent){const term=document.createElement('dt');term.textContent='本次执行配置';const value=document.createElement('dd');value.textContent=t.runAgent.name+' · v'+t.runAgent.version;propertyList.append(term,value);}
+      if(propertyList){const term=document.createElement('dt');term.textContent='Worktree';const value=document.createElement('dd');value.textContent=t.worktreeCleaned?'已清理 · 结果分支保留':t.round?'已就绪':'待创建';propertyList.append(term,value);}
+      const mainActions=panel.querySelector('.wt-detail-body > .wt-actions');if(mainActions){for(const [action,label,disabled] of [['task-finalize','交付并清理 Worktree',isActive(t)||!t.round||t.worktreeCleaned],['task-delete','删除任务',isActive(t)]]){const button=document.createElement('button');button.type='button';button.className='wt-button';button.dataset.action=action;button.textContent=label;button.disabled=Boolean(disabled);mainActions.append(button);}}
+      const noteArea=panel.querySelector('#wt-note-form textarea'); if(noteArea) noteArea.value=noteDrafts[t.id]||'';
+      panel.querySelectorAll('[data-criterion]').forEach((input,i)=>{if(t.criteriaChecks)input.checked=Boolean(t.criteriaChecks[i]);});
+      const runForm=panel.querySelector('#wt-run-form'); if(runForm&&draft.runForm) for(const [name,value] of Object.entries(draft.runForm)) {const field=runForm.elements.namedItem(name);if(field)field.value=value;}
+    }
+    function openAgents() {
+      if(view==='agents') return;
+      const runForm=byId('wt-run-form');if(runForm)draft.runForm=Object.fromEntries(new FormData(runForm));
+      agentReturn={projectId,view,layout,selected,panelMode,targetState,draft:structuredClone(draft)};
+      view='agents'; render();
+    }
+    function leaveAgents() {
+      if(agentReturn) {({projectId,view,layout,selected,panelMode,targetState,draft}=agentReturn);agentReturn=null;}
+      else view='board';
+      feedback('已返回任务页，原来的视图和任务草稿已保留。');render();
+    }
+    function renderAgentList() {
+      const items=agents.filter(a=>(includeArchived||!a.archived)&&(!agentQuery||(a.name+' '+a.description).toLowerCase().includes(agentQuery.toLowerCase())));
+      byId('wt-agent-list').innerHTML=items.map(a=>`<button type="button" class="wt-list-item" data-agent="${a.id}" aria-pressed="${a.id===selectedAgentId}"><strong>${escape(a.name)}</strong><span>Codex · v${a.version}${a.archived?' · 已归档':''}</span><span>${escape(a.description)}</span><span>${projects.filter(p=>p.agent===a.name).map(p=>escape(p.name)+' 默认').join(' · ')}</span></button>`).join('')||'<div class="wt-empty">没有匹配的 Agent</div>';
+    }
+    function renderAgents() {
+      const saved=agents.find(a=>a.id===selectedAgentId);
+      byId('wt-content').innerHTML=`<div class="wt-toolbar"><div class="wt-agent-description">共享 Agent 配置；项目和任务按需选用。</div><button type="button" class="wt-button" data-action="agents-back">返回任务页</button></div><div class="wt-agent-catalog"><div><div class="wt-actions"><button type="button" class="wt-button wt-primary" data-action="agent-new">新建 Agent</button><button type="button" class="wt-button" data-action="agent-refresh">刷新</button></div><label class="wt-field">搜索 Agent<input id="wt-agent-search" type="search" value="${escape(agentQuery)}" placeholder="名称或描述"></label><label class="wt-criterion wt-caption"><input type="checkbox" id="wt-agent-archived" ${includeArchived?'checked':''}>显示已归档</label><div class="wt-agent-list" id="wt-agent-list"></div></div><section class="wt-agent-editor" aria-label="Agent 配置"><h3>${saved?escape(saved.name):'新建 Agent'}</h3><div class="wt-save-state" id="wt-agent-dirty">${agentDirty()?'有未保存的修改':`已保存 · v${saved?.version||1}`}</div><form id="wt-agent-form"><label class="wt-field">名称<input name="name" required maxlength="160" value="${escape(agentDraft.name)}"></label><label class="wt-field">描述<input name="description" maxlength="1024" value="${escape(agentDraft.description)}"></label><div class="wt-caption">执行工具：Codex</div><label class="wt-field">模型<input name="model" maxlength="256" value="${escape(agentDraft.model)}" placeholder="留空时使用 Codex 默认模型"></label><label class="wt-field">指令<textarea name="instructions" maxlength="32768" style="min-height:140px">${escape(agentDraft.instructions)}</textarea></label><div class="wt-actions"><button type="button" class="wt-button" data-action="agent-preview">指令预览</button><button type="button" class="wt-button wt-primary" data-submit="wt-agent-form">保存 Agent</button><button type="button" class="wt-button" data-action="agent-copy">复制</button><button type="button" class="wt-button" data-action="agent-reload" ${saved?'':'disabled'}>重新加载</button></div></form>${agentPreview?`<div class="wt-agent-preview"><h4>指令预览</h4><div class="wt-caption">${escape(agentDraft.name)} · ${escape(agentDraft.model||'默认模型')}</div>${escape(agentDraft.instructions||'未设置附加指令')}</div>`:''}<div class="wt-detail-block"><div class="wt-actions"><button type="button" class="wt-button" data-action="agent-archive" ${saved?'':'disabled'}>${saved?.archived?'恢复 Agent':'归档 Agent'}</button><button type="button" class="wt-button" data-action="agent-default" ${saved&&!saved.archived?'':'disabled'}>设为 ${escape(project().name)} 的默认 Agent</button><button type="button" class="wt-button" data-action="agent-clear-default">清除项目默认</button></div><div class="wt-note">当前项目：${escape(project().name)} · 默认：${escape(project().agent||'未设置')}<br>保存后的配置用于后续执行。已有执行保留启动时的配置和记录。</div></div></section></div>`;
+      renderAgentList();
+    }
+    function handleAgentAction(action) {
+      const saved=agents.find(a=>a.id===selectedAgentId);
+      switch(action) {
+        case 'agents-back': leaveAgents(); return;
+        case 'agent-new': selectedAgentId=null;agentDraft={name:'',description:'',model:'',instructions:''};agentPreview=false;render();return;
+        case 'agent-copy': selectedAgentId=null;agentDraft={...agentDraft,name:agentDraft.name+' 副本'};feedback('已复制为新草稿，保存后可单独使用。');render();return;
+        case 'agent-refresh': renderAgentList();feedback('Agent 列表已刷新，当前编辑草稿保留。');return;
+        case 'agent-reload': if(saved){const previous=structuredClone(agentDraft);agentDraft=structuredClone(saved);render();feedback('已恢复为保存的配置。',()=>{agentDraft=previous;render();feedback('已恢复编辑草稿。');});}return;
+        case 'agent-preview': agentPreview=!agentPreview;render();return;
+        case 'agent-default': if(saved&&!saved.archived){project().agent=saved.name;feedback('已将 '+saved.name+' 设为 '+project().name+' 的默认 Agent。');render();}return;
+        case 'agent-clear-default': project().agent='';feedback('已清除当前项目的默认 Agent。');render();return;
+        case 'agent-archive': if(saved){const before=saved.archived;const defaults=projects.map(p=>p.agent);saved.archived=!saved.archived;if(saved.archived)projects.forEach(p=>{if(p.agent===saved.name)p.agent='';});agentDraft.archived=saved.archived;includeArchived=includeArchived||saved.archived;render();feedback(saved.archived?'Agent 已归档，已有执行和记录保留。':'Agent 已恢复，可以再次选用。',()=>{saved.archived=before;projects.forEach((p,i)=>{p.agent=defaults[i];});render();feedback('已撤销归档状态调整。');});}return;
+      }
+    }
+    function render() {
+      const current=project();
+      byId('wt-project-name').textContent=view==='agents'?'Agent 管理':current.name;
+      byId('wt-project-context').textContent=view==='agents'?'全局配置 · 项目默认设置目标：'+current.name:current.folder+' · 默认 '+(current.agent||'未设置');
+      byId('wt-task-header-actions').hidden=view==='agents';byId('wt-project-tabs').hidden=view==='agents';byId('wt-agents-global').setAttribute('aria-pressed',String(view==='agents'));
+      byId('wt-projects').innerHTML=projects.map(p=>{const n=tasks.filter(t=>t.project===p.id&&isActive(t)).length; return `<button type="button" class="wt-project" data-project="${p.id}" aria-pressed="${p.id===projectId}"><strong>${p.name}</strong><small>${n?n+' 项执行中':'项目工作区'}</small></button>`;}).join('');
+      root.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));
+      byId('wt-toolbar').hidden=view!=='board';
+      byId('wt-filters').hidden=view!=='board';
+      root.querySelectorAll('[data-layout]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.layout===layout)));
+      root.querySelectorAll('[name="task-scope"]').forEach(r=>{r.checked=r.value===scope;});
+      byId('wt-view-caption').textContent=layout==='list'?'任务列表与完整详情':'拖入进行中 → 执行';
+      byId('wt-backlog').textContent='待规划 '+projectTasks().filter(t=>t.state==='backlog').length;
+      const cancelled=projectTasks().filter(t=>t.state==='cancelled').length;
+      byId('wt-cancelled').hidden=!cancelled; byId('wt-cancelled').textContent='已取消 '+cancelled;
+      const content=byId('wt-content');
+      if(view==='agents') renderAgents();
+      if(view==='board'&&layout==='board') content.innerHTML='<div class="wt-board">'+['todo','doing','review','done'].map(state=>{const cards=shownTasks().filter(t=>column(t)===state); return `<section class="wt-column" data-column="${state}" aria-label="${labels[state]}列"><div class="wt-column-head"><span class="wt-dot" aria-hidden="true"></span><span>${labels[state]}</span><span class="wt-count">${cards.length}</span></div>${cards.map(taskMarkup).join('')}${!cards.length?'<div class="wt-empty">暂无任务</div>':''}</section>`;}).join('')+'</div>';
+      if(view==='board'&&layout==='list') {
+        const items=shownTasks();
+        content.innerHTML=`<div class="wt-caption wt-selection-title">任务 · ${items.length} 项</div><label class="wt-picker">选择任务<select id="wt-task-picker" aria-label="选择任务"><option value="">选择一个任务</option>${items.map(t=>`<option value="${t.id}" ${selected===t.id?'selected':''}>${t.id} · ${escape(t.title)} · ${labels[t.state]}</option>`).join('')}</select></label><div class="wt-task-list">${items.map(t=>`<button type="button" class="wt-list-item" data-open="${t.id}" aria-pressed="${selected===t.id}"><div class="wt-list-item-head"><span>${t.id}</span><span>${labels[t.state]}</span></div><strong>${escape(t.title)}</strong><span>${escape(taskProject(t).name)} · ${escape(t.agent||'待选 Agent')}</span><span>${escape(runLabel(t))}</span></button>`).join('')}</div>`;
+      }
+      if(view==='terminal') {
+        const t=taskById(selected)||projectTasks().find(t=>isActive(t))||projectTasks().find(t=>t.round);
+        content.innerHTML=`<div class="wt-toolbar"><h3>${t?escape(t.id+' · '+t.title):'项目终端'}</h3><button type="button" class="wt-button" data-view="board">返回看板</button></div><div class="wt-terminal"><pre>${escape(t?'> '+t.agent+' · '+current.folder+String.fromCharCode(10,10)+t.history.join(String.fromCharCode(10))+String.fromCharCode(10,10)+(isActive(t)?'▍ 等待执行更新':'本次执行已结束，记录已保存。'):'> '+current.folder+String.fromCharCode(10)+'项目终端已就绪。')}</pre></div>`;
+      }
+      if(view==='summary') content.innerHTML=projectTasks().filter(t=>t.result).map(t=>`<div class="wt-summary-row"><span class="wt-caption">${t.id} · ${labels[t.state]}</span><h3>${escape(t.title)}</h3><div class="wt-description">${escape(t.result)}</div><button type="button" class="wt-button" data-open="${t.id}">查看任务</button></div>`).join('')||'<div class="wt-empty">任务交付后，结果会汇总在这里。</div>';
+      const fullDetail=layout==='board'&&selected&&['view','new','start','stop','rework','finalize','delete'].includes(panelMode)&&view==='board';
+      content.hidden=Boolean(fullDetail);
+      byId('wt-stage').classList.toggle('wt-detail-open',Boolean(selected)&&view==='board');
+      byId('wt-stage').classList.toggle('wt-list-layout',layout==='list'&&view==='board');
+      byId('wt-stage').classList.toggle('wt-full-detail',Boolean(fullDetail));
+      if(view==='board') renderPanel(); else { byId('wt-inspector').hidden=true; byId('wt-inspector').innerHTML=''; }
+    }
+    root.addEventListener('click',e=>{
+      const b=e.target.closest('button'); if(!b) return;
+      if(b.id==='wt-agents-global'||b.dataset.action==='manage-agents') {openAgents();return;}
+      if(b.dataset.agent) {if(agentDirty())agentDraftCache.set(selectedAgentId||'new',structuredClone(agentDraft));selectedAgentId=b.dataset.agent;agentDraft=structuredClone(agentDraftCache.get(selectedAgentId)||agents.find(a=>a.id===selectedAgentId));agentPreview=false;render();return;}
+      if(b.dataset.action&&(b.dataset.action.startsWith('agent-')||b.dataset.action==='agents-back')) {handleAgentAction(b.dataset.action);return;}
+      if(b.dataset.submit) { const form=byId(b.dataset.submit); if(form.reportValidity()) form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); return; }
+      if(b.dataset.project) { viewPreferences[projectId]={layout,selected:taskById(selected)?selected:null}; projectId=b.dataset.project; ({layout,selected}=viewPreferences[projectId]); panelMode='view'; scope='current'; view='board'; feedback('已切换项目，恢复这个项目上次使用的任务视图。'); render(); return; }
+      if(b.dataset.layout) { layout=b.dataset.layout; selected=layout==='list'?(taskById(selected)?selected:shownTasks()[0]?.id):null; panelMode='view'; feedback('看板和列表展示同一批任务，共用完整任务详情。'); render(); return; }
+      if(b.dataset.view) { view=b.dataset.view; render(); return; }
+      if(b.dataset.open) { view='board'; showPanel(b.dataset.open); return; }
+      if(b.dataset.restore) { requestMove(taskById(b.dataset.restore),'todo'); return; }
+      if(b.id==='wt-new-task') { view='board'; showPanel('new','new'); return; }
+      if(b.id==='wt-backlog'||b.id==='wt-cancelled') { showPanel('list',b.id==='wt-backlog'?'backlog':'cancelled'); return; }
+      if(b.id==='wt-undo') { const action=undo; undo=null; byId('wt-undo').hidden=true; if(action) action(); return; }
+      const t=taskById(selected);
+      switch(b.dataset.action) {
+        case 'close-panel': selected=null; render(); break;
+        case 'cancel-change': panelMode='view'; targetState=null; render(); break;
+        case 'accept': requestMove(t,'done'); break;
+        case 'run-task': if(t.state==='backlog') applyMove(t,'todo'); requestMove(t,'doing'); break;
+        case 'cancel-task': requestMove(t,'cancelled'); break;
+        case 'task-finalize': if(!isActive(t))showPanel(t.id,'finalize');break;
+        case 'task-delete': if(!isActive(t))showPanel(t.id,'delete');break;
+        case 'confirm-finalize': t.worktreeCleaned=true;record(t,'你交付并清理了任务 Worktree，结果分支保留');panelMode='view';feedback('演示状态已更新：Worktree 已清理，任务与执行记录保留。');render();break;
+        case 'confirm-delete': {const index=tasks.indexOf(t);if(index<0||isActive(t))break;stopTimers(t);tasks.splice(index,1);selected=layout==='list'?(shownTasks()[0]?.id||null):null;panelMode='view';render();feedback('任务已从演示列表中删除。',()=>{tasks.splice(index,0,t);selected=t.id;render();feedback('已恢复任务及其记录。');});break;}
+        case 'rework': showPanel(t.id,'rework'); break;
+        case 'open-terminal': view='terminal'; render(); break;
+        case 'stop': showPanel(t.id,'stop','todo'); break;
+        case 'confirm-stop': {
+          const to=targetState; stopTimers(t); ++t.runToken; t.run='stopping'; panelMode='view'; feedback('正在停止 '+t.id+'…'); render();
+          setTimeout(()=>{ t.run='stopped'; record(t,'你停止了执行，已有结果保留'); applyMove(t,to,false); },600); break;
+        }
+      }
+    });
+    root.addEventListener('input',e=>{
+      if(e.target.closest('#wt-task-form')) draft[e.target.name]=e.target.value;
+      if(e.target.closest('#wt-agent-form')) {agentDraft[e.target.name]=e.target.value;byId('wt-agent-dirty').textContent=agentDirty()?'有未保存的修改':'已保存';}
+      if(e.target.id==='wt-agent-search') {agentQuery=e.target.value;renderAgentList();}
+      if(e.target.closest('#wt-note-form')) noteDrafts[selected]=e.target.value;
+      if(e.target.id==='wt-search') {query=e.target.value;render();}
+    });
+    root.addEventListener('change',e=>{
+      if(e.target.name==='task-scope') {scope=e.target.value;render();}
+      if(e.target.id==='wt-filter') {statusFilter=e.target.value;render();}
+      if(e.target.id==='wt-agent-archived') {includeArchived=e.target.checked;renderAgentList();}
+      if(e.target.id==='wt-task-picker') {if(e.target.value) showPanel(e.target.value);else {selected=null;render();}}
+      if(e.target.dataset.criterion!==undefined) {const t=taskById(selected);t.criteriaChecks=Array.from(byId('wt-inspector').querySelectorAll('[data-criterion]')).map(c=>c.checked);t.checked=t.criteriaChecks.every(Boolean);}
+      if(e.target.id==='wt-status') { const t=taskById(selected); const to=e.target.value; requestMove(t,to); const status=byId('wt-status'); if(status) status.value=t.state; }
+    });
+    root.addEventListener('submit',e=>{
+      e.preventDefault(); const data=new FormData(e.target);
+      if(e.target.id==='wt-agent-form') {
+        const name=String(data.get('name')||'').trim();
+        if(!name||agents.some(a=>a.name===name&&a.id!==selectedAgentId)) {feedback('请填写一个未被使用的 Agent 名称。');return;}
+        const saved=agents.find(a=>a.id===selectedAgentId);const oldName=saved?.name;
+        const next={id:saved?.id||'agent-'+Date.now(),name,description:String(data.get('description')||''),model:String(data.get('model')||''),instructions:String(data.get('instructions')||''),version:(saved?.version||0)+1,archived:saved?.archived||false};
+        if(saved)Object.assign(saved,next);else agents.push(next);
+        if(oldName!==name){projects.forEach(p=>{if(p.agent===oldName)p.agent=name;});tasks.forEach(t=>{if(t.agent===oldName)t.agent=name;});}
+        selectedAgentId=next.id;agentDraftCache.delete(selectedAgentId);agentDraft=structuredClone(next);feedback('Agent 已保存为 v'+next.version+'，已有执行继续使用原配置。');render();return;
+      }
+      if(e.target.id==='wt-task-form') {
+        const title=String(data.get('title')).trim(); if(!title) return;
+        const t={id:(projectId==='wt'?'WT-':'RL-')+(30+tasks.length),project:projectId,title,state:'todo',agent:String(data.get('agent')||''),priority:'中',run:'idle',round:0,description:String(data.get('description')||'待补充任务要求和验收条件。'),history:['你创建了任务'],order:tasks.length+1,revision:0,runToken:0,executionMode:'Task 专属 Worktree',acceptance:String(data.get('acceptance')||'满足任务描述中的要求，并提供可检查的结果').split(String.fromCharCode(10)).map(x=>x.trim()).filter(Boolean),checked:false,model:String(data.get('model')||''),instructions:String(data.get('instructions')||'')}; tasks.push(t); selected=t.id; panelMode='view'; feedback(t.id+' 已创建到待办。'); render();
+      }
+      if(e.target.id==='wt-run-form') { const t=taskById(selected); t.agent=String(data.get('agent')); launch(t,String(data.get('comment')||'')); }
+      if(e.target.id==='wt-reply-form') launch(taskById(selected),String(data.get('reply')),true);
+      if(e.target.id==='wt-note-form') { const t=taskById(selected); record(t,'你补充：'+String(data.get('note')).trim()); delete noteDrafts[selected];feedback('补充要求已保存到当前任务，执行记录继续保留。'); render(); }
+    });
+    root.addEventListener('dragstart',e=>{const card=e.target.closest('[data-task]'); if(!card) return; dragId=card.dataset.task; e.dataTransfer.setData('text/plain',dragId); e.dataTransfer.effectAllowed='move'; card.classList.add('wt-dragging');});
+    root.addEventListener('dragover',e=>{const zone=e.target.closest('[data-column]'); if(!zone||!dragId) return; e.preventDefault(); e.dataTransfer.dropEffect='move'; root.querySelectorAll('.wt-over').forEach(x=>x.classList.remove('wt-over')); zone.classList.add('wt-over');});
+    root.addEventListener('dragleave',e=>{const zone=e.target.closest('[data-column]'); if(zone&&!zone.contains(e.relatedTarget)) zone.classList.remove('wt-over');});
+    root.addEventListener('drop',e=>{
+      const zone=e.target.closest('[data-column]'); if(!zone) return; e.preventDefault();
+      const t=taskById(dragId||e.dataTransfer.getData('text/plain')); const target=e.target.closest('[data-task]'); dragId=null; root.querySelectorAll('.wt-over').forEach(x=>x.classList.remove('wt-over')); if(!t) return;
+      if(t.project!==projectId&&scope!=='all') return;
+      if(column(t)===zone.dataset.column) {
+        if(target&&target.dataset.task===t.id) return;
+        const peers=projectTasks().filter(x=>column(x)===column(t)&&x.id!==t.id);
+        let position=peers.length;
+        if(target) { const bounds=target.getBoundingClientRect(); position=peers.findIndex(x=>x.id===target.dataset.task)+(e.clientY>bounds.top+bounds.height/2?1:0); }
+        peers.splice(Math.max(0,position),0,t); peers.forEach((x,i)=>{x.order=i;});
+        record(t,'调整了卡片顺序'); feedback('卡片顺序已调整，执行状态保持不变。'); render(); return;
+      }
+      requestMove(t,zone.dataset.column);
+    });
+    root.addEventListener('dragend',()=>{dragId=null;root.querySelectorAll('.wt-over,.wt-dragging').forEach(x=>x.classList.remove('wt-over','wt-dragging'));});
+    root.addEventListener('keydown',e=>{
+      if(e.key==='Enter'&&e.target.matches('input')&&e.target.closest('form')) { e.preventDefault(); const form=e.target.closest('form'); if(form.reportValidity()) form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); }
+      if(e.key==='Escape'&&selected) { selected=null;targetState=null;render();byId('wt-new-task').focus(); }
+    });
+    render();
+  })();
+  </script>
+</div>
+
+</body>
+</html>

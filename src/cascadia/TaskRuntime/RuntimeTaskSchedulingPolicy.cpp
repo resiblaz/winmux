@@ -122,6 +122,11 @@ namespace Microsoft::Terminal::TaskRuntime
         try
         {
             std::string prompt = aggregate.Task.Description.empty() ? aggregate.Task.Title : aggregate.Task.Description;
+            if (const auto context = FindRuntimeTaskRunContext(aggregate, run); context && context->ProjectVersion)
+            {
+                prompt.insert(0, "Project background (configuration version " + std::to_string(context->ProjectVersion) + "):\n" +
+                                 context->ProjectNameSnapshot + "\n" + context->ProjectDescriptionSnapshot + "\n\nTask:\n");
+            }
             if (!aggregate.Task.AcceptanceCriteria.empty())
             {
                 prompt.append("\n\nAcceptance criteria:\n");

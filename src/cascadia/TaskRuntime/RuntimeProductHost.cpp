@@ -3,6 +3,8 @@
 
 #include "pch.h"
 #include "RuntimeAgentCatalogService.h"
+#include "RuntimeProjectCatalogService.h"
+#include "RuntimeTaskBoardService.h"
 #include "RuntimeProductHostInternal.h"
 #include "RuntimeProductExecutableDiscovery.h"
 
@@ -47,6 +49,9 @@ namespace Microsoft::Terminal::TaskRuntime
                 static_cast<uint64_t>(ProtocolCapability::TaskOrchestration);
             handshake.Capabilities |= static_cast<uint64_t>(ProtocolCapability::RuntimeDrain) |
                                       static_cast<uint64_t>(ProtocolCapability::AgentProfiles);
+            wchar_t projectMode[2]{};
+            if (GetEnvironmentVariableW(L"RICHER_WORKSPACE_PROJECTS", projectMode, 2) != 1 || projectMode[0] != L'0')
+                handshake.Capabilities |= static_cast<uint64_t>(ProtocolCapability::ProjectCatalog) | static_cast<uint64_t>(ProtocolCapability::TaskBoard);
             return handshake;
         }
     }
@@ -339,7 +344,9 @@ namespace Microsoft::Terminal::TaskRuntime
                     bootstrap.Identity.SettingsRoot,
                     terminals,
                     orchestrator),
-                std::make_shared<RuntimeAgentCatalogService>(store));
+                std::make_shared<RuntimeAgentCatalogService>(store),
+                std::make_shared<RuntimeProjectCatalogService>(store, bootstrap.Identity.SettingsRoot),
+                std::make_shared<RuntimeTaskBoardService>(store, orchestrator));
             if (!router->Valid())
             {
                 result.Status = RuntimeProductHostStartStatus::TaskStoreFailure;

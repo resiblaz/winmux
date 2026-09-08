@@ -1379,6 +1379,15 @@ namespace winrt::TerminalApp::implementation
                 co_return;
             }
             coordinator._menuCache = std::move(snapshots);
+            if (page->_projects)
+            {
+                for (const auto& snapshot : coordinator._menuCache)
+                {
+                    auto id = til::u16u8(winrt::to_hstring(snapshot.WorkspaceId()));
+                    if (id.size() == 38) id = id.substr(1, 36);
+                    page->_projects->RegisterLegacy(std::move(id), til::u16u8(snapshot.Name()));
+                }
+            }
             coordinator._cacheRefreshInFlight = false;
             if (page->_workspaceFlyout && page->_workspaceFlyout.IsOpen())
             {

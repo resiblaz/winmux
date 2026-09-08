@@ -17,5 +17,6 @@ namespace TerminalApp
         Boolean ShowEmptyState { get; };
         Boolean HasSelection { get; };
         Boolean IsSourceAttached { get; };
+        Boolean HasMoreTasks { get; };
     }
 }

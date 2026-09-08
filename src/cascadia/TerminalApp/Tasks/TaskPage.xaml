@@ -76,6 +76,39 @@
                 </StackPanel>
             </Grid>
         </DataTemplate>
+        <Style x:Key="TaskViewChoice" TargetType="RadioButton">
+            <Setter Property="MinWidth" Value="64" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="12,5" />
+            <Setter Property="UseSystemFocusVisuals" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Grid>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="PointerOver"><VisualState.Setters><Setter Target="ChoiceChrome.Background" Value="{ThemeResource WorkspaceChromeButtonHoverBrush}" /></VisualState.Setters></VisualState>
+                                    <VisualState x:Name="Pressed"><VisualState.Setters><Setter Target="ChoiceChrome.Background" Value="{ThemeResource WorkspaceChromeButtonPressedBrush}" /></VisualState.Setters></VisualState>
+                                    <VisualState x:Name="Disabled"><VisualState.Setters><Setter Target="ChoiceChrome.Opacity" Value="0.45" /></VisualState.Setters></VisualState>
+                                </VisualStateGroup>
+                                <VisualStateGroup x:Name="CheckStates">
+                                    <VisualState x:Name="Unchecked" />
+                                    <VisualState x:Name="Checked"><VisualState.Setters>
+                                        <Setter Target="ChoiceChrome.Background" Value="{ThemeResource WorkspaceChromeStatusFillBrush}" />
+                                        <Setter Target="ChoiceContent.Foreground" Value="{ThemeResource WorkspaceChromeAccentBrush}" />
+                                    </VisualState.Setters></VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <Border x:Name="ChoiceChrome" CornerRadius="5" Padding="{TemplateBinding Padding}" Background="Transparent">
+                                <ContentPresenter x:Name="ChoiceContent" Content="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid x:Name="Root"
@@ -133,9 +166,10 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid Padding="20,14,20,10">
+        <Grid Padding="20,12,20,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -154,28 +188,26 @@
             <StackPanel Grid.Column="1">
                 <TextBlock x:Uid="TaskPageTitle"
                            Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
-                           FontSize="24"
+                           FontSize="20"
                            FontWeight="SemiBold" />
                 <TextBlock x:Name="PageDescription"
                            x:Uid="TaskPageDescription"
                            Margin="0,3,0,0"
                            Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
                            FontSize="12" />
-                <TextBlock x:Name="TaskOperationStatus" TextWrapping="Wrap" FontSize="12"
-                           Foreground="{ThemeResource WorkspaceChromeAccentBrush}" />
             </StackPanel>
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                 <Button x:Name="ManageAgentsButton" x:Uid="AgentManage" Click="_ManageAgents_Click" />
             <Button x:Name="NewTaskButton"
                     x:Uid="TaskPageNewTaskButton"
-                    Click="_NewTask_Click"
-                    IsEnabled="{x:Bind ViewModel.IsSourceAttached, Mode=OneWay}" />
+                    Style="{StaticResource AccentButtonStyle}"
+                    Click="_NewTask_Click" />
             </StackPanel>
         </Grid>
 
+        <StackPanel Grid.Row="2">
         <Grid x:Name="FilterGrid"
-              Grid.Row="1"
-              Padding="20,0,20,12"
+              Padding="20,0,20,10"
               ColumnSpacing="8"
               RowSpacing="8">
             <Grid.ColumnDefinitions>
@@ -192,12 +224,14 @@
             <RadioButton x:Name="CurrentWorkspaceScope"
                          x:Uid="TaskPageCurrentWorkspaceScope"
                          GroupName="TaskScope"
+                         MinWidth="96"
                          IsChecked="True"
                          Click="_CurrentWorkspaceScope_Click" />
             <RadioButton x:Name="AllWorkspacesScope"
                          x:Uid="TaskPageAllWorkspacesScope"
                          Grid.Column="1"
                          GroupName="TaskScope"
+                         MinWidth="96"
                          Click="_AllWorkspacesScope_Click" />
             <TextBox x:Name="TaskSearchBox"
                      x:Uid="TaskPageSearchBox"
@@ -215,11 +249,12 @@
                 <ComboBoxItem x:Uid="TaskPageStatusInReview" />
                 <ComboBoxItem x:Uid="TaskPageStatusBlocked" />
                 <ComboBoxItem x:Uid="TaskPageStatusDone" />
+                <ComboBoxItem x:Uid="TaskBoardBacklogFilter" />
+                <ComboBoxItem x:Uid="TaskBoardCancelledFilter" />
             </ComboBox>
         </Grid>
 
         <mux:InfoBar x:Uid="TaskPageSourceUnavailableInfo"
-                     Grid.Row="2"
                      Margin="20,0,20,12"
                      IsClosable="False"
                      IsOpen="True"
@@ -228,12 +263,32 @@
 
         <mux:InfoBar x:Name="PrototypeSourceInfo"
                      x:Uid="TaskPagePrototypeSourceInfo"
-                     Grid.Row="2"
                      Margin="20,0,20,12"
                      IsClosable="False"
                      IsOpen="True"
                      Severity="Informational"
                      Visibility="Collapsed" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="20,0,20,10" ColumnSpacing="12">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Border Padding="2" CornerRadius="7" BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}" BorderThickness="1" Background="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}">
+                <StackPanel Orientation="Horizontal" Spacing="2">
+                    <RadioButton x:Name="BoardModeButton" x:Uid="TaskBoardBoardMode" Style="{StaticResource TaskViewChoice}" GroupName="TaskViewMode" Click="_BoardMode_Click" IsEnabled="False" />
+                    <RadioButton x:Name="ListModeButton" x:Uid="TaskBoardListMode" Style="{StaticResource TaskViewChoice}" GroupName="TaskViewMode" IsChecked="True" Click="_ListMode_Click" />
+                </StackPanel>
+            </Border>
+            <Button x:Name="BacklogButton" x:Uid="TaskBoardBacklog" Tag="7" Click="_BoardAuxiliary_Click" />
+            <Button x:Name="CancelledButton" x:Uid="TaskBoardCancelled" Tag="8" Click="_BoardAuxiliary_Click" />
+            <Button x:Uid="TaskBoardLoadMore" Click="_LoadMoreTasks_Click"
+                    Visibility="{x:Bind mtu:Converters.BooleanToVisibility(ViewModel.HasMoreTasks), Mode=OneWay}" />
+        </StackPanel>
+            <TextBlock x:Name="BoardHint" Grid.Column="1" x:Uid="TaskBoardHint" FontSize="12" TextWrapping="Wrap"
+                       VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}" Visibility="Collapsed" />
+        </Grid>
+
+        <local:TaskBoardView x:Name="BoardView" Grid.Row="3" Visibility="Collapsed" />
 
         <SplitView x:Name="TasksSplitView"
                    Grid.Row="3"
@@ -242,7 +297,7 @@
                    IsPaneOpen="True"
                    OpenPaneLength="320"
                    PaneBackground="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}"
-                   Visibility="{x:Bind mtu:Converters.BooleanToVisibility(ViewModel.IsSourceAttached), Mode=OneWay}">
+                   Visibility="Collapsed">
             <SplitView.Pane>
                 <Border BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
                         BorderThickness="0,0,1,0">
@@ -277,7 +332,7 @@
                 </Border>
             </SplitView.Pane>
             <SplitView.Content>
-                <Grid>
+                <Grid x:Name="TaskDetailsRegion">
                     <local:TaskDetailsPane x:Name="DetailsPane"
                                            Task="{x:Bind ViewModel.SelectedTask, Mode=OneWay}"
                                            Visibility="{x:Bind mtu:Converters.BooleanToVisibility(ViewModel.HasSelection), Mode=OneWay}" />
@@ -312,8 +367,25 @@
             </SplitView.Content>
         </SplitView>
 
+        <Grid x:Name="BoardDetailsOverlay" Grid.Row="3" Visibility="Collapsed"
+              Background="{ThemeResource WorkspaceChromeSurfaceBrush}">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+            <Button x:Uid="TaskBoardCloseDetails" Margin="16,4,16,8" Click="_CloseBoardDetails_Click" />
+            <Border x:Name="BoardDetailsHost" Grid.Row="1" />
+        </Grid>
+
+        <Grid x:Name="TaskFeedback" Grid.Row="4" Margin="20,4,20,10" ColumnSpacing="10" Visibility="Collapsed">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBlock x:Name="TaskOperationStatus" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center"
+                       Foreground="{ThemeResource WorkspaceChromeAccentBrush}" AutomationProperties.LiveSetting="Polite" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button x:Name="RetryBoardActionButton" x:Uid="TaskBoardRetry" Visibility="Collapsed" Click="_RetryBoardAction_Click" />
+                <Button x:Name="UndoBoardActionButton" x:Uid="TaskBoardUndo" Visibility="Collapsed" Click="_UndoBoardAction_Click" />
+            </StackPanel>
+        </Grid>
+
         <Grid x:Name="DraftLayer"
-              Grid.RowSpan="4"
+              Grid.RowSpan="5"
               Padding="24"
               Background="{ThemeResource WorkspaceChromeSurfaceBrush}"
               Visibility="Collapsed">
@@ -386,6 +458,6 @@
                 </StackPanel>
             </ScrollViewer>
         </Grid>
-        <Grid x:Name="AgentManagerHost" Grid.RowSpan="4" Visibility="Collapsed" />
+        <Grid x:Name="AgentManagerHost" Grid.RowSpan="5" Visibility="Collapsed" />
     </Grid>
 </UserControl>

@@ -116,6 +116,12 @@ namespace Microsoft::Terminal::TaskRuntime
             case ControlMethod::QueryTask:
             case ControlMethod::QueryAgents:
             case ControlMethod::AgentCommand:
+            case ControlMethod::QueryProjects:
+            case ControlMethod::ProjectCommand:
+            case ControlMethod::QueryTaskSummaries:
+            case ControlMethod::TaskBoardCommand:
+            case ControlMethod::QueryBoardOperation:
+            case ControlMethod::QueryTaskSessionIndex:
             case ControlMethod::SubmitCommand:
             case ControlMethod::AcquireInputLease:
             case ControlMethod::ReleaseInputLease:

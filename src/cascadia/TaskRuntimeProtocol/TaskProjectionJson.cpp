@@ -6,6 +6,7 @@
 
 #include "ProtocolValidation.h"
 #include "ProtocolVersion.h"
+#include "WorkspaceRpcJson.h"
 
 #include <json/json.h>
 
@@ -140,7 +141,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             return result;
         }
 
-        Json::Value _task(const TaskProjectionRecord& value, const bool includeAgents)
+        Json::Value _task(const TaskProjectionRecord& value, const bool includeAgents, const bool includeProjects)
         {
             Json::Value result{ Json::objectValue };
             result["id"] = value.Id;
@@ -162,6 +163,14 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             result["createdAt"] = Json::Int64{ value.CreatedAtUnixMilliseconds };
             result["updatedAt"] = Json::Int64{ value.UpdatedAtUnixMilliseconds };
             result["execution"] = _execution(value.Execution, includeAgents);
+            if (includeProjects)
+            {
+                auto& project = result["projectContext"];
+                project["version"] = Json::UInt64{ value.Execution.ProjectVersion };
+                project["name"] = value.Execution.ProjectNameSnapshot;
+                project["description"] = value.Execution.ProjectDescriptionSnapshot;
+                project["boardNote"] = value.BoardNote; project["boardNoteIsBlocked"] = value.BoardNoteIsBlocked;
+            }
             result["terminal"]["state"] = static_cast<uint32_t>(value.Terminal.State);
             result["terminal"]["generation"] = Json::UInt64{ value.Terminal.Generation };
             result["terminal"]["currentAgentSessionId"] = _optional(value.Terminal.CurrentAgentSessionId);
@@ -260,8 +269,19 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             return true;
         }
 
-        bool _decodeTask(const Json::Value& value, TaskProjectionRecord& result)
+        bool _decodeTask(Json::Value value, TaskProjectionRecord& result)
         {
+            if (value.isMember("projectContext"))
+            {
+                const auto& project = value["projectContext"];
+                using namespace workspace_json;
+                if (!Exact(project, { "version", "name", "description", "boardNote", "boardNoteIsBlocked" }) ||
+                    !UInt(project["version"], result.Execution.ProjectVersion) ||
+                    !Text(project["name"], result.Execution.ProjectNameSnapshot, 1024) ||
+                    !Text(project["description"], result.Execution.ProjectDescriptionSnapshot, 16384) ||
+                    !Text(project["boardNote"], result.BoardNote, 65536) || !Bool(project["boardNoteIsBlocked"], result.BoardNoteIsBlocked)) return false;
+                value.removeMember("projectContext");
+            }
             if (!_exact(value, { "id", "workspaceId", "title", "description", "acceptance", "status", "priority", "version", "manualHold", "createdAt", "updatedAt", "execution", "terminal", "agentSessions", "runs", "messages", "events", "lastEventSequence" }) ||
                 !value["id"].isString() || !value["workspaceId"].isString() || !value["title"].isString() ||
                 !value["description"].isString() || !value["acceptance"].isArray() || !_unsigned(value["status"]) ||
@@ -418,7 +438,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         return result;
     }
 
-    ProtocolRpcJsonEncodeResult EncodeTaskProjectionQueryResult(const TaskProjectionQueryResult& value, const bool includeAgentProfiles)
+    ProtocolRpcJsonEncodeResult EncodeTaskProjectionQueryResult(const TaskProjectionQueryResult& value, const bool includeAgentProfiles, const bool includeProjectState)
     {
         if (value.Tasks.size() > MaximumTaskProjectionItems) return { false, {}, "Task projection result exceeds item capacity" };
         Json::Value root{ Json::objectValue };
@@ -428,7 +448,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         {
             std::string error;
             if (!ValidateTaskProjection(task, error)) return { false, {}, std::move(error) };
-            root["tasks"].append(_task(task, includeAgentProfiles));
+            root["tasks"].append(_task(task, includeAgentProfiles, includeProjectState));
         }
         return _encode(std::move(root));
     }

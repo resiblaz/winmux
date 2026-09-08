@@ -27,6 +27,7 @@ namespace winrt::TerminalApp::implementation::tasks
             const std::scoped_lock lock{ _mutex };
             if (epoch == _epoch && generation <= _generation) return false;
             _epoch = std::move(epoch);
+            _summaryMode = false;
             _generation = generation;
             _snapshot = std::move(immutable);
             return true;
@@ -61,12 +62,19 @@ namespace winrt::TerminalApp::implementation::tasks
         try
         {
             const std::scoped_lock lock{ _mutex };
-            if (epoch.empty() || epoch != _epoch || generation < _generation) return false;
+            if (epoch.empty() || epoch != _epoch || (!_summaryMode && generation < _generation)) return false;
             auto next = *_snapshot;
             const auto found = std::ranges::find(next, task.Id, &TaskProjection::Id);
             if (found == next.end()) next.emplace_back(std::move(task));
-            else *found = std::move(task);
-            _generation = generation;
+            else
+            {
+                if (task.Version < found->Version || (task.Version == found->Version && task.LastEventSequence < found->LastEventSequence)) return false;
+                task.BoardRank = found->BoardRank; task.ColumnRevision = found->ColumnRevision;
+                task.ArchivedProject = found->ArchivedProject; task.HasPendingIntent = found->HasPendingIntent;
+                if (_summaryMode) task.Workspace = found->Workspace;
+                *found = std::move(task);
+            }
+            if (!_summaryMode) _generation = generation;
             _snapshot = std::make_shared<const std::vector<TaskProjection>>(std::move(next));
             return true;
         }

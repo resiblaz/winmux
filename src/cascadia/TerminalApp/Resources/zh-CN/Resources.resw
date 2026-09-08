@@ -1362,7 +1362,7 @@
   </data>
   <data name="WorkspaceTasksTab.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>任务</value></data>
   <data name="WorkspaceTasksTab.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>任务</value></data>
-  <data name="TaskPageTitle.Text" xml:space="preserve"><value>Tasks</value></data>
+  <data name="TaskPageTitle.Text" xml:space="preserve"><value>任务</value></data>
   <data name="TaskPageDescription.Text" xml:space="preserve"><value>把目标、执行过程与验收结果留在当前工作区。</value></data>
   <data name="TaskPageNewTaskButton.Content" xml:space="preserve"><value>新建任务</value></data>
   <data name="TaskPagePaneToggle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>显示任务列表</value></data>
@@ -1435,7 +1435,7 @@
   <data name="TaskPageDraftSaveButton.Content" xml:space="preserve"><value>仅保存</value></data>
   <data name="TaskPageDraftSaveRunButton.Content" xml:space="preserve"><value>保存并运行</value></data>
   <data name="TaskPage_StatusBacklog" xml:space="preserve"><value>待规划</value></data>
-  <data name="TaskPage_StatusTodo" xml:space="preserve"><value>待处理</value></data>
+  <data name="TaskPage_StatusTodo" xml:space="preserve"><value>待办</value></data>
   <data name="TaskPage_StatusInProgress" xml:space="preserve"><value>进行中</value></data>
   <data name="TaskPage_StatusInReview" xml:space="preserve"><value>待验收</value></data>
   <data name="TaskPage_StatusBlocked" xml:space="preserve"><value>受阻</value></data>
@@ -1578,4 +1578,99 @@
   <data name="Agent_TaskConfigBody" xml:space="preserve"><value>保存后用于后续执行，历史 Run 保留原配置。执行中或排队时不能更改。</value></data>
   <data name="Agent_ReloadTaskVersion" xml:space="preserve"><value>刷新 Task 版本</value></data>
   <data name="Agent_TaskBusy" xml:space="preserve"><value>此 Task 存在活动或排队的 Run，请先停止或等待完成。</value></data>
+  <data name="TaskBoardTodo.Text" xml:space="preserve"><value>待办</value></data>
+  <data name="TaskBoardHint.Text" xml:space="preserve"><value>拖入进行中 → 执行</value></data>
+  <data name="TaskBoardHorizontalHint.Text" xml:space="preserve"><value>左右滚动查看全部状态列</value></data>
+  <data name="TaskBoardCardPending.Text" xml:space="preserve"><value>操作处理中…</value></data>
+  <data name="TaskBoardEmptyTodoHint.Text" xml:space="preserve"><value>新建任务，或把卡片拖到这里</value></data>
+  <data name="TaskBoardEmptyDoingHint.Text" xml:space="preserve"><value>把待办卡片拖到这里，开始执行</value></data>
+  <data name="TaskBoardEmptyReviewHint.Text" xml:space="preserve"><value>任务交付后，在这里检查结果</value></data>
+  <data name="TaskBoardEmptyDoneHint.Text" xml:space="preserve"><value>通过验收的任务会保留在这里</value></data>
+  <data name="TaskBoard_Empty" xml:space="preserve"><value>暂无任务</value></data>
+  <data name="TaskBoard_NoVisibleTasks" xml:space="preserve"><value>当前没有可显示的任务</value></data>
+  <data name="TaskBoard_Loading" xml:space="preserve"><value>正在加载任务…</value></data>
+  <data name="TaskBoard_NotStarted" xml:space="preserve"><value>未执行</value></data>
+  <data name="TaskBoard_Executing" xml:space="preserve"><value>正在执行</value></data>
+  <data name="TaskBoard_ReadyForReview" xml:space="preserve"><value>已交付 · 等待验收</value></data>
+  <data name="TaskBoard_Accepted" xml:space="preserve"><value>已验收</value></data>
+  <data name="TaskBoard_Paused" xml:space="preserve"><value>已暂停 · 等待安排</value></data>
+  <data name="TaskBoard_ResumeFromMenu" xml:space="preserve"><value>请在任务操作中选择继续执行；受阻分组内可调整顺序。</value></data>
+  <data name="TaskBoard_ReorderCurrentProject" xml:space="preserve"><value>切换到当前项目后，可调整卡片顺序。</value></data>
+  <data name="TaskBoard_AuxiliaryCount" xml:space="preserve"><value>{} {}</value></data>
+  <data name="TaskBoardDoing.Text" xml:space="preserve"><value>进行中</value></data>
+  <data name="TaskBoardBlocked.Text" xml:space="preserve"><value>受阻</value></data>
+  <data name="TaskBoardReview.Text" xml:space="preserve"><value>待验收</value></data>
+  <data name="TaskBoardDone.Text" xml:space="preserve"><value>已完成</value></data>
+  <data name="TaskBoardCardActions.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>任务操作</value></data>
+  <data name="TaskBoardLoadMore.Content" xml:space="preserve"><value>加载更多</value></data>
+  <data name="TaskBoardRetry.Content" xml:space="preserve"><value>重试此操作</value></data>
+  <data name="TaskBoardListMode.Content" xml:space="preserve"><value>列表</value></data>
+  <data name="TaskBoardBoardMode.Content" xml:space="preserve"><value>看板</value></data>
+  <data name="TaskBoardBacklog.Content" xml:space="preserve"><value>待规划</value></data>
+  <data name="TaskBoardCancelled.Content" xml:space="preserve"><value>已取消</value></data>
+  <data name="TaskBoardBacklogFilter.Content" xml:space="preserve"><value>待规划</value></data>
+  <data name="TaskBoardCancelledFilter.Content" xml:space="preserve"><value>已取消</value></data>
+  <data name="TaskBoardCloseDetails.Content" xml:space="preserve"><value>返回看板</value></data>
+  <data name="TaskBoard_InvalidMove" xml:space="preserve"><value>暂不支持此状态变化，请使用任务操作菜单。</value></data>
+  <data name="TaskBoard_ProjectArchived" xml:space="preserve"><value>请先恢复项目，再修改任务。</value></data>
+  <data name="TaskBoard_Reorder" xml:space="preserve"><value>调整顺序</value></data>
+  <data name="TaskBoard_PendingOperation" xml:space="preserve"><value>此任务还有操作未完成，请等待结果。</value></data>
+  <data name="TaskBoard_StopThenMove" xml:space="preserve"><value>停止当前执行，并在停止后移动任务？</value></data>
+  <data name="TaskBoard_ActiveRun" xml:space="preserve"><value>请等待当前执行结束，或先停止执行。</value></data>
+  <data name="TaskBoard_ReopenOnly" xml:space="preserve"><value>重新打开到待办，保持暂停执行</value></data>
+  <data name="TaskBoard_Start" xml:space="preserve"><value>开始执行</value></data>
+  <data name="TaskBoard_RequestChanges" xml:space="preserve"><value>填写修改意见并开始新一轮执行</value></data>
+  <data name="TaskBoard_SubmitReview" xml:space="preserve"><value>填写交付说明，提交验收</value></data>
+  <data name="TaskBoard_PendingMessages" xml:space="preserve"><value>请先处理待领取消息，再完成任务。</value></data>
+  <data name="TaskBoard_ConfirmDone" xml:space="preserve"><value>确认所有验收项通过并完成任务？</value></data>
+  <data name="TaskBoard_MovePlanning" xml:space="preserve"><value>调整任务计划</value></data>
+  <data name="TaskBoard_BlockReason" xml:space="preserve"><value>填写受阻原因</value></data>
+  <data name="TaskBoard_Submitting" xml:space="preserve"><value>正在提交任务操作…</value></data>
+  <data name="TaskBoard_WaitingForStop" xml:space="preserve"><value>等待执行停止，停止完成后任务会移入目标状态。</value></data>
+  <data name="TaskBoard_Applied" xml:space="preserve"><value>任务已更新。</value></data>
+  <data name="TaskBoard_OpenDetails" xml:space="preserve"><value>打开完整任务详情</value></data>
+  <data name="TaskBoard_MoveBacklog" xml:space="preserve"><value>移入待规划</value></data>
+  <data name="TaskBoard_MoveTodo" xml:space="preserve"><value>移入待办</value></data>
+  <data name="TaskBoard_Confirm" xml:space="preserve"><value>确认</value></data>
+  <data name="TaskBoard_Cancel" xml:space="preserve"><value>取消</value></data>
+  <data name="TaskBoard_Explanation" xml:space="preserve"><value>说明</value></data>
+  <data name="Project_New" xml:space="preserve"><value>新建项目…</value></data>
+  <data name="Project_Library" xml:space="preserve"><value>项目库</value></data>
+  <data name="Project_Agents" xml:space="preserve"><value>Agent 管理</value></data>
+  <data name="Project_Overview" xml:space="preserve"><value>项目概览</value></data>
+  <data name="Project_Manage" xml:space="preserve"><value>项目管理</value></data>
+  <data name="Project_Tasks" xml:space="preserve"><value>任务</value></data>
+  <data name="Project_Terminal" xml:space="preserve"><value>终端</value></data>
+  <data name="Project_Summary" xml:space="preserve"><value>总结与历史</value></data>
+  <data name="Project_CloseView" xml:space="preserve"><value>关闭项目视图</value></data>
+  <data name="Project_NewTerminal" xml:space="preserve"><value>打开终端</value></data>
+  <data name="Project_DefaultAgent" xml:space="preserve"><value>默认 Agent</value></data>
+  <data name="Project_Save" xml:space="preserve"><value>保存项目</value></data>
+  <data name="Project_Bind" xml:space="preserve"><value>绑定目录…</value></data>
+  <data name="Project_Archive" xml:space="preserve"><value>归档项目</value></data>
+  <data name="Project_Restore" xml:space="preserve"><value>恢复项目</value></data>
+  <data name="Project_Retry" xml:space="preserve"><value>重试此操作</value></data>
+  <data name="Project_Name" xml:space="preserve"><value>项目名称</value></data>
+  <data name="Project_Description" xml:space="preserve"><value>提供给新任务的项目背景</value></data>
+  <data name="Project_Archived" xml:space="preserve"><value>已归档</value></data>
+  <data name="Project_Unbound" xml:space="preserve"><value>请先为项目绑定目录，再创建新任务。已有任务的执行配置保持原样。</value></data>
+  <data name="Project_Counts" xml:space="preserve"><value>{} 个任务 · {} 个活动执行</value></data>
+  <data name="Project_Saving" xml:space="preserve"><value>正在保存项目…</value></data>
+  <data name="Project_Saved" xml:space="preserve"><value>项目已保存。</value></data>
+  <data name="Project_ArchiveExplanation" xml:space="preserve"><value>仅在任务执行、排队工作和收尾操作都结束后允许归档。任务历史和文件将保留。</value></data>
+  <data name="TaskBoardEditAcceptance.Content" xml:space="preserve"><value>验收清单</value></data>
+  <data name="TaskBoard_EditAcceptanceTitle" xml:space="preserve"><value>更新验收清单</value></data>
+  <data name="TaskBoard_NoDelivery" xml:space="preserve"><value>执行已结束，尚未提交验收</value></data>
+  <data name="TaskBoardUndo.Content" xml:space="preserve"><value>撤销上次看板调整</value></data>
+  <data name="TaskBoard_Undone" xml:space="preserve"><value>已撤销看板调整。</value></data>
+  <data name="TaskBoard_UndoConflict" xml:space="preserve"><value>任务或列在操作后已发生变化，无法撤销。已刷新显示。</value></data>
+  <data name="TaskBoard_ColumnCount" xml:space="preserve"><value>{} · {}</value></data>
+  <data name="Project_Offline" xml:space="preserve"><value>项目服务暂不可用。当前视图和草稿已保留，连接恢复后可提交更改。</value></data>
+  <data name="Project_Back" xml:space="preserve"><value>返回项目</value></data>
+  <data name="Project_AgentTarget" xml:space="preserve"><value>项目默认值目标：</value></data>
+  <data name="Project_SetDefaultAgent" xml:space="preserve"><value>设为项目默认</value></data>
+  <data name="Project_ClearDefaultAgent" xml:space="preserve"><value>清除项目默认</value></data>
+  <data name="Project_CurrentScope" xml:space="preserve"><value>当前项目</value></data>
+  <data name="Project_AllScope" xml:space="preserve"><value>全部项目</value></data>
+  <data name="Project_Label" xml:space="preserve"><value>项目</value></data>
 </root>

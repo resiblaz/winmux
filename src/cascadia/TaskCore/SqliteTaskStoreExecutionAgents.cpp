@@ -46,7 +46,8 @@ namespace Microsoft::Terminal::TaskCore
         {
             details::SqliteStatement statement{ db, R"SQL(
 SELECT id,task_id,revision,mode,source_root,runtime_root,repository_common_directory,worktree_path,branch,
- relative_working_directory,provider,model,instructions,identity_frozen,created_at,source_agent_id,source_agent_revision,agent_name_snapshot
+ relative_working_directory,provider,model,instructions,identity_frozen,created_at,source_agent_id,source_agent_revision,agent_name_snapshot,
+ project_version,project_name_snapshot,project_description_snapshot
 FROM execution_context WHERE task_id=?1 ORDER BY revision DESC LIMIT 1;
 )SQL", error };
             if (!statement || !details::BindText(db, statement.Get(), 1, command.Task.Value(), error))

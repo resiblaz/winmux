@@ -6,6 +6,7 @@
 
 #include "TaskProjectionMapper.h"
 #include "../Agents/RuntimeAgentCatalogSource.h"
+#include "../Projects/RuntimeWorkspaceSource.h"
 
 #include "RuntimeCrypto.h"
 #include "RuntimeIdentity.h"
@@ -55,7 +56,9 @@ namespace winrt::TerminalApp::implementation::tasks
                     static_cast<uint64_t>(ProtocolCapability::TaskTerminalSurfaces) |
                     static_cast<uint64_t>(ProtocolCapability::TaskOrchestration) |
                     static_cast<uint64_t>(ProtocolCapability::RuntimeDrain) |
-                    static_cast<uint64_t>(ProtocolCapability::AgentProfiles);
+                    static_cast<uint64_t>(ProtocolCapability::AgentProfiles) |
+                    static_cast<uint64_t>(ProtocolCapability::ProjectCatalog) |
+                    static_cast<uint64_t>(ProtocolCapability::TaskBoard);
                 configuration.Activation = TaskRuntimeClientActivationConfiguration{
                     runtime,
                     module.parent_path(),
@@ -81,6 +84,7 @@ namespace winrt::TerminalApp::implementation::tasks
         _agentSessions{ std::move(agentSessions) }
     {
         _agentCatalog = agents::MakeRuntimeAgentCatalogSource(_client, _dispatcher);
+        _workspaceSource = projects::MakeRuntimeWorkspaceSource(_client, _dispatcher);
     }
 
     RuntimeTaskProjectionSource::~RuntimeTaskProjectionSource()
@@ -204,7 +208,7 @@ namespace winrt::TerminalApp::implementation::tasks
                 std::unique_lock lock{ _mutex };
                 const auto signaled = _condition.wait_for(
                     lock,
-                    std::chrono::seconds{ 2 },
+                    _client->State() == TaskRuntimeClientState::Ready ? std::chrono::milliseconds{ 2000 } : std::chrono::milliseconds{ 100 },
                     [&] { return _stopping || !_work.empty(); });
                 if (_stopping)
                     return;
@@ -271,6 +275,11 @@ namespace winrt::TerminalApp::implementation::tasks
 
     void RuntimeTaskProjectionSource::_refresh(const std::optional<std::string>& taskId) noexcept
     {
+        if (_client->State() != TaskRuntimeClientState::Ready)
+        {
+            if (_agentSessions && !_sessionIndexEpoch.empty()) _agentSessions->RequireOwnershipIndex();
+            return;
+        }
         uint64_t publicationRevision;
         {
             const std::scoped_lock publication{ _publicationMutex };
@@ -292,6 +301,12 @@ namespace winrt::TerminalApp::implementation::tasks
             }
             return;
         }
+        if (!taskId && UsesSummaries())
+        {
+            _refreshTaskSessionIndex();
+            _refreshSummaries();
+            return;
+        }
         TaskProjectionQueryRequest query;
         query.TaskId = taskId;
         query.IncludeCompleted = true;
@@ -304,7 +319,17 @@ namespace winrt::TerminalApp::implementation::tasks
             return;
         const auto completed = request.Completion.get();
         if (completed.Outcome != RuntimeClientRequestOutcome::Succeeded || !completed.Response || !completed.Response->Succeeded)
+        {
+            if (taskId && completed.Response && completed.Response->Error && completed.Response->Error->Code == ProtocolRpcErrorCode::NotFound)
+            {
+                std::unique_lock publication{ _publicationMutex };
+                if (publicationRevision != _publicationRevision) return;
+                _coordinator.RemoveTask(_client->RuntimeInstanceId(), til::u8u16(*taskId));
+                if (_agentSessions) _agentSessions->RemoveTask(*taskId);
+                publication.unlock(); _notify();
+            }
             return;
+        }
         const auto decoded = DecodeTaskProjectionQueryResult(completed.Response->ResultJson);
         if (!decoded.Succeeded())
             return;
@@ -327,6 +352,8 @@ namespace winrt::TerminalApp::implementation::tasks
             {
                 static_cast<void>(_coordinator.Merge(_client->RuntimeInstanceId(), decoded.Value.Generation, std::move(mapped->front())));
             }
+            else if (taskId && mapped->empty())
+                _coordinator.RemoveTask(_client->RuntimeInstanceId(), til::u8u16(*taskId));
             else
             {
                 static_cast<void>(_coordinator.Apply(_client->RuntimeInstanceId(), decoded.Value.Generation, std::move(*mapped)));

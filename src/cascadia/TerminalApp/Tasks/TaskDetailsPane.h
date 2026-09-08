@@ -7,6 +7,7 @@
 #include "TaskProjection.h"
 
 #include <functional>
+#include <map>
 
 namespace winrt::TerminalApp::implementation
 {
@@ -15,15 +16,18 @@ namespace winrt::TerminalApp::implementation
         TaskDetailsPane();
 
         til::property_changed_event PropertyChanged;
-        WINRT_OBSERVABLE_PROPERTY(TerminalApp::TaskItemViewModel, Task, PropertyChanged.raise, nullptr);
+        TerminalApp::TaskItemViewModel Task() const noexcept { return _task; }
+        void Task(const TerminalApp::TaskItemViewModel& value);
 
     public:
         void SetCommandHandler(std::function<void(tasks::TaskCommand)> handler);
+        void SetBoardAvailable(bool value);
         void SetMessageHandler(std::function<bool(const winrt::hstring&)> handler);
         void SetMessageMutationHandler(std::function<bool(uint32_t, const std::optional<std::wstring>&)> handler);
 
         void _StartTask_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _ConfigureAgent_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _EditAcceptance_Click(const Windows::Foundation::IInspectable&, const Windows::UI::Xaml::RoutedEventArgs&);
         void _StopTask_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _OpenTerminal_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _CloseTask_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
@@ -40,6 +44,8 @@ namespace winrt::TerminalApp::implementation
         void _RemoveQueuedMessage_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
 
     private:
+        TerminalApp::TaskItemViewModel _task{ nullptr };
+        bool _boardAvailable{};
         std::function<void(tasks::TaskCommand)> _commandHandler;
         std::function<bool(const winrt::hstring&)> _messageHandler;
         std::function<bool(uint32_t, const std::optional<std::wstring>&)> _messageMutationHandler;
@@ -49,6 +55,9 @@ namespace winrt::TerminalApp::implementation
         Windows::UI::Xaml::Controls::TextBox _queuedMessageEditor{ nullptr };
         Windows::UI::Xaml::Controls::Button _editQueuedMessageButton{ nullptr };
         Windows::UI::Xaml::Controls::Button _removeQueuedMessageButton{ nullptr };
+        std::map<std::wstring, winrt::hstring> _followupDrafts;
+        bool _restoringFollowup{};
+        bool _IsCurrentInput(const Windows::UI::Xaml::Controls::Control& control) const;
         void _Request(tasks::TaskCommand command) const;
     };
 }

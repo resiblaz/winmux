@@ -25,6 +25,7 @@ namespace Microsoft::Terminal::TaskRuntime
             result.WorkspaceId = aggregate.Task.Workspace.Value();
             result.Title = aggregate.Task.Title;
             result.Description = aggregate.Task.Description;
+            result.BoardNote = aggregate.BoardNote; result.BoardNoteIsBlocked = aggregate.BoardNoteIsBlocked;
             for (const auto& item : aggregate.Task.AcceptanceCriteria)
             {
                 result.Acceptance.push_back({ item.Text, item.Satisfied });
@@ -52,6 +53,9 @@ namespace Microsoft::Terminal::TaskRuntime
                 result.Execution.Instructions = context->Instructions;
                 if (context->SourceAgentId) result.Execution.Agent = AgentProfileReference{ context->SourceAgentId->Value(), context->SourceAgentRevision };
                 result.Execution.AgentName = context->AgentNameSnapshot;
+                result.Execution.ProjectVersion = context->ProjectVersion;
+                result.Execution.ProjectNameSnapshot = context->ProjectNameSnapshot;
+                result.Execution.ProjectDescriptionSnapshot = context->ProjectDescriptionSnapshot;
             }
             result.Terminal.State = static_cast<TaskProjectionTerminalState>(aggregate.Terminal.State);
             result.Terminal.Generation = aggregate.Terminal.Generation;

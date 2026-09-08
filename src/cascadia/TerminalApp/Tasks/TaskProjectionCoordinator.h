@@ -17,6 +17,8 @@ namespace winrt::TerminalApp::implementation::tasks
 
         [[nodiscard]] bool Apply(std::string epoch, uint64_t generation, std::vector<TaskProjection> tasks);
         [[nodiscard]] bool Merge(std::string_view epoch, uint64_t generation, TaskProjection task);
+        [[nodiscard]] bool ApplySummaries(std::string epoch, std::vector<TaskProjection> tasks, std::wstring_view selectedTask);
+        void RemoveTask(std::string_view epoch, std::wstring_view taskId);
         void UpsertOptimistic(TaskProjection task);
         [[nodiscard]] std::vector<TaskProjection> Snapshot() const;
         [[nodiscard]] uint64_t Generation() const noexcept;
@@ -27,5 +29,6 @@ namespace winrt::TerminalApp::implementation::tasks
         std::shared_ptr<const std::vector<TaskProjection>> _snapshot;
         uint64_t _generation{};
         std::string _epoch;
+        bool _summaryMode{};
     };
 }

@@ -53,6 +53,7 @@ namespace winrt::TerminalApp::implementation
         uint64_t Version() const noexcept;
 
         tasks::TaskStatus NativeStatus() const noexcept;
+        const tasks::TaskProjection& NativeProjection() const noexcept { return _projection; }
         std::optional<std::pair<std::wstring, uint64_t>> QueuedMessageIdentityAt(uint32_t index) const;
 
     private:

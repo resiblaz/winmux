@@ -318,6 +318,7 @@ namespace Microsoft::Terminal::TaskRuntime
     try
     {
         ReapWorkers();
+        Store->ReconcileTaskBoardOperations();
         const auto recovery = Store->LoadRecoverySnapshot(MaximumTaskRecoveryQueryCount);
         if (!recovery.Succeeded)
             return;

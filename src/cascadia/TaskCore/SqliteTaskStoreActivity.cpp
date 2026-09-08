@@ -23,7 +23,7 @@ namespace Microsoft::Terminal::TaskCore
         constexpr auto sql = R"SQL(
 SELECT
     EXISTS(SELECT 1 FROM task_run WHERE state IN (0,1,2,3,4)),
-    EXISTS(SELECT 1 FROM task_intent WHERE stage NOT IN (7,8)),
+    EXISTS(SELECT 1 FROM task_intent WHERE stage NOT IN (7,8)) OR EXISTS(SELECT 1 FROM task_board_operation WHERE stage=0),
     EXISTS(SELECT 1 FROM task_message WHERE state IN (0,1)),
     EXISTS(SELECT 1 FROM task_terminal WHERE state IN (1,2,3)),
     EXISTS(SELECT 1 FROM task_git_worktree WHERE state IN (0,1,2,3,4,6)) OR

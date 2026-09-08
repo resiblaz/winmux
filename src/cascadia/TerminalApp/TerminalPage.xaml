@@ -78,7 +78,7 @@
             </mux:InfoBar>
         </StackPanel>
 
-        <Grid Grid.Row="2"
+        <Grid x:Name="WorkspaceContentHost" Grid.Row="2"
               Grid.Column="1"
               KeyDown="_KeyDownHandler">
             <Grid.RowDefinitions>
@@ -238,11 +238,17 @@
                 </Grid.Background>
             </Grid>
 
-            <local:TaskPage x:Name="TasksPage"
-                            Grid.Row="1"
-                            HorizontalAlignment="Stretch"
-                            VerticalAlignment="Stretch"
-                            Visibility="Collapsed" />
+            <Grid x:Name="TaskPanelHost" Grid.Row="1" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <local:TaskPage x:Name="TasksPage"
+                                Grid.Row="1"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch"
+                                Visibility="Collapsed" />
+            </Grid>
 
             <local:ConclusionSidebar x:Name="ConclusionSidebar"
                                      Grid.Row="1"

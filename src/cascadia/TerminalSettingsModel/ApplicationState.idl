@@ -48,6 +48,7 @@ namespace Microsoft.Terminal.Settings.Model
         Windows.Foundation.Collections.IVector<UInt32> PinnedWorkspaceIndices;
         Windows.Foundation.Collections.IVector<AgentResumeInfo> AgentResumeEntries;
         Windows.Foundation.Collections.IVector<WorkspaceSnapshotSourceInfo> WorkspaceSnapshotSources;
+        String ProjectViewsJson;
     };
 
     runtimeclass WorkspaceGitBinding

@@ -19,6 +19,8 @@ namespace winrt::TerminalApp::implementation
     {
         if (_draftSaving || AgentManagerHost().Visibility() == Visibility::Visible) return;
         if (!_source || !_source->AgentCatalog()) { TaskOperationStatus().Text(RS_(L"Agent_Unavailable")); return; }
+        _CapturePageState();
+        const auto returnState = _pageState;
         if (!_agentManager)
         {
             _agentManager = winrt::make<implementation::AgentCatalogPage>();
@@ -35,13 +37,15 @@ namespace winrt::TerminalApp::implementation
         }
         AgentManagerHost().Visibility(Visibility::Visible);
         winrt::get_self<implementation::AgentCatalogPage>(_agentManager)->Open(
-            _source->AgentCatalog(), til::u16u8(_currentWorkspaceId), label, _dialogPresenter.get(), [weak = get_weak(), underlay = std::move(underlay)] {
+            _source->AgentCatalog(), til::u16u8(_currentWorkspaceId), label, _dialogPresenter.get(), [weak = get_weak(), returnState, underlay = std::move(underlay)] {
                 if (const auto self = weak.get())
                 {
                     self->AgentManagerHost().Visibility(Visibility::Collapsed);
                     for (const auto& [element, visibility] : underlay) element.Visibility(visibility);
-                    if (self->DraftLayer().Visibility() == Visibility::Visible)
-                        winrt::get_self<implementation::AgentSelectionControl>(self->DraftAgent())->_Refresh_Click(nullptr, nullptr);
+                    if (self->_pageState != returnState) self->_RestorePageState();
+                    else if (self->DraftLayer().Visibility() == Visibility::Visible && returnState->Draft.Agent)
+                        winrt::get_self<implementation::AgentSelectionControl>(self->DraftAgent())->RestoreState(
+                            self->_source ? self->_source->AgentCatalog() : nullptr, til::u16u8(self->_currentWorkspaceId), *returnState->Draft.Agent);
                     else self->ManageAgentsButton().Focus(FocusState::Programmatic);
                 }
             });
@@ -49,6 +53,7 @@ namespace winrt::TerminalApp::implementation
 
     void TaskPage::_UpdateDraftEnabled()
     {
+        NewTaskButton().IsEnabled(_source && (!_projectScoped || (_projectBound && !_projectArchived)));
         const auto locked = _draftSaving || _draftOutcomeUnknown;
         DraftTitle().IsReadOnly(locked); DraftDescription().IsReadOnly(locked); DraftAcceptance().IsReadOnly(locked);
         DraftWorkspace().IsEnabled(!locked); DraftExecutionMode().IsEnabled(!locked); DraftAgent().IsEnabled(!locked);
@@ -71,10 +76,25 @@ namespace winrt::TerminalApp::implementation
             _pendingCreation = tasks::TaskCreationAttempt{ std::move(draft), startImmediately, *task, *command, *start };
         }
         _draftSaving = true; DraftError().Text(RS_(L"Agent_Saving")); _UpdateDraftEnabled();
-        const auto generation = _draftGeneration;
-        _source->CreateTaskAsync(*_pendingCreation, [weak = get_weak(), generation](auto result) {
+        _CapturePageState();
+        const auto owner = _pageState;
+        const auto commandId = _pendingCreation->CommandId;
+        _source->CreateTaskAsync(*_pendingCreation, [weak = get_weak(), owner, commandId](auto result) {
+            if (!owner->Draft.Pending || owner->Draft.Pending->CommandId != commandId) return;
+            owner->Draft.Saving = false; owner->Draft.OutcomeUnknown = result.OutcomeUnknown;
+            if (!result.Created)
+            {
+                if (!result.OutcomeUnknown) owner->Draft.Pending.reset();
+                owner->Draft.Error = result.OutcomeUnknown ? std::wstring{ RS_(L"Agent_UnknownOutcome") } : result.Error;
+            }
+            else
+            {
+                owner->SelectedTask = result.Task.Id; owner->Search.clear(); owner->StatusFilter = owner->Board ? 1 : 0;
+                owner->Draft = {};
+                owner->Notice = result.Error.empty() ? std::wstring{} : std::wstring{ RS_(L"Agent_TaskSavedStartFailed") } + result.Error;
+            }
             const auto self = weak.get();
-            if (!self || generation != self->_draftGeneration) return;
+            if (!self || self->_pageState != owner) return;
             self->_draftSaving = false; self->_draftOutcomeUnknown = result.OutcomeUnknown;
             if (!result.Created)
             {
@@ -83,10 +103,7 @@ namespace winrt::TerminalApp::implementation
                 self->DraftError().Text(result.OutcomeUnknown ? RS_(L"Agent_UnknownOutcome") : hstring{ result.Error.empty() ? std::wstring{ RS_(L"Agent_RequestFailed") } : result.Error });
                 return;
             }
-            self->TaskSearchBox().Text({}); self->StatusFilter().SelectedIndex(0);
-            self->AllWorkspacesScope().IsChecked(true); self->_ViewModelImpl()->SetShowAllWorkspaces(true);
-            self->_ApplyViewModelUpdate([&] { self->_ViewModelImpl()->SelectCreatedTask(result.Task.Id); });
-            self->_ShowDraft(false);
+            self->_RestorePageState();
             self->TaskOperationStatus().Text(result.Error.empty() ? L"" : hstring{ std::wstring{ RS_(L"Agent_TaskSavedStartFailed") } + result.Error });
         });
     }

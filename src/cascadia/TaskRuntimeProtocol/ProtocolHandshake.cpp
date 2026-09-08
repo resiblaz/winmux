@@ -118,6 +118,9 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         // Keep the old shape for clients that did not opt in to this extension.
         if (negotiatedMinor < 3 || !HasCapability(request.RequiredCapabilities | request.OptionalCapabilities, ProtocolCapability::AgentProfiles))
             capabilities &= ~static_cast<uint64_t>(ProtocolCapability::AgentProfiles);
+        for (const auto capability : { ProtocolCapability::ProjectCatalog, ProtocolCapability::TaskBoard })
+            if (negotiatedMinor < 4 || !HasCapability(request.RequiredCapabilities | request.OptionalCapabilities, capability))
+                capabilities &= ~static_cast<uint64_t>(capability);
         if (!request.UnknownRequiredCapabilities.empty() ||
             (request.RequiredCapabilities & capabilities) != request.RequiredCapabilities)
         {

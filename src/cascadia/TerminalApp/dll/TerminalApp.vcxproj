@@ -38,6 +38,7 @@
     <ClInclude Include="../TabRowControl.h" />
     <ClInclude Include="../WorkspaceSidebar.h" />
     <ClInclude Include="../Tasks/TaskPage.h" />
+    <ClInclude Include="../Tasks/TaskBoardView.h" />
     <ClInclude Include="../Tasks/TaskDetailsPane.h" />
     <ClInclude Include="../Tasks/TaskPageViewModel.h" />
     <ClInclude Include="../Tasks/TaskItemViewModel.h" />

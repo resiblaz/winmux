@@ -22,6 +22,7 @@ namespace winrt::TerminalApp::implementation
         bool ShowEmptyState() const noexcept;
         bool HasSelection() const noexcept;
         bool IsSourceAttached() const noexcept;
+        bool HasMoreTasks() const noexcept;
 
         void AttachSource(std::shared_ptr<tasks::ITaskProjectionSource> source);
         void DetachSource();
@@ -32,6 +33,8 @@ namespace winrt::TerminalApp::implementation
         void SetShowAllWorkspaces(bool value);
         void SetStatusFilter(int32_t value);
         void SetCurrentWorkspace(const winrt::hstring& workspace);
+        void SetBoardMode(bool value);
+        void LoadMore(std::optional<tasks::TaskStatus> status = std::nullopt);
         bool CreateTask(const tasks::TaskDraft& draft, bool startImmediately);
         void ExecuteSelected(tasks::TaskCommand command);
         bool QueueSelectedMessage(const winrt::hstring& message);
@@ -52,8 +55,10 @@ namespace winrt::TerminalApp::implementation
         std::wstring _currentWorkspace{ L"win_terminal" };
         bool _showAllWorkspaces{};
         int32_t _statusFilter{};
+        bool _boardMode{};
 
         void _ApplyFilters();
+        void _SyncSourceQuery();
         void _RaisePageState();
         [[nodiscard]] bool _Matches(const tasks::TaskProjection& task) const;
         [[nodiscard]] bool _MatchesStatus(tasks::TaskStatus status) const noexcept;

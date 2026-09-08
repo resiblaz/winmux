@@ -66,6 +66,7 @@ namespace winrt::TerminalApp::implementation::tasks
     {
         const auto value = til::u16u8(providerSessionId);
         const std::scoped_lock lock{ _mutex };
+        if (_indexRequired && !_indexReady && !value.empty()) return true;
         return _allSessions.contains(value);
     }
     catch (...)
@@ -79,10 +80,23 @@ namespace winrt::TerminalApp::implementation::tasks
         return _allSessions.size();
     }
 
+    void TaskAgentSessionRegistry::RequireOwnershipIndex() noexcept
+    {
+        const std::scoped_lock lock{ _mutex }; _indexRequired = true; _indexReady = false;
+    }
+    void TaskAgentSessionRegistry::MergeOwnedSessions(const std::vector<std::string>& sessions, bool complete) noexcept
+    try
+    {
+        const std::scoped_lock lock{ _mutex };
+        _indexedSessions.insert(sessions.begin(), sessions.end()); _rebuild(); _indexReady = complete;
+    }
+    catch (...) {}
+
     void TaskAgentSessionRegistry::_rebuild() noexcept
     try
     {
         _allSessions.clear();
+        _allSessions.insert(_indexedSessions.begin(), _indexedSessions.end());
         for (const auto& [_, sessions] : _sessionsByTask)
         {
             _allSessions.insert(sessions.begin(), sessions.end());

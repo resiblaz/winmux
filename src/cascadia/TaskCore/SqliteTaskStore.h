@@ -27,6 +27,14 @@ namespace Microsoft::Terminal::TaskCore
         [[nodiscard]] const std::string& LastError() const noexcept override;
 
         [[nodiscard]] TaskStoreCommandResult CreateTask(const CreateTaskCommand& command) override;
+        [[nodiscard]] ProjectQueryResult QueryProjects(const ProjectQuery& query) const override;
+        [[nodiscard]] ProjectCommandResult ExecuteProjectCommand(const ProjectCommand& command) override;
+        [[nodiscard]] ProjectCommandResult QueryProjectCommandReceipt(const CommandId& command, std::string_view digest) const override;
+        [[nodiscard]] TaskSummaryQueryResult QueryTaskSummaries(const TaskSummaryQuery& query) const override;
+        [[nodiscard]] TaskSessionIndexResult QueryTaskSessionIndex(uint64_t afterSequence, size_t limit) const override;
+        [[nodiscard]] TaskBoardCommandResult ExecuteTaskBoardCommand(const TaskBoardCommand& command) override;
+        [[nodiscard]] TaskBoardCommandResult QueryTaskBoardOperation(const CommandId& operation) const override;
+        void ReconcileTaskBoardOperations() override;
         [[nodiscard]] AgentProfileQueryResult QueryAgentProfiles(const AgentProfileQuery& query) const override;
         [[nodiscard]] AgentProfileCommandResult ExecuteAgentProfileCommand(const AgentProfileCommand& command) override;
         [[nodiscard]] TaskStoreCommandResult UpdateTaskExecutionAgent(const UpdateTaskExecutionAgentCommand& command) override;

@@ -69,6 +69,9 @@
     <Page Include="Tasks\TaskPage.xaml">
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Tasks\TaskBoardView.xaml">
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="Tasks\TaskDetailsPane.xaml">
       <SubType>Designer</SubType>
     </Page>
@@ -164,6 +167,14 @@
     <ClInclude Include="Tasks\TaskProjection.h" />
     <ClInclude Include="Tasks\ITaskProjectionSource.h" />
     <ClInclude Include="Tasks\TaskProjectionCoordinator.h" />
+    <ClInclude Include="Tasks\TaskPageState.h" />
+    <ClInclude Include="Tasks\TaskActionController.h" />
+    <ClInclude Include="Tasks\TaskBoardView.h"><DependentUpon>TaskBoardView.xaml</DependentUpon></ClInclude>
+    <ClInclude Include="Agents\AgentSelectionState.h" />
+    <ClInclude Include="Projects\IWorkspaceSource.h" />
+    <ClInclude Include="Projects\RuntimeWorkspaceSource.h" />
+    <ClInclude Include="Projects\ProjectNavigationState.h" />
+    <ClInclude Include="Projects\ProjectNavigationControls.h" />
     <ClInclude Include="Tasks\TaskProjectionMapper.h" />
     <ClInclude Include="Tasks\RuntimeTaskProjectionSource.h" />
     <ClInclude Include="Tasks\TaskRuntimeConnection.h" />
@@ -376,6 +387,12 @@
       <DependentUpon>TaskItemViewModel.idl</DependentUpon>
     </ClCompile>
     <ClCompile Include="Agents\RuntimeAgentCatalogSource.cpp" />
+    <ClCompile Include="Projects\RuntimeWorkspaceSource.cpp" />
+    <ClCompile Include="Projects\ProjectNavigationState.cpp" />
+    <ClCompile Include="Projects\ProjectNavigationLayout.cpp" />
+    <ClCompile Include="Projects\ProjectNavigationControls.cpp" />
+    <ClCompile Include="Projects\ProjectNavigationRender.cpp" />
+    <ClCompile Include="TerminalPage.Projects.cpp" />
     <ClCompile Include="Agents\AgentSelectionControl.cpp">
       <DependentUpon>AgentSelectionControl.xaml</DependentUpon>
     </ClCompile>
@@ -383,8 +400,16 @@
       <DependentUpon>AgentCatalogPage.xaml</DependentUpon>
     </ClCompile>
     <ClCompile Include="Tasks\TaskPage.Agents.cpp" />
+    <ClCompile Include="Tasks\TaskPage.State.cpp" />
+    <ClCompile Include="Tasks\TaskPage.Board.cpp" />
+    <ClCompile Include="Tasks\TaskPage.Acceptance.cpp" />
+    <ClCompile Include="Tasks\TaskActionController.cpp" />
+    <ClCompile Include="Tasks\TaskBoardView.cpp"><DependentUpon>TaskBoardView.xaml</DependentUpon></ClCompile>
     <ClCompile Include="Tasks\PrototypeTaskProjectionSource.cpp" />
     <ClCompile Include="Tasks\TaskProjectionCoordinator.cpp" />
+    <ClCompile Include="Tasks\TaskProjectionSummaryCache.cpp" />
+    <ClCompile Include="Tasks\RuntimeTaskSummaries.cpp" />
+    <ClCompile Include="Tasks\RuntimeTaskSessionIndex.cpp" />
     <ClCompile Include="Tasks\TaskProjectionMapper.cpp" />
     <ClCompile Include="Tasks\RuntimeTaskProjectionSource.cpp" />
     <ClCompile Include="Tasks\RuntimeTaskProjectionCommands.cpp" />
@@ -540,6 +565,10 @@
     </Midl>
     <Midl Include="Tasks\TaskPage.idl">
       <DependentUpon>TaskPage.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="Tasks\TaskBoardView.idl">
+      <DependentUpon>TaskBoardView.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="Tasks\TaskDetailsPane.idl">

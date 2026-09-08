@@ -14,6 +14,11 @@
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="AgentProfile.h" />
+    <ClInclude Include="ProjectCatalog.h" />
+    <ClInclude Include="TaskBoard.h" />
+    <ClInclude Include="TaskSessionIndex.h" />
+    <ClInclude Include="TaskStoreBoardSqlite.h" />
+    <ClInclude Include="TaskStoreProjectSqlite.h" />
     <ClInclude Include="TaskStoreAgentSqlite.h" />
     <ClInclude Include="ITaskStore.h" />
     <ClInclude Include="SqliteTaskStore.h" />
@@ -51,6 +56,17 @@
     <ClCompile Include="TaskGitWorktreeStatePolicy.cpp" />
     <ClCompile Include="TaskGitCheckpointStatePolicy.cpp" />
     <ClCompile Include="AgentProfile.cpp" />
+    <ClCompile Include="ProjectCatalog.cpp" />
+    <ClCompile Include="TaskStoreProjectSchema.cpp" />
+    <ClCompile Include="SqliteTaskStoreProjects.cpp" />
+    <ClCompile Include="TaskStoreProjectQueries.cpp" />
+    <ClCompile Include="SqliteTaskStoreSummaries.cpp" />
+    <ClCompile Include="SqliteTaskStoreSessionIndex.cpp" />
+    <ClCompile Include="TaskStoreBoardSqlite.cpp" />
+    <ClCompile Include="TaskStoreBoardReceipts.cpp" />
+    <ClCompile Include="TaskStoreBoardUndo.cpp" />
+    <ClCompile Include="SqliteTaskStoreBoard.cpp" />
+    <ClCompile Include="SqliteTaskStoreBoardRecovery.cpp" />
     <ClCompile Include="TaskStoreAgentSqlite.cpp" />
     <ClCompile Include="SqliteTaskStoreAgents.cpp" />
     <ClCompile Include="SqliteTaskStoreAgentQueries.cpp" />

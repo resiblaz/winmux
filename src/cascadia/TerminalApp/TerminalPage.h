@@ -19,6 +19,7 @@
 #include "Toast.h"
 #include "WorkspaceItemViewModel.h"
 #include "WorkspaceSidebar.h"
+#include "Projects/ProjectNavigationControls.h"
 #include "ConclusionSidebar.h"
 #include "Tasks/TaskSurfacePolicy.h"
 #include "Tasks/TaskAgentSessionRegistry.h"
@@ -49,6 +50,7 @@ namespace winrt::TerminalApp::implementation
 {
     namespace tasks
     {
+        class ITaskProjectionSource;
         struct TaskSurfaceDescriptor;
     }
 
@@ -221,6 +223,7 @@ namespace winrt::TerminalApp::implementation
         void RequestSetMaximized(bool newMaximized);
 
         void SetStartupActions(std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> actions);
+        void SetStartupProjectLayout(const winrt::hstring& layout);
         void SetStartupWorkspaceState(uint32_t version,
                                       std::vector<winrt::guid> workspaceIds,
                                       std::vector<uint32_t> pinnedWorkspaceIndices,
@@ -337,6 +340,28 @@ namespace winrt::TerminalApp::implementation
         Windows::UI::Xaml::Controls::Grid _tabContent{ nullptr };
         TerminalApp::WorkspaceSidebar _workspaceSidebar{ nullptr };
         TerminalApp::TaskPage _taskPage{ nullptr };
+        std::shared_ptr<tasks::ITaskProjectionSource> _projectTaskSource;
+        std::shared_ptr<projects::ProjectNavigationState> _projects;
+        std::unique_ptr<projects::ProjectNavigationControls> _projectControls;
+        Windows::UI::Xaml::DispatcherTimer _projectRefreshTimer{ nullptr };
+        TerminalApp::AgentCatalogPage _globalAgentPage{ nullptr };
+        bool _projectLibraryVisible{};
+        bool _globalAgentsVisible{};
+        bool _syncingProjectNavigation{};
+        bool _projectModeWasEnabled{};
+        std::string _startupProjectLayout;
+        std::unordered_set<winrt::guid> _knownProjectWorkspaces;
+        void _InitializeProjectNavigation(std::shared_ptr<tasks::ITaskProjectionSource> source);
+        bool _ProjectModeEnabled() const noexcept;
+        void _RefreshProjects();
+        void _RenderProjectNavigation();
+        void _ProjectNavigationRequested(projects::ProjectNavigationAction action, std::string id);
+        void _SyncActiveProjectFromTab(const TerminalApp::Tab& tab);
+        bool _SyncProjectTaskContext();
+        safe_void_coroutine _PickProjectDirectory(bool bind);
+        safe_void_coroutine _CloseProjectView(std::string id);
+        safe_void_coroutine _ArchiveProject(std::string id);
+        void _OpenProjectTerminal();
         TerminalApp::ConclusionSidebar _conclusionSidebar{ nullptr };
         Windows::UI::Xaml::Controls::ListView _workspaceList{ nullptr };
         Windows::UI::Xaml::Controls::Border _workspaceSurfaceTabBar{ nullptr };

@@ -121,6 +121,7 @@ namespace winrt::TerminalApp::implementation::tasks
             result.Status = static_cast<TaskStatus>(source.Status);
             result.Priority = static_cast<TaskPriority>(source.Priority);
             result.Version = source.Version;
+            result.ManualHold = source.ManualHold;
             result.LastEventSequence = source.LastEventSequence;
             result.SupportsTerminalSurface = true;
             result.UpdatedAtUnixMilliseconds = source.UpdatedAtUnixMilliseconds;
@@ -186,6 +187,8 @@ namespace winrt::TerminalApp::implementation::tasks
                 if (_active(run.State) && !result.HasActiveRun)
                 {
                     result.HasActiveRun = true;
+                    result.ActiveRunId = _wide(run.Id);
+                    result.LatestRunState = static_cast<uint8_t>(run.State);
                     result.ActiveRunSummary = summary;
                     result.TerminalState = TaskTerminalState::Busy;
                 }
@@ -195,6 +198,7 @@ namespace winrt::TerminalApp::implementation::tasks
                 {
                     latestTerminalSequence = run.Sequence;
                     result.LatestTerminalRunId = _wide(run.Id);
+                    if (!result.HasActiveRun) result.LatestRunState = static_cast<uint8_t>(run.State);
                 }
             }
             for (const auto& message : source.Messages)
@@ -202,12 +206,16 @@ namespace winrt::TerminalApp::implementation::tasks
                 if (message.State == 0 || message.State == 1)
                 {
                     result.QueuedMessages.emplace_back(_wide(message.Content));
+                    result.HasPendingMessages = true;
                     result.QueuedMessageIds.emplace_back(_wide(message.Id));
                     result.QueuedMessageRevisions.emplace_back(message.Revision);
                 }
             }
             for (const auto& event : source.Events)
                 result.RunDetails.emplace_back(_eventText(event));
+            if (!source.BoardNote.empty()) result.Result = _wide(source.BoardNote);
+            if (!result.HasActiveRun && result.Status == TaskStatus::InProgress && result.LatestRunState == static_cast<uint8_t>(TaskProjectionRunState::Completed))
+                result.ActiveRunSummary = _resource(L"TaskBoard_NoDelivery");
             return result;
         }
         catch (...)

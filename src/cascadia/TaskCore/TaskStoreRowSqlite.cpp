@@ -65,6 +65,9 @@ namespace Microsoft::Terminal::TaskCore::details
         context.SourceAgentId = _optionalId<AgentProfileId>(statement, 15);
         context.SourceAgentRevision = sqlite3_column_int64(statement, 16);
         context.AgentNameSnapshot = ColumnText(statement, 17);
+        context.ProjectVersion = sqlite3_column_int64(statement, 18);
+        context.ProjectNameSnapshot = ColumnText(statement, 19);
+        context.ProjectDescriptionSnapshot = ColumnText(statement, 20);
         return context;
     }
 

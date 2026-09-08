@@ -94,6 +94,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             result["provider"] = draft.Provider;
             result["model"] = draft.Model;
             result["instructions"] = draft.Instructions;
+            if (draft.ProjectVersion) result["projectVersion"] = Json::UInt64{ draft.ProjectVersion };
             if (draft.Agent)
             {
                 result["agentId"] = draft.Agent->Id;
@@ -104,6 +105,11 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
 
         bool _decodeDraft(Json::Value value, TaskUiCreateDraft& draft)
         {
+            if (value.isMember("projectVersion"))
+            {
+                if (!_unsigned(value["projectVersion"]) || !value["projectVersion"].asUInt64() || value["projectVersion"].asUInt64() > INT64_MAX) return false;
+                draft.ProjectVersion = value["projectVersion"].asUInt64(); value.removeMember("projectVersion");
+            }
             if (value.isMember("agentId") || value.isMember("agentRevision"))
             {
                 if (!value["agentId"].isString() || !_unsigned(value["agentRevision"])) return false;

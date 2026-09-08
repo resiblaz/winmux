@@ -7,6 +7,9 @@
 #include "TaskStoreCommandTypes.h"
 #include "TaskStoreResults.h"
 #include "AgentProfile.h"
+#include "ProjectCatalog.h"
+#include "TaskBoard.h"
+#include "TaskSessionIndex.h"
 
 #include <cstdint>
 #include <optional>
@@ -26,6 +29,14 @@ namespace Microsoft::Terminal::TaskCore
         [[nodiscard]] virtual const std::string& LastError() const noexcept = 0;
 
         [[nodiscard]] virtual TaskStoreCommandResult CreateTask(const CreateTaskCommand& command) = 0;
+        [[nodiscard]] virtual ProjectQueryResult QueryProjects(const ProjectQuery&) const { return {}; }
+        [[nodiscard]] virtual ProjectCommandResult ExecuteProjectCommand(const ProjectCommand&) { return {}; }
+        [[nodiscard]] virtual ProjectCommandResult QueryProjectCommandReceipt(const CommandId&, std::string_view) const { return {}; }
+        [[nodiscard]] virtual TaskSummaryQueryResult QueryTaskSummaries(const TaskSummaryQuery&) const { return {}; }
+        [[nodiscard]] virtual TaskSessionIndexResult QueryTaskSessionIndex(uint64_t, size_t) const { return {}; }
+        [[nodiscard]] virtual TaskBoardCommandResult ExecuteTaskBoardCommand(const TaskBoardCommand&) { return {}; }
+        [[nodiscard]] virtual TaskBoardCommandResult QueryTaskBoardOperation(const CommandId&) const { return {}; }
+        virtual void ReconcileTaskBoardOperations() {}
         [[nodiscard]] virtual AgentProfileQueryResult QueryAgentProfiles(const AgentProfileQuery& query) const = 0;
         [[nodiscard]] virtual AgentProfileCommandResult ExecuteAgentProfileCommand(const AgentProfileCommand& command) = 0;
         [[nodiscard]] virtual TaskStoreCommandResult UpdateTaskExecutionAgent(const UpdateTaskExecutionAgentCommand& command) = 0;

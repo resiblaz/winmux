@@ -10,7 +10,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
 {
     inline constexpr uint16_t CurrentProtocolMajor{ 1 };
     inline constexpr uint16_t MinimumProtocolMinor{ 0 };
-    inline constexpr uint16_t CurrentProtocolMinor{ 3 };
+    inline constexpr uint16_t CurrentProtocolMinor{ 4 };
 
     inline constexpr uint32_t MinimumControlFrameBytes{ 256 };
     inline constexpr uint32_t MaximumControlFrameBytes{ 1024 * 1024 };

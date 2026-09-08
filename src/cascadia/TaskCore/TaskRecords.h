@@ -56,6 +56,9 @@ namespace Microsoft::Terminal::TaskCore
         std::optional<AgentProfileId> SourceAgentId;
         uint64_t SourceAgentRevision{};
         std::string AgentNameSnapshot;
+        uint64_t ProjectVersion{};
+        std::string ProjectNameSnapshot;
+        std::string ProjectDescriptionSnapshot;
     };
 
     struct TaskGitWorktreeRecord

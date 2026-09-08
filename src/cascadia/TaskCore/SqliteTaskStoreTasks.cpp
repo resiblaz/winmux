@@ -10,6 +10,7 @@
 #include "TaskStoreCommandValidation.h"
 #include "TaskStoreSqlite.h"
 #include "TaskStoreAgentSqlite.h"
+#include "TaskStoreProjectSqlite.h"
 
 #include <limits>
 
@@ -162,6 +163,18 @@ WHERE id=?4 AND version=?5;
         }
         const auto resolved = details::ResolveExecutionAgent(_impl->Database, command.ExecutionContext, error);
         if (resolved != TaskStoreCommandStatus::Succeeded) return details::CommandFailure(resolved, error);
+        if (command.ExecutionContext.ProjectVersion)
+        {
+            std::optional<ProjectRecord> project;
+            if (!details::ReadProject(_impl->Database, command.Task.Workspace, project, error))
+                return details::CommandFailure(TaskStoreCommandStatus::StorageError, error);
+            if (!project || project->Version != command.ExecutionContext.ProjectVersion)
+                return details::CommandFailure(TaskStoreCommandStatus::VersionConflict, "project_version_conflict");
+            if (project->Archived || project->Binding != ProjectBindingState::Bound || project->RootPath != command.ExecutionContext.SourceRoot)
+                return details::CommandFailure(TaskStoreCommandStatus::InvalidTransition, "project_binding_required");
+            command.ExecutionContext.ProjectNameSnapshot = project->Name;
+            command.ExecutionContext.ProjectDescriptionSnapshot = project->Description;
+        }
         if (!details::ValidateCreateTaskCommand(command, error))
         {
             return details::CommandFailure(TaskStoreCommandStatus::InvalidRecord, std::move(error));
@@ -314,6 +327,14 @@ WHERE id=?4 AND version=?5;
         }
 
         const auto decision = EvaluateTaskStatusTransition(task->Status, command.RequestedStatus, command.Authority, context);
+        if (command.Authority != TaskStatusAuthority::SystemRecovery)
+        {
+            details::SqliteStatement pending{ _impl->Database, "SELECT EXISTS(SELECT 1 FROM task_board_operation WHERE task_id=?1 AND stage=0);", error };
+            if (!pending || !details::BindText(_impl->Database, pending.Get(), 1, command.Task.Value(), error) || sqlite3_step(pending.Get()) != SQLITE_ROW)
+                return details::CommandFailure(TaskStoreCommandStatus::StorageError, error);
+            if (sqlite3_column_int(pending.Get(), 0))
+                return details::CommandFailure(TaskStoreCommandStatus::ActiveIntentExists, "board_operation_pending");
+        }
         if (!decision.Allowed)
         {
             return details::CommandFailure(TaskStoreCommandStatus::InvalidTransition, "Task status transition was rejected", decision.Error);

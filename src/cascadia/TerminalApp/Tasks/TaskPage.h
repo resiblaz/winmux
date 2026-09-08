@@ -6,6 +6,8 @@
 #include "TaskPage.g.h"
 #include "ITaskProjectionSource.h"
 #include "TaskPageViewModel.h"
+#include "TaskPageState.h"
+#include "TaskBoardView.h"
 
 #include <functional>
 
@@ -25,6 +27,7 @@ namespace winrt::TerminalApp::implementation
         void SetCurrentWorkspace(const winrt::guid& workspaceId,
                                  const winrt::hstring& repositoryRoot,
                                  const winrt::hstring& workingDirectory);
+        void SetProject(const projects::protocol::ProjectProjection& project);
         void Refresh();
 
         void _NewTask_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
@@ -39,6 +42,13 @@ namespace winrt::TerminalApp::implementation
         void _AllWorkspacesScope_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _PaneToggle_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _Root_KeyDown(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::Input::KeyRoutedEventArgs& args);
+        void _BoardMode_Click(const Windows::Foundation::IInspectable&, const Windows::UI::Xaml::RoutedEventArgs&);
+        void _ListMode_Click(const Windows::Foundation::IInspectable&, const Windows::UI::Xaml::RoutedEventArgs&);
+        void _CloseBoardDetails_Click(const Windows::Foundation::IInspectable&, const Windows::UI::Xaml::RoutedEventArgs&);
+        void _LoadMoreTasks_Click(const Windows::Foundation::IInspectable&, const Windows::UI::Xaml::RoutedEventArgs&);
+        void _RetryBoardAction_Click(const Windows::Foundation::IInspectable&, const Windows::UI::Xaml::RoutedEventArgs&);
+        void _UndoBoardAction_Click(const Windows::Foundation::IInspectable&, const Windows::UI::Xaml::RoutedEventArgs&);
+        void _BoardAuxiliary_Click(const Windows::Foundation::IInspectable&, const Windows::UI::Xaml::RoutedEventArgs&);
 
     private:
         TerminalApp::TaskPageViewModel _viewModel;
@@ -47,7 +57,15 @@ namespace winrt::TerminalApp::implementation
         std::wstring _currentWorkspaceId;
         std::wstring _currentRepositoryRoot;
         std::wstring _currentWorkingDirectory;
+        uint64_t _projectVersion{};
+        bool _projectScoped{};
+        bool _projectBound{};
+        bool _projectArchived{};
+        bool _projectWorktree{};
         bool _syncingSelection{};
+        bool _restoringPageState{ true };
+        tasks::TaskPageStateStore _pageStates;
+        std::shared_ptr<tasks::TaskPageState> _pageState;
         tasks::ITaskProjectionSource::SurfaceHandler _surfaceHandler;
         winrt::weak_ref<winrt::TerminalApp::IDialogPresenter> _dialogPresenter;
         TerminalApp::AgentCatalogPage _agentManager{ nullptr };
@@ -55,6 +73,14 @@ namespace winrt::TerminalApp::implementation
         bool _draftSaving{};
         bool _draftOutcomeUnknown{};
         uint64_t _draftGeneration{};
+        std::shared_ptr<tasks::TaskActionController> _actions;
+        Windows::UI::Xaml::DispatcherTimer _boardPoll{ nullptr };
+        bool _boardDetailsOpen{};
+        void _InitializeBoard();
+        void _SetBoardMode(bool board);
+        void _UpdateBoard();
+        safe_void_coroutine _BoardAction(TaskBoardDrop drop);
+        safe_void_coroutine _EditAcceptance();
 
         implementation::TaskPageViewModel* _ViewModelImpl() const noexcept;
         void _ApplyViewModelUpdate(const std::function<void()>& update);
@@ -66,6 +92,8 @@ namespace winrt::TerminalApp::implementation
         safe_void_coroutine _Execute(tasks::TaskCommand command);
         void _SyncDraftWorkspace();
         void _SyncSelection();
+        void _CapturePageState();
+        void _RestorePageState();
     };
 }
 

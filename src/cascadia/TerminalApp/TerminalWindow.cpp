@@ -243,6 +243,7 @@ namespace winrt::TerminalApp::implementation
                     _root->AddStartupWorkspaceSource(source.WorkspaceId, source.SnapshotId, source.Revision);
                 }
             }
+            _root->SetStartupProjectLayout(layout.ProjectViewsJson());
             _root->SetStartupActions(wil::to_vector(layout.TabLayout()));
         }
         else if (_appArgs)
@@ -1386,7 +1387,7 @@ namespace winrt::TerminalApp::implementation
                 // have at least one tab to restore. If we ever want to come
                 // back and make it so that you can persist position and size,
                 // but not the tabs themselves, we can revisit this assumption.
-                _cachedLayout = (layout.TabLayout() && layout.TabLayout().Size() > 0) ? layout : nullptr;
+                _cachedLayout = ((layout.TabLayout() && layout.TabLayout().Size() > 0) || !layout.ProjectViewsJson().empty()) ? layout : nullptr;
                 return *_cachedLayout;
             }
         }

@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cwctype>
+#include <unordered_map>
 
 namespace winrt::TerminalApp::implementation
 {
@@ -55,7 +56,7 @@ namespace winrt::TerminalApp::implementation
 
     winrt::hstring TaskPageViewModel::TaskCountText() const
     {
-        return winrt::hstring{ RS_fmt(L"TaskPage_TaskCountFormat", _tasks.Size()) };
+        return winrt::hstring{ RS_fmt(L"TaskPage_TaskCountFormat", _source && _source->UsesSummaries() ? _source->QueryTotal() : _tasks.Size()) };
     }
 
     bool TaskPageViewModel::IsEmpty() const noexcept
@@ -70,7 +71,7 @@ namespace winrt::TerminalApp::implementation
 
     bool TaskPageViewModel::ShowEmptyState() const noexcept
     {
-        return IsEmpty() && !IsLoading();
+        return IsEmpty() && !IsLoading() && !HasSelection();
     }
 
     bool TaskPageViewModel::HasSelection() const noexcept
@@ -83,6 +84,27 @@ namespace winrt::TerminalApp::implementation
         return _source != nullptr;
     }
 
+    bool TaskPageViewModel::HasMoreTasks() const noexcept { return _source && _source->HasMoreTasks(); }
+
+    void TaskPageViewModel::LoadMore(std::optional<tasks::TaskStatus> status)
+    { if (_source) _source->LoadMore(status); }
+
+    void TaskPageViewModel::SetBoardMode(bool value)
+    {
+        if (_boardMode == value) return;
+        _boardMode = value; _SyncSourceQuery();
+    }
+
+    void TaskPageViewModel::_SyncSourceQuery()
+    {
+        if (!_source) return;
+        tasks::TaskListQuery query;
+        if (!_showAllWorkspaces) query.ProjectId = _currentWorkspace;
+        query.Search = _searchText; query.Board = _boardMode;
+        for (size_t i = 0; i < query.Statuses.size(); ++i) query.Statuses[i] = _MatchesStatus(static_cast<tasks::TaskStatus>(i));
+        _source->ConfigureQuery(query);
+    }
+
     void TaskPageViewModel::AttachSource(std::shared_ptr<tasks::ITaskProjectionSource> source)
     {
         if (_source == source)
@@ -93,6 +115,7 @@ namespace winrt::TerminalApp::implementation
         _source = std::move(source);
         if (_source)
         {
+            _SyncSourceQuery();
             const auto weakThis = get_weak();
             _source->SetChangedHandler([weakThis] {
                 if (const auto self = weakThis.get())
@@ -151,6 +174,7 @@ namespace winrt::TerminalApp::implementation
         if (_searchText != next)
         {
             _searchText = next;
+            _SyncSourceQuery();
             _ApplyFilters();
         }
     }
@@ -160,6 +184,7 @@ namespace winrt::TerminalApp::implementation
         if (_showAllWorkspaces != value)
         {
             _showAllWorkspaces = value;
+            _SyncSourceQuery();
             _ApplyFilters();
         }
     }
@@ -169,6 +194,7 @@ namespace winrt::TerminalApp::implementation
         if (_statusFilter != value)
         {
             _statusFilter = value;
+            _SyncSourceQuery();
             _ApplyFilters();
         }
     }
@@ -179,6 +205,7 @@ namespace winrt::TerminalApp::implementation
         if (_currentWorkspace != next)
         {
             _currentWorkspace = next;
+            _SyncSourceQuery();
             if (!_showAllWorkspaces)
             {
                 _ApplyFilters();
@@ -250,14 +277,28 @@ namespace winrt::TerminalApp::implementation
 
     void TaskPageViewModel::_ApplyFilters()
     {
-        _tasks.Clear();
+        std::unordered_map<std::wstring, TerminalApp::TaskItemViewModel> existing;
+        for (const auto& task : _tasks) existing.emplace(std::wstring{ task.Id() }, task);
+        std::vector<TerminalApp::TaskItemViewModel> desired;
         for (const auto& task : _snapshot)
         {
             if (_Matches(task))
             {
-                _tasks.Append(winrt::make<implementation::TaskItemViewModel>(task));
+                const auto found = existing.find(task.Id);
+                desired.push_back(found != existing.end() && winrt::get_self<implementation::TaskItemViewModel>(found->second)->NativeProjection() == task ?
+                                      found->second : winrt::make<implementation::TaskItemViewModel>(task));
             }
         }
+
+        // Preserve unchanged containers, selection and scrolling on projection refresh.
+        for (uint32_t i = 0; i < desired.size(); ++i)
+        {
+            if (i < _tasks.Size() && _tasks.GetAt(i) == desired[i]) continue;
+            uint32_t found{};
+            if (_tasks.IndexOf(desired[i], found)) _tasks.RemoveAt(found);
+            _tasks.InsertAt(i, desired[i]);
+        }
+        while (_tasks.Size() > desired.size()) _tasks.RemoveAtEnd();
 
         TerminalApp::TaskItemViewModel nextSelection{ nullptr };
         if (!_selectedTaskId.empty())
@@ -270,6 +311,13 @@ namespace winrt::TerminalApp::implementation
                     break;
                 }
             }
+        }
+        if (!nextSelection && _source && _source->UsesSummaries() && !_selectedTaskId.empty())
+        {
+            const auto found = std::ranges::find(_snapshot, _selectedTaskId, &tasks::TaskProjection::Id);
+            if (found != _snapshot.end())
+                nextSelection = _selectedTask && winrt::get_self<implementation::TaskItemViewModel>(_selectedTask)->NativeProjection() == *found ?
+                                    _selectedTask : winrt::make<implementation::TaskItemViewModel>(*found);
         }
         if (!nextSelection && _tasks.Size() > 0)
         {
@@ -298,6 +346,7 @@ namespace winrt::TerminalApp::implementation
 
     void TaskPageViewModel::_RaisePageState()
     {
+        PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"HasMoreTasks" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"Tasks" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"SelectedTask" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"TaskCountText" });
@@ -339,6 +388,10 @@ namespace winrt::TerminalApp::implementation
             return status == tasks::TaskStatus::Blocked;
         case 6:
             return status == tasks::TaskStatus::Done;
+        case 7:
+            return status == tasks::TaskStatus::Backlog;
+        case 8:
+            return status == tasks::TaskStatus::Cancelled;
         default:
             return true;
         }

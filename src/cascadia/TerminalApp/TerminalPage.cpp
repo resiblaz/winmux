@@ -110,6 +110,9 @@ namespace winrt::TerminalApp::implementation
 
     TerminalPage::~TerminalPage()
     {
+        if (_projectRefreshTimer) _projectRefreshTimer.Stop();
+        if (_projects) _projects->SetChangedHandler({});
+        _projectControls.reset();
         if (_workspaceFeatures)
         {
             _workspaceFeatures->Stop();
@@ -240,7 +243,7 @@ namespace winrt::TerminalApp::implementation
         {
             taskSource = tasks::MakePrototypeTaskProjectionSource();
         }
-        winrt::get_self<implementation::TaskPage>(_taskPage)->AttachProjectionSource(std::move(taskSource));
+        winrt::get_self<implementation::TaskPage>(_taskPage)->AttachProjectionSource(taskSource);
         _conclusionSidebar = this->ConclusionSidebar();
         winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->SetTabContentMode(true);
         _workspaceFeatures->History().Attach(_conclusionSidebar);
@@ -251,6 +254,7 @@ namespace winrt::TerminalApp::implementation
         _workspaceToolTabs = this->WorkspaceToolTabs();
         _workspaceTasksToolTab = this->WorkspaceTasksToolTab();
         _workspaceSummaryToolTab = this->WorkspaceSummaryToolTab();
+        _InitializeProjectNavigation(std::move(taskSource));
         _workspaceList.ItemsSource(_WorkspaceItems());
         _workspaceFeatures->Workspaces().SetChangedHandler([weakThis{ get_weak() }] {
             if (const auto page = weakThis.get())
@@ -258,6 +262,7 @@ namespace winrt::TerminalApp::implementation
                 page->_RefreshWorkspaceNotifications();
                 page->_RefreshWorkspaceListeningPorts();
                 page->_workspaceFeatures->History().OnWorkspaceItemsChanged();
+                page->_RefreshProjects();
             }
         });
         _RefreshWorkspaceNotifications();

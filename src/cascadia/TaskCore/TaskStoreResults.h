@@ -64,6 +64,8 @@ namespace Microsoft::Terminal::TaskCore
         std::vector<TaskMessageRecord> Messages;
         std::vector<TaskRunMessageRecord> RunMessages;
         uint64_t LastEventSequence{};
+        std::string BoardNote;
+        bool BoardNoteIsBlocked{};
     };
 
     struct TaskRecoverySnapshot

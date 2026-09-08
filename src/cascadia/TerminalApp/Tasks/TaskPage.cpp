@@ -54,7 +54,9 @@ namespace winrt::TerminalApp::implementation
     TaskPage::TaskPage() :
         _viewModel{ winrt::make<implementation::TaskPageViewModel>() }
     {
+        _pageState = _pageStates.ForProject(_currentWorkspaceId);
         InitializeComponent();
+        _InitializeBoard();
         const auto weakThis = get_weak();
         winrt::get_self<implementation::AgentSelectionControl>(DraftAgent())->SetChangedHandler([weakThis] {
             if (const auto self = weakThis.get()) self->_UpdateDraftEnabled();
@@ -88,6 +90,7 @@ namespace winrt::TerminalApp::implementation
             return false;
         });
         _SyncSelection();
+        _restoringPageState = false;
     }
 
     TerminalApp::TaskPageViewModel TaskPage::ViewModel() const noexcept
@@ -104,6 +107,26 @@ namespace winrt::TerminalApp::implementation
             _source->SetSurfaceHandler(_surfaceHandler);
         }
         _ApplyViewModelUpdate([&]() { _ViewModelImpl()->AttachSource(_source); });
+        _actions = std::make_shared<tasks::TaskActionController>(_source);
+        const auto weak = get_weak();
+        _actions->SetChangedHandler([weak](const auto& request, std::wstring message, bool unknown) {
+            if (const auto self = weak.get())
+            {
+                const auto owner = self->_pageStates.ForProject(til::u8u16(request.ProjectId));
+                owner->Notice = message; owner->RetryBoardTask = unknown ? til::u8u16(request.TaskId) : std::wstring{};
+                owner->UndoProjectId = request.ProjectId;
+                if (owner == self->_pageState || self->_pageState->AllProjects)
+                {
+                    self->TaskOperationStatus().Text(message);
+                    self->_pageState->RetryBoardTask = owner->RetryBoardTask;
+                    self->_pageState->UndoProjectId = request.ProjectId;
+                    self->UndoBoardActionButton().Visibility(!unknown && self->_actions->CanUndo(request.ProjectId) ? Visibility::Visible : Visibility::Collapsed);
+                    self->RetryBoardActionButton().Visibility(unknown ? Visibility::Visible : Visibility::Collapsed);
+                }
+                self->_UpdateBoard();
+            }
+        });
+        _UpdateDraftEnabled();
     }
 
     void TaskPage::SetSurfaceHandler(tasks::ITaskProjectionSource::SurfaceHandler handler)
@@ -127,6 +150,8 @@ namespace winrt::TerminalApp::implementation
         std::ranges::transform(id, id.begin(), [](const wchar_t value) {
             return static_cast<wchar_t>(std::towlower(value));
         });
+        const auto changing = _currentWorkspaceId != id;
+        if (changing) _CapturePageState();
         _currentWorkspaceId = id;
         _currentRepositoryRoot = repositoryRoot;
         _currentWorkingDirectory = workingDirectory;
@@ -134,7 +159,13 @@ namespace winrt::TerminalApp::implementation
                                    _source->ResolveWorkspaceKey(id, std::wstring_view{ repositoryRoot }, std::wstring_view{ workingDirectory }) :
                                    id;
         _ApplyViewModelUpdate([&]() { _ViewModelImpl()->SetCurrentWorkspace(winrt::hstring{ _currentWorkspaceKey }); });
-        _SyncDraftWorkspace();
+        if (changing)
+        {
+            ++_draftGeneration;
+            _pageState = _pageStates.ForProject(_currentWorkspaceId);
+            _RestorePageState();
+        }
+        else _SyncDraftWorkspace();
     }
 
     void TaskPage::Refresh()
@@ -142,8 +173,26 @@ namespace winrt::TerminalApp::implementation
         _ApplyViewModelUpdate([&]() { _ViewModelImpl()->Reload(); });
     }
 
+    void TaskPage::SetProject(const projects::protocol::ProjectProjection& project)
+    {
+        const auto id = til::u8u16(project.Id);
+        if (!_pageStates.Contains(id))
+        {
+            const auto state = _pageStates.ForProject(id); state->Board = true; state->StatusFilter = 1;
+        }
+        _projectScoped = true; _projectVersion = project.Version; _projectBound = project.Binding != 0;
+        _projectArchived = project.Archived; _projectWorktree = project.Kind != 0;
+        CurrentWorkspaceScope().Content(winrt::box_value(RS_(L"Project_CurrentScope")));
+        AllWorkspacesScope().Content(winrt::box_value(RS_(L"Project_AllScope")));
+        DraftWorkspace().Header(winrt::box_value(RS_(L"Project_Label")));
+        const auto root = winrt::hstring{ til::u8u16(project.RootPath) };
+        SetCurrentWorkspace(winrt::guid{ project.Id }, root, root);
+        _UpdateDraftEnabled();
+    }
+
     void TaskPage::_NewTask_Click(const IInspectable&, const RoutedEventArgs&)
     {
+        if (_projectScoped && (!_projectBound || _projectArchived)) return;
         _ShowDraft(true);
     }
 
@@ -177,21 +226,25 @@ namespace winrt::TerminalApp::implementation
 
     void TaskPage::_Search_TextChanged(const IInspectable&, const TextChangedEventArgs&)
     {
+        if (_restoringPageState) return;
         _ApplyViewModelUpdate([&]() { _ViewModelImpl()->SetSearchText(TaskSearchBox().Text()); });
     }
 
     void TaskPage::_StatusFilter_SelectionChanged(const IInspectable&, const SelectionChangedEventArgs&)
     {
+        if (_restoringPageState) return;
         _ApplyViewModelUpdate([&]() { _ViewModelImpl()->SetStatusFilter(StatusFilter().SelectedIndex()); });
     }
 
     void TaskPage::_CurrentWorkspaceScope_Click(const IInspectable&, const RoutedEventArgs&)
     {
+        if (_restoringPageState) return;
         _ApplyViewModelUpdate([&]() { _ViewModelImpl()->SetShowAllWorkspaces(false); });
     }
 
     void TaskPage::_AllWorkspacesScope_Click(const IInspectable&, const RoutedEventArgs&)
     {
+        if (_restoringPageState) return;
         _ApplyViewModelUpdate([&]() { _ViewModelImpl()->SetShowAllWorkspaces(true); });
     }
 
@@ -212,6 +265,10 @@ namespace winrt::TerminalApp::implementation
             if (!_draftSaving) _ShowDraft(false);
             args.Handled(true);
             return;
+        }
+        if (args.Key() == VirtualKey::Escape && _boardDetailsOpen)
+        {
+            _CloseBoardDetails_Click(nullptr, nullptr); args.Handled(true); return;
         }
         if (args.Key() == VirtualKey::Escape &&
             TasksSplitView().DisplayMode() == SplitViewDisplayMode::Overlay &&
@@ -239,12 +296,23 @@ namespace winrt::TerminalApp::implementation
     void TaskPage::_ShowDraft(const bool visible)
     {
         if (_draftSaving) return;
+        if (_draftOutcomeUnknown && _pendingCreation)
+        {
+            DraftLayer().Visibility(visible ? Visibility::Visible : Visibility::Collapsed);
+            _CapturePageState(); return;
+        }
         ++_draftGeneration;
         _pendingCreation.reset(); _draftOutcomeUnknown = false;
         DraftError().Text({});
         DraftLayer().Visibility(visible ? Visibility::Visible : Visibility::Collapsed);
         if (visible)
         {
+            if (_pageState->Draft.SourceRoot.empty())
+            {
+                _pageState->Draft.SourceRoot = !_currentRepositoryRoot.empty() ? _currentRepositoryRoot : _currentWorkingDirectory;
+                _pageState->Draft.ProjectVersion = _projectVersion;
+                if (_projectScoped) DraftExecutionMode().SelectedIndex(_projectWorktree ? 0 : 1);
+            }
             _SyncDraftWorkspace();
             winrt::get_self<implementation::AgentSelectionControl>(DraftAgent())->Configure(
                 _source ? _source->AgentCatalog() : nullptr, til::u16u8(_currentWorkspaceId));
@@ -252,12 +320,14 @@ namespace winrt::TerminalApp::implementation
         }
         else
         {
+            _pageState->Draft = {};
             DraftTitle().Text({});
             DraftDescription().Text({});
             DraftAcceptance().Text({});
             NewTaskButton().Focus(FocusState::Programmatic);
         }
         _UpdateDraftEnabled();
+        _CapturePageState();
     }
 
     void TaskPage::_CreateDraft(const bool startImmediately)
@@ -279,6 +349,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         tasks::TaskDraft draft;
+        draft.ProjectVersion = _pageState->Draft.ProjectVersion;
         if (_source->IsPrototype())
         {
             draft.Workspace = workspaceIndex == 1 ? L"richerlife-api" : workspaceIndex == 2 ? L"website" :
@@ -288,7 +359,8 @@ namespace winrt::TerminalApp::implementation
         else
         {
             draft.WorkspaceId = _currentWorkspaceId;
-            const auto root = !_currentRepositoryRoot.empty() ? _currentRepositoryRoot : _currentWorkingDirectory;
+            const auto root = !_pageState->Draft.SourceRoot.empty() ? _pageState->Draft.SourceRoot :
+                              !_currentRepositoryRoot.empty() ? _currentRepositoryRoot : _currentWorkingDirectory;
             draft.Workspace = std::filesystem::path{ root }.filename().wstring();
             if (draft.Workspace.empty())
                 draft.Workspace = draft.WorkspaceId;
@@ -316,6 +388,18 @@ namespace winrt::TerminalApp::implementation
         const auto selectedTask = _viewModel.SelectedTask();
         const auto presenter = _dialogPresenter.get();
         if (command == tasks::TaskCommand::ConfigureAgent) { _ConfigureSelectedAgent(); co_return; }
+        if (command == tasks::TaskCommand::EditAcceptance) { _EditAcceptance(); co_return; }
+        if (selectedTask && _source && _source->UsesSummaries())
+        {
+            const auto& task = winrt::get_self<implementation::TaskItemViewModel>(selectedTask)->NativeProjection();
+            if (command == tasks::TaskCommand::MarkDone || command == tasks::TaskCommand::Reopen ||
+                (command == tasks::TaskCommand::Start && task.Status != tasks::TaskStatus::InProgress))
+            {
+                _BoardAction({ task, command == tasks::TaskCommand::MarkDone ? tasks::TaskStatus::Done :
+                                   command == tasks::TaskCommand::Reopen ? tasks::TaskStatus::Todo : tasks::TaskStatus::InProgress });
+                co_return;
+            }
+        }
         if (command == tasks::TaskCommand::Delete)
         {
             if (!presenter) co_return;
@@ -371,7 +455,8 @@ namespace winrt::TerminalApp::implementation
         if (_draftSaving || _draftOutcomeUnknown) return;
         if (_source && !_source->IsPrototype())
         {
-            const auto root = !_currentRepositoryRoot.empty() ? _currentRepositoryRoot : _currentWorkingDirectory;
+            const auto root = _pageState && _pageState->Draft.Visible && !_pageState->Draft.SourceRoot.empty() ? _pageState->Draft.SourceRoot :
+                              !_currentRepositoryRoot.empty() ? _currentRepositoryRoot : _currentWorkingDirectory;
             auto label = std::filesystem::path{ root }.filename().wstring();
             if (label.empty())
                 label = _currentWorkspaceId;

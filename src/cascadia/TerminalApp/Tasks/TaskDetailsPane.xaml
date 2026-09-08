@@ -261,22 +261,6 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource TaskCardStyle}">
-                            <StackPanel Spacing="10">
-                                <TextBox x:Name="FollowupInput"
-                                         x:Uid="TaskPageFollowupInput"
-                                         AcceptsReturn="True"
-                                         IsSpellCheckEnabled="True"
-                                         MinHeight="76"
-                                         TextWrapping="Wrap"
-                                         TextChanged="_FollowupInput_TextChanged" />
-                                <Button x:Name="QueueFollowupButton"
-                                        x:Uid="TaskPageQueueFollowupButton"
-                                        HorizontalAlignment="Right"
-                                        IsEnabled="False"
-                                        Click="_QueueFollowup_Click" />
-                            </StackPanel>
-                        </Border>
                     </StackPanel>
 
                     <StackPanel x:Name="DetailsAside"
@@ -329,9 +313,32 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <ContentControl x:Name="DetailsContentHost"
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <ContentControl x:Name="DetailsContentHost"
                     HorizontalContentAlignment="Stretch"
                     VerticalContentAlignment="Stretch"
                     Content="{x:Bind Task, Mode=OneWay}"
                     ContentTemplate="{StaticResource TaskDetailsTemplate}" />
+        <Border x:Name="FollowupComposer" Grid.Row="1" Margin="16,0,16,12"
+                Style="{StaticResource TaskCardStyle}" Visibility="Collapsed">
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="FollowupInput" x:Uid="TaskPageFollowupInput"
+                         AcceptsReturn="True" IsSpellCheckEnabled="True" MinHeight="76" MaxHeight="160"
+                         TextWrapping="Wrap" TextChanged="_FollowupInput_TextChanged" />
+                <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Bottom">
+                <Button x:Name="EditAcceptanceButton" x:Uid="TaskBoardEditAcceptance" Click="_EditAcceptance_Click" Visibility="Collapsed" />
+                <Button x:Name="QueueFollowupButton" x:Uid="TaskPageQueueFollowupButton"
+                        VerticalAlignment="Bottom" IsEnabled="False" Click="_QueueFollowup_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
 </UserControl>

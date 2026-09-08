@@ -67,6 +67,8 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
             !_text(value.Execution.Provider, 256, true) ||
             !_text(value.Execution.Model, 256) || !_text(value.Execution.Instructions, 64 * 1024) ||
             !_agent(value.Execution.Agent, value.Execution.AgentName) ||
+            value.Execution.ProjectVersion > INT64_MAX || !_text(value.Execution.ProjectNameSnapshot, 1024) ||
+            !_text(value.Execution.ProjectDescriptionSnapshot, 16384) || !_text(value.BoardNote, 65536) ||
             value.Terminal.State > TaskProjectionTerminalState::Closed ||
             !_optionalId(value.Terminal.CurrentAgentSessionId))
         {
@@ -205,7 +207,7 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
                 !_text(draft.Description, 64 * 1024) || draft.Acceptance.size() > MaximumTaskProjectionAcceptance ||
                 draft.Priority > TaskProjectionPriority::High || draft.ExecutionMode > TaskProjectionExecutionMode::Worktree ||
                 !_text(draft.SourceRoot, 32 * 1024, true) || !_text(draft.RelativeWorkingDirectory, 32 * 1024) ||
-                draft.Provider != "codex" || !_text(draft.Model, 256) || !_text(draft.Instructions, 64 * 1024))
+                draft.Provider != "codex" || !_text(draft.Model, 256) || !_text(draft.Instructions, 64 * 1024) || draft.ProjectVersion > INT64_MAX)
             {
                 error = "Task UI create draft is invalid";
                 return false;

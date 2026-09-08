@@ -24,6 +24,8 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         TaskOrchestration = 1ull << 8,
         RuntimeDrain = 1ull << 9,
         AgentProfiles = 1ull << 10,
+        ProjectCatalog = 1ull << 11,
+        TaskBoard = 1ull << 12,
     };
 
     using ProtocolCapabilitySet = uint64_t;
@@ -39,7 +41,9 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         static_cast<uint64_t>(ProtocolCapability::TaskTerminalSurfaces) |
         static_cast<uint64_t>(ProtocolCapability::TaskOrchestration) |
         static_cast<uint64_t>(ProtocolCapability::RuntimeDrain) |
-        static_cast<uint64_t>(ProtocolCapability::AgentProfiles)
+        static_cast<uint64_t>(ProtocolCapability::AgentProfiles) |
+        static_cast<uint64_t>(ProtocolCapability::ProjectCatalog) |
+        static_cast<uint64_t>(ProtocolCapability::TaskBoard)
     };
 
     [[nodiscard]] bool HasCapability(ProtocolCapabilitySet capabilities, ProtocolCapability capability) noexcept;

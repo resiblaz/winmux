@@ -29,6 +29,12 @@ namespace Microsoft::Terminal::TaskRuntimeProtocol
         DrainRuntime,
         QueryAgents,
         AgentCommand,
+        QueryProjects,
+        ProjectCommand,
+        QueryTaskSummaries,
+        TaskBoardCommand,
+        QueryBoardOperation,
+        QueryTaskSessionIndex,
         Count,
     };
 

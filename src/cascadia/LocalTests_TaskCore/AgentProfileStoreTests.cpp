@@ -199,7 +199,7 @@ INSERT INTO execution_context VALUES('00000000-0000-4000-8000-0000000003e9','000
 INSERT INTO task_terminal VALUES('00000000-0000-4000-8000-0000000007d1','00000000-0000-4000-8000-000000000001',0,0,NULL,2000);
 )SQL", nullptr, nullptr, nullptr));
         sqlite3_close_v2(raw);
-        SqliteTaskStore store{ path.Path() }; VERIFY_IS_TRUE(store.IsReady()); VERIFY_ARE_EQUAL(5, store.SchemaVersion());
+        SqliteTaskStore store{ path.Path() }; VERIFY_IS_TRUE(store.IsReady()); VERIFY_ARE_EQUAL(details::CurrentTaskDatabaseSchemaVersion, store.SchemaVersion());
         const auto task = store.LoadTask(MakeId<TaskId>(1)); VERIFY_IS_TRUE(task.has_value()); VERIFY_ARE_EQUAL(uint64_t{ 7 }, task->Task.Version);
         VERIFY_ARE_EQUAL(std::string{ "legacy instructions" }, task->ExecutionContexts.front().Instructions);
         VERIFY_IS_FALSE(task->ExecutionContexts.front().SourceAgentId.has_value());

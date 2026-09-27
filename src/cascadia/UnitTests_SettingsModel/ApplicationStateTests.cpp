@@ -257,6 +257,7 @@ namespace SettingsModelUnitTests
         layout.WorkspaceIds(winrt::single_threaded_vector<winrt::guid>({ firstId, firstId, secondId }));
         layout.WorkspaceSurfaceIds(winrt::single_threaded_vector<winrt::guid>({ firstSurfaceId, secondSurfaceId, thirdSurfaceId }));
         layout.ActiveWorkspaceSurfaceIds(winrt::single_threaded_vector<winrt::guid>({ secondSurfaceId, thirdSurfaceId }));
+        layout.WorkspaceNames(winrt::single_threaded_vector<winrt::hstring>({ L"Project Alpha", L"" }));
         layout.PinnedWorkspaceIndices(winrt::single_threaded_vector<uint32_t>({ 0 }));
         AgentResumeInfo resumeInfo;
         resumeInfo.Version = 1;
@@ -290,6 +291,10 @@ namespace SettingsModelUnitTests
         VERIFY_ARE_EQUAL(2u, restored.ActiveWorkspaceSurfaceIds().Size());
         VERIFY_ARE_EQUAL(secondSurfaceId, restored.ActiveWorkspaceSurfaceIds().GetAt(0));
         VERIFY_ARE_EQUAL(thirdSurfaceId, restored.ActiveWorkspaceSurfaceIds().GetAt(1));
+        VERIFY_IS_NOT_NULL(restored.WorkspaceNames());
+        VERIFY_ARE_EQUAL(2u, restored.WorkspaceNames().Size());
+        VERIFY_ARE_EQUAL(L"Project Alpha", restored.WorkspaceNames().GetAt(0));
+        VERIFY_IS_TRUE(restored.WorkspaceNames().GetAt(1).empty());
         VERIFY_IS_NOT_NULL(restored.PinnedWorkspaceIndices());
         VERIFY_ARE_EQUAL(1u, restored.PinnedWorkspaceIndices().Size());
         VERIFY_ARE_EQUAL(0u, restored.PinnedWorkspaceIndices().GetAt(0));
@@ -318,6 +323,7 @@ namespace SettingsModelUnitTests
         VERIFY_IS_NULL(legacy.WorkspaceIds());
         VERIFY_IS_NULL(legacy.WorkspaceSurfaceIds());
         VERIFY_IS_NULL(legacy.ActiveWorkspaceSurfaceIds());
+        VERIFY_IS_NULL(legacy.WorkspaceNames());
         VERIFY_IS_NULL(legacy.PinnedWorkspaceIndices());
         VERIFY_IS_NULL(legacy.AgentResumeEntries());
         VERIFY_IS_NULL(legacy.WorkspaceSnapshotSources());

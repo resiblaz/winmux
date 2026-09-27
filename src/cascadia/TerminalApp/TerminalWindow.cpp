@@ -208,6 +208,7 @@ namespace winrt::TerminalApp::implementation
             std::vector<winrt::guid> workspaceIds;
             std::vector<winrt::guid> workspaceSurfaceIds;
             std::vector<winrt::guid> activeWorkspaceSurfaceIds;
+            std::vector<winrt::hstring> workspaceNames;
             std::vector<uint32_t> pinnedWorkspaceIndices;
             std::vector<AgentResumeInfo> agentResumeEntries;
             if (const auto ids = layout.WorkspaceIds())
@@ -226,6 +227,10 @@ namespace winrt::TerminalApp::implementation
             {
                 activeWorkspaceSurfaceIds = wil::to_vector(ids);
             }
+            if (const auto names = layout.WorkspaceNames())
+            {
+                workspaceNames = wil::to_vector(names);
+            }
             if (const auto entries = layout.AgentResumeEntries())
             {
                 agentResumeEntries = wil::to_vector(entries);
@@ -235,7 +240,8 @@ namespace winrt::TerminalApp::implementation
                                             std::move(pinnedWorkspaceIndices),
                                             std::move(agentResumeEntries),
                                             std::move(workspaceSurfaceIds),
-                                            std::move(activeWorkspaceSurfaceIds));
+                                            std::move(activeWorkspaceSurfaceIds),
+                                            std::move(workspaceNames));
             if (const auto sources = layout.WorkspaceSnapshotSources())
             {
                 for (const auto& source : sources)

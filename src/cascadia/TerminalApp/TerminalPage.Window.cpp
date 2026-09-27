@@ -157,6 +157,7 @@ namespace winrt::TerminalApp::implementation
         std::vector<winrt::guid> workspaceIds;
         std::vector<winrt::guid> workspaceSurfaceIds;
         std::vector<winrt::guid> activeWorkspaceSurfaceIds;
+        std::vector<winrt::hstring> workspaceNames;
         std::vector<uint32_t> pinnedWorkspaceIndices;
         std::vector<AgentResumeInfo> agentResumeEntries;
         std::vector<WorkspaceSnapshotSourceInfo> workspaceSnapshotSources;
@@ -173,11 +174,13 @@ namespace winrt::TerminalApp::implementation
         }
 
         activeWorkspaceSurfaceIds.reserve(_WorkspaceItems().Size());
+        workspaceNames.reserve(_WorkspaceItems().Size());
         for (uint32_t index = 0; index < _WorkspaceItems().Size(); ++index)
         {
             const auto item = _WorkspaceItems().GetAt(index);
             const auto itemImpl = winrt::get_self<implementation::WorkspaceItemViewModel>(item);
             activeWorkspaceSurfaceIds.emplace_back(itemImpl->SurfaceIdForTab(item.SourceTab()));
+            workspaceNames.emplace_back(itemImpl->CustomName());
             if (item.IsPinned())
             {
                 pinnedWorkspaceIndices.emplace_back(index);
@@ -210,6 +213,7 @@ namespace winrt::TerminalApp::implementation
         layout.WorkspaceIds(winrt::single_threaded_vector<winrt::guid>(std::move(workspaceIds)));
         layout.WorkspaceSurfaceIds(winrt::single_threaded_vector<winrt::guid>(std::move(workspaceSurfaceIds)));
         layout.ActiveWorkspaceSurfaceIds(winrt::single_threaded_vector<winrt::guid>(std::move(activeWorkspaceSurfaceIds)));
+        layout.WorkspaceNames(winrt::single_threaded_vector<winrt::hstring>(std::move(workspaceNames)));
         layout.PinnedWorkspaceIndices(winrt::single_threaded_vector<uint32_t>(std::move(pinnedWorkspaceIndices)));
         layout.AgentResumeEntries(winrt::single_threaded_vector<AgentResumeInfo>(std::move(agentResumeEntries)));
         layout.WorkspaceSnapshotSources(winrt::single_threaded_vector<WorkspaceSnapshotSourceInfo>(std::move(workspaceSnapshotSources)));

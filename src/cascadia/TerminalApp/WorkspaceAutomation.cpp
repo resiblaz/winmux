@@ -84,6 +84,13 @@ namespace winrt::TerminalApp::implementation
             return std::nullopt;
         }
 
+        std::optional<winrt::guid> _parseSurfaceId(const JsonObject& params)
+        {
+            return _isValueType(params, L"surfaceId", JsonValueType::String) ?
+                       _parseCanonicalGuid(params.GetNamedString(L"surfaceId")) :
+                       std::nullopt;
+        }
+
         std::optional<uint32_t> _parsePaneId(const JsonObject& params)
         {
             if (!_isValueType(params, L"paneId", JsonValueType::Number))
@@ -303,8 +310,8 @@ namespace winrt::TerminalApp::implementation
             const auto allowedKeys = method == L"pane.list" ?
                                          std::initializer_list<std::wstring_view>{ L"workspaceId" } :
                                      method == L"pane.focus" ?
-                                         std::initializer_list<std::wstring_view>{ L"workspaceId", L"paneId" } :
-                                         std::initializer_list<std::wstring_view>{ L"workspaceId", L"paneId", L"direction", L"size" };
+                                         std::initializer_list<std::wstring_view>{ L"workspaceId", L"surfaceId", L"paneId" } :
+                                         std::initializer_list<std::wstring_view>{ L"workspaceId", L"surfaceId", L"paneId", L"direction", L"size" };
             if (!_hasOnlyKeys(params, allowedKeys) || !_isValueType(params, L"workspaceId", JsonValueType::String))
             {
                 return _parseError(std::move(id), "invalid_params", "Pane methods require a workspaceId and only documented parameters");
@@ -328,10 +335,11 @@ namespace winrt::TerminalApp::implementation
                 };
             }
 
+            const auto surfaceId = _parseSurfaceId(params);
             const auto paneId = _parsePaneId(params);
-            if (!paneId)
+            if (!surfaceId || !paneId)
             {
-                return _parseError(std::move(id), "invalid_params", "params.paneId must be a UInt32");
+                return _parseError(std::move(id), "invalid_params", "params.surfaceId must be a non-zero canonical UUID and paneId must be a UInt32");
             }
 
             if (method == L"pane.focus")
@@ -341,6 +349,7 @@ namespace winrt::TerminalApp::implementation
                         .Id = id,
                         .Method = WorkspaceAutomationMethod::PaneFocus,
                         .WorkspaceId = workspaceId,
+                        .SurfaceId = surfaceId,
                         .PaneId = paneId,
                     },
                     .Id = std::move(id),
@@ -372,6 +381,7 @@ namespace winrt::TerminalApp::implementation
                     .Id = id,
                     .Method = WorkspaceAutomationMethod::PaneSplit,
                     .WorkspaceId = workspaceId,
+                    .SurfaceId = surfaceId,
                     .PaneId = paneId,
                     .SplitDirection = direction.value(),
                     .SplitSize = gsl::narrow_cast<float>(splitSize),
@@ -563,19 +573,20 @@ namespace winrt::TerminalApp::implementation
 
         if (method == L"notification.create")
         {
-            if (!_hasOnlyKeys(params, { L"workspaceId", L"paneId", L"title", L"body" }) ||
+            if (!_hasOnlyKeys(params, { L"workspaceId", L"surfaceId", L"paneId", L"title", L"body" }) ||
                 !_isValueType(params, L"workspaceId", JsonValueType::String) ||
                 !_isValueType(params, L"title", JsonValueType::String) ||
                 !_isValueType(params, L"body", JsonValueType::String))
             {
-                return _parseError(std::move(id), "invalid_params", "notification.create requires workspaceId, paneId, title, and body");
+                return _parseError(std::move(id), "invalid_params", "notification.create requires workspaceId, surfaceId, paneId, title, and body");
             }
 
             const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
+            const auto surfaceId = _parseSurfaceId(params);
             const auto paneId = _parsePaneId(params);
             const auto title = params.GetNamedString(L"title");
             const auto body = params.GetNamedString(L"body");
-            if (!workspaceId || !paneId || !_isValidText(title, 1, 128, false) || !_isValidText(body, 1, 1024, true))
+            if (!workspaceId || !surfaceId || !paneId || !_isValidText(title, 1, 128, false) || !_isValidText(body, 1, 1024, true))
             {
                 return _parseError(std::move(id), "invalid_params", "Notification target or text is invalid");
             }
@@ -585,6 +596,7 @@ namespace winrt::TerminalApp::implementation
                     .Id = id,
                     .Method = WorkspaceAutomationMethod::NotificationCreate,
                     .WorkspaceId = workspaceId,
+                    .SurfaceId = surfaceId,
                     .PaneId = paneId,
                     .Title = title,
                     .Body = body,
@@ -595,13 +607,15 @@ namespace winrt::TerminalApp::implementation
 
         if (method == L"notification.markRead")
         {
-            if (!_hasOnlyKeys(params, { L"workspaceId", L"paneId" }) || !_isValueType(params, L"workspaceId", JsonValueType::String))
+            if (!_hasOnlyKeys(params, { L"workspaceId", L"surfaceId", L"paneId" }) || !_isValueType(params, L"workspaceId", JsonValueType::String))
             {
-                return _parseError(std::move(id), "invalid_params", "notification.markRead requires workspaceId and optional paneId");
+                return _parseError(std::move(id), "invalid_params", "notification.markRead requires workspaceId and an optional surfaceId/paneId pair");
             }
             const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
+            const auto surfaceId = _parseSurfaceId(params);
             const auto paneId = params.HasKey(L"paneId") ? _parsePaneId(params) : std::optional<uint32_t>{};
-            if (!workspaceId || (params.HasKey(L"paneId") && !paneId))
+            if (!workspaceId || params.HasKey(L"surfaceId") != params.HasKey(L"paneId") ||
+                (params.HasKey(L"paneId") && (!surfaceId || !paneId)))
             {
                 return _parseError(std::move(id), "invalid_params", "Notification target is invalid");
             }
@@ -610,6 +624,7 @@ namespace winrt::TerminalApp::implementation
                     .Id = id,
                     .Method = WorkspaceAutomationMethod::NotificationMarkRead,
                     .WorkspaceId = workspaceId,
+                    .SurfaceId = surfaceId,
                     .PaneId = paneId,
                 },
                 .Id = std::move(id),
@@ -698,17 +713,18 @@ namespace winrt::TerminalApp::implementation
 
         if (method == L"terminal.sendInput")
         {
-            if (!_hasOnlyKeys(params, { L"workspaceId", L"paneId", L"text" }) ||
+            if (!_hasOnlyKeys(params, { L"workspaceId", L"surfaceId", L"paneId", L"text" }) ||
                 !_isValueType(params, L"workspaceId", JsonValueType::String) ||
                 !_isValueType(params, L"text", JsonValueType::String))
             {
-                return _parseError(std::move(id), "invalid_params", "terminal.sendInput requires workspaceId, paneId, and text");
+                return _parseError(std::move(id), "invalid_params", "terminal.sendInput requires workspaceId, surfaceId, paneId, and text");
             }
 
             const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
+            const auto surfaceId = _parseSurfaceId(params);
             const auto paneId = _parsePaneId(params);
             const auto text = params.GetNamedString(L"text");
-            if (!workspaceId || !paneId || text.empty() || text.size() > MaximumInputCharacters)
+            if (!workspaceId || !surfaceId || !paneId || text.empty() || text.size() > MaximumInputCharacters)
             {
                 return _parseError(std::move(id), "invalid_params", "Input target or text length from 1 through 4096 is invalid");
             }
@@ -718,6 +734,7 @@ namespace winrt::TerminalApp::implementation
                     .Id = id,
                     .Method = WorkspaceAutomationMethod::TerminalSendInput,
                     .WorkspaceId = workspaceId,
+                    .SurfaceId = surfaceId,
                     .PaneId = paneId,
                     .Text = text,
                 },
@@ -727,17 +744,18 @@ namespace winrt::TerminalApp::implementation
 
         if (method == L"terminal.readContent")
         {
-            if (!_hasOnlyKeys(params, { L"workspaceId", L"paneId", L"maxLines", L"maxCharacters" }) ||
+            if (!_hasOnlyKeys(params, { L"workspaceId", L"surfaceId", L"paneId", L"maxLines", L"maxCharacters" }) ||
                 !_isValueType(params, L"workspaceId", JsonValueType::String))
             {
                 return _parseError(std::move(id), "invalid_params", "terminal.readContent requires a target and only documented limits");
             }
 
             const auto workspaceId = _parseWorkspaceId(params.GetNamedString(L"workspaceId"));
+            const auto surfaceId = _parseSurfaceId(params);
             const auto paneId = _parsePaneId(params);
             const auto maximumLines = _parseBoundedUInt32(params, L"maxLines", 50, MaximumReadLines);
             const auto maximumCharacters = _parseBoundedUInt32(params, L"maxCharacters", MaximumReadCharacters, MaximumReadCharacters);
-            if (!workspaceId || !paneId || !maximumLines || !maximumCharacters)
+            if (!workspaceId || !surfaceId || !paneId || !maximumLines || !maximumCharacters)
             {
                 return _parseError(std::move(id), "invalid_params", "Read target or integer limits are invalid");
             }
@@ -747,6 +765,7 @@ namespace winrt::TerminalApp::implementation
                     .Id = id,
                     .Method = WorkspaceAutomationMethod::TerminalReadContent,
                     .WorkspaceId = workspaceId,
+                    .SurfaceId = surfaceId,
                     .PaneId = paneId,
                     .MaximumLines = maximumLines.value(),
                     .MaximumCharacters = maximumCharacters.value(),

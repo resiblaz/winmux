@@ -27,6 +27,7 @@ static constexpr std::string_view WorkspaceStateVersionKey{ "workspaceStateVersi
 static constexpr std::string_view WorkspaceIdsKey{ "workspaceIds" };
 static constexpr std::string_view WorkspaceSurfaceIdsKey{ "workspaceSurfaceIds" };
 static constexpr std::string_view ActiveWorkspaceSurfaceIdsKey{ "activeWorkspaceSurfaceIds" };
+static constexpr std::string_view WorkspaceNamesKey{ "workspaceNames" };
 static constexpr std::string_view PinnedWorkspaceIndicesKey{ "pinnedWorkspaceIndices" };
 static constexpr std::string_view AgentResumeEntriesKey{ "agentResumeEntries" };
 static constexpr std::string_view WorkspaceSnapshotSourcesKey{ "workspaceSnapshotSources" };
@@ -177,6 +178,7 @@ namespace Microsoft::Terminal::Settings::Model::JsonUtils
             GetValueForKey(json, WorkspaceIdsKey, layout->_WorkspaceIds);
             GetValueForKey(json, WorkspaceSurfaceIdsKey, layout->_WorkspaceSurfaceIds);
             GetValueForKey(json, ActiveWorkspaceSurfaceIdsKey, layout->_ActiveWorkspaceSurfaceIds);
+            GetValueForKey(json, WorkspaceNamesKey, layout->_WorkspaceNames);
             GetValueForKey(json, PinnedWorkspaceIndicesKey, layout->_PinnedWorkspaceIndices);
             GetValueForKey(json, AgentResumeEntriesKey, layout->_AgentResumeEntries);
             GetValueForKey(json, WorkspaceSnapshotSourcesKey, layout->_WorkspaceSnapshotSources);
@@ -201,6 +203,7 @@ namespace Microsoft::Terminal::Settings::Model::JsonUtils
             SetValueForKey(json, WorkspaceIdsKey, val.WorkspaceIds());
             SetValueForKey(json, WorkspaceSurfaceIdsKey, val.WorkspaceSurfaceIds());
             SetValueForKey(json, ActiveWorkspaceSurfaceIdsKey, val.ActiveWorkspaceSurfaceIds());
+            SetValueForKey(json, WorkspaceNamesKey, val.WorkspaceNames());
             SetValueForKey(json, PinnedWorkspaceIndicesKey, val.PinnedWorkspaceIndices());
             SetValueForKey(json, AgentResumeEntriesKey, val.AgentResumeEntries());
             SetValueForKey(json, WorkspaceSnapshotSourcesKey, val.WorkspaceSnapshotSources());

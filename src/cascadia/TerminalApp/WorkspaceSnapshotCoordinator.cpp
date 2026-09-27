@@ -728,13 +728,14 @@ namespace winrt::TerminalApp::implementation
                                        snapshot.Pinned() ? std::vector<uint32_t>{ 0 } : std::vector<uint32_t>{},
                                        std::move(agentResumeEntries),
                                        std::move(surfaceIds),
-                                       std::move(activeSurfaceIds));
+                                       std::move(activeSurfaceIds),
+                                       { snapshot.Name() });
         const auto workspaceId = snapshot.WorkspaceId();
         const auto snapshotId = snapshot.Id();
         const auto revision = snapshot.Revision();
         _page._SessionRestore().SnapshotSources.emplace(workspaceId, std::pair{ snapshotId, revision });
         _page._SessionRestore().SnapshotReplayInFlight = true;
-        _page.ProcessStartupActions(std::move(actions), {}, {}, [weakThis{ _page.get_weak() }, snapshotId, workspaceId, revision]() {
+        _page.ProcessStartupActions(std::move(actions), {}, {}, [weakThis{ _page.get_weak() }, snapshotId, workspaceId, revision, activeSurfaceId{ snapshot.ActiveSurfaceId() }]() {
                                    if (const auto page = weakThis.get(); page && page->_workspaceFeatures)
                                    {
                                        auto& coordinator = page->_workspaceFeatures->Snapshots();
@@ -748,7 +749,13 @@ namespace winrt::TerminalApp::implementation
                                        {
                                            if (index.value() < page->_WorkspaceItems().Size())
                                            {
-                                               coordinator.BindItem(page->_WorkspaceItems().GetAt(index.value()), snapshotId, revision);
+                                               const auto item = page->_WorkspaceItems().GetAt(index.value());
+                                               const auto itemImpl = winrt::get_self<implementation::WorkspaceItemViewModel>(item);
+                                               if (const auto tab = itemImpl->TabForSurfaceId(activeSurfaceId))
+                                               {
+                                                   page->FocusTab(tab);
+                                               }
+                                               coordinator.BindItem(item, snapshotId, revision);
                                                opened = true;
                                            }
                                            coordinator._MarkWorkspaceSnapshotOpenedAsync(snapshotId, workspaceId);

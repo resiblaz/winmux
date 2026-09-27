@@ -246,6 +246,10 @@ try
                     '*WorkspaceGitMetadataTests*',
                     '*WorkspaceSidebarAdaptsToWindowModes*',
                     '*WorkspaceSurfaceShortcutActions*',
+                    '*TabTests*WorkspaceAutomation*',
+                    '*TabTests*WorkspaceNames*',
+                    '*WorkspaceWorkingDirectory*',
+                    '*WorkspaceClosingTerminals*',
                     '*TabTests*WorkspaceSnapshot*',
                     '*WorkspaceLayoutPersistsMetadata*'))
             {

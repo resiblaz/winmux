@@ -55,24 +55,24 @@ namespace TerminalAppUnitTests
         VERIFY_IS_TRUE(static_cast<bool>(paneList));
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::PaneList), static_cast<int>(paneList.Request->Method));
 
-        const auto paneFocus = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"focus-1","method":"pane.focus","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0}})");
+        const auto paneFocus = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"focus-1","method":"pane.focus","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":0}})");
         VERIFY_IS_TRUE(static_cast<bool>(paneFocus));
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::PaneFocus), static_cast<int>(paneFocus.Request->Method));
         VERIFY_ARE_EQUAL(0u, paneFocus.Request->PaneId.value());
 
-        const auto paneSplit = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"split-1","method":"pane.split","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":3,"direction":"left","size":0.25}})");
+        const auto paneSplit = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"split-1","method":"pane.split","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":3,"direction":"left","size":0.25}})");
         VERIFY_IS_TRUE(static_cast<bool>(paneSplit));
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::PaneSplit), static_cast<int>(paneSplit.Request->Method));
         VERIFY_ARE_EQUAL(3u, paneSplit.Request->PaneId.value());
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationSplitDirection::Left), static_cast<int>(paneSplit.Request->SplitDirection));
         VERIFY_ARE_EQUAL(0.25f, paneSplit.Request->SplitSize);
 
-        const auto notification = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"notify-1","method":"notification.create","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":3,"title":"Codex","body":"Waiting for input"}})");
+        const auto notification = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"notify-1","method":"notification.create","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":3,"title":"Codex","body":"Waiting for input"}})");
         VERIFY_IS_TRUE(static_cast<bool>(notification));
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::NotificationCreate), static_cast<int>(notification.Request->Method));
         VERIFY_ARE_EQUAL(winrt::hstring{ L"Codex" }, notification.Request->Title);
 
-        const auto markRead = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"read-1","method":"notification.markRead","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":3}})");
+        const auto markRead = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"read-1","method":"notification.markRead","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":3}})");
         VERIFY_IS_TRUE(static_cast<bool>(markRead));
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::NotificationMarkRead), static_cast<int>(markRead.Request->Method));
 
@@ -87,12 +87,12 @@ namespace TerminalAppUnitTests
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationProgressState::Normal), static_cast<int>(progress.Request->ProgressState));
         VERIFY_ARE_EQUAL(73u, progress.Request->ProgressValue);
 
-        const auto sendInput = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"input-1","method":"terminal.sendInput","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":3,"text":"echo ready\r"}})");
+        const auto sendInput = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"input-1","method":"terminal.sendInput","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":3,"text":"echo ready\r"}})");
         VERIFY_IS_TRUE(static_cast<bool>(sendInput));
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::TerminalSendInput), static_cast<int>(sendInput.Request->Method));
         VERIFY_ARE_EQUAL(winrt::hstring{ L"echo ready\r" }, sendInput.Request->Text);
 
-        const auto readContent = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"read-content-1","method":"terminal.readContent","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":3,"maxLines":25,"maxCharacters":4096}})");
+        const auto readContent = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"read-content-1","method":"terminal.readContent","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":3,"maxLines":25,"maxCharacters":4096}})");
         VERIFY_IS_TRUE(static_cast<bool>(readContent));
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::TerminalReadContent), static_cast<int>(readContent.Request->Method));
         VERIFY_ARE_EQUAL(25u, readContent.Request->MaximumLines);
@@ -119,23 +119,23 @@ namespace TerminalAppUnitTests
         VERIFY_IS_FALSE(static_cast<bool>(badId));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, badId.ErrorCode);
 
-        const auto unsafeSplit = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"pane.split","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"commandline":"calc.exe"}})");
+        const auto unsafeSplit = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"pane.split","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":0,"commandline":"calc.exe"}})");
         VERIFY_IS_FALSE(static_cast<bool>(unsafeSplit));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, unsafeSplit.ErrorCode);
 
-        const auto fractionalPane = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"pane.focus","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":1.5}})");
+        const auto fractionalPane = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"pane.focus","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":1.5}})");
         VERIFY_IS_FALSE(static_cast<bool>(fractionalPane));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, fractionalPane.ErrorCode);
 
-        const auto badDirection = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"pane.split","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"direction":"diagonal"}})");
+        const auto badDirection = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"pane.split","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":0,"direction":"diagonal"}})");
         VERIFY_IS_FALSE(static_cast<bool>(badDirection));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, badDirection.ErrorCode);
 
-        const auto badSize = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"pane.split","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"size":0.01}})");
+        const auto badSize = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"pane.split","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":0,"size":0.01}})");
         VERIFY_IS_FALSE(static_cast<bool>(badSize));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, badSize.ErrorCode);
 
-        const auto missingBody = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"notification.create","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"title":"Codex"}})");
+        const auto missingBody = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"notification.create","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":0,"title":"Codex"}})");
         VERIFY_IS_FALSE(static_cast<bool>(missingBody));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, missingBody.ErrorCode);
 
@@ -155,22 +155,22 @@ namespace TerminalAppUnitTests
         VERIFY_IS_FALSE(static_cast<bool>(badProgressValue));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, badProgressValue.ErrorCode);
 
-        const auto emptyInput = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"terminal.sendInput","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"text":""}})");
+        const auto emptyInput = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"terminal.sendInput","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":0,"text":""}})");
         VERIFY_IS_FALSE(static_cast<bool>(emptyInput));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, emptyInput.ErrorCode);
 
-        const auto oversizedInputRequest = std::string{ R"({"version":1,"id":"1","method":"terminal.sendInput","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"text":")" } +
+        const auto oversizedInputRequest = std::string{ R"({"version":1,"id":"1","method":"terminal.sendInput","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":0,"text":")" } +
                                            std::string(WorkspaceAutomationProtocol::MaximumInputCharacters + 1, 'x') +
                                            R"("}})";
         const auto oversizedInput = WorkspaceAutomationProtocol::ParseRequest(oversizedInputRequest);
         VERIFY_IS_FALSE(static_cast<bool>(oversizedInput));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, oversizedInput.ErrorCode);
 
-        const auto unboundedRead = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"terminal.readContent","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"maxLines":201}})");
+        const auto unboundedRead = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"terminal.readContent","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":0,"maxLines":201}})");
         VERIFY_IS_FALSE(static_cast<bool>(unboundedRead));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, unboundedRead.ErrorCode);
 
-        const auto unsafeRead = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"terminal.readContent","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","paneId":0,"command":"Get-Secret"}})");
+        const auto unsafeRead = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"1","method":"terminal.readContent","params":{"workspaceId":"01020304-0506-0708-090a-0b0c0d0e0f10","surfaceId":"11111111-2222-4333-8444-555555555555","paneId":0,"command":"Get-Secret"}})");
         VERIFY_IS_FALSE(static_cast<bool>(unsafeRead));
         VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, unsafeRead.ErrorCode);
 

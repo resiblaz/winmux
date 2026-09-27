@@ -186,6 +186,11 @@ namespace winrt::TerminalApp::implementation
         {
             auto workspaceItemImpl = winrt::make_self<WorkspaceItemViewModel>(*newTabImpl);
             workspaceItemImpl->RestoreWorkspaceId(workspaceId);
+            if (const auto name = _SessionRestore().WorkspaceNames.find(workspaceId);
+                restoredWorkspaceIndex && name != _SessionRestore().WorkspaceNames.end())
+            {
+                workspaceItemImpl->CustomName(name->second);
+            }
             if (restoredWorkspaceIndex && restoredWorkspaceIndex.value() < _SessionRestore().StartupSurfaceIds.size())
             {
                 workspaceItemImpl->RestoreSurfaceId(*newTabImpl, _SessionRestore().StartupSurfaceIds[restoredWorkspaceIndex.value()]);
@@ -785,12 +790,18 @@ namespace winrt::TerminalApp::implementation
     // - the index of the currently focused tab if there is one, else nullopt
     std::optional<uint32_t> TerminalPage::_GetFocusedTabIndex() const noexcept
     {
-        // GH#1117: This is a workaround because _tabView.SelectedIndex()
-        //          sometimes return incorrect result after removing some tabs
-        uint32_t focusedIndex;
-        if (_tabView.TabItems().IndexOf(_tabView.SelectedItem(), focusedIndex))
+        // TabView can still contain a removed item while workspace observers run.
+        // Resolve the selected item's identity against the live model, not its
+        // temporarily stale position in the view.
+        if (const auto selectedItem = _tabView.SelectedItem())
         {
-            return focusedIndex;
+            for (uint32_t index = 0; index < _tabs.Size(); ++index)
+            {
+                if (_tabs.GetAt(index).TabViewItem() == selectedItem)
+                {
+                    return index;
+                }
+            }
         }
         return std::nullopt;
     }

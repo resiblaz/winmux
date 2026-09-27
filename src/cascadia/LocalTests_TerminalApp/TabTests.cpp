@@ -5,6 +5,7 @@
 
 #include "../TerminalApp/TerminalPage.h"
 #include "../TerminalApp/WorkspaceFeatureSet.h"
+#include "../TerminalApp/WorkspaceAutomation.h"
 #include "../TerminalApp/TerminalWindow.h"
 #include "../TerminalApp/MinMaxCloseControl.h"
 #include "../TerminalApp/TabRowControl.h"
@@ -47,6 +48,56 @@ namespace TerminalAppLocalTests
 {
     namespace
     {
+        struct WorkspaceDirectoryConnection :
+            winrt::implements<WorkspaceDirectoryConnection, winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection>
+        {
+            void Initialize(const winrt::Windows::Foundation::Collections::ValueSet&) {}
+            void Start() noexcept {}
+            void WriteInput(const winrt::array_view<const char16_t> input) { Input.append(input.begin(), input.end()); }
+            std::wstring Input;
+            void Resize(uint32_t, uint32_t) noexcept {}
+            void Close() noexcept {}
+            winrt::guid SessionId() const noexcept { return {}; }
+            winrt::Microsoft::Terminal::TerminalConnection::ConnectionState State() const noexcept
+            {
+                return winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected;
+            }
+
+            void ReportDirectory(const std::wstring_view path)
+            {
+                const auto output = std::wstring{ L"\x1b]9;9;" } + std::wstring{ path } + L"\x7";
+                TerminalOutput.raise(winrt_wstring_to_array_view(output));
+            }
+
+            til::event<winrt::Microsoft::Terminal::TerminalConnection::TerminalOutputHandler> TerminalOutput;
+            til::typed_event<winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection, winrt::Windows::Foundation::IInspectable> StateChanged;
+        };
+
+        winrt::Windows::Data::Json::JsonObject MakeWorkspaceAutomationRequest(
+            const winrt::hstring& method,
+            const winrt::guid& workspaceId,
+            const std::optional<winrt::guid> surfaceId = std::nullopt,
+            const std::optional<uint32_t> paneId = std::nullopt)
+        {
+            using namespace winrt::Windows::Data::Json;
+            JsonObject params;
+            params.Insert(L"workspaceId", JsonValue::CreateStringValue(Utils::GuidToPlainString(workspaceId)));
+            if (surfaceId)
+            {
+                params.Insert(L"surfaceId", JsonValue::CreateStringValue(Utils::GuidToPlainString(surfaceId.value())));
+            }
+            if (paneId)
+            {
+                params.Insert(L"paneId", JsonValue::CreateNumberValue(paneId.value()));
+            }
+            JsonObject message;
+            message.Insert(L"version", JsonValue::CreateNumberValue(1));
+            message.Insert(L"id", JsonValue::CreateStringValue(L"surface-test"));
+            message.Insert(L"method", JsonValue::CreateStringValue(method));
+            message.Insert(L"params", params);
+            return message;
+        }
+
         struct MarkdownInspection
         {
             std::wstring Text;
@@ -171,13 +222,19 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
         TEST_METHOD(WorkspaceGroupsMultipleTerminalSurfaces);
         TEST_METHOD(WorkspaceSurfaceShortcutActions);
+        TEST_METHOD(WorkspaceAutomationRequiresSurfaceId);
+        TEST_METHOD(WorkspaceAutomationTargetsExactSurface);
+        TEST_METHOD(WorkspaceNamesSurviveSurfaceChangesAndRestore);
         TEST_METHOD(WorkspaceEnvironmentUsesAuthoritativeRoutingMetadata);
-        TEST_METHOD(WorkspaceWorkingDirectoryDisplayIsCompact);
+        TEST_METHOD(WorkspaceWorkingDirectoryDisplayIsFolderName);
+        TEST_METHOD(WorkspaceWorkingDirectoryTracksFirstSurface);
+        TEST_METHOD(WorkspaceClosingTerminalsKeepsSelectionValid);
         TEST_METHOD(WorkspaceGitBranchParsesStructuredOutput);
         TEST_METHOD(WorkspaceListeningPortsProjectMetadata);
         TEST_METHOD(WorkspaceAgentResumeRejectsUntrustedInput);
         TEST_METHOD(WorkspaceSnapshotOmitsRuntimeProcessState);
         TEST_METHOD(WorkspaceSnapshotOpenIsNonConsuming);
+        TEST_METHOD(WorkspaceSnapshotReopensInOwnWorkspace);
         TEST_METHOD(WorkspaceSnapshotRejectsUnsafeActions);
         TEST_METHOD(WorkspaceSnapshotSourceSurvivesContentAttach);
         TEST_METHOD(WorkspaceSnapshotStaleSourceIsCleared);
@@ -612,6 +669,268 @@ namespace TerminalAppLocalTests
         });
     }
 
+
+    void TabTests::WorkspaceAutomationRequiresSurfaceId()
+    {
+        using namespace winrt::Windows::Data::Json;
+        using winrt::TerminalApp::implementation::WorkspaceAutomationProtocol;
+        const winrt::guid workspaceId{ L"01020304-0506-4708-890a-0b0c0d0e0f10" };
+        const winrt::guid surfaceId{ L"11111111-2222-4333-8444-555555555555" };
+        for (const auto method : { L"pane.focus", L"pane.split", L"notification.create", L"notification.markRead", L"terminal.sendInput", L"terminal.readContent" })
+        {
+            const auto message = MakeWorkspaceAutomationRequest(method, workspaceId, surfaceId, 0);
+            const auto params = message.GetNamedObject(L"params");
+            if (std::wstring_view{ method } == L"notification.create")
+            {
+                params.Insert(L"title", JsonValue::CreateStringValue(L"Build"));
+                params.Insert(L"body", JsonValue::CreateStringValue(L"Finished"));
+            }
+            if (std::wstring_view{ method } == L"terminal.sendInput")
+            {
+                params.Insert(L"text", JsonValue::CreateStringValue(L"echo ready\r"));
+            }
+            const auto parse = [&]() { return WorkspaceAutomationProtocol::ParseRequest(winrt::to_string(message.Stringify())); };
+            const auto valid = parse();
+            VERIFY_IS_TRUE(static_cast<bool>(valid));
+            VERIFY_ARE_EQUAL(surfaceId, valid.Request->SurfaceId.value());
+            params.Remove(L"surfaceId");
+            VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, parse().ErrorCode);
+            for (const auto value : { JsonValue::CreateNullValue(), JsonValue::CreateNumberValue(0),
+                                      JsonValue::CreateStringValue(L"not-a-guid"),
+                                      JsonValue::CreateStringValue(L"00000000-0000-0000-0000-000000000000") })
+            {
+                params.Insert(L"surfaceId", value);
+                VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, parse().ErrorCode);
+            }
+        }
+        const auto markAll = MakeWorkspaceAutomationRequest(L"notification.markRead", workspaceId);
+        VERIFY_IS_TRUE(static_cast<bool>(WorkspaceAutomationProtocol::ParseRequest(winrt::to_string(markAll.Stringify()))));
+        const auto unpairedSurface = MakeWorkspaceAutomationRequest(L"notification.markRead", workspaceId, surfaceId);
+        VERIFY_ARE_EQUAL(std::string{ "invalid_params" }, WorkspaceAutomationProtocol::ParseRequest(winrt::to_string(unpairedSurface.Stringify())).ErrorCode);
+    }
+
+    void TabTests::WorkspaceAutomationTargetsExactSurface()
+    {
+        using namespace winrt::Windows::Data::Json;
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            const auto firstTab = page->_tabs.GetAt(0);
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+            const auto secondTab = page->_GetFocusedTab();
+            const auto item = page->_WorkspaceItems().GetAt(0);
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            const auto firstSurfaceId = itemImpl->SurfaceIdForTab(firstTab);
+            const auto secondSurfaceId = itemImpl->SurfaceIdForTab(secondTab);
+            const auto firstPane = page->_GetTabImpl(firstTab)->GetActivePane();
+            const auto secondPane = page->_GetTabImpl(secondTab)->GetActivePane();
+            VERIFY_ARE_EQUAL(0u, firstPane->Id().value());
+            VERIFY_ARE_EQUAL(0u, secondPane->Id().value());
+            const auto firstConnection = winrt::make_self<WorkspaceDirectoryConnection>();
+            const auto secondConnection = winrt::make_self<WorkspaceDirectoryConnection>();
+            firstPane->GetTerminalControl().Connection(*firstConnection);
+            secondPane->GetTerminalControl().Connection(*secondConnection);
+            for (const auto& pane : { firstPane, secondPane })
+            {
+                const auto core = _contentManager->TryLookupCore(pane->GetTerminalControl().ContentId()).Core();
+                core.Initialize(600, 400, 1.0f);
+            }
+            firstConnection->TerminalOutput.raise(winrt_wstring_to_array_view(L"\x1b[2J\x1b[HFIRST-SURFACE"));
+            secondConnection->TerminalOutput.raise(winrt_wstring_to_array_view(L"\x1b[2J\x1b[HSECOND-SURFACE"));
+            const auto call = [&](const JsonObject& message) {
+                return JsonObject::Parse(winrt::to_hstring(page->_workspaceFeatures->Automation()._HandleRequest(winrt::to_string(message.Stringify()))));
+            };
+            const auto send = MakeWorkspaceAutomationRequest(L"terminal.sendInput", item.WorkspaceId(), firstSurfaceId, 0);
+            send.GetNamedObject(L"params").Insert(L"text", JsonValue::CreateStringValue(L"target-first\r"));
+            const auto read = MakeWorkspaceAutomationRequest(L"terminal.readContent", item.WorkspaceId(), firstSurfaceId, 0);
+            VERIFY_ARE_EQUAL(L"permission_denied", call(send).GetNamedObject(L"error").GetNamedString(L"code"));
+            VERIFY_ARE_EQUAL(L"permission_denied", call(read).GetNamedObject(L"error").GetNamedString(L"code"));
+            page->_currentWindowSettings().WorkspaceAutomationAllowInput(true);
+            page->_currentWindowSettings().WorkspaceAutomationAllowContentRead(true);
+
+            const auto list = call(MakeWorkspaceAutomationRequest(L"pane.list", item.WorkspaceId())).GetNamedObject(L"result");
+            const auto panes = list.GetNamedArray(L"panes");
+            VERIFY_ARE_EQUAL(2u, panes.Size());
+            VERIFY_ARE_EQUAL(Utils::GuidToPlainString(firstSurfaceId), panes.GetObjectAt(0).GetNamedString(L"surfaceId"));
+            VERIFY_ARE_EQUAL(Utils::GuidToPlainString(secondSurfaceId), panes.GetObjectAt(1).GetNamedString(L"surfaceId"));
+            VERIFY_ARE_EQUAL(Utils::GuidToPlainString(secondSurfaceId), list.GetNamedString(L"activeSurfaceId"));
+            VERIFY_IS_TRUE(call(send).GetNamedObject(L"result").GetNamedBoolean(L"accepted"));
+            VERIFY_ARE_EQUAL(std::wstring{ L"target-first\r" }, firstConnection->Input);
+            VERIFY_IS_TRUE(secondConnection->Input.empty());
+            const auto result = call(read).GetNamedObject(L"result");
+            VERIFY_ARE_EQUAL(Utils::GuidToPlainString(firstSurfaceId), result.GetNamedString(L"surfaceId"));
+            const auto contentText = result.GetNamedString(L"text");
+            const std::wstring_view text{ contentText };
+            VERIFY_IS_TRUE(text.find(L"FIRST-SURFACE") != std::wstring_view::npos);
+            VERIFY_IS_TRUE(text.find(L"SECOND-SURFACE") == std::wstring_view::npos);
+            VERIFY_ARE_EQUAL(secondTab, page->_GetFocusedTab());
+
+            // Marking one pane read must not clear a same-numbered pane in another surface.
+            item.AddNotification(firstSurfaceId, 0, L"First", L"First notification");
+            item.AddNotification(secondSurfaceId, 0, L"Second", L"Second notification");
+            VERIFY_IS_TRUE(call(MakeWorkspaceAutomationRequest(L"notification.markRead", item.WorkspaceId(), firstSurfaceId, 0)).HasKey(L"result"));
+            VERIFY_ARE_EQUAL(1u, item.UnreadCount());
+            VERIFY_ARE_EQUAL(secondSurfaceId, item.LatestUnreadNotification().SurfaceId());
+
+            VERIFY_IS_TRUE(call(MakeWorkspaceAutomationRequest(L"pane.focus", item.WorkspaceId(), firstSurfaceId, 0)).HasKey(L"result"));
+            VERIFY_ARE_EQUAL(firstTab, page->_GetFocusedTab());
+            page->_OpenNewWorkspace();
+            const auto otherItem = page->_WorkspaceItems().GetAt(1);
+            const auto otherSurfaceId = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(otherItem)->SurfaceIdForTab(otherItem.SourceTab());
+            send.GetNamedObject(L"params").Insert(L"surfaceId", JsonValue::CreateStringValue(Utils::GuidToPlainString(otherSurfaceId)));
+            VERIFY_ARE_EQUAL(L"pane_not_found", call(send).GetNamedObject(L"error").GetNamedString(L"code"));
+
+            firstTab.Close();
+            VERIFY_ARE_EQUAL(1u, item.SurfaceCount());
+            send.GetNamedObject(L"params").Insert(L"surfaceId", JsonValue::CreateStringValue(Utils::GuidToPlainString(firstSurfaceId)));
+            VERIFY_ARE_EQUAL(L"pane_not_found", call(send).GetNamedObject(L"error").GetNamedString(L"code"));
+            VERIFY_ARE_EQUAL(L"pane_not_found", call(read).GetNamedObject(L"error").GetNamedString(L"code"));
+            VERIFY_IS_TRUE(secondConnection->Input.empty(), L"A removed surface must never fall back to the remaining surface.");
+        });
+    }
+
+    void TabTests::WorkspaceNamesSurviveSurfaceChangesAndRestore()
+    {
+        auto page = _commonSetup();
+        WindowLayout layout{ nullptr };
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            const auto firstTab = page->_GetFocusedTab();
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+            const auto secondTab = page->_GetFocusedTab();
+            const auto item = page->_WorkspaceItems().GetAt(0);
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            itemImpl->CustomName(L"Project Alpha");
+            page->FocusTab(firstTab);
+            VERIFY_ARE_EQUAL(L"Project Alpha", item.Title());
+            page->FocusTab(secondTab);
+            page->_GetTabImpl(secondTab)->SetTabText(L"Terminal Beta");
+            VERIFY_ARE_EQUAL(L"Project Alpha", item.Title());
+            VERIFY_IS_TRUE(itemImpl->MoveSurface(secondTab, 0));
+            page->_SynchronizeFlatTabOrder();
+            firstTab.Close();
+            VERIFY_ARE_EQUAL(L"Project Alpha", item.Title());
+            itemImpl->CustomName(L"");
+            VERIFY_ARE_EQUAL(L"Terminal Beta", item.Title());
+            itemImpl->CustomName(L"Project Alpha");
+            page->_OpenNewWorkspace();
+            const auto otherItem = page->_WorkspaceItems().GetAt(1);
+            winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(otherItem)->CustomName(L"Project Gamma");
+            page->_ToggleWorkspacePin(otherItem.SourceTab());
+            layout = WindowLayout::FromJson(WindowLayout::ToJson(page->GetWindowLayout()));
+            VERIFY_ARE_EQUAL(L"Project Gamma", layout.WorkspaceNames().GetAt(0));
+            VERIFY_ARE_EQUAL(L"Project Alpha", layout.WorkspaceNames().GetAt(1));
+            // Window.Content still owns the page. Release our test-thread
+            // reference now so replacing Window.Content tears it down on the
+            // UI thread, where its XAML timers must be stopped.
+            page = nullptr;
+        });
+
+        const auto restoredPage = _commonSetup();
+        const auto restored = std::make_shared<bool>(false);
+        TestOnUIThread([&]() {
+            restoredPage->_SidebarController().Enabled = true;
+            restoredPage->_tabs.GetAt(0).Close();
+            restoredPage->SetStartupWorkspaceState(layout.WorkspaceStateVersion(), wil::to_vector(layout.WorkspaceIds()),
+                                                    wil::to_vector(layout.PinnedWorkspaceIndices()), {},
+                                                    wil::to_vector(layout.WorkspaceSurfaceIds()), wil::to_vector(layout.ActiveWorkspaceSurfaceIds()),
+                                                    wil::to_vector(layout.WorkspaceNames()));
+            restoredPage->ProcessStartupActions(wil::to_vector(layout.TabLayout()), {}, {}, [restored]() { *restored = true; });
+        });
+        bool finished{};
+        for (uint32_t attempt = 0; attempt < 500 && !finished; ++attempt)
+        {
+            TestOnUIThread([&]() { finished = *restored && !restoredPage->_SessionRestore().Restoring; });
+            if (!finished)
+            {
+                Sleep(10);
+            }
+        }
+        VERIFY_IS_TRUE(finished);
+        TestOnUIThread([&]() {
+            VERIFY_ARE_EQUAL(2u, restoredPage->_WorkspaceItems().Size());
+            VERIFY_ARE_EQUAL(L"Project Gamma", restoredPage->_WorkspaceItems().GetAt(0).Title());
+            VERIFY_ARE_EQUAL(L"Project Alpha", restoredPage->_WorkspaceItems().GetAt(1).Title());
+            const auto alpha = restoredPage->_WorkspaceItems().GetAt(1);
+            VERIFY_ARE_EQUAL(L"Terminal Beta", alpha.SourceTab().Title());
+            restoredPage->_OpenNewWorkspaceSurface(alpha);
+            VERIFY_ARE_EQUAL(L"Project Alpha", alpha.Title());
+        });
+    }
+
+    void TabTests::WorkspaceSnapshotReopensInOwnWorkspace()
+    {
+        const auto page = _commonSetup();
+        const winrt::guid snapshotId{ L"10101010-2020-4030-8040-505050505050" };
+        WorkspaceSnapshot snapshot{};
+        winrt::guid unrelatedId{};
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            const auto firstTab = page->_GetFocusedTab();
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+            const auto secondTab = page->_GetFocusedTab();
+            const auto item = page->_WorkspaceItems().GetAt(0);
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            itemImpl->CustomName(L"Saved Project Alpha");
+            page->_ToggleWorkspacePin(firstTab);
+            std::vector<ActionAndArgs> actions;
+            std::vector<winrt::guid> surfaceIds;
+            for (const auto& tab : item.Surfaces())
+            {
+                const auto tabActions = page->_GetTabImpl(tab)->BuildStartupActions(winrt::TerminalApp::BuildStartupKind::Snapshot);
+                actions.insert(actions.end(), tabActions.begin(), tabActions.end());
+                surfaceIds.emplace_back(itemImpl->SurfaceIdForTab(tab));
+            }
+            snapshot.Version(WorkspaceSnapshot::CurrentSchemaVersion());
+            snapshot.Id(snapshotId);
+            snapshot.WorkspaceId(item.WorkspaceId());
+            snapshot.Name(item.Title());
+            snapshot.CreatedAt(1);
+            snapshot.UpdatedAt(1);
+            snapshot.Actions(winrt::single_threaded_vector<ActionAndArgs>(std::move(actions)));
+            snapshot.SurfaceIds(winrt::single_threaded_vector<winrt::guid>(std::move(surfaceIds)));
+            snapshot.ActiveSurfaceId(itemImpl->SurfaceIdForTab(firstTab));
+            snapshot.Pinned(true);
+            snapshot.AgentResumeEntries(winrt::single_threaded_vector<AgentResumeInfo>());
+            page->_OpenNewWorkspace();
+            unrelatedId = page->_WorkspaceItemForTab(page->_GetFocusedTab()).WorkspaceId();
+            firstTab.Close();
+            secondTab.Close();
+            VERIFY_ARE_EQUAL(1u, page->_WorkspaceItems().Size());
+        });
+        const auto state = ApplicationState::SharedInstance();
+        state.RemoveWorkspaceSnapshot(snapshotId);
+        const auto cleanup = wil::scope_exit([&]() { state.RemoveWorkspaceSnapshot(snapshotId); });
+        VERIFY_IS_TRUE(state.SaveWorkspaceSnapshot(snapshot));
+        TestOnUIThread([&]() { page->OpenWorkspaceSnapshot(snapshotId, false); });
+        bool opened{};
+        for (uint32_t attempt = 0; attempt < 500 && !opened; ++attempt)
+        {
+            TestOnUIThread([&]() {
+                const auto index = page->_FindWorkspaceIndex(snapshot.WorkspaceId());
+                opened = index && page->_WorkspaceItems().GetAt(index.value()).SurfaceCount() == 2 &&
+                         !page->_SessionRestore().Restoring && !page->_SessionRestore().SnapshotReplayInFlight;
+            });
+            if (!opened)
+            {
+                Sleep(10);
+            }
+        }
+        VERIFY_IS_TRUE(opened);
+        TestOnUIThread([&]() {
+            VERIFY_ARE_EQUAL(2u, page->_WorkspaceItems().Size());
+            const auto item = page->_WorkspaceItems().GetAt(page->_FindWorkspaceIndex(snapshot.WorkspaceId()).value());
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            VERIFY_ARE_EQUAL(L"Saved Project Alpha", item.Title());
+            VERIFY_IS_TRUE(item.IsPinned());
+            VERIFY_ARE_EQUAL(snapshotId, itemImpl->SourceSnapshotId().value());
+            VERIFY_ARE_EQUAL(snapshot.Revision(), itemImpl->SourceSnapshotRevision());
+            VERIFY_ARE_EQUAL(snapshot.ActiveSurfaceId(), itemImpl->SurfaceIdForTab(page->_GetFocusedTab()));
+            VERIFY_ARE_EQUAL(1u, page->_WorkspaceItems().GetAt(page->_FindWorkspaceIndex(unrelatedId).value()).SurfaceCount());
+            page->_workspaceFeatures->Workspaces().AssertInvariants(page->_tabs);
+        });
+    }
+
     void TabTests::WorkspaceSurfaceShortcutActions()
     {
         const auto page = _commonSetup();
@@ -758,20 +1077,142 @@ namespace TerminalAppLocalTests
         });
     }
 
-    void TabTests::WorkspaceWorkingDirectoryDisplayIsCompact()
+    void TabTests::WorkspaceWorkingDirectoryDisplayIsFolderName()
     {
         const auto page = _commonSetup();
         TestOnUIThread([&]() {
             const auto item = page->_WorkspaceItems().GetAt(0);
 
             item.WorkingDirectory(L"F:\\RicherLife\\codes\\win_terminal\\src");
-            VERIFY_ARE_EQUAL(L"win_terminal\\src", item.WorkingDirectoryDisplay());
+            VERIFY_ARE_EQUAL(L"src", item.WorkingDirectoryDisplay());
 
             item.WorkingDirectory(L"C:\\repo");
             VERIFY_ARE_EQUAL(L"repo", item.WorkingDirectoryDisplay());
 
             item.WorkingDirectory(L"C:\\");
             VERIFY_ARE_EQUAL(L"C:\\", item.WorkingDirectoryDisplay());
+
+            item.WorkingDirectory(L"C:\\projects\\folder with spaces\\");
+            VERIFY_ARE_EQUAL(L"folder with spaces", item.WorkingDirectoryDisplay());
+
+            item.WorkingDirectory(L"/home/user/project/");
+            VERIFY_ARE_EQUAL(L"project", item.WorkingDirectoryDisplay());
+
+            item.WorkingDirectory(L"/");
+            VERIFY_ARE_EQUAL(L"/", item.WorkingDirectoryDisplay());
+
+            item.WorkingDirectory(L"");
+            VERIFY_IS_TRUE(item.WorkingDirectoryDisplay().empty());
+        });
+    }
+
+    void TabTests::WorkspaceWorkingDirectoryTracksFirstSurface()
+    {
+        const auto page = _commonSetup();
+        winrt::TerminalApp::Tab firstTab{ nullptr };
+        winrt::TerminalApp::Tab secondTab{ nullptr };
+        winrt::TerminalApp::WorkspaceItemViewModel item{ nullptr };
+        winrt::com_ptr<WorkspaceDirectoryConnection> firstConnection;
+        winrt::com_ptr<WorkspaceDirectoryConnection> secondConnection;
+        bool displayChanged = false;
+        winrt::Windows::UI::Xaml::Data::INotifyPropertyChanged::PropertyChanged_revoker directoryChanges;
+
+        TestOnUIThread([&]() {
+            firstTab = page->_tabs.GetAt(0);
+            firstConnection = winrt::make_self<WorkspaceDirectoryConnection>();
+            page->_GetTabImpl(firstTab)->GetActiveTerminalControl().Connection(*firstConnection);
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+            secondTab = page->_tabs.GetAt(1);
+            secondConnection = winrt::make_self<WorkspaceDirectoryConnection>();
+            page->_GetTabImpl(secondTab)->GetActiveTerminalControl().Connection(*secondConnection);
+
+            // These controls are not attached to a visible XAML tree in this test.
+            // Initialize their terminal parsers before reporting shell output.
+            for (const auto& tab : { firstTab, secondTab })
+            {
+                const auto control = page->_GetTabImpl(tab)->GetActiveTerminalControl();
+                const auto core = _contentManager->TryLookupCore(control.ContentId()).Core();
+                core.Initialize(600, 400, 1.0f); // Already initialized controls return false.
+            }
+
+            item = winrt::TerminalApp::WorkspaceItemViewModel{ firstTab };
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            itemImpl->AddSurface(secondTab);
+            itemImpl->SetActiveTab(secondTab);
+            firstConnection->ReportDirectory(L"C:\\first-workspace");
+            secondConnection->ReportDirectory(L"C:\\second-workspace");
+        });
+
+        TestOnUIThread([&]() {
+            VERIFY_ARE_EQUAL(secondTab, item.SourceTab());
+            VERIFY_ARE_EQUAL(L"C:\\first-workspace", item.WorkingDirectory());
+            VERIFY_ARE_EQUAL(L"first-workspace", item.WorkingDirectoryDisplay());
+            directoryChanges = item.PropertyChanged(winrt::auto_revoke, [&](const auto&, const auto& args) {
+                if (args.PropertyName() == L"WorkingDirectoryDisplay")
+                {
+                    displayChanged = true;
+                }
+            });
+            firstConnection->ReportDirectory(L"C:\\first-workspace\\updated");
+        });
+
+        TestOnUIThread([&]() {
+            VERIFY_ARE_EQUAL(L"C:\\first-workspace\\updated", item.WorkingDirectory());
+            VERIFY_ARE_EQUAL(L"updated", item.WorkingDirectoryDisplay());
+            VERIFY_IS_TRUE(displayChanged, L"Background changes in the leftmost terminal must update the sidebar binding.");
+            displayChanged = false;
+            secondConnection->ReportDirectory(L"C:\\second-workspace\\active");
+        });
+
+        TestOnUIThread([&]() {
+            VERIFY_ARE_EQUAL(L"updated", item.WorkingDirectoryDisplay());
+            VERIFY_IS_FALSE(displayChanged, L"Changing another terminal must leave the workspace directory anchored.");
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            VERIFY_IS_TRUE(itemImpl->MoveSurface(secondTab, 0));
+            VERIFY_ARE_EQUAL(L"C:\\second-workspace\\active", item.WorkingDirectory());
+            VERIFY_ARE_EQUAL(L"active", item.WorkingDirectoryDisplay());
+            VERIFY_IS_TRUE(displayChanged);
+            itemImpl->SetActiveTab(firstTab);
+            VERIFY_ARE_EQUAL(L"active", item.WorkingDirectoryDisplay());
+            VERIFY_IS_TRUE(itemImpl->RemoveSurface(secondTab));
+            VERIFY_ARE_EQUAL(L"updated", item.WorkingDirectoryDisplay());
+            displayChanged = false;
+            secondConnection->ReportDirectory(L"C:\\removed-surface");
+        });
+
+        TestOnUIThread([&]() {
+            VERIFY_ARE_EQUAL(L"updated", item.WorkingDirectoryDisplay());
+            VERIFY_IS_FALSE(displayChanged, L"A removed surface must no longer update directory metadata.");
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            VERIFY_IS_TRUE(itemImpl->RemoveSurface(firstTab));
+            VERIFY_IS_TRUE(item.WorkingDirectory().empty());
+            VERIFY_IS_TRUE(item.WorkingDirectoryDisplay().empty());
+            itemImpl->AddSurface(secondTab);
+            VERIFY_ARE_EQUAL(L"removed-surface", item.WorkingDirectoryDisplay());
+        });
+    }
+
+    void TabTests::WorkspaceClosingTerminalsKeepsSelectionValid()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            const auto firstTab = page->_tabs.GetAt(0);
+            page->_OpenNewWorkspace();
+            const auto secondTab = page->_tabs.GetAt(1);
+            VERIFY_ARE_EQUAL(secondTab, page->_GetFocusedTab());
+
+            firstTab.Close();
+            VERIFY_ARE_EQUAL(1u, page->_tabs.Size());
+            VERIFY_ARE_EQUAL(1u, page->_WorkspaceItems().Size());
+            VERIFY_ARE_EQUAL(secondTab, page->_GetFocusedTab());
+            VERIFY_ARE_EQUAL(0u, page->_GetFocusedTabIndex().value());
+
+            secondTab.Close();
+            VERIFY_ARE_EQUAL(0u, page->_tabs.Size());
+            VERIFY_ARE_EQUAL(0u, page->_WorkspaceItems().Size());
+            VERIFY_IS_FALSE(page->_GetFocusedTabIndex().has_value());
+            VERIFY_IS_NULL(page->_GetFocusedTab());
         });
     }
 

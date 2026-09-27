@@ -9,6 +9,11 @@
 #include <string>
 #include <string_view>
 
+namespace TerminalAppLocalTests
+{
+    class TabTests;
+}
+
 namespace winrt::TerminalApp::implementation
 {
     struct TerminalPage;
@@ -31,6 +36,8 @@ namespace winrt::TerminalApp::implementation
         std::wstring_view PipeName() const noexcept;
 
     private:
+        friend class ::TerminalAppLocalTests::TabTests;
+
         std::string _HandleRequest(std::string_view request);
 
         TerminalPage& _page;

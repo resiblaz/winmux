@@ -400,6 +400,7 @@ namespace winrt::TerminalApp::implementation
             {
                 _SessionRestore().Restoring = false;
                 _SessionRestore().ActiveSurfaceIds.clear();
+                _SessionRestore().WorkspaceNames.clear();
                 _SessionRestore().StartupSurfaceIds.clear();
                 _SessionRestore().PinnedWorkspaceIds.clear();
                 _SessionRestore().StateVersion = 0;

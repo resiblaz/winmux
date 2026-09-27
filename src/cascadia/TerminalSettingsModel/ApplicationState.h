@@ -66,6 +66,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<winrt::guid>, WorkspaceIds, nullptr);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<winrt::guid>, WorkspaceSurfaceIds, nullptr);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<winrt::guid>, ActiveWorkspaceSurfaceIds, nullptr);
+        WINRT_PROPERTY(Windows::Foundation::Collections::IVector<winrt::hstring>, WorkspaceNames, nullptr);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<uint32_t>, PinnedWorkspaceIndices, nullptr);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::AgentResumeInfo>, AgentResumeEntries, nullptr);
         WINRT_PROPERTY(Windows::Foundation::Collections::IVector<Model::WorkspaceSnapshotSourceInfo>, WorkspaceSnapshotSources, nullptr);

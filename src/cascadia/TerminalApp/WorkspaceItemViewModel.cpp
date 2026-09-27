@@ -43,14 +43,7 @@ namespace winrt::TerminalApp::implementation
                 return workingDirectory;
             }
 
-            const auto first = components.size() > 1 ? components.size() - 2 : 0;
-            std::wstring compact{ components[first] };
-            for (auto index = first + 1; index < components.size(); ++index)
-            {
-                compact.push_back(L'\\');
-                compact.append(components[index]);
-            }
-            return winrt::hstring{ compact };
+            return winrt::hstring{ components.back() };
         }
 
         winrt::hstring _formatPorts(const std::span<const uint16_t> ports, const size_t maximumCount, const bool showOverflow)
@@ -270,11 +263,8 @@ namespace winrt::TerminalApp::implementation
             _tabChangedRevoker = _tab.PropertyChanged(winrt::auto_revoke, [weakThis{ get_weak() }](const auto&, const auto& args) {
                 if (const auto self = weakThis.get())
                 {
-                    if (args.PropertyName() == L"WorkingDirectory")
-                    {
-                        self->_UpdateWorkingDirectory();
-                    }
-                    else
+                    // Workspace directory metadata follows the leftmost surface.
+                    if (args.PropertyName() != L"WorkingDirectory")
                     {
                         self->PropertyChanged.raise(*self, args);
                         const auto propertyName = args.PropertyName();
@@ -308,9 +298,33 @@ namespace winrt::TerminalApp::implementation
         _RaiseActiveTabProperties();
     }
 
+    void WorkspaceItemViewModel::_AttachDirectoryTab()
+    {
+        const auto tab = _surfaces.Size() > 0 ? _surfaces.GetAt(0) : nullptr;
+        if (_directoryTab == tab)
+        {
+            return;
+        }
+
+        _directoryTabChangedRevoker.revoke();
+        _directoryTab = tab;
+        if (_directoryTab)
+        {
+            _directoryTabChangedRevoker = _directoryTab.PropertyChanged(winrt::auto_revoke, [weakThis{ get_weak() }](const auto&, const auto& args) {
+                if (args.PropertyName() == L"WorkingDirectory")
+                {
+                    if (const auto self = weakThis.get())
+                    {
+                        self->_UpdateWorkingDirectory();
+                    }
+                }
+            });
+        }
+        _UpdateWorkingDirectory();
+    }
+
     void WorkspaceItemViewModel::_RaiseActiveTabProperties()
     {
-        _UpdateWorkingDirectory(false);
         _UpdateStatus();
         for (const auto propertyName : { L"SourceTab", L"Title", L"AutomationName", L"Icon", L"IsPinned", L"PinIconGlyph", L"PinActionText", L"PinAutomationName", L"SwitchShortcutText", L"SwitchShortcutHintText" })
         {
@@ -320,6 +334,7 @@ namespace winrt::TerminalApp::implementation
 
     void WorkspaceItemViewModel::_RaiseSurfaceProperties()
     {
+        _AttachDirectoryTab();
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"Surfaces" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"SurfaceCount" });
         PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"SurfaceCountText" });
@@ -347,7 +362,22 @@ namespace winrt::TerminalApp::implementation
 
     winrt::hstring WorkspaceItemViewModel::Title() const
     {
-        return _tab ? _tab.Title() : winrt::hstring{};
+        return !_customName.empty() ? _customName : (_tab ? _tab.Title() : winrt::hstring{});
+    }
+
+    winrt::hstring WorkspaceItemViewModel::CustomName() const
+    {
+        return _customName;
+    }
+
+    void WorkspaceItemViewModel::CustomName(const winrt::hstring& value)
+    {
+        if (_customName != value)
+        {
+            _customName = value;
+            PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"Title" });
+            PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
+        }
     }
 
     winrt::hstring WorkspaceItemViewModel::AutomationName() const
@@ -789,7 +819,7 @@ namespace winrt::TerminalApp::implementation
 
     void WorkspaceItemViewModel::_UpdateWorkingDirectory(const bool refreshGit)
     {
-        const auto workingDirectory = _tab ? _tab.WorkingDirectory() : winrt::hstring{};
+        const auto workingDirectory = _directoryTab ? _directoryTab.WorkingDirectory() : winrt::hstring{};
         if (WorkingDirectory() == workingDirectory)
         {
             if (refreshGit)

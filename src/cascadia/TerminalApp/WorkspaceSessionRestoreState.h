@@ -27,6 +27,7 @@ namespace winrt::TerminalApp::implementation
         std::vector<winrt::guid> StartupSurfaceIds;
         std::unordered_set<winrt::guid> PinnedWorkspaceIds;
         std::unordered_map<winrt::guid, winrt::guid> ActiveSurfaceIds;
+        std::unordered_map<winrt::guid, winrt::hstring> WorkspaceNames;
         std::vector<Microsoft::Terminal::Settings::Model::AgentResumeInfo> AgentResumeEntries;
         uint32_t RestoreIndex{};
         uint32_t StateVersion{};
@@ -43,6 +44,7 @@ namespace winrt::TerminalApp::implementation
             StartupSurfaceIds.clear();
             PinnedWorkspaceIds.clear();
             ActiveSurfaceIds.clear();
+            WorkspaceNames.clear();
             AgentResumeEntries.clear();
             RestoreIndex = 0;
             StateVersion = 0;

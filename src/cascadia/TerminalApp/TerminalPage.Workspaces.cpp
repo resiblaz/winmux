@@ -621,10 +621,7 @@ namespace winrt::TerminalApp::implementation
     {
         if (item)
         {
-            if (const auto tab = item.SourceTab())
-            {
-                _RenameWorkspace(tab);
-            }
+            _RenameWorkspace(item);
         }
     }
 
@@ -842,6 +839,14 @@ namespace winrt::TerminalApp::implementation
 
     winrt::guid TerminalPage::_WorkspaceIdForNewTab() const
     {
+        // Snapshot replay and content attachment can restore into an already
+        // initialized window. Their saved identity takes precedence over the
+        // interactive New Tab behavior.
+        if (_SessionRestore().Restoring)
+        {
+            return _ReserveWorkspaceIdForNewTab();
+        }
+
         // Startup actions retain their historical one-Tab-per-Workspace
         // semantics. Once the window is live, New Tab in Sidebar mode creates
         // a Surface inside the active Workspace.
@@ -1146,8 +1151,12 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    safe_void_coroutine TerminalPage::_RenameWorkspace(winrt::TerminalApp::Tab tab)
+    safe_void_coroutine TerminalPage::_RenameWorkspace(TerminalApp::WorkspaceItemViewModel item)
     {
+        if (!item)
+        {
+            co_return;
+        }
         const auto weakThis = get_weak();
         ContentDialog dialog{};
         dialog.Title(box_value(RS_(L"WorkspaceSidebar_RenameDialogTitle")));
@@ -1156,7 +1165,7 @@ namespace winrt::TerminalApp::implementation
         dialog.DefaultButton(ContentDialogButton::Primary);
 
         TextBox textBox{};
-        textBox.Text(tab.Title());
+        textBox.Text(item.Title());
         textBox.PlaceholderText(RS_(L"WorkspaceSidebar_RenameDialogPlaceholder"));
         Automation::AutomationProperties::SetName(textBox, RS_(L"WorkspaceSidebar_RenameDialogPlaceholder"));
         textBox.Loaded([weakTextBox{ winrt::make_weak(textBox) }](const auto&, const auto&) {
@@ -1175,20 +1184,10 @@ namespace winrt::TerminalApp::implementation
             {
                 if (const auto page = weakThis.get())
                 {
-                    uint32_t index{};
-                    if (page->_tabs.IndexOf(tab, index))
+                    const auto index = page->_FindWorkspaceIndex(item.WorkspaceId());
+                    if (index && page->_WorkspaceItems().GetAt(index.value()) == item)
                     {
-                        if (const auto tabImpl = _GetTabImpl(tab))
-                        {
-                            if (textBox.Text().empty())
-                            {
-                                tabImpl->ResetTabText();
-                            }
-                            else
-                            {
-                                tabImpl->SetTabText(textBox.Text());
-                            }
-                        }
+                        winrt::get_self<WorkspaceItemViewModel>(item)->CustomName(textBox.Text());
                     }
                 }
             }

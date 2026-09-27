@@ -19,6 +19,8 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring SurfaceCountText() const;
         bool HasMultipleSurfaces() const noexcept;
         winrt::hstring Title() const;
+        winrt::hstring CustomName() const;
+        void CustomName(const winrt::hstring& value);
         winrt::hstring AutomationName() const;
         winrt::hstring Icon() const;
         bool IsPinned() const;
@@ -94,11 +96,14 @@ namespace winrt::TerminalApp::implementation
         };
 
         winrt::guid _workspaceId{};
+        winrt::hstring _customName;
         TerminalApp::Tab _tab{ nullptr };
+        TerminalApp::Tab _directoryTab{ nullptr };
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _surfaces;
         std::vector<SurfaceEntry> _surfaceEntries;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> _notifications;
         Windows::UI::Xaml::Data::INotifyPropertyChanged::PropertyChanged_revoker _tabChangedRevoker;
+        Windows::UI::Xaml::Data::INotifyPropertyChanged::PropertyChanged_revoker _directoryTabChangedRevoker;
         Windows::UI::Xaml::Data::INotifyPropertyChanged::PropertyChanged_revoker _tabStatusChangedRevoker;
         Windows::System::DispatcherQueue _dispatcher{ nullptr };
         bool _isSelected{ false };
@@ -120,6 +125,7 @@ namespace winrt::TerminalApp::implementation
         static constexpr auto GitCacheMaximumAge{ std::chrono::seconds{ 10 } };
         safe_void_coroutine _RefreshGitBranchAsync(winrt::hstring directory, uint64_t generation);
         void _AttachActiveTab(const TerminalApp::Tab& tab);
+        void _AttachDirectoryTab();
         void _RaiseActiveTabProperties();
         void _RaiseSurfaceProperties();
         void _UpdateWorkingDirectory(bool refreshGit = true);

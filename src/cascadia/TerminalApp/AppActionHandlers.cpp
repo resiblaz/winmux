@@ -811,7 +811,7 @@ namespace winrt::TerminalApp::implementation
         {
             if (_SidebarController().Enabled)
             {
-                _RenameWorkspace(*activeTab);
+                _RenameWorkspace(_WorkspaceItemForTab(*activeTab));
             }
             else
             {

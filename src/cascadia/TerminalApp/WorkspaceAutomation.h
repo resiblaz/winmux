@@ -61,6 +61,7 @@ namespace winrt::TerminalApp::implementation
         std::string Id;
         WorkspaceAutomationMethod Method{ WorkspaceAutomationMethod::List };
         std::optional<winrt::guid> WorkspaceId;
+        std::optional<winrt::guid> SurfaceId;
         std::optional<winrt::guid> EventId;
         std::optional<uint32_t> PaneId;
         WorkspaceAutomationSplitDirection SplitDirection{ WorkspaceAutomationSplitDirection::Automatic };

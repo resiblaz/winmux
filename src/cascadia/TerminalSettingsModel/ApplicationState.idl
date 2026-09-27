@@ -45,6 +45,7 @@ namespace Microsoft.Terminal.Settings.Model
         Windows.Foundation.Collections.IVector<Guid> WorkspaceIds;
         Windows.Foundation.Collections.IVector<Guid> WorkspaceSurfaceIds;
         Windows.Foundation.Collections.IVector<Guid> ActiveWorkspaceSurfaceIds;
+        Windows.Foundation.Collections.IVector<String> WorkspaceNames;
         Windows.Foundation.Collections.IVector<UInt32> PinnedWorkspaceIndices;
         Windows.Foundation.Collections.IVector<AgentResumeInfo> AgentResumeEntries;
         Windows.Foundation.Collections.IVector<WorkspaceSnapshotSourceInfo> WorkspaceSnapshotSources;

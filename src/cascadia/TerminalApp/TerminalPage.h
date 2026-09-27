@@ -211,7 +211,8 @@ namespace winrt::TerminalApp::implementation
                                       std::vector<uint32_t> pinnedWorkspaceIndices,
                                       std::vector<Microsoft::Terminal::Settings::Model::AgentResumeInfo> agentResumeEntries,
                                       std::vector<winrt::guid> surfaceIds = {},
-                                      std::vector<winrt::guid> activeSurfaceIds = {});
+                                      std::vector<winrt::guid> activeSurfaceIds = {},
+                                      std::vector<winrt::hstring> workspaceNames = {});
         void SetStartupWorkspaceSource(const winrt::guid& workspaceId, const winrt::guid& snapshotId, uint64_t revision);
         void AddStartupWorkspaceSource(const winrt::guid& workspaceId, const winrt::guid& snapshotId, uint64_t revision);
         void PrepareForWorkspaceSnapshotOpen(bool suppressStartupActions);
@@ -517,7 +518,7 @@ namespace winrt::TerminalApp::implementation
         void _ClearAllWorkspaceNotificationHistory();
         void _MarkWorkspaceNotificationsReadForActivePane(const winrt::com_ptr<Tab>& tab);
         void _RefreshWorkspaceNotifications();
-        safe_void_coroutine _RenameWorkspace(winrt::TerminalApp::Tab tab);
+        safe_void_coroutine _RenameWorkspace(TerminalApp::WorkspaceItemViewModel item);
         void _WorkspaceList_SelectionChanged(const IInspectable& sender, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs& eventArgs);
         void _WorkspaceList_DragItemsStarting(const IInspectable& sender, const Windows::UI::Xaml::Controls::DragItemsStartingEventArgs& eventArgs);
         void _WorkspaceList_DragItemsCompleted(const IInspectable& sender, const Windows::UI::Xaml::Controls::DragItemsCompletedEventArgs& eventArgs);

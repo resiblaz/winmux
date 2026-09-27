@@ -253,12 +253,14 @@ namespace winrt::TerminalApp::implementation
                                                 std::vector<uint32_t> pinnedWorkspaceIndices,
                                                 std::vector<AgentResumeInfo> agentResumeEntries,
                                                 std::vector<winrt::guid> surfaceIds,
-                                                std::vector<winrt::guid> activeSurfaceIds)
+                                                std::vector<winrt::guid> activeSurfaceIds,
+                                                std::vector<winrt::hstring> workspaceNames)
     {
         _SessionRestore().StartupWorkspaceIds.clear();
         _SessionRestore().StartupSurfaceIds.clear();
         _SessionRestore().PinnedWorkspaceIds.clear();
         _SessionRestore().ActiveSurfaceIds.clear();
+        _SessionRestore().WorkspaceNames.clear();
         _SessionRestore().AgentResumeEntries.clear();
         _SessionRestore().SnapshotSources.clear();
         _SessionRestore().RestoreIndex = 0;
@@ -335,6 +337,16 @@ namespace winrt::TerminalApp::implementation
                     return;
                 }
                 _SessionRestore().ActiveSurfaceIds.emplace(workspaceOrder[workspaceIndex], activeSurfaceId);
+            }
+        }
+
+        // Names are optional metadata aligned with distinct Workspace IDs.
+        // Ignore an invalid count without losing an otherwise usable layout.
+        if (workspaceNames.size() == workspaceOrder.size())
+        {
+            for (size_t index = 0; index < workspaceOrder.size(); ++index)
+            {
+                _SessionRestore().WorkspaceNames.emplace(workspaceOrder[index], std::move(workspaceNames[index]));
             }
         }
 

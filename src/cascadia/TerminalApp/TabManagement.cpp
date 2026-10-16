@@ -66,7 +66,11 @@ namespace winrt::TerminalApp::implementation
     HRESULT TerminalPage::_OpenNewTab(const INewContentArgs& newContentArgs)
     try
     {
-        if (const auto& newTerminalArgs{ newContentArgs.try_as<NewTerminalArgs>() })
+        // Resolve both ownership and directory before elevation or ConPTY
+        // creation, so every launch uses the same Workspace context.
+        const auto workspaceId = _WorkspaceIdForNewTab();
+        const auto contentArgs = _ResolveWorkspaceTerminalArgs(newContentArgs, workspaceId);
+        if (const auto& newTerminalArgs{ contentArgs.try_as<NewTerminalArgs>() })
         {
             const auto profile{ _settings.GetProfileForArgs(newTerminalArgs) };
             // GH#11114: GetProfileForArgs can return null if the index is higher
@@ -87,14 +91,9 @@ namespace winrt::TerminalApp::implementation
             // unpackaged, but not packaged.
         }
 
-        // Resolve the owning Workspace before initializing the ConPTY
-        // connection. In Sidebar mode this may be the active Workspace; other
-        // layouts and startup continue to reserve a new one.
-        const auto workspaceId = _WorkspaceIdForNewTab();
-
         // This call to _MakePane won't return nullptr, we already checked that
         // case above with the _maybeElevate call.
-        _CreateNewTabFromPane(_MakePane(newContentArgs, nullptr, nullptr, true, workspaceId), -1, workspaceId);
+        _CreateNewTabFromPane(_MakePane(contentArgs, nullptr, nullptr, true, workspaceId), -1, workspaceId);
         return S_OK;
     }
     CATCH_RETURN();

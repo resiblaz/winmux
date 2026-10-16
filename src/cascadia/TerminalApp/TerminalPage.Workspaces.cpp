@@ -863,6 +863,48 @@ namespace winrt::TerminalApp::implementation
         return _ReserveWorkspaceIdForNewTab();
     }
 
+    INewContentArgs TerminalPage::_ResolveWorkspaceTerminalArgs(const INewContentArgs& contentArgs,
+                                                               const winrt::guid& workspaceId) const
+    {
+        if (!_SidebarController().Enabled || _startupState != StartupState::Initialized || _SessionRestore().Restoring)
+        {
+            return contentArgs;
+        }
+
+        const auto terminalArgs = contentArgs.try_as<NewTerminalArgs>();
+        if ((contentArgs && !terminalArgs) ||
+            (terminalArgs && (!terminalArgs.StartingDirectory().empty() || terminalArgs.ContentId() != 0 || terminalArgs.SessionId() != winrt::guid{})))
+        {
+            return contentArgs;
+        }
+
+        const auto workspaceIndex = _FindWorkspaceIndex(workspaceId);
+        if (!workspaceIndex)
+        {
+            return contentArgs;
+        }
+
+        // The sidebar's directory follows the first surface. A new terminal
+        // instead follows the active pane of its own Workspace's active surface.
+        const auto tab = _GetTabImpl(_WorkspaceItems().GetAt(workspaceIndex.value()).SourceTab());
+        const auto control = tab ? tab->GetActiveTerminalControl() : nullptr;
+        if (!control)
+        {
+            return contentArgs;
+        }
+        const auto directory = control.WorkingDirectory();
+        if (!Utils::IsValidDirectory(directory.c_str()))
+        {
+            return contentArgs;
+        }
+
+        // Action arguments are shared across invocations. Derive launch args
+        // without freezing the shortcut to the directory of its first use.
+        const auto resolved = terminalArgs ? terminalArgs.Copy().as<NewTerminalArgs>() : NewTerminalArgs{};
+        resolved.StartingDirectory(directory);
+        return resolved;
+    }
+
     void TerminalPage::_OpenNewWorkspace()
     {
         const auto workspaceId = _ReserveWorkspaceIdForNewTab();
@@ -879,7 +921,8 @@ namespace winrt::TerminalApp::implementation
             return;
         }
 
-        if (const auto pane = _MakePane(NewTerminalArgs(), nullptr, nullptr, true, item.WorkspaceId()))
+        const auto contentArgs = _ResolveWorkspaceTerminalArgs(NewTerminalArgs(), item.WorkspaceId());
+        if (const auto pane = _MakePane(contentArgs, nullptr, nullptr, true, item.WorkspaceId()))
         {
             _CreateNewTabFromPane(pane, -1, item.WorkspaceId());
         }

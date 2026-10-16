@@ -674,6 +674,9 @@ namespace winrt::TerminalApp::implementation
 
         winrt::guid _ReserveWorkspaceIdForNewTab() const;
         winrt::guid _WorkspaceIdForNewTab() const;
+        Microsoft::Terminal::Settings::Model::INewContentArgs _ResolveWorkspaceTerminalArgs(
+            const Microsoft::Terminal::Settings::Model::INewContentArgs& contentArgs,
+            const winrt::guid& workspaceId) const;
         void _OpenNewWorkspace();
         void _OpenNewWorkspaceSurface(const TerminalApp::WorkspaceItemViewModel& item);
         winrt::guid _WorkspaceIdForTab(const TerminalApp::Tab& tab) const;

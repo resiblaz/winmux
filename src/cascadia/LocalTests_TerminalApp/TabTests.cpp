@@ -228,6 +228,9 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceEnvironmentUsesAuthoritativeRoutingMetadata);
         TEST_METHOD(WorkspaceWorkingDirectoryDisplayIsFolderName);
         TEST_METHOD(WorkspaceWorkingDirectoryTracksFirstSurface);
+        TEST_METHOD(WorkspaceWorkingDirectoryNewTerminalFollowsActiveSurface);
+        TEST_METHOD(WorkspaceWorkingDirectoryNewTerminalFollowsActivePane);
+        TEST_METHOD(WorkspaceWorkingDirectoryNewTerminalHonorsLaunchContext);
         TEST_METHOD(WorkspaceClosingTerminalsKeepsSelectionValid);
         TEST_METHOD(WorkspaceGitBranchParsesStructuredOutput);
         TEST_METHOD(WorkspaceListeningPortsProjectMetadata);
@@ -1189,6 +1192,140 @@ namespace TerminalAppLocalTests
             VERIFY_IS_TRUE(item.WorkingDirectoryDisplay().empty());
             itemImpl->AddSurface(secondTab);
             VERIFY_ARE_EQUAL(L"removed-surface", item.WorkingDirectoryDisplay());
+        });
+    }
+
+    void TabTests::WorkspaceWorkingDirectoryNewTerminalFollowsActiveSurface()
+    {
+        const auto page = _commonSetup();
+        const winrt::hstring firstDirectory{ std::filesystem::temp_directory_path().wstring() };
+        const winrt::hstring secondDirectory{ std::filesystem::current_path().wstring() };
+        VERIFY_ARE_NOT_EQUAL(firstDirectory, secondDirectory);
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            const auto reportDirectory = [&](const winrt::TerminalApp::Tab& tab, const winrt::hstring& directory) {
+                const auto control = page->_GetTabImpl(tab)->GetActiveTerminalControl();
+                const auto connection = winrt::make_self<WorkspaceDirectoryConnection>();
+                control.Connection(*connection);
+                _contentManager->TryLookupCore(control.ContentId()).Core().Initialize(600, 400, 1.0f);
+                connection->ReportDirectory(directory);
+            };
+            const auto firstTab = page->_GetFocusedTab();
+            const auto item = page->_WorkspaceItemForTab(firstTab);
+            reportDirectory(firstTab, firstDirectory);
+
+            NewTerminalArgs reusableArgs{ 1 };
+            reusableArgs.TabTitle(L"Inherited directory");
+            reusableArgs.AppendCommandLine(true);
+            VERIFY_IS_TRUE(reusableArgs.Copy().as<NewTerminalArgs>().AppendCommandLine());
+            VERIFY_SUCCEEDED(page->_OpenNewTab(reusableArgs));
+            const auto secondTab = page->_GetFocusedTab();
+            auto control = page->_GetTabImpl(secondTab)->GetActiveTerminalControl();
+            VERIFY_ARE_EQUAL(firstDirectory, control.WorkingDirectory());
+            VERIFY_ARE_EQUAL(page->_settings.GetProfileForArgs(reusableArgs).Guid(), page->_GetTabImpl(secondTab)->GetFocusedProfile().Guid());
+
+            reportDirectory(secondTab, secondDirectory);
+            VERIFY_SUCCEEDED(page->_OpenNewTab(reusableArgs));
+            control = page->_GetActiveControl();
+            VERIFY_ARE_EQUAL(secondDirectory, control.WorkingDirectory());
+            VERIFY_IS_TRUE(reusableArgs.StartingDirectory().empty(), L"Reusing the shortcut must not retain an earlier directory.");
+
+            page->FocusTab(firstTab);
+            VERIFY_SUCCEEDED(page->_OpenNewTab(nullptr));
+            VERIFY_ARE_EQUAL(firstDirectory, page->_GetActiveControl().WorkingDirectory());
+            VERIFY_ARE_EQUAL(4u, item.SurfaceCount());
+
+            page->_OpenNewWorkspace();
+            reportDirectory(page->_GetFocusedTab(), secondDirectory);
+            page->_OpenNewWorkspaceSurface(item);
+            VERIFY_ARE_EQUAL(firstDirectory, page->_GetActiveControl().WorkingDirectory());
+            VERIFY_ARE_EQUAL(item.WorkspaceId(), page->_WorkspaceIdForTab(page->_GetFocusedTab()));
+            VERIFY_ARE_EQUAL(5u, item.SurfaceCount());
+            VERIFY_ARE_EQUAL(2u, page->_WorkspaceItems().Size());
+        });
+    }
+
+    void TabTests::WorkspaceWorkingDirectoryNewTerminalFollowsActivePane()
+    {
+        const auto page = _commonSetup();
+        const winrt::hstring firstDirectory{ std::filesystem::temp_directory_path().wstring() };
+        const winrt::hstring secondDirectory{ std::filesystem::current_path().wstring() };
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            const auto tab = page->_GetFocusedTab();
+            const auto tabImpl = page->_GetTabImpl(tab);
+            const auto workspaceId = page->_WorkspaceIdForTab(tab);
+            const auto firstPaneId = tabImpl->GetActivePane()->Id().value();
+            const auto firstControl = tabImpl->GetActiveTerminalControl();
+            const auto firstConnection = winrt::make_self<WorkspaceDirectoryConnection>();
+            firstControl.Connection(*firstConnection);
+            _contentManager->TryLookupCore(firstControl.ContentId()).Core().Initialize(600, 400, 1.0f);
+            firstConnection->ReportDirectory(firstDirectory);
+
+            const auto secondConnection = winrt::make_self<WorkspaceDirectoryConnection>();
+            const auto newPane = page->_MakePane(NewTerminalArgs{ 1 }, nullptr, *secondConnection, false, workspaceId);
+            page->_SplitPane(nullptr, SplitDirection::Right, 0.5f, newPane, workspaceId);
+            VERIFY_ARE_EQUAL(2, tabImpl->GetLeafPaneCount());
+            const auto secondControl = tabImpl->GetActiveTerminalControl();
+            _contentManager->TryLookupCore(secondControl.ContentId()).Core().Initialize(600, 400, 1.0f);
+            secondConnection->ReportDirectory(secondDirectory);
+
+            VERIFY_SUCCEEDED(page->_OpenNewTab(nullptr));
+            VERIFY_ARE_EQUAL(secondDirectory, page->_GetActiveControl().WorkingDirectory());
+            VERIFY_ARE_EQUAL(page->_settings.GetProfileForArgs(NewTerminalArgs{}).Guid(), page->_GetFocusedTabImpl()->GetFocusedProfile().Guid());
+
+            page->FocusTab(tab);
+            VERIFY_IS_TRUE(tabImpl->FocusPane(firstPaneId));
+            VERIFY_SUCCEEDED(page->_OpenNewTab(nullptr));
+            VERIFY_ARE_EQUAL(firstDirectory, page->_GetActiveControl().WorkingDirectory());
+        });
+    }
+
+    void TabTests::WorkspaceWorkingDirectoryNewTerminalHonorsLaunchContext()
+    {
+        const auto page = _commonSetup();
+        const winrt::hstring directory{ std::filesystem::temp_directory_path().wstring() };
+        const winrt::hstring explicitDirectory{ std::filesystem::current_path().wstring() };
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            const auto sourceTab = page->_GetFocusedTab();
+            const auto control = page->_GetActiveControl();
+            const auto profileDirectory = control.WorkingDirectory();
+            const auto connection = winrt::make_self<WorkspaceDirectoryConnection>();
+            control.Connection(*connection);
+            _contentManager->TryLookupCore(control.ContentId()).Core().Initialize(600, 400, 1.0f);
+            connection->ReportDirectory(directory);
+
+            NewTerminalArgs explicitArgs{};
+            explicitArgs.StartingDirectory(explicitDirectory);
+            VERIFY_SUCCEEDED(page->_OpenNewTab(explicitArgs));
+            VERIFY_ARE_EQUAL(explicitDirectory, page->_GetActiveControl().WorkingDirectory());
+            VERIFY_ARE_EQUAL(explicitDirectory, explicitArgs.StartingDirectory());
+
+            page->FocusTab(sourceTab);
+            GUID missingDirectoryId{};
+            VERIFY_SUCCEEDED(CoCreateGuid(&missingDirectoryId));
+            const auto missingDirectory = std::filesystem::path{ directory.c_str() } / L"workspace-directory-missing" / Utils::GuidToPlainString(missingDirectoryId);
+            connection->ReportDirectory(missingDirectory.wstring());
+            VERIFY_SUCCEEDED(page->_OpenNewTab(nullptr));
+            VERIFY_ARE_EQUAL(profileDirectory, page->_GetActiveControl().WorkingDirectory());
+
+            connection->ReportDirectory(directory);
+            page->FocusTab(sourceTab);
+            page->_OpenNewWorkspace();
+            VERIFY_ARE_EQUAL(profileDirectory, page->_GetActiveControl().WorkingDirectory());
+
+            page->FocusTab(sourceTab);
+            page->_SidebarController().Enabled = false;
+            VERIFY_SUCCEEDED(page->_OpenNewTab(nullptr));
+            VERIFY_ARE_EQUAL(profileDirectory, page->_GetActiveControl().WorkingDirectory());
+
+            page->FocusTab(sourceTab);
+            page->_SidebarController().Enabled = true;
+            page->_SessionRestore().Restoring = true;
+            const auto resetRestoring = wil::scope_exit([&]() noexcept { page->_SessionRestore().Restoring = false; });
+            VERIFY_SUCCEEDED(page->_OpenNewTab(nullptr));
+            VERIFY_ARE_EQUAL(profileDirectory, page->_GetActiveControl().WorkingDirectory());
         });
     }
 

@@ -701,7 +701,8 @@ namespace winrt::TerminalApp::implementation
                 return;
             }
 
-            const auto newPane = _MakePane(newTerminalArgs, nullptr, nullptr, true, workspaceId);
+            const INewContentArgs contentArgs = splitTarget ? newTerminalArgs : _ResolveWorkspaceTerminalArgs(newTerminalArgs, workspaceId);
+            const auto newPane = _MakePane(contentArgs, nullptr, nullptr, true, workspaceId);
             // If the newTerminalArgs caused us to open an elevated window
             // instead of creating a pane, it may have returned nullptr. Just do
             // nothing then.

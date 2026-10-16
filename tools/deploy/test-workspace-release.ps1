@@ -157,6 +157,7 @@ try
         (Join-Path $repoRoot '.codex\hooks\uninstall-workspace-history.ps1'),
         $hookTests,
         $packageBuild,
+        (Join-Path $repoRoot 'tools\deploy\build-portable-release.ps1'),
         $PSCommandPath)
 
     if (-not $SkipHookTests)

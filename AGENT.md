@@ -80,9 +80,9 @@ The script:
 
 - builds the x64 Release package unless `-SkipBuild` is specified;
 - creates an unpackaged portable distribution using the repository's official packaging script;
-- writes a clean default `settings/settings.json` with Workspace Sidebar enabled, terminal padding set to `3`, and the scrollbar hidden into the ZIP;
+- writes a clean default `settings/settings.json` with Workspace Sidebar and session layout restoration enabled, terminal padding set to `3`, and the scrollbar hidden into the ZIP;
 - deploys the extracted application under `dist/terminal-<version>`;
-- preserves the existing deployed `settings` directory across rebuilds and keeps Workspace Sidebar enabled;
+- preserves the existing deployed `settings` directory across rebuilds, keeps Workspace Sidebar enabled, and enables session layout restoration unless a startup preference is already explicit;
 - replaces the deployed directory through a staged update and starts its `WindowsTerminal.exe` unless `-NoLaunch` is specified;
 - emits the package, deployment, launcher, and SHA256 paths when complete.
 

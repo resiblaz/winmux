@@ -53,7 +53,7 @@ function Assert-ChildPath
     return $fullPath
 }
 
-function Set-WorkspaceSidebarLayout
+function Set-WorkspaceSidebarSettings
 {
     param(
         [Parameter(Mandatory)]
@@ -78,6 +78,15 @@ function Set-WorkspaceSidebarLayout
         $content = $content.Insert($openingBrace + 1, "`r`n    `"tabLayout`": `"workspaceSidebar`",")
     }
 
+    # Enable restoration when upgrading older portable settings, while keeping
+    # an explicit startup preference (including an opt-out) and JSON comments.
+    $settings = $content | ConvertFrom-Json -AsHashtable
+    if (-not $settings.ContainsKey('firstWindowPreference'))
+    {
+        $openingBrace = $content.IndexOf('{')
+        $content = $content.Insert($openingBrace + 1, "`r`n    `"firstWindowPreference`": `"persistedLayout`",")
+    }
+
     [System.IO.File]::WriteAllText($SettingsPath, $content, [System.Text.UTF8Encoding]::new($false))
 }
 
@@ -99,17 +108,17 @@ function Stop-PortableTerminal
         $null = $process.CloseMainWindow()
     }
 
-    if ($processes.Count -gt 0)
+    # Session state is flushed during normal shutdown. Never force termination
+    # while a close confirmation or the final persistence write is pending.
+    $deadline = [DateTime]::UtcNow.AddSeconds(20)
+    foreach ($process in $processes)
     {
-        Start-Sleep -Seconds 2
+        $remainingMilliseconds = [Math]::Max(0, [int]($deadline - [DateTime]::UtcNow).TotalMilliseconds)
+        if (-not $process.WaitForExit($remainingMilliseconds))
+        {
+            throw 'Portable Terminal is still running. Close it normally so its session can be saved, then retry the deployment.'
+        }
     }
-
-    Get-Process WindowsTerminal -ErrorAction SilentlyContinue |
-        Where-Object {
-            $_.Path -and
-            [System.IO.Path]::GetFullPath($_.Path).Equals($normalizedExecutable, [System.StringComparison]::OrdinalIgnoreCase)
-        } |
-        Stop-Process -Force
 }
 
 if (-not $SkipBuild)
@@ -185,6 +194,7 @@ try
     $defaultSettings = [ordered]@{
         '$schema' = 'https://raw.githubusercontent.com/microsoft/terminal/main/doc/cascadia/profiles.schema.json'
         tabLayout = 'workspaceSidebar'
+        firstWindowPreference = 'persistedLayout'
         profiles = [ordered]@{
             defaults = [ordered]@{
                 padding = '3'
@@ -247,7 +257,7 @@ try
         $newSettingsDirectory = Join-Path $newDeployment 'settings'
         Get-ChildItem -LiteralPath $preservedSettings -Force |
             Copy-Item -Destination $newSettingsDirectory -Recurse -Force
-        Set-WorkspaceSidebarLayout -SettingsPath (Join-Path $newSettingsDirectory 'settings.json')
+        Set-WorkspaceSidebarSettings -SettingsPath (Join-Path $newSettingsDirectory 'settings.json')
     }
 
     if (Test-Path -LiteralPath $deploymentPath)
@@ -289,7 +299,8 @@ try
     if (-not $NoLaunch)
     {
         Write-Host 'Launching the portable Workspace Sidebar build...' -ForegroundColor Cyan
-        Start-Process -FilePath $deploymentExecutable -WorkingDirectory $deploymentPath -ArgumentList @('-w', 'new')
+        # Explicit window arguments would create an extra window after restore.
+        Start-Process -FilePath $deploymentExecutable -WorkingDirectory $deploymentPath
 
         $started = $false
         for ($attempt = 0; $attempt -lt 20; $attempt++)

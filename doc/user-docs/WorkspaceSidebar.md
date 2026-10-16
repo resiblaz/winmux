@@ -64,7 +64,19 @@ OSC 777 notifications and bells can mark a pane for attention. Open the notifica
 
 ## Persistence and Agent Resume
 
-Session persistence continues to restore the pane tree, working directories, selected workspace, custom names, Pin order, sidebar width, and expanded/collapsed state. Workspace metadata uses stable IDs in the versioned window layout.
+The portable Workspace Sidebar build restores the previous session by default. Close the application normally with the workspaces and terminals you want to keep still open. On the next launch, it reopens the same workspace groups and their terminal tabs, including split panes, each pane's working directory, the selected workspace and terminal, custom names, Pin order, sidebar width, and expanded/collapsed state. Closing individual terminals or workspaces removes them from the session to restore. Workspace metadata uses stable IDs in the versioned window layout.
+
+This uses **Settings → Startup → When Terminal starts → Restore window layout**, or the global setting:
+
+```json
+{
+    "firstWindowPreference": "persistedLayout"
+}
+```
+
+Portable upgrades add this setting if it is absent and preserve an explicit startup preference. Set it to `defaultProfile` to disable restoration, or `persistedLayoutAndContent` to also retain terminal output. Launch without extra window arguments to restore the saved session without opening an additional window.
+
+Each pane restores its current local directory reported by its shell through OSC 7 or OSC 9;9. If the reported directory is invalid or directory reporting is unavailable, it falls back to its startup directory. Shell processes are started again, so running commands and process memory are not resumed. A normal exit saves the current layout; unexpected termination can only recover the last periodic save. Portable updates wait for normal shutdown and abort if the application remains open, so a pending close confirmation cannot cause a forced termination that loses session state.
 
 Agent Resume currently supports a constrained Codex session UUID. It stores neither arbitrary commands nor prompts, tokens, or sensitive environment variables. Resume uses a fixed command template, resolves absolute executable paths, opens a new pane in the target workspace, and requires confirmation every time.
 

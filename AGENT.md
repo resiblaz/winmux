@@ -148,3 +148,7 @@ Use `-Confirm:$false` only in non-interactive automation where deletion has alre
 ## Generated Output
 
 `dist/` contains generated ZIPs, extracted runtime files, and portable user settings. It is intentionally ignored by Git and must not be committed.
+
+## Local Working Notes
+
+Keep `work_path/` and `workpath/` local and untracked. These directories hold personal planning notes and acceptance artifacts; do not force-add them to Git. Put documentation intended for repository users under `doc/`.

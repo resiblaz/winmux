@@ -73,7 +73,6 @@ Programs launched inside the terminal, including shells and coding agents, have 
 
 - [Build and deployment workflow](AGENT.md)
 - [Workspace and Vim usage](doc/user-docs/WorkspaceSidebar.md)
-- [Architecture and implementation records](work_path/cmux改造/README.md)
 - [Report an issue](https://github.com/resiblaz/winmux/issues)
 
 The inherited Microsoft-specific GitHub workflows are restricted to the upstream repository. Winmux validation currently uses the local release gate described above.

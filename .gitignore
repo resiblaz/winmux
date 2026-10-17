@@ -289,3 +289,7 @@ profiles.json
 
 # Local portable Release output
 /dist/
+
+# Local planning notes and acceptance artifacts
+/work_path/
+/workpath/

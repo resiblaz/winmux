@@ -9,6 +9,16 @@
 
 namespace Microsoft::Console::Render
 {
+    // A display-only cursor. The terminal's application cursor is left intact.
+    struct CursorOverride
+    {
+        til::point position; // Absolute buffer coordinates.
+        CursorType cursorType = CursorType::FullBox;
+        bool blinking = false;
+
+        bool operator==(const CursorOverride&) const noexcept = default;
+    };
+
     enum class InhibitionSource
     {
         Client, // E.g. VT sequences
@@ -35,6 +45,9 @@ namespace Microsoft::Console::Render
         void SynchronizedOutputChanged() noexcept;
         void AllowCursorVisibility(InhibitionSource source, bool enable) noexcept;
         void AllowCursorBlinking(InhibitionSource source, bool enable) noexcept;
+        // Like the cursor inhibitors, these are accessed under the render data lock.
+        void SetCursorOverride(std::optional<CursorOverride> cursor) noexcept;
+        std::optional<CursorOverride> GetCursorOverride() const noexcept;
         void TriggerSystemRedraw(const til::rect* const prcDirtyClient);
         void TriggerRedraw(const Microsoft::Console::Types::Viewport& region);
         void TriggerRedraw(const til::point* const pcoord);
@@ -159,6 +172,7 @@ namespace Microsoft::Console::Render
         std::optional<interval_tree::IntervalTree<til::point, size_t>::interval> _hoveredInterval;
 
         CursorOptions _currentCursorOptions{};
+        std::optional<CursorOverride> _cursorOverride;
         TimerHandle _cursorBlinker;
         uint64_t _cursorBufferMutationId = 0;
         uint64_t _cursorCursorMutationId = 0; // Stupid name, but it's _cursor related and stores the cursor mutation id.

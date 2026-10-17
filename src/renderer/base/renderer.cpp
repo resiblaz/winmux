@@ -597,6 +597,21 @@ void Renderer::AllowCursorBlinking(InhibitionSource source, bool enable) noexcep
     }
 }
 
+void Renderer::SetCursorOverride(std::optional<CursorOverride> cursor) noexcept
+{
+    if (_cursorOverride != cursor)
+    {
+        _cursorOverride = cursor;
+        // The normal paint cycle invalidates both the old and new cursor cells.
+        NotifyPaintFrame();
+    }
+}
+
+std::optional<CursorOverride> Renderer::GetCursorOverride() const noexcept
+{
+    return _cursorOverride;
+}
+
 // Routine Description:
 // - Called when the system has requested we redraw a portion of the console.
 // Arguments:
@@ -1509,7 +1524,11 @@ void Renderer::_updateCursorInfo()
 {
     const auto& buffer = _pData->GetTextBuffer();
     const auto& cursor = buffer.GetCursor();
-    const auto cursorPosition = cursor.GetPosition();
+    auto cursorPosition = _cursorOverride ? _cursorOverride->position : cursor.GetPosition();
+    if (_cursorOverride)
+    {
+        buffer.GetSize().Clamp(cursorPosition);
+    }
     auto coordCursor = cursorPosition; // Later this will be viewport-relative
 
     // GH#3166: Only draw the cursor if it's actually in the viewport. It
@@ -1541,8 +1560,8 @@ void Renderer::_updateCursorInfo()
     const auto useColor = cursorColor != INVALID_COLOR;
 
     // Update inhibitors based on whatever the VT parser (= client app) wants.
-    AllowCursorVisibility(InhibitionSource::Client, cursor.IsVisible());
-    AllowCursorBlinking(InhibitionSource::Client, cursor.IsBlinking());
+    AllowCursorVisibility(InhibitionSource::Client, _cursorOverride.has_value() || cursor.IsVisible());
+    AllowCursorBlinking(InhibitionSource::Client, _cursorOverride ? _cursorOverride->blinking : cursor.IsBlinking());
 
     // If the buffer or cursor changed, turn the cursor on for the next cycle. This makes it
     // so that rapidly typing/printing keeps the cursor on continuously, which looks nicer.
@@ -1609,7 +1628,7 @@ void Renderer::_updateCursorInfo()
     _currentCursorOptions.ulCursorHeightPercent = cursorHeight;
     _currentCursorOptions.cursorPixelWidth = _pData->GetCursorPixelWidth();
     _currentCursorOptions.fIsDoubleWidth = buffer.IsGlyphDoubleWidthAt(cursorPosition);
-    _currentCursorOptions.cursorType = cursor.GetType();
+    _currentCursorOptions.cursorType = _cursorOverride ? _cursorOverride->cursorType : cursor.GetType();
     _currentCursorOptions.fUseColor = useColor;
     _currentCursorOptions.cursorColor = cursorColor;
     _currentCursorOptions.isVisible = !_cursorVisibilityInhibitors.any();

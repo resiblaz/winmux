@@ -4,6 +4,7 @@
 #include "pch.h"
 #include "ControlCore.h"
 #include "EventArgs.h"
+#include "../../renderer/base/renderer.hpp"
 
 namespace winrt::Microsoft::Terminal::Control::implementation
 {
@@ -22,15 +23,23 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     bool ControlCore::_refreshVimModeUnderLock()
     {
         const auto initialized = _initializedTerminal.load(std::memory_order_relaxed);
+        const auto selectionChanged = initialized && _vimModeController.Reconcile(*_terminal);
+        std::optional<::Microsoft::Console::Render::CursorOverride> cursor;
         if (initialized)
         {
-            _vimModeController.Reconcile(*_terminal);
+            if (const auto position = _vimModeController.CursorPosition(*_terminal))
+            {
+                cursor = ::Microsoft::Console::Render::CursorOverride{
+                    .position = _terminal->GetTextBuffer().ScreenToBufferPosition(*position)
+                };
+            }
         }
+        _renderer->SetCursorOverride(cursor);
         const auto mode = _vimModeController.State();
         const auto available = initialized && !_IsClosing() && _vimModeController.Available(*_terminal);
         if (mode == _reportedVimMode && available == _reportedVimModeAvailable)
         {
-            return false;
+            return selectionChanged;
         }
         _reportedVimMode = mode;
         _reportedVimModeAvailable = available;

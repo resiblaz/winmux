@@ -171,6 +171,30 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         return position;
     }
 
+    til::point VimTextNavigator::NextWordStart(til::point position) const
+    {
+        position = ClampCursor(position);
+        const auto whitespace = static_cast<int>(DelimiterClass::ControlChar);
+        const auto wordClass = _classAt(position);
+        auto next = _next(position);
+        if (wordClass != whitespace)
+        {
+            while (next && _sameLogicalLine(position, *next) && _classAt(*next) == wordClass)
+            {
+                position = *next;
+                next = _next(position);
+            }
+        }
+        // Empty interior rows are word stops in Vim. Spaces inside a logical
+        // line are skipped, including those on either side of a soft wrap.
+        while (next && _lineEnd(next->y) != 0 && _classAt(*next) == whitespace)
+        {
+            position = *next;
+            next = _next(position);
+        }
+        return next.value_or(ClampCursor(position));
+    }
+
     til::point VimTextNavigator::WordEnd(til::point position) const
     {
         position = ClampEndpoint(position);

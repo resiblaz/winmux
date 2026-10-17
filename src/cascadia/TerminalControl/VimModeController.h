@@ -35,8 +35,10 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 
         VimMode State() const noexcept;
         bool Available(Terminal& terminal) const;
+        std::optional<til::point> CursorPosition(Terminal& terminal) const;
         void SetEnabled(Terminal& terminal, bool enabled);
-        void Reconcile(Terminal& terminal);
+        // Returns whether synchronizing with output changed the browsing cursor.
+        bool Reconcile(Terminal& terminal);
         bool Enter(Terminal& terminal);
         void Exit(Terminal& terminal);
         void ReturnToNormal(Terminal& terminal);

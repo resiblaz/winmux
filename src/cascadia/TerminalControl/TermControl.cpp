@@ -3590,7 +3590,9 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         co_await resume_foreground(Dispatcher());
         if (const auto strong = weakThis.get())
         {
-            if (_core.HasSelection() && !args.ClearMarkers())
+            // Vim browsing uses the terminal renderer's block cursor. Keep
+            // the endpoint handles for mouse/legacy Mark selections only.
+            if (_core.HasSelection() && !args.ClearMarkers() && _core.VimModeState() == VimMode::Insert)
             {
                 // retrieve all of the necessary selection marker data
                 // from the TerminalCore layer under one lock to improve performance

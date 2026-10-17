@@ -9,7 +9,7 @@ It combines workspace navigation, terminal tabs, session layout restoration, age
 - Organize projects in a workspace sidebar, with multiple terminal tabs and split panes per workspace.
 - Restore workspace layouts, terminal counts, active tabs, and working directories after restarting.
 - Open a new terminal in the active terminal's directory with `Alt+N`.
-- Enter Vim navigation with `Alt+V`; use `hjkl`, `b/e`, `v`, and `y` to browse, select, and copy text.
+- Enter Vim navigation with `Alt+V`; use `hjkl`, `b/w/e`, `v`, and `y` to browse, select, and copy text.
 - Keep normal input in Insert mode, including Escape for Codex; alternate-screen applications such as nvim receive their own input.
 - Track coding-agent notifications, conclusions, and local history.
 - Save and exchange workspace snapshots through the `wmx workspace` CLI.

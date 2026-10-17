@@ -1074,7 +1074,11 @@ winrt::hstring CascadiaSettings::ApplicationDisplayName()
     }
     CATCH_LOG();
 
+#if defined(WT_BRANDING_DEV)
+    return IsPortableMode() ? RS_(L"WinmuxApplicationDisplayNamePortable") : RS_(L"WinmuxApplicationDisplayNameUnpackaged");
+#else
     return IsPortableMode() ? RS_(L"ApplicationDisplayNamePortable") : RS_(L"ApplicationDisplayNameUnpackaged");
+#endif
 }
 
 winrt::hstring CascadiaSettings::ApplicationVersion()

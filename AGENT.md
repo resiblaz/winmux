@@ -1,4 +1,4 @@
-# Repository Agent Notes
+# Winmux Repository Agent Notes
 
 ## Required Incremental Development Workflow
 
@@ -54,7 +54,7 @@ When cleanup is necessary, state the reason, verify that repository build proces
 
 ### Meaning of hot update
 
-For this native C++/WinRT Release workflow, "hot update" means incremental compilation followed by staged portable replacement and application restart. It is not in-process native code hot reload. After a successful gate, use `build-portable-release.ps1 -SkipBuild`; do not rebuild the package a second time and do not copy `WindowsTerminal.exe` by itself.
+For this native C++/WinRT Release workflow, "hot update" means incremental compilation followed by staged portable replacement and application restart. It is not in-process native code hot reload. After a successful gate, use `build-portable-release.ps1 -SkipBuild`; do not rebuild the package a second time and do not copy `winmux.exe` by itself.
 
 ## PowerShell Release Workflows
 
@@ -62,7 +62,7 @@ Run release scripts from the repository root with PowerShell 7 (`pwsh`). The mac
 
 ### Portable Workspace Sidebar release
 
-Use the portable workflow for the self-contained build that users launch through `WindowsTerminal.exe`:
+Use the portable workflow for the self-contained build that users launch through `winmux.exe`:
 
 ```powershell
 # Build x64 Release, create the portable ZIP, update dist, and launch it.
@@ -83,18 +83,22 @@ The script:
 - builds the x64 Release package unless `-SkipBuild` is specified;
 - creates an unpackaged portable distribution using the repository's official packaging script;
 - writes a clean default `settings/settings.json` with Workspace Sidebar, session layout restoration, and Vim navigation enabled, terminal padding set to `3`, and the scrollbar hidden into the ZIP;
-- deploys the extracted application under `dist/terminal-<version>`;
-- preserves the existing deployed `settings` directory across rebuilds, keeps Workspace Sidebar enabled, and adds missing session-restoration and Vim-navigation defaults while preserving explicit preferences and profile overrides;
-- replaces the deployed directory through a staged update and starts its `WindowsTerminal.exe` unless `-NoLaunch` is specified;
+- deploys the extracted application under `dist/winmux-<version>`;
+- preserves the existing deployed `settings` directory across rebuilds, migrates older `terminal-<version>` portable settings when needed, and adds missing session-restoration and Vim-navigation defaults while preserving explicit preferences and profile overrides;
+- replaces the deployed directory through a staged update and starts its `winmux.exe` unless `-NoLaunch` is specified;
 - emits the package, deployment, launcher, and SHA256 paths when complete.
 
 The distributable archive is named like:
 
 ```text
-dist/WindowsTerminalDev_<version>_x64_workspace-sidebar.zip
+dist/winmux_<version>_windows_x64.zip
 ```
 
-Do not copy `WindowsTerminal.exe` by itself. The entire extracted `terminal-<version>` directory is required at runtime.
+The GUI entry is `winmux.exe`; use `wmx.exe` for console output and workspace CLI commands. The upstream Dev build channel and package identity are retained for compatibility with existing registered settings. Internal Microsoft/Terminal namespaces, GUIDs, protocol names, and historical implementation records are not branding replacement targets.
+
+Keep the current source directory in place during migration so existing `bin/obj` caches remain usable. New clones naturally use the repository name `winmux`.
+
+Do not copy `winmux.exe` by itself. The entire extracted `winmux-<version>` directory is required at runtime.
 
 ### Registered local Release
 

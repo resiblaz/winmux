@@ -1,12 +1,9 @@
-blank_issues_enabled: false
+blank_issues_enabled: true
 
 contact_links:
-  - name: Microsoft Security Response Center 🔐
-    url: https://msrc.microsoft.com/create-report
-    about: Please report security vulnerabilities here.
-  - name: Windows Terminal Documentation issue 📄
-    url: https://github.com/MicrosoftDocs/terminal/issues/new
-    about: Report issues with the documentation for the Windows Terminal (in docs.microsoft.com/windows/terminal)
-  - name: Console Documentation issue 📄
-    url: https://github.com/MicrosoftDocs/console-docs/issues/new
-    about: Report issues with the documentation for the Console (in docs.microsoft.com/windows/console)
+  - name: Winmux documentation
+    url: https://github.com/resiblaz/winmux/blob/develop/doc/user-docs/WorkspaceSidebar.md
+    about: Workspace, terminal, session restoration and Vim navigation usage.
+  - name: Windows Terminal upstream
+    url: https://github.com/microsoft/terminal
+    about: Upstream terminal engine and platform documentation.

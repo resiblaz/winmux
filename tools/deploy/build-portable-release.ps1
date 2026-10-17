@@ -13,6 +13,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'PortableSettings.ps1')
+. (Join-Path $PSScriptRoot 'PortableDeployment.ps1')
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $configuration = 'Release'
@@ -89,6 +90,7 @@ function Set-WorkspaceSidebarSettings
     }
 
     $content = Enable-PortableVimModeDefault -Content $content
+    $content = Update-PortableProjectLinks -Content $content
     [System.IO.File]::WriteAllText($SettingsPath, $content, [System.Text.UTF8Encoding]::new($false))
 }
 
@@ -100,7 +102,7 @@ function Stop-PortableTerminal
     )
 
     $normalizedExecutable = [System.IO.Path]::GetFullPath($ExecutablePath)
-    $processes = @(Get-Process WindowsTerminal -ErrorAction SilentlyContinue | Where-Object {
+    $processes = @(Get-Process winmux, WindowsTerminal -ErrorAction SilentlyContinue | Where-Object {
         $_.Path -and
         [System.IO.Path]::GetFullPath($_.Path).Equals($normalizedExecutable, [System.StringComparison]::OrdinalIgnoreCase)
     })
@@ -125,7 +127,7 @@ function Stop-PortableTerminal
 
 if (-not $SkipBuild)
 {
-    Write-Host "Building Windows Terminal $Platform $configuration..." -ForegroundColor Cyan
+    Write-Host "Building Winmux $Platform $configuration..." -ForegroundColor Cyan
     & $localBuildScript -Platform $Platform -BuildOnly
 }
 
@@ -183,18 +185,30 @@ try
 
     Expand-Archive -LiteralPath $officialZip.FullName -DestinationPath $extractedOutput
     $terminalRoot = Get-ChildItem -LiteralPath $extractedOutput -Directory |
-        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'WindowsTerminal.exe') -PathType Leaf } |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'winmux.exe') -PathType Leaf } |
         Select-Object -First 1
     if (-not $terminalRoot)
     {
-        throw 'WindowsTerminal.exe was not found in the extracted portable layout.'
+        throw 'winmux.exe was not found in the extracted portable layout. Rebuild the Winmux package before using -SkipBuild.'
     }
+
+    if ($terminalRoot.Name -notmatch '^terminal-(\d+\.\d+\.\d+\.\d+)$')
+    {
+        throw "Unexpected upstream portable directory name: $($terminalRoot.Name)"
+    }
+    $version = $Matches[1]
+    $winmuxDirectoryName = "winmux-$version"
+    $originalExtractedRoot = Assert-ChildPath -Path $terminalRoot.FullName -Parent $extractedOutput
+    $winmuxExtractedRoot = Assert-ChildPath -Path (Join-Path $extractedOutput $winmuxDirectoryName) -Parent $extractedOutput
+    Move-Item -LiteralPath $originalExtractedRoot -Destination $winmuxExtractedRoot
+    $terminalRoot = Get-Item -LiteralPath $winmuxExtractedRoot
 
     $settingsDirectory = Join-Path $terminalRoot.FullName 'settings'
     $settingsPath = Join-Path $settingsDirectory 'settings.json'
     New-Item -ItemType Directory -Path $settingsDirectory -Force | Out-Null
     $defaultSettings = [ordered]@{
-        '$schema' = 'https://raw.githubusercontent.com/microsoft/terminal/main/doc/cascadia/profiles.schema.json'
+        '$schema' = 'https://raw.githubusercontent.com/resiblaz/winmux/develop/doc/cascadia/profiles.schema.json'
+        '$help' = 'https://github.com/resiblaz/winmux/blob/develop/doc/user-docs/WorkspaceSidebar.md'
         tabLayout = 'workspaceSidebar'
         firstWindowPreference = 'persistedLayout'
         profiles = [ordered]@{
@@ -207,12 +221,12 @@ try
     } | ConvertTo-Json -Depth 4
     [System.IO.File]::WriteAllText($settingsPath, $defaultSettings + "`r`n", [System.Text.UTF8Encoding]::new($false))
 
-    $configuredZipName = '{0}_workspace-sidebar.zip' -f [System.IO.Path]::GetFileNameWithoutExtension($officialZip.Name)
+    $configuredZipName = "winmux_${version}_windows_${Platform}.zip"
     $configuredZip = Join-Path $outputRoot $configuredZipName
     $temporaryZip = Join-Path $outputRoot ('.{0}.{1}.tmp.zip' -f [System.IO.Path]::GetFileNameWithoutExtension($configuredZipName), [guid]::NewGuid().ToString('N'))
     $temporaryZip = Assert-ChildPath -Path $temporaryZip -Parent $outputRoot
 
-    Write-Host 'Creating the preconfigured Workspace Sidebar ZIP...' -ForegroundColor Cyan
+    Write-Host 'Creating the Winmux portable ZIP...' -ForegroundColor Cyan
     & tar.exe -c --format=zip -f $temporaryZip -C $extractedOutput $terminalRoot.Name
     if ($LASTEXITCODE -ne 0)
     {
@@ -223,7 +237,8 @@ try
     foreach ($requiredEntry in @(
         "$($terminalRoot.Name)/.portable",
         "$($terminalRoot.Name)/settings/settings.json",
-        "$($terminalRoot.Name)/WindowsTerminal.exe"
+        "$($terminalRoot.Name)/winmux.exe",
+        "$($terminalRoot.Name)/wmx.exe"
     ))
     {
         if ($archiveEntries -notcontains $requiredEntry)
@@ -236,17 +251,26 @@ try
 
     $deploymentPath = Join-Path $outputRoot $terminalRoot.Name
     $deploymentPath = Assert-ChildPath -Path $deploymentPath -Parent $outputRoot
-    $deploymentExecutable = Join-Path $deploymentPath 'WindowsTerminal.exe'
+    $deploymentExecutable = Join-Path $deploymentPath 'winmux.exe'
+    $settingsSource = Get-PortableSettingsSource -OutputDirectory $outputRoot -DeploymentDirectory $deploymentPath
 
     if (Test-Path -LiteralPath $deploymentExecutable -PathType Leaf)
     {
         Stop-PortableTerminal -ExecutablePath $deploymentExecutable
     }
 
-    $existingSettingsDirectory = Join-Path $deploymentPath 'settings'
-    $existingSettingsPath = Join-Path $existingSettingsDirectory 'settings.json'
-    if (Test-Path -LiteralPath $existingSettingsPath -PathType Leaf)
+    if ($settingsSource)
     {
+        foreach ($name in @('winmux.exe', 'WindowsTerminal.exe'))
+        {
+            $sourceExecutable = Join-Path $settingsSource $name
+            if (Test-Path -LiteralPath $sourceExecutable -PathType Leaf)
+            {
+                Stop-PortableTerminal -ExecutablePath $sourceExecutable
+            }
+        }
+        $existingSettingsDirectory = Join-Path $settingsSource 'settings'
+        Write-Host "Preserving portable settings and session data from $existingSettingsDirectory" -ForegroundColor Cyan
         Copy-Item -LiteralPath $existingSettingsDirectory -Destination $preservedSettings -Recurse
     }
 
@@ -301,7 +325,7 @@ try
 
     if (-not $NoLaunch)
     {
-        Write-Host 'Launching the portable Workspace Sidebar build...' -ForegroundColor Cyan
+        Write-Host 'Launching Winmux...' -ForegroundColor Cyan
         # Explicit window arguments would create an extra window after restore.
         Start-Process -FilePath $deploymentExecutable -WorkingDirectory $deploymentPath
 
@@ -309,7 +333,7 @@ try
         for ($attempt = 0; $attempt -lt 20; $attempt++)
         {
             Start-Sleep -Milliseconds 250
-            $started = [bool](Get-Process WindowsTerminal -ErrorAction SilentlyContinue |
+            $started = [bool](Get-Process winmux -ErrorAction SilentlyContinue |
                 Where-Object {
                     $_.Path -and
                     [System.IO.Path]::GetFullPath($_.Path).Equals($deploymentExecutable, [System.StringComparison]::OrdinalIgnoreCase)
@@ -328,11 +352,13 @@ try
     }
 
     $zipHash = Get-FileHash -LiteralPath $configuredZip -Algorithm SHA256
-    Write-Host 'Portable Workspace Sidebar Release completed.' -ForegroundColor Green
+    Write-Host 'Winmux portable Release completed.' -ForegroundColor Green
     [pscustomobject]@{
         Package = $configuredZip
         Deployment = $deploymentPath
         Launcher = $deploymentExecutable
+        CommandLine = Join-Path $deploymentPath 'wmx.exe'
+        SettingsMigratedFrom = $settingsSource
         SHA256 = $zipHash.Hash
     }
 }

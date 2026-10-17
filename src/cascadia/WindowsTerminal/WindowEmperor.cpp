@@ -1201,7 +1201,7 @@ void WindowEmperor::_createMessageWindow(const wchar_t* className)
 
     // AppName happens to be in the ContextMenu's Resources, see GH#12264
     const ScopedResourceLoader loader{ L"TerminalApp/ContextMenu" };
-    const auto appNameLoc = loader.GetLocalizedString(L"AppName");
+    const auto appNameLoc = loader.GetLocalizedString(IsDevBuild() ? L"AppNameDev" : L"AppName");
     StringCchCopy(_notificationIcon.szTip, ARRAYSIZE(_notificationIcon.szTip), appNameLoc.c_str());
 }
 

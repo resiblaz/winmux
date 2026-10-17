@@ -1,17 +1,10 @@
-# Support
+# Winmux support
 
-## How to file issues and get help  
+Report Winmux bugs, feature requests, and usage questions in [the Winmux repository](https://github.com/resiblaz/winmux/issues). Search existing issues first, then include your Windows version, Winmux version or commit, and steps to reproduce the problem.
 
-This project uses [GitHub issues][gh-issue] to [track bugs][gh-bug] and [feature requests][gh-feature]. Please search the existing issues before filing new issues to avoid duplicates. For new topics, file your bug or feature request as a new issue.
+- [Workspace, session restoration, and Vim guide](doc/user-docs/WorkspaceSidebar.md)
+- [Build and deployment workflow](AGENT.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security reporting](SECURITY.md)
 
-For help and questions about using this project, please look at the [docs site for Windows Terminal][docs] and our [Contributor's Guide][contributor] if you want to work on Windows Terminal.
-
-## Microsoft Support Policy  
-
-Support for Windows Terminal is limited to the resources listed above.
-
-[gh-issue]: https://github.com/microsoft/terminal/issues/new/choose
-[gh-bug]: https://github.com/microsoft/terminal/issues/new?assignees=&labels=Issue-Bug&template=bug_report.md&title=
-[gh-feature]: https://github.com/microsoft/terminal/issues/new?assignees=&labels=Issue-Feature&template=Feature_Request.md&title=
-[docs]: https://docs.microsoft.com/windows/terminal
-[contributor]: ./CONTRIBUTING.md
+Winmux is maintained independently of Microsoft. For behavior in the original Windows Terminal, consult the [upstream repository](https://github.com/microsoft/terminal).

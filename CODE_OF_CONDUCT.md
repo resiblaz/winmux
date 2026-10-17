@@ -1,3 +1,11 @@
+# Winmux community
+
+Keep project discussions respectful and constructive. Repository moderation is handled by Winmux's maintainers.
+
+The Microsoft code of conduct below is retained as **upstream reference**. Microsoft contact addresses relate to the original Microsoft project.
+
+---
+
 # Microsoft Open Source Code of Conduct
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).

@@ -26,7 +26,7 @@ $testHostDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\TestHostA
 $settingsTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_SettingsModel"
 $controlTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_Control"
 $coreTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_TerminalCore"
-$wt = Join-Path $repoRoot "src\cascadia\CascadiaPackage\bin\$Platform\$configuration\wtd.exe"
+$wt = Join-Path $repoRoot "src\cascadia\CascadiaPackage\bin\$Platform\$configuration\wmx.exe"
 $workspaceTestTargets = @(
     'Terminal\Tests\TerminalApp_LocalTests',
     'Terminal\Tests\TestHostApp',
@@ -163,11 +163,15 @@ try
         $packageBuild,
         (Join-Path $repoRoot 'tools\deploy\build-portable-release.ps1'),
         (Join-Path $repoRoot 'tools\deploy\PortableSettings.ps1'),
+        (Join-Path $repoRoot 'tools\deploy\PortableDeployment.ps1'),
+        (Join-Path $repoRoot 'tools\deploy\test-portable-deployment.ps1'),
         (Join-Path $repoRoot 'tools\deploy\test-portable-settings.ps1'),
         $PSCommandPath)
 
     Invoke-CheckedCommand -Executable (Get-Command pwsh.exe -ErrorAction Stop).Source -Arguments @(
         '-NoLogo', '-NoProfile', '-File', (Join-Path $repoRoot 'tools\deploy\test-portable-settings.ps1'))
+    Invoke-CheckedCommand -Executable (Get-Command pwsh.exe -ErrorAction Stop).Source -Arguments @(
+        '-NoLogo', '-NoProfile', '-File', (Join-Path $repoRoot 'tools\deploy\test-portable-deployment.ps1'))
 
     if (-not $SkipHookTests)
     {
@@ -331,7 +335,7 @@ try
             throw "Release workspace CLI is missing: $wt. Run without -SkipPackageBuild."
         }
 
-        Write-Host 'Running wt workspace CLI smoke tests...' -ForegroundColor Cyan
+        Write-Host 'Running wmx workspace CLI smoke tests...' -ForegroundColor Cyan
         $missingSnapshot = '11111111-1111-1111-1111-111111111111'
         $exportPath = Join-Path ([System.IO.Path]::GetTempPath()) "wt-workspace-release-gate-$PID.wtworkspace.json"
         if (Test-Path -LiteralPath $exportPath)

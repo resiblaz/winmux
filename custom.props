@@ -7,6 +7,7 @@
     <VersionMajor>1</VersionMajor>
     <VersionMinor>26</VersionMinor>
     <VersionInfoProductName>Windows Terminal</VersionInfoProductName>
+    <VersionInfoProductName Condition="'$(WindowsTerminalBranding)'=='' or '$(WindowsTerminalBranding)'=='Dev'">Winmux</VersionInfoProductName>
     <VersionInfoCulture>1033</VersionInfoCulture>
     <!-- The default has a spacing problem -->
     <VersionInfoCopyRight>\xa9 Microsoft Corporation. All rights reserved.</VersionInfoCopyRight>

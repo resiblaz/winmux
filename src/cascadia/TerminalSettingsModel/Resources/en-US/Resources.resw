@@ -1020,4 +1020,10 @@
     <value>Enter Vim navigation mode</value>
     <comment>A command that enters terminal Vim navigation when the profile enables it. The default shortcut is Alt+V.</comment>
   </data>
+  <data name="WinmuxApplicationDisplayNamePortable" xml:space="preserve">
+    <value>Winmux (Portable)</value>
+  </data>
+  <data name="WinmuxApplicationDisplayNameUnpackaged" xml:space="preserve">
+    <value>Winmux</value>
+  </data>
 </root>

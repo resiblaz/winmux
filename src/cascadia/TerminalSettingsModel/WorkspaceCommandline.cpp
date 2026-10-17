@@ -30,10 +30,17 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
     {
         constexpr std::wstring_view Usage{
             L"Usage:\n"
+#if defined(WT_BRANDING_DEV)
+            L"  wmx workspace list [--format table|json]\n"
+            L"  wmx workspace open <snapshot-id> [-w target]\n"
+            L"  wmx workspace export <snapshot-id> <path> [--force]\n"
+            L"  wmx workspace import <path> [--replace|--copy]\n"
+#else
             L"  wt workspace list [--format table|json]\n"
             L"  wt workspace open <snapshot-id> [-w target]\n"
             L"  wt workspace export <snapshot-id> <path> [--force]\n"
             L"  wt workspace import <path> [--replace|--copy]\n"
+#endif
         };
 
         WorkspaceCommandlineParseResult _parseError(const std::wstring_view message)

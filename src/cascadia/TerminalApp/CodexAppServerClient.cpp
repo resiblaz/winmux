@@ -14,7 +14,11 @@ namespace winrt::TerminalApp::implementation
     namespace
     {
         constexpr std::wstring_view ClientName{ L"windows_terminal" };
+#if defined(WT_BRANDING_DEV)
+        constexpr std::wstring_view ClientTitle{ L"Winmux" };
+#else
         constexpr std::wstring_view ClientTitle{ L"Windows Terminal" };
+#endif
         constexpr std::wstring_view ClientVersion{ L"1.0.0" };
         constexpr auto GracefulShutdownTimeout{ std::chrono::seconds{ 1 } };
         constexpr size_t MaximumRpcMessageCharacters{ 1024 };

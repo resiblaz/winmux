@@ -93,3 +93,72 @@ function Enable-PortableVimModeDefault
     }
     return Add-JsonObjectProperty $Content 'profiles.defaults' 'experimental.vimMode' 'true' $defaults.Count
 }
+
+function Get-JsonRootStringRange
+{
+    param([string]$Content, [string]$Name)
+
+    $lineStarts = [System.Collections.Generic.List[int]]::new()
+    $lineStarts.Add(0)
+    foreach ($newline in [regex]::Matches($Content, '\r\n|\n|\r'))
+    {
+        $lineStarts.Add($newline.Index + $newline.Length)
+    }
+    $reader = [Newtonsoft.Json.JsonTextReader]::new([System.IO.StringReader]::new($Content))
+    $reader.CloseInput = $true
+    try
+    {
+        while ($reader.Read())
+        {
+            if ($reader.Depth -eq 1 -and $reader.TokenType -eq 'String' -and $reader.Path -ceq $Name)
+            {
+                $end = $lineStarts[$reader.LineNumber - 1] + $reader.LinePosition
+                for ($start = $end - 2; $start -ge 0; $start--)
+                {
+                    if ($Content[$start] -ne '"') { continue }
+                    $slashes = 0
+                    for ($index = $start - 1; $index -ge 0 -and $Content[$index] -eq '\'; $index--) { $slashes++ }
+                    if ($slashes % 2 -eq 0)
+                    {
+                        return [pscustomobject]@{ Start = $start; End = $end }
+                    }
+                }
+            }
+        }
+        throw "Root JSON string not found: $Name"
+    }
+    finally
+    {
+        $reader.Close()
+    }
+}
+
+function Update-PortableProjectLinks
+{
+    param([Parameter(Mandatory)][string]$Content)
+
+    $settings = $Content | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+    foreach ($link in @(
+        @{ Name = '$schema'; Value = 'https://raw.githubusercontent.com/resiblaz/winmux/develop/doc/cascadia/profiles.schema.json'; Old = @(
+            'https://raw.githubusercontent.com/microsoft/terminal/main/doc/cascadia/profiles.schema.json',
+            'https://aka.ms/terminal-profiles-schema',
+            'https://aka.ms/terminal-profiles-schema-preview') },
+        @{ Name = '$help'; Value = 'https://github.com/resiblaz/winmux/blob/develop/doc/user-docs/WorkspaceSidebar.md'; Old = @(
+            'https://aka.ms/terminal-documentation') }
+    ))
+    {
+        $valueJson = ConvertTo-Json -InputObject $link.Value -Compress
+        if (-not $settings.Contains($link.Name))
+        {
+            $Content = Add-JsonObjectProperty $Content '' $link.Name $valueJson $settings.Count
+            $settings[$link.Name] = $link.Value
+        }
+        elseif ($settings[$link.Name] -in $link.Old)
+        {
+            $range = Get-JsonRootStringRange $Content $link.Name
+            $Content = $Content.Remove($range.Start, $range.End - $range.Start).Insert($range.Start, $valueJson)
+            $settings[$link.Name] = $link.Value
+        }
+    }
+    return $Content
+}

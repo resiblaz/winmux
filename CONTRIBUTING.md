@@ -1,3 +1,13 @@
+# Contributing to Winmux
+
+Open issues and pull requests in [resiblaz/winmux](https://github.com/resiblaz/winmux); target the `develop` branch. Describe the behavior being changed and the validation performed.
+
+Follow [AGENT.md](AGENT.md) for the unified incremental Release build and test gate. Preserve existing build outputs, keep the Windows Terminal engine compatible, and retain upstream copyright and license notices. See [SECURITY.md](SECURITY.md) for security reporting.
+
+The following guide is retained as **upstream reference**. Its Microsoft team processes, bot behavior, support commitments, and contribution requirements describe [microsoft/terminal](https://github.com/microsoft/terminal), rather than Winmux's repository operations.
+
+---
+
 # Terminal Contributor's Guide
 
 Below is our guidance for how to report issues, propose new features, and submit contributions via Pull Requests (PRs).

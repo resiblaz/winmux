@@ -45,3 +45,25 @@ foreach ($value in @('false', 'true'))
     $assertions++
 }
 Write-Host "PASS: $assertions portable settings assertions"
+
+$linkFixture = @'
+// Preserve comments and the profile override.
+{
+    "$schema": "https:\/\/raw.githubusercontent.com\/microsoft\/terminal\/main\/doc\/cascadia\/profiles.schema.json",
+    "$help": /* preserve */ "https://aka.ms/terminal-documentation",
+    "profiles": { "defaults": { "experimental.vimMode": false } },
+    "nested": { "$schema": "https://aka.ms/terminal-profiles-schema" }
+}
+'@
+$updatedLinks = Update-PortableProjectLinks $linkFixture
+$links = $updatedLinks | ConvertFrom-Json -AsHashtable
+if ($links['$schema'] -ne 'https://raw.githubusercontent.com/resiblaz/winmux/develop/doc/cascadia/profiles.schema.json') { throw 'Schema link was not migrated.' }
+if ($links['$help'] -ne 'https://github.com/resiblaz/winmux/blob/develop/doc/user-docs/WorkspaceSidebar.md') { throw 'Help link was not migrated.' }
+if (-not $updatedLinks.Contains('/* preserve */') -or $links.profiles.defaults['experimental.vimMode'] -ne $false) { throw 'Link migration changed preferences or comments.' }
+if ($links.nested['$schema'] -ne 'https://aka.ms/terminal-profiles-schema') { throw 'Link migration changed a nested property.' }
+if ((Update-PortableProjectLinks $updatedLinks) -cne $updatedLinks) { throw 'Project link migration is not idempotent.' }
+$custom = '{"$schema":"https://example.test/custom.json","$help":"https://example.test/help"}'
+if ((Update-PortableProjectLinks $custom) -cne $custom) { throw 'Custom project links were rewritten.' }
+$missing = Update-PortableProjectLinks '{}' | ConvertFrom-Json -AsHashtable
+if (-not $missing.Contains('$schema') -or -not $missing.Contains('$help')) { throw 'Missing project links were not added.' }
+Write-Host 'PASS: 7 project link migration assertions'

@@ -14,6 +14,9 @@ const std::wregex AppCommandlineArgs::_commandDelimiterRegex{ LR"(^;|[^\\];)" };
 
 AppCommandlineArgs::AppCommandlineArgs()
 {
+#if defined(WT_BRANDING_DEV)
+    _app.description("wmx - Winmux");
+#endif
     _buildParser();
     _resetStateToDefault();
 }

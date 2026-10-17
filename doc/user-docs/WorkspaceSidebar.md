@@ -1,6 +1,6 @@
 # Workspace Sidebar
 
-Workspace Sidebar presents each Windows Terminal tab as a workspace in a vertical, cmux-style navigator. Panes, profiles, terminal rendering, and command behavior continue to use the existing Windows Terminal implementation. This feature does not include an embedded browser.
+Winmux organizes workspaces in a vertical, cmux-style sidebar, with multiple terminal tabs and split panes in each workspace. Panes, profiles, terminal rendering, and command behavior use the Windows Terminal engine. This feature does not include an embedded browser.
 
 ## Enable the sidebar
 
@@ -12,7 +12,7 @@ Open **Settings → Appearance → Tab layout** and select **Workspace sidebar**
 }
 ```
 
-The default is `horizontal`.
+The Winmux portable build enables `workspaceSidebar` by default. Registered installations retain their existing preference; the underlying settings default is `horizontal`.
 
 ### Migrate from the experimental setting
 
@@ -115,6 +115,16 @@ Portable upgrades add this setting if it is absent and preserve an explicit star
 Each pane restores its current local directory reported by its shell through OSC 7 or OSC 9;9. If the reported directory is invalid or directory reporting is unavailable, it falls back to its startup directory. Shell processes are started again, so running commands and process memory are not resumed. A normal exit saves the current layout; unexpected termination can only recover the last periodic save. Portable updates wait for normal shutdown and abort if the application remains open, so a pending close confirmation cannot cause a forced termination that loses session state.
 
 Agent Resume currently supports a constrained Codex session UUID. It stores neither arbitrary commands nor prompts, tokens, or sensitive environment variables. Resume uses a fixed command template, resolves absolute executable paths, opens a new pane in the target workspace, and requires confirmation every time.
+
+## Workspace command line
+
+Use `wmx.exe` beside the portable `winmux.exe` to list, open, import, and export saved workspace snapshots. The registered package exposes `wmx.exe` as an execution alias.
+
+```powershell
+.\wmx.exe workspace list --format json
+```
+
+The GUI entry is `winmux.exe`; `wmx.exe` provides console output and command exit codes. Existing layout restoration continues to use the portable `settings` directory.
 
 ## Local automation permissions
 

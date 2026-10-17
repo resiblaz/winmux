@@ -1019,4 +1019,10 @@
   <data name="EnterVimModeCommandKey" xml:space="preserve">
     <value>进入 Vim 浏览模式</value>
   </data>
+  <data name="WinmuxApplicationDisplayNamePortable" xml:space="preserve">
+    <value>Winmux（便携版）</value>
+  </data>
+  <data name="WinmuxApplicationDisplayNameUnpackaged" xml:space="preserve">
+    <value>Winmux</value>
+  </data>
 </root>

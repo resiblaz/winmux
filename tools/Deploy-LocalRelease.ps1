@@ -21,7 +21,7 @@ $packageBinRoot = Join-Path $repoRoot 'src\cascadia\CascadiaPackage\bin'
 $packageLayout = Join-Path $packageBinRoot "$Platform\$configuration"
 $deploymentLayout = Join-Path $packageLayout 'AppX'
 $appRecipe = Join-Path $packageLayout 'CascadiaPackage.build.appxrecipe'
-$terminalExe = Join-Path $deploymentLayout 'WindowsTerminal.exe'
+$terminalExe = Join-Path $deploymentLayout 'winmux.exe'
 $openConsoleModule = Join-Path $repoRoot 'tools\OpenConsole.psm1'
 $solution = Join-Path $repoRoot 'OpenConsole.slnx'
 $nuget = Join-Path $repoRoot 'dep\nuget\nuget.exe'
@@ -100,12 +100,22 @@ try
     }
 
     $resolvedPackageBinRoot = [System.IO.Path]::GetFullPath($packageBinRoot).TrimEnd('\') + '\'
-    Get-Process WindowsTerminal -ErrorAction SilentlyContinue |
+    $runningPackages = @(Get-Process winmux, WindowsTerminal -ErrorAction SilentlyContinue |
         Where-Object {
             $_.Path -and
             [System.IO.Path]::GetFullPath($_.Path).StartsWith($resolvedPackageBinRoot, [System.StringComparison]::OrdinalIgnoreCase)
-        } |
-        Stop-Process -Force
+        })
+    foreach ($process in $runningPackages)
+    {
+        $null = $process.CloseMainWindow()
+    }
+    foreach ($process in $runningPackages)
+    {
+        if (-not $process.WaitForExit(20000))
+        {
+            throw 'The local terminal is still running. Close it normally so its session can be saved, then retry deployment.'
+        }
+    }
 
     Write-Host 'Registering the local Release package...' -ForegroundColor Cyan
     $deployAppRecipe = (Get-Command DeployAppRecipe.exe -ErrorAction Stop).Source
@@ -117,10 +127,10 @@ try
         return
     }
 
-    $launcher = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\wtd.exe'
+    $launcher = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\wmx.exe'
     if (-not (Test-Path -LiteralPath $launcher -PathType Leaf))
     {
-        throw "The wtd.exe execution alias was not registered: $launcher"
+        throw "The wmx.exe execution alias was not registered: $launcher"
     }
 
     Write-Host 'Launching the local Release build...' -ForegroundColor Cyan
@@ -130,7 +140,7 @@ try
     for ($attempt = 0; $attempt -lt 20; $attempt++)
     {
         Start-Sleep -Milliseconds 250
-        $started = [bool](Get-Process WindowsTerminal -ErrorAction SilentlyContinue |
+        $started = [bool](Get-Process winmux -ErrorAction SilentlyContinue |
             Where-Object { $_.Path -and [System.IO.Path]::GetFullPath($_.Path).Equals($terminalExe, [System.StringComparison]::OrdinalIgnoreCase) } |
             Select-Object -First 1)
         if ($started)
@@ -144,7 +154,7 @@ try
         throw "The local Release process did not start from the expected path: $terminalExe"
     }
 
-    Write-Host 'Local Release is running. Use wtd.exe for future launches.' -ForegroundColor Green
+    Write-Host 'Winmux is running. Use wmx.exe for future launches.' -ForegroundColor Green
 }
 finally
 {

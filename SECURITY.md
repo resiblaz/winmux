@@ -1,3 +1,13 @@
+# Winmux security reporting
+
+Winmux is maintained independently of Microsoft. For a Winmux-specific issue, use a private reporting option on the [repository's Security page](https://github.com/resiblaz/winmux/security) if one is available. If no private contact is listed, ask the maintainer for a private contact through an issue without posting vulnerability details.
+
+For a vulnerability in the original Windows Terminal engine, follow the [upstream security policy](https://github.com/microsoft/terminal/blob/main/SECURITY.md).
+
+The Microsoft policy below is retained as **upstream reference**. Its contacts, response times, and bounty terms apply to Microsoft's projects.
+
+---
+
 <!-- BEGIN MICROSOFT SECURITY.MD V0.0.2 BLOCK -->
 
 ## Security

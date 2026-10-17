@@ -43,7 +43,9 @@ namespace winrt::TerminalApp::implementation
 
     void AboutDialog::_SendFeedbackOnClick(const IInspectable& /*sender*/, const Windows::UI::Xaml::Controls::ContentDialogButtonClickEventArgs& /*eventArgs*/)
     {
-#if defined(WT_BRANDING_RELEASE)
+#if defined(WT_BRANDING_DEV)
+        ShellExecute(nullptr, nullptr, L"https://github.com/resiblaz/winmux/issues/new", nullptr, nullptr, SW_SHOW);
+#elif defined(WT_BRANDING_RELEASE)
         ShellExecute(nullptr, nullptr, L"https://go.microsoft.com/fwlink/?linkid=2125419", nullptr, nullptr, SW_SHOW);
 #else
         ShellExecute(nullptr, nullptr, L"https://go.microsoft.com/fwlink/?linkid=2204904", nullptr, nullptr, SW_SHOW);
@@ -79,11 +81,9 @@ namespace winrt::TerminalApp::implementation
         try
         {
 #ifdef WT_BRANDING_DEV
-            // **DEV BRANDING**: Always sleep for three seconds and then report that
-            // there is an update available. This lets us test the system.
-            co_await winrt::resume_after(std::chrono::seconds{ 3 });
-            co_await wil::resume_foreground(strongThis->Dispatcher());
-            UpdatesAvailable(true);
+            // Winmux publishes through its repository, not the Microsoft Store.
+            // Do not advertise the upstream Dev channel's simulated update.
+            UpdatesAvailable(false);
 #else // release build, likely has a store context
             bool packageManagerAnswered{ false };
 

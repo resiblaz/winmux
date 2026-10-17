@@ -5,6 +5,7 @@
 #include <limits>
 #include <string_view>
 #include <vector>
+#include "../inc/WinmuxBranding.h"
 
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
@@ -152,7 +153,7 @@ namespace
     }
     catch (...)
     {
-        OutputDebugStringW(L"wt workspace: launcher diagnostics could not be written.\n");
+        OutputDebugStringW(L"wmx workspace: launcher diagnostics could not be written.\n");
     }
 
     class AttributeList final
@@ -220,17 +221,17 @@ namespace
         }
         if (!error)
         {
-            OutputDebugStringW(L"wt workspace: stderr is unavailable.\n");
+            OutputDebugStringW(L"wmx workspace: stderr is unavailable.\n");
             return WorkspaceLauncherErrorExitCode;
         }
         if (!output)
         {
-            WriteLauncherError(error.get(), L"wt workspace: stdout is unavailable.\n");
+            WriteLauncherError(error.get(), L"wmx workspace: stdout is unavailable.\n");
             return WorkspaceLauncherErrorExitCode;
         }
         if (!input)
         {
-            WriteLauncherError(error.get(), L"wt workspace: stdin and the NUL fallback are unavailable.\n");
+            WriteLauncherError(error.get(), L"wmx workspace: stdin and the NUL fallback are unavailable.\n");
             return WorkspaceLauncherErrorExitCode;
         }
 
@@ -238,7 +239,7 @@ namespace
         AttributeList attributes;
         if (!attributes.SetHandles(inheritedHandles))
         {
-            WriteLauncherError(error.get(), L"wt workspace: standard handles could not be isolated for the child process.\n");
+            WriteLauncherError(error.get(), L"wmx workspace: standard handles could not be isolated for the child process.\n");
             return WorkspaceLauncherErrorExitCode;
         }
 
@@ -248,7 +249,7 @@ namespace
         if (!job ||
             !SetInformationJobObject(job.get(), JobObjectExtendedLimitInformation, &jobLimits, sizeof(jobLimits)))
         {
-            WriteLauncherError(error.get(), L"wt workspace: the child process containment job could not be created.\n");
+            WriteLauncherError(error.get(), L"wmx workspace: the child process containment job could not be created.\n");
             return WorkspaceLauncherErrorExitCode;
         }
 
@@ -274,19 +275,19 @@ namespace
                             &startupInfo.StartupInfo,
                             &processInformation))
         {
-            WriteLauncherError(error.get(), L"wt workspace: WindowsTerminal.exe could not be started.\n");
+            WriteLauncherError(error.get(), L"wmx workspace: terminal host could not be started.\n");
             return WorkspaceLauncherErrorExitCode;
         }
         if (!AssignProcessToJobObject(job.get(), processInformation.hProcess))
         {
             TerminateProcess(processInformation.hProcess, WorkspaceLauncherErrorExitCode);
-            WriteLauncherError(error.get(), L"wt workspace: WindowsTerminal.exe could not be contained safely.\n");
+            WriteLauncherError(error.get(), L"wmx workspace: terminal host could not be contained safely.\n");
             return WorkspaceLauncherErrorExitCode;
         }
         if (ResumeThread(processInformation.hThread) == static_cast<DWORD>(-1))
         {
             TerminateJobObject(job.get(), WorkspaceLauncherErrorExitCode);
-            WriteLauncherError(error.get(), L"wt workspace: WindowsTerminal.exe could not be resumed.\n");
+            WriteLauncherError(error.get(), L"wmx workspace: terminal host could not be resumed.\n");
             return WorkspaceLauncherErrorExitCode;
         }
 
@@ -295,21 +296,21 @@ namespace
         {
             TerminateJobObject(job.get(), ERROR_TIMEOUT);
             WaitForSingleObject(processInformation.hProcess, 5000);
-            WriteLauncherError(error.get(), L"wt workspace: command timed out after 120 seconds.\n");
+            WriteLauncherError(error.get(), L"wmx workspace: command timed out after 120 seconds.\n");
             return WorkspaceLauncherErrorExitCode;
         }
         if (waitResult != WAIT_OBJECT_0)
         {
             TerminateJobObject(job.get(), WorkspaceLauncherErrorExitCode);
             WaitForSingleObject(processInformation.hProcess, 5000);
-            WriteLauncherError(error.get(), L"wt workspace: waiting for WindowsTerminal.exe failed.\n");
+            WriteLauncherError(error.get(), L"wmx workspace: waiting for the terminal host failed.\n");
             return WorkspaceLauncherErrorExitCode;
         }
 
         DWORD exitCode{};
         if (!GetExitCodeProcess(processInformation.hProcess, &exitCode))
         {
-            WriteLauncherError(error.get(), L"wt workspace: the child exit code could not be read.\n");
+            WriteLauncherError(error.get(), L"wmx workspace: the child exit code could not be read.\n");
             return WorkspaceLauncherErrorExitCode;
         }
         return static_cast<int>(exitCode);
@@ -341,7 +342,7 @@ try
 
     // Cache our name (wt, wtd), then locate WindowsTerminal.exe beside us.
     const std::wstring ourFilename{ module.filename() };
-    module.replace_filename(L"WindowsTerminal.exe");
+    module.replace_filename(TerminalBranding::Executable);
 
     const auto workspaceCommand = argc >= 2 && argv[1] == WorkspaceCommand;
     std::wstring commandline;
@@ -375,7 +376,7 @@ try
         }
         if (!LaunchWithoutWaiting(module, uiCommandline))
         {
-            WriteLauncherError(GetStdHandle(STD_ERROR_HANDLE), L"wt workspace: the validated workspace UI could not be started.\n");
+            WriteLauncherError(GetStdHandle(STD_ERROR_HANDLE), L"wmx workspace: the validated workspace UI could not be started.\n");
             return WorkspaceLauncherErrorExitCode;
         }
         return 0;
@@ -398,6 +399,6 @@ try
 }
 catch (...)
 {
-    WriteLauncherError(GetStdHandle(STD_ERROR_HANDLE), L"wt workspace: launcher initialization failed.\n");
+    WriteLauncherError(GetStdHandle(STD_ERROR_HANDLE), L"wmx workspace: launcher initialization failed.\n");
     return WorkspaceLauncherErrorExitCode;
 }

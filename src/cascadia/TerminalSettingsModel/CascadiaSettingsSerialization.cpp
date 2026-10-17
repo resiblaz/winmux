@@ -1673,7 +1673,12 @@ Json::Value CascadiaSettings::ToJson() const
 {
     // top-level json object
     auto json{ _globals->ToJson() };
-    json["$help"] = "https://aka.ms/terminal-documentation";
+    json["$help"] =
+#if defined(WT_BRANDING_DEV)
+        "https://github.com/resiblaz/winmux/blob/develop/doc/user-docs/WorkspaceSidebar.md";
+#else
+        "https://aka.ms/terminal-documentation";
+#endif
     json["$schema"] =
 #if defined(WT_BRANDING_RELEASE)
         "https://aka.ms/terminal-profiles-schema"
@@ -1681,6 +1686,8 @@ Json::Value CascadiaSettings::ToJson() const
         "https://aka.ms/terminal-profiles-schema-preview"
 #elif !defined(NDEBUG) // DEBUG mode
         _getDevPathToSchema() // magic schema path that refers to the local source directory
+#elif defined(WT_BRANDING_DEV)
+        "https://raw.githubusercontent.com/resiblaz/winmux/develop/doc/cascadia/profiles.schema.json"
 #else // All other brandings
         "https://raw.githubusercontent.com/microsoft/terminal/main/doc/cascadia/profiles.schema.json"
 #endif

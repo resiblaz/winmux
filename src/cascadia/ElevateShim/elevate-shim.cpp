@@ -10,6 +10,7 @@
 
 #include <shellapi.h>
 #include <appmodel.h>
+#include "../inc/WinmuxBranding.h"
 
 // BODGY
 //
@@ -69,7 +70,7 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, LPWSTR cmdline, int)
             wil::GetModuleFileNameW<std::wstring>(nullptr)
         };
         // Swap elevate-shim.exe for WindowsTerminal.exe
-        module.replace_filename(L"WindowsTerminal.exe");
+        module.replace_filename(TerminalBranding::Executable);
         cmd = module;
     }
 

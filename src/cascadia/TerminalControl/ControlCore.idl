@@ -35,6 +35,13 @@ namespace Microsoft.Terminal.Control
         Mark
     };
 
+    enum VimMode
+    {
+        Insert,
+        Normal,
+        Visual
+    };
+
     [flags] enum SelectionEndpointTarget {
         Start = 0x1,
         End = 0x2
@@ -121,6 +128,12 @@ namespace Microsoft.Terminal.Control
 
         Boolean TryMarkModeKeybinding(Int16 vkey,
                                       Microsoft.Terminal.Core.ControlKeyStates modifiers);
+        Boolean TryVimModeKeybinding(Int16 vkey,
+                                     Microsoft.Terminal.Core.ControlKeyStates modifiers);
+        VimMode VimModeState { get; };
+        Boolean VimModeAvailable { get; };
+        Boolean EnterVimMode();
+        void ExitVimMode();
         Boolean TrySendKeyEvent(Int16 vkey,
                                 Int16 scanCode,
                                 Microsoft.Terminal.Core.ControlKeyStates modifiers,
@@ -191,6 +204,7 @@ namespace Microsoft.Terminal.Control
         // These events are called from some background thread
         event Windows.Foundation.TypedEventHandler<Object, TitleChangedEventArgs> TitleChanged;
         event Windows.Foundation.TypedEventHandler<Object, Object> WorkingDirectoryChanged;
+        event Windows.Foundation.TypedEventHandler<Object, Object> VimModeChanged;
         event Windows.Foundation.TypedEventHandler<Object, WriteToClipboardEventArgs> WriteToClipboard;
         event Windows.Foundation.TypedEventHandler<Object, Object> WarningBell;
         event Windows.Foundation.TypedEventHandler<Object, Object> TabColorChanged;

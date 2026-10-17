@@ -24,11 +24,15 @@ $packageBuild = Join-Path $repoRoot 'tools\Deploy-LocalRelease.ps1'
 $hookTests = Join-Path $repoRoot '.codex\hooks\test-workspace-history.ps1'
 $testHostDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\TestHostApp"
 $settingsTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_SettingsModel"
+$controlTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_Control"
+$coreTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_TerminalCore"
 $wt = Join-Path $repoRoot "src\cascadia\CascadiaPackage\bin\$Platform\$configuration\wtd.exe"
 $workspaceTestTargets = @(
     'Terminal\Tests\TerminalApp_LocalTests',
     'Terminal\Tests\TestHostApp',
-    'Terminal\Tests\SettingsModel_UnitTests')
+    'Terminal\Tests\SettingsModel_UnitTests',
+    'Terminal\Tests\Control_UnitTests',
+    'Terminal\Tests\UnitTests')
 $oldClMpCount = $env:CL_MPCount
 
 function Invoke-CheckedCommand
@@ -158,7 +162,12 @@ try
         $hookTests,
         $packageBuild,
         (Join-Path $repoRoot 'tools\deploy\build-portable-release.ps1'),
+        (Join-Path $repoRoot 'tools\deploy\PortableSettings.ps1'),
+        (Join-Path $repoRoot 'tools\deploy\test-portable-settings.ps1'),
         $PSCommandPath)
+
+    Invoke-CheckedCommand -Executable (Get-Command pwsh.exe -ErrorAction Stop).Source -Arguments @(
+        '-NoLogo', '-NoProfile', '-File', (Join-Path $repoRoot 'tools\deploy\test-portable-settings.ps1'))
 
     if (-not $SkipHookTests)
     {
@@ -223,6 +232,8 @@ try
     {
         $terminalAppTests = Join-Path $testHostDirectory 'TerminalApp.LocalTests.dll'
         $settingsTests = Join-Path $settingsTestDirectory 'SettingsModel.Unit.Tests.dll'
+        $controlTests = Join-Path $controlTestDirectory 'Control.Unit.Tests.dll'
+        $coreTests = Join-Path $coreTestDirectory 'Terminal.Core.Unit.Tests.dll'
         $taef = @(
             (Join-Path $testHostDirectory 'TE.exe'),
             (Join-Path $settingsTestDirectory 'TE.exe'),
@@ -233,7 +244,9 @@ try
 
         if (-not $taef -or
             -not (Test-Path -LiteralPath $terminalAppTests -PathType Leaf) -or
-            -not (Test-Path -LiteralPath $settingsTests -PathType Leaf))
+            -not (Test-Path -LiteralPath $settingsTests -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $controlTests -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $coreTests -PathType Leaf))
         {
             throw 'Native test outputs are missing. Run without -SkipTestBuild.'
         }
@@ -248,6 +261,7 @@ try
                     '*WorkspaceSidebarAdaptsToWindowModes*',
                     '*WorkspaceSurfaceShortcutActions*',
                     '*TabTests*WorkspaceAutomation*',
+                    '*TabTests*WorkspaceVimMode*',
                     '*TabTests*WorkspaceNames*',
                     '*WorkspaceWorkingDirectory*',
                     '*WorkspaceClosingTerminals*',
@@ -272,10 +286,37 @@ try
                     '*WorkspaceCommandlineTests*',
                     '*WorkspaceActionsCanBeCustomized*',
                     '*DefaultWorkspaceSurfaceBindings*',
+                    '*VimModeSettings*',
+                    '*VimModeEntryBindings*',
                     '*AgentHistoryRetentionSettings*'))
             {
                 Invoke-TaefSelection -Taef $taef -TestDll $settingsTests -Pattern $pattern
             }
+        }
+        finally
+        {
+            Pop-Location
+        }
+    }
+
+    if (-not $SkipNativeTests)
+    {
+        Push-Location $controlTestDirectory
+        try
+        {
+            foreach ($pattern in @('*VimModeTests*', '*ControlCoreTests*', '*ControlInteractivityTests*'))
+            {
+                Invoke-TaefSelection -Taef $taef -TestDll $controlTests -Pattern $pattern
+            }
+        }
+        finally
+        {
+            Pop-Location
+        }
+        Push-Location $coreTestDirectory
+        try
+        {
+            Invoke-TaefSelection -Taef $taef -TestDll $coreTests -Pattern '*SelectionTest*'
         }
         finally
         {

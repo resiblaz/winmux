@@ -428,6 +428,25 @@ void Terminal::SwitchSelectionEndpoint() noexcept
     }
 }
 
+void Terminal::CollapseSelectionToActiveEndpoint()
+{
+    _assertLocked();
+    if (!IsSelectionActive() || _selectionMode != SelectionInteractionMode::Mark)
+    {
+        return;
+    }
+
+    const auto position = WI_IsFlagSet(_selectionEndpoint, SelectionEndpoint::Start) ? _selection->start : _selection->end;
+    auto selection = _selection.write();
+    selection->start = position;
+    selection->end = position;
+    selection->pivot = position;
+    selection->blockSelection = false;
+    _selectionEndpoint = SelectionEndpoint::Start | SelectionEndpoint::End;
+    _anchorInactiveSelectionEndpoint = false;
+    _ScrollToPoint(position);
+}
+
 void Terminal::ExpandSelectionToWord()
 {
     if (IsSelectionActive())

@@ -64,6 +64,8 @@ try
             $buildTargets.Add('Terminal\Tests\TerminalApp_LocalTests')
             $buildTargets.Add('Terminal\Tests\TestHostApp')
             $buildTargets.Add('Terminal\Tests\SettingsModel_UnitTests')
+            $buildTargets.Add('Terminal\Tests\Control_UnitTests')
+            $buildTargets.Add('Terminal\Tests\UnitTests')
         }
 
         $buildDescription = if ($IncludeWorkspaceTests) { 'package and Workspace native tests' } else { 'package' }

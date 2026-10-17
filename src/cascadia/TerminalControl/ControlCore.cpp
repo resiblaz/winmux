@@ -321,6 +321,10 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     //   destruct, and close) during this call.
     void ControlCore::Connection(const TerminalConnection::ITerminalConnection& newConnection)
     {
+        if (_initializedTerminal.load(std::memory_order_relaxed))
+        {
+            ExitVimMode();
+        }
         auto oldState = ConnectionState(); // rely on ControlCore's automatic null handling
         // revoke ALL old handlers immediately
 
@@ -366,7 +370,12 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     void ControlCore::HardResetWithoutErase()
     {
         const auto lock = _terminal->LockForWriting();
+        _vimModeController.Exit(*_terminal);
         _terminal->HardResetWithoutErase();
+        if (_refreshVimModeUnderLock())
+        {
+            _updateSelectionUI();
+        }
     }
 
     bool ControlCore::Initialize(const float actualWidth,
@@ -462,6 +471,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             _renderEngine->EnableTransparentBackground(_isBackgroundTransparent());
 
             _initializedTerminal.store(true, std::memory_order_relaxed);
+            _refreshVimModeUnderLock();
         } // scope for TerminalLock
 
         return true;
@@ -937,6 +947,12 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 
         const auto lock = _terminal->LockForWriting();
 
+        _vimModeController.SetEnabled(*_terminal, settings.VimModeEnabled());
+        if (_refreshVimModeUnderLock() && _initializedTerminal.load(std::memory_order_relaxed))
+        {
+            _updateSelectionUI();
+        }
+
         _builtinGlyphs = _settings.EnableBuiltinGlyphs();
         _colorGlyphs = _settings.EnableColorGlyphs();
         _cellWidth = CSSLengthPercentage::FromString(_settings.CellWidth().c_str());
@@ -1243,6 +1259,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         _terminal->ClearSelection();
 
         // Tell the dx engine that our window is now the new size.
+        _refreshVimModeUnderLock();
         THROW_IF_FAILED(_renderEngine->SetWindowSize({ cx, cy }));
 
         // Invalidate everything
@@ -1477,6 +1494,8 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     void ControlCore::PasteText(const winrt::hstring& hstr)
     {
         using namespace ::Microsoft::Console::Utils;
+
+        ExitVimMode();
 
         auto filtered = FilterStringForPaste(hstr, CarriageReturnNewline | ControlCodes);
         if (BracketedPasteEnabled())
@@ -2243,6 +2262,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     // - Updates the renderer's representation of the selection as well as the selection marker overlay in TermControl
     void ControlCore::_updateSelectionUI()
     {
+        _refreshVimModeUnderLock();
         _renderer->TriggerSelection();
         // only show the markers if we're doing a keyboard selection or in mark mode
         const bool showMarkers{ _terminal->SelectionMode() >= ::Microsoft::Terminal::Core::Terminal::SelectionInteractionMode::Keyboard };
@@ -2288,6 +2308,10 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             {
                 const auto lock = _terminal->LockForWriting();
                 _terminal->Write(winrt_array_to_wstring_view(str));
+                if (_refreshVimModeUnderLock())
+                {
+                    _updateSelectionUI();
+                }
             }
 
             if (!_pendingResponses.empty())
@@ -2338,6 +2362,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     // - <none>
     void ControlCore::ClearBuffer(Control::ClearBufferType clearType)
     {
+        ExitVimMode();
         {
             const auto lock = _terminal->LockForWriting();
             // In absolute buffer coordinates, including the scrollback (= Y is offset by the scrollback height).

@@ -98,6 +98,7 @@ static constexpr std::string_view SelectAllKey{ "selectAll" };
 static constexpr std::string_view SelectCommandKey{ "selectCommand" };
 static constexpr std::string_view SelectOutputKey{ "selectOutput" };
 static constexpr std::string_view MarkModeKey{ "markMode" };
+static constexpr std::string_view EnterVimModeKey{ "enterVimMode" };
 static constexpr std::string_view ToggleBlockSelectionKey{ "toggleBlockSelection" };
 static constexpr std::string_view SwitchSelectionEndpointKey{ "switchSelectionEndpoint" };
 static constexpr std::string_view ColorSelectionKey{ "experimental.colorSelection" };

@@ -308,6 +308,7 @@ public:
     void SelectAll();
     SelectionInteractionMode SelectionMode() const noexcept;
     void SwitchSelectionEndpoint() noexcept;
+    void CollapseSelectionToActiveEndpoint();
     void ExpandSelectionToWord();
     void ToggleMarkMode();
     void SelectHyperlink(const SearchDirection dir);

@@ -1329,6 +1329,22 @@
                     Putting this in a grid w/ the SwapChainPanel
                     ensures that it's always aligned w/ the scrollbar
                 -->
+                <Border x:Name="VimModeIndicator"
+                        Margin="6"
+                        Padding="5,2"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}"
+                        CornerRadius="3"
+                        IsHitTestVisible="False"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="VimModeText"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{ThemeResource SystemControlForegroundBaseHighBrush}"
+                               Text="INSERT" />
+                </Border>
+
                 <local:SearchBoxControl x:Name="SearchBox"
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Top"

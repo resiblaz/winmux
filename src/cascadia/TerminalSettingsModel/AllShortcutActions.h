@@ -124,7 +124,8 @@
     ON_ALL_ACTIONS(WorkspaceForward)        \
     ON_ALL_ACTIONS(Workspaces)              \
     ON_ALL_ACTIONS(SwitchToWorkspaceConclusion) \
-    ON_ALL_ACTIONS(NewWorkspace)
+    ON_ALL_ACTIONS(NewWorkspace)            \
+    ON_ALL_ACTIONS(EnterVimMode)
 
 #define ALL_SHORTCUT_ACTIONS_WITH_ARGS             \
     ON_ALL_ACTIONS_WITH_ARGS(AdjustFontSize)       \

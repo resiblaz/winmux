@@ -1016,4 +1016,8 @@
   <data name="SplitSizeActionArgumentLocalized" xml:space="preserve">
     <value>Split size</value>
   </data>
+  <data name="EnterVimModeCommandKey" xml:space="preserve">
+    <value>Enter Vim navigation mode</value>
+    <comment>A command that enters terminal Vim navigation when the profile enables it. The default shortcut is Alt+V.</comment>
+  </data>
 </root>

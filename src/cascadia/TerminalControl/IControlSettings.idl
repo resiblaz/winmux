@@ -53,6 +53,7 @@ namespace Microsoft.Terminal.Control
         String CellHeight { get; };
 
         Boolean CopyOnSelect { get; };
+        Boolean VimModeEnabled { get; };
         Microsoft.Terminal.Control.CopyFormat CopyFormatting { get; };
         Boolean FocusFollowMouse { get; };
         Boolean ScrollToZoom { get; };

@@ -62,6 +62,7 @@
 // --------------------------- Control Settings ---------------------------
 //  All of these settings are defined in IControlSettings.
 #define CONTROL_SETTINGS(X)                                                                                                                              \
+    X(bool, VimModeEnabled, false)                                                                                                                      \
     X(winrt::guid, SessionId)                                                                                                                            \
     X(bool, EnableUnfocusedAcrylic, false)                                                                                                               \
     X(winrt::hstring, Padding, DEFAULT_PADDING)                                                                                                          \

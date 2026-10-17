@@ -18,6 +18,7 @@
 #include "ControlCore.g.h"
 #include "SelectionColor.g.h"
 #include "CommandHistoryContext.g.h"
+#include "VimModeController.h"
 
 #include "../../audio/midi/MidiAudio.hpp"
 #include "../../buffer/out/search.h"
@@ -38,6 +39,7 @@ namespace ControlUnitTests
 {
     class ControlCoreTests;
     class ControlInteractivityTests;
+    class VimModeTests;
 };
 
 #define RUNTIME_SETTING(type, name, setting)                 \
@@ -134,6 +136,11 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         bool ExpandSelectionToWord();
         bool TryMarkModeKeybinding(const WORD vkey,
                                    const ::Microsoft::Terminal::Core::ControlKeyStates modifiers);
+        bool TryVimModeKeybinding(WORD vkey, ::Microsoft::Terminal::Core::ControlKeyStates modifiers);
+        Control::VimMode VimModeState() const;
+        bool VimModeAvailable() const;
+        bool EnterVimMode();
+        void ExitVimMode();
 
         void GotFocus();
         void LostFocus();
@@ -274,6 +281,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 
         til::typed_event<IInspectable, Control::TitleChangedEventArgs> TitleChanged;
         til::typed_event<> WorkingDirectoryChanged;
+        til::typed_event<> VimModeChanged;
         til::typed_event<IInspectable, Control::WriteToClipboardEventArgs> WriteToClipboard;
         til::typed_event<> WarningBell;
         til::typed_event<> TabColorChanged;
@@ -353,6 +361,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         void _raiseReadOnlyWarning();
         void _updateAntiAliasingMode();
         void _connectionOutputHandler(winrt::array_view<const char16_t> str);
+        bool _refreshVimModeUnderLock();
         void _connectionStateChangedHandler(const TerminalConnection::ITerminalConnection&, const Windows::Foundation::IInspectable&);
         void _updateHoveredCell(const std::optional<til::point> terminalPosition);
         void _refreshHoveredCell();
@@ -426,6 +435,9 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         uint16_t _lastHoveredId{ 0 };
         std::atomic<bool> _initializedTerminal{ false };
         bool _isReadOnly{ false };
+        VimModeController _vimModeController;
+        Control::VimMode _reportedVimMode{ Control::VimMode::Insert };
+        bool _reportedVimModeAvailable{};
         bool _closing{ false };
 
         struct StashedColorScheme
@@ -466,6 +478,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 
         friend class ControlUnitTests::ControlCoreTests;
         friend class ControlUnitTests::ControlInteractivityTests;
+        friend class ControlUnitTests::VimModeTests;
         bool _inUnitTests{ false };
     };
 }

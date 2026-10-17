@@ -242,6 +242,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     // - Initiate a paste operation.
     void ControlInteractivity::RequestPasteTextFromClipboard()
     {
+        _core->ExitVimMode();
         auto args = winrt::make<PasteFromClipboardEventArgs>(
             [core = _core](const winrt::hstring& wstr) {
                 core->PasteText(wstr);
@@ -259,6 +260,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
                                               const ::Microsoft::Terminal::Core::ControlKeyStates modifiers,
                                               const Core::Point pixelPosition)
     {
+        _core->ExitVimMode();
         // Un-rounded coordinates; we only round when selecting text
         const auto terminalPosition = _getTerminalPosition(til::point{ pixelPosition }, false);
 

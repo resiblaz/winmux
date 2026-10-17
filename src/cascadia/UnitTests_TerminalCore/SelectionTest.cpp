@@ -63,6 +63,29 @@ namespace TerminalCoreUnitTests
             ValidateLinearSelection(term, { 5, 10 }, { 5, 10 });
         }
 
+        TEST_METHOD(VimSelectionCollapsePreservesEndpoint)
+        {
+            Terminal term{ Terminal::TestDummyMarker{} };
+            DummyRenderer renderer{ &term };
+            term.Create({ 20, 5 }, 0, renderer);
+            term.ToggleMarkMode();
+            for (int index = 0; index < 4; ++index)
+            {
+                term.UpdateSelection(Terminal::SelectionDirection::Right, Terminal::SelectionExpansion::Char, {});
+            }
+            term.SwitchSelectionEndpoint();
+            term.UpdateSelection(Terminal::SelectionDirection::Left, Terminal::SelectionExpansion::Char, {});
+            VERIFY_ARE_EQUAL(til::point(3, 0), term.GetSelectionAnchor());
+            VERIFY_ARE_EQUAL(til::point(4, 0), term.GetSelectionEnd());
+            term.CollapseSelectionToActiveEndpoint();
+            VERIFY_ARE_EQUAL(til::point(3, 0), term.GetSelectionAnchor());
+            VERIFY_ARE_EQUAL(term.GetSelectionAnchor(), term.GetSelectionEnd());
+            VERIFY_IS_TRUE(term.SelectionMode() == Terminal::SelectionInteractionMode::Mark);
+            term.UpdateSelection(Terminal::SelectionDirection::Right, Terminal::SelectionExpansion::Char, {});
+            VERIFY_ARE_EQUAL(til::point(4, 0), term.GetSelectionAnchor());
+            VERIFY_ARE_EQUAL(term.GetSelectionAnchor(), term.GetSelectionEnd());
+        }
+
         TEST_METHOD(SelectArea)
         {
             Terminal term{ Terminal::TestDummyMarker{} };

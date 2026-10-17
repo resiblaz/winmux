@@ -649,6 +649,7 @@
         { "command": "paste", "id": "Terminal.PasteFromClipboard" },
         { "command": "selectAll", "id": "Terminal.SelectAll" },
         { "command": "markMode", "id": "Terminal.ToggleMarkMode" },
+        { "command": "enterVimMode", "id": "Terminal.EnterVimMode" },
         { "command": "toggleBlockSelection", "id": "Terminal.ToggleBlockSelection" },
         { "command": "switchSelectionEndpoint", "id": "Terminal.SwitchSelectionEndpoint" },
         { "command": "expandSelectionToWord", "id": "Terminal.ExpandSelectionToWord" },
@@ -818,6 +819,7 @@
         { "keys": "shift+insert", "id": "Terminal.PasteFromClipboard" },
         { "keys": "ctrl+shift+a", "id": "Terminal.SelectAll" },
         { "keys": "ctrl+shift+m", "id": "Terminal.ToggleMarkMode" },
+        { "keys": "alt+v", "id": "Terminal.EnterVimMode" },
         { "keys": "menu", "id": "Terminal.ShowContextMenu" },
 
         // Scrollback

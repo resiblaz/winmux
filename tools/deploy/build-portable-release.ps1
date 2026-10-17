@@ -12,6 +12,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'PortableSettings.ps1')
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $configuration = 'Release'
@@ -87,6 +88,7 @@ function Set-WorkspaceSidebarSettings
         $content = $content.Insert($openingBrace + 1, "`r`n    `"firstWindowPreference`": `"persistedLayout`",")
     }
 
+    $content = Enable-PortableVimModeDefault -Content $content
     [System.IO.File]::WriteAllText($SettingsPath, $content, [System.Text.UTF8Encoding]::new($false))
 }
 
@@ -197,6 +199,7 @@ try
         firstWindowPreference = 'persistedLayout'
         profiles = [ordered]@{
             defaults = [ordered]@{
+                'experimental.vimMode' = $true
                 padding = '3'
                 scrollbarState = 'hidden'
             }

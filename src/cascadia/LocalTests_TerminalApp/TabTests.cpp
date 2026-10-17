@@ -231,6 +231,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceWorkingDirectoryNewTerminalFollowsActiveSurface);
         TEST_METHOD(WorkspaceWorkingDirectoryNewTerminalFollowsActivePane);
         TEST_METHOD(WorkspaceWorkingDirectoryNewTerminalHonorsLaunchContext);
+        TEST_METHOD(WorkspaceVimModeInputRouting);
         TEST_METHOD(WorkspaceClosingTerminalsKeepsSelectionValid);
         TEST_METHOD(WorkspaceGitBranchParsesStructuredOutput);
         TEST_METHOD(WorkspaceListeningPortsProjectMetadata);
@@ -1326,6 +1327,83 @@ namespace TerminalAppLocalTests
             const auto resetRestoring = wil::scope_exit([&]() noexcept { page->_SessionRestore().Restoring = false; });
             VERIFY_SUCCEEDED(page->_OpenNewTab(nullptr));
             VERIFY_ARE_EQUAL(profileDirectory, page->_GetActiveControl().WorkingDirectory());
+        });
+    }
+
+    void TabTests::WorkspaceVimModeInputRouting()
+    {
+        const CascadiaSettings settings{ LR"({
+            "defaultProfile":"{6239a42c-1111-49a3-80bd-e8fdd045185c}",
+            "actions":[{"command":"enterVimMode","keys":"f6"}],
+            "profiles":{
+                "defaults":{"experimental.vimMode":true,"closeOnExit":"never"},
+                "list":[
+                    {"name":"vim","guid":"{6239a42c-1111-49a3-80bd-e8fdd045185c}"},
+                    {"name":"raw","guid":"{6239a42c-2222-49a3-80bd-e8fdd045185c}","experimental.vimMode":false}
+                ]
+            }
+        })", {} };
+        winrt::com_ptr<winrt::TerminalApp::implementation::TerminalPage> page;
+        _initializeTerminalPage(page, settings);
+        TestOnUIThread([&]() {
+            const auto firstTab = page->_GetFocusedTab();
+            const auto control = page->_GetActiveControl();
+            const auto core = _contentManager->TryLookupCore(control.ContentId()).Core();
+            const auto connection = winrt::make_self<WorkspaceDirectoryConnection>();
+            control.Connection(*connection);
+            core.Initialize(600, 400, 1.0f);
+            connection->TerminalOutput.raise(winrt_wstring_to_array_view(L"abcdef\r"));
+            VERIFY_IS_TRUE(core.VimModeAvailable());
+
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+            const auto otherCore = _contentManager->TryLookupCore(page->_GetActiveControl().ContentId()).Core();
+            otherCore.Initialize(600, 400, 1.0f);
+            VERIFY_IS_FALSE(otherCore.VimModeAvailable());
+            page->FocusTab(firstTab);
+
+            auto broadcasts = 0;
+            const auto keyToken = control.KeySent([&](auto&&, auto&&) { ++broadcasts; });
+            const auto removeHandler = wil::scope_exit([&]() noexcept { control.KeySent(keyToken); });
+            const auto press = [&](const uint32_t key) {
+                const auto scanCode = static_cast<uint8_t>(MapVirtualKeyW(key, MAPVK_VK_TO_VSC));
+                VERIFY_IS_TRUE(control.OnDirectKeyEvent(key, scanCode, true));
+                VERIFY_IS_TRUE(control.OnDirectKeyEvent(key, scanCode, false));
+            };
+            // Windows generates a character event for an unhandled Escape
+            // key-down. Simulate it only after proving entry did not eat it.
+            VERIFY_IS_FALSE(control.OnDirectKeyEvent(VK_ESCAPE, 1, true));
+            control.RawWriteChar(L'\x1b', 1, {});
+            control.OnDirectKeyEvent(VK_ESCAPE, 1, false);
+            VERIFY_ARE_EQUAL(std::wstring(L"\x1b"), connection->Input);
+            VERIFY_IS_TRUE(core.VimModeState() == winrt::Microsoft::Terminal::Control::VimMode::Insert);
+            VERIFY_ARE_EQUAL(2, broadcasts, L"Insert must forward Escape through the original input route.");
+            broadcasts = 0;
+            connection->Input.clear();
+            press(VK_F6);
+            press('L');
+            press('V');
+            press('L');
+            VERIFY_IS_TRUE(core.VimModeState() == winrt::Microsoft::Terminal::Control::VimMode::Visual);
+            press(VK_ESCAPE);
+            press('I');
+            VERIFY_IS_TRUE(core.VimModeState() == winrt::Microsoft::Terminal::Control::VimMode::Insert);
+            VERIFY_ARE_EQUAL(0, broadcasts);
+            VERIFY_IS_TRUE(connection->Input.empty());
+            VERIFY_IS_TRUE(otherCore.VimModeState() == winrt::Microsoft::Terminal::Control::VimMode::Insert);
+            control.RawWriteChar(L'x', 0, {});
+            VERIFY_ARE_EQUAL(std::wstring(L"x"), connection->Input);
+
+            press(VK_F6);
+            const auto insertScan = static_cast<uint8_t>(MapVirtualKeyW('I', MAPVK_VK_TO_VSC));
+            VERIFY_IS_TRUE(control.OnDirectKeyEvent('I', insertScan, true));
+            settings.ActiveProfiles().GetAt(0).VimModeEnabled(false);
+            page->SetSettings(settings, true);
+            VERIFY_IS_FALSE(core.VimModeAvailable());
+            VERIFY_IS_TRUE(control.OnDirectKeyEvent('I', insertScan, false));
+            VERIFY_ARE_EQUAL(0, broadcasts, L"Disabling Vim must not leak the release of an already consumed key.");
+            control.OnDirectKeyEvent('I', insertScan, true);
+            VERIFY_ARE_EQUAL(1, broadcasts, L"Fresh input must pass through after disabling Vim.");
+            control.OnDirectKeyEvent('I', insertScan, false);
         });
     }
 

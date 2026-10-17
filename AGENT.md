@@ -16,7 +16,7 @@ pwsh -NoLogo -NoProfile -File .\tools\deploy\test-workspace-release.ps1
 pwsh -NoLogo -NoProfile -File .\tools\deploy\build-portable-release.ps1 -SkipBuild
 ```
 
-The first command intentionally builds `CascadiaPackage`, `TerminalApp.LocalTests`, `TestHostApp`, and `SettingsModel.UnitTests` in one solution-level MSBuild invocation with one global-property set. Keep `bin/`, `obj/`, generated source directories, and the vcpkg install tree between runs so that later invocations remain incremental.
+The first command intentionally builds `CascadiaPackage`, `TerminalApp.LocalTests`, `TestHostApp`, `SettingsModel.UnitTests`, `Control.UnitTests`, and the TerminalCore unit tests in one solution-level MSBuild invocation with one global-property set. Keep `bin/`, `obj/`, generated source directories, and the vcpkg install tree between runs so that later invocations remain incremental.
 
 On the current reference machine, a clean full gate takes about 29 minutes, while an unchanged incremental full gate takes about 2 minutes. Treat a hot run that recompiles hundreds of C++ files or repeats MIDL/metadata generation as a build-graph regression. Inspect the invoked targets and global properties instead of hiding the problem with a clean build.
 
@@ -37,6 +37,8 @@ Do not build these projects directly as separate MSBuild commands:
 - `src\cascadia\LocalTests_TerminalApp\TerminalApp.LocalTests.vcxproj`
 - `src\cascadia\LocalTests_TerminalApp\TestHostApp\TestHostApp.vcxproj`
 - `src\cascadia\UnitTests_SettingsModel\SettingsModel.UnitTests.vcxproj`
+- `src\cascadia\UnitTests_Control\Control.UnitTests.vcxproj`
+- `src\cascadia\UnitTests_TerminalCore\UnitTests.vcxproj`
 
 Do not build the package and tests with different global-property sets against the same `bin/obj` tree. Alternating those modes invalidates the shared TerminalApp, Settings, Control, MIDL, and metadata outputs.
 
@@ -80,9 +82,9 @@ The script:
 
 - builds the x64 Release package unless `-SkipBuild` is specified;
 - creates an unpackaged portable distribution using the repository's official packaging script;
-- writes a clean default `settings/settings.json` with Workspace Sidebar and session layout restoration enabled, terminal padding set to `3`, and the scrollbar hidden into the ZIP;
+- writes a clean default `settings/settings.json` with Workspace Sidebar, session layout restoration, and Vim navigation enabled, terminal padding set to `3`, and the scrollbar hidden into the ZIP;
 - deploys the extracted application under `dist/terminal-<version>`;
-- preserves the existing deployed `settings` directory across rebuilds, keeps Workspace Sidebar enabled, and enables session layout restoration unless a startup preference is already explicit;
+- preserves the existing deployed `settings` directory across rebuilds, keeps Workspace Sidebar enabled, and adds missing session-restoration and Vim-navigation defaults while preserving explicit preferences and profile overrides;
 - replaces the deployed directory through a staged update and starts its `WindowsTerminal.exe` unless `-NoLaunch` is specified;
 - emits the package, deployment, launcher, and SHA256 paths when complete.
 

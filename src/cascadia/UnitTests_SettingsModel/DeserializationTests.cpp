@@ -31,6 +31,7 @@ namespace SettingsModelUnitTests
         TEST_METHOD(TabLayoutSetting);
         TEST_METHOD(WorkspaceAutomationPermissionsSetting);
         TEST_METHOD(AgentHistoryRetentionSettings);
+        TEST_METHOD(VimModeSettings);
         TEST_METHOD(ValidateProfileOrdering);
         TEST_METHOD(ValidateHideProfiles);
         TEST_METHOD(TestReorderWithNullGuids);
@@ -451,6 +452,26 @@ namespace SettingsModelUnitTests
         VERIFY_ARE_EQUAL(30u, configured->GlobalSettings().AgentHistoryRetentionDays());
         VERIFY_ARE_EQUAL(2500u, configured->GlobalSettings().AgentHistoryMaximumTurns());
         VERIFY_ARE_EQUAL(16u, configured->GlobalSettings().AgentHistoryMaximumPayloadMiB());
+    }
+
+    void DeserializationTests::VimModeSettings()
+    {
+        const auto defaults = createSettings(R"({"profiles":[{"name":"default"}]})");
+        VERIFY_IS_FALSE(defaults->ProfileDefaults().VimModeEnabled());
+        VERIFY_IS_FALSE(defaults->ActiveProfiles().GetAt(0).VimModeEnabled());
+
+        const auto settings = createSettings(R"({"profiles":{
+            "defaults":{"experimental.vimMode":true},
+            "list":[{"name":"enabled"},{"name":"disabled","experimental.vimMode":false}]
+        }})");
+        VERIFY_IS_TRUE(settings->ProfileDefaults().VimModeEnabled());
+        VERIFY_IS_TRUE(settings->ActiveProfiles().GetAt(0).VimModeEnabled());
+        VERIFY_IS_FALSE(settings->ActiveProfiles().GetAt(1).VimModeEnabled());
+
+        const auto serialized = Json::writeString(Json::StreamWriterBuilder{}, settings->ToJson());
+        const auto reloaded = createSettings(serialized);
+        VERIFY_IS_TRUE(reloaded->ActiveProfiles().GetAt(0).VimModeEnabled());
+        VERIFY_IS_FALSE(reloaded->ActiveProfiles().GetAt(1).VimModeEnabled());
     }
 
     void DeserializationTests::ValidateProfileOrdering()

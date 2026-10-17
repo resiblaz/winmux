@@ -11,6 +11,7 @@
 #include "../../tsf/Handle.h"
 
 #include "ControlInteractivity.h"
+#include "VimInputState.h"
 
 namespace Microsoft::Console::VirtualTerminal
 {
@@ -66,6 +67,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         void SelectAll();
         bool ToggleBlockSelection();
         void ToggleMarkMode();
+        bool EnterVimMode();
         bool SwitchSelectionEndpoint();
         bool ExpandSelectionToWord();
         void RestoreFromPath(winrt::hstring path);
@@ -254,6 +256,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         Control::ControlCore _core{ nullptr };
         Control::IKeyBindings _keyBindings{ nullptr };
         TsfDataProvider _tsfDataProvider{ this };
+        VimInputState _vimInputState;
         winrt::com_ptr<SearchBoxControl> _searchBox;
 
         enum class AltNumpadEncoding
@@ -403,8 +406,12 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 
         void _KeyHandler(const Windows::UI::Xaml::Input::KeyRoutedEventArgs& e, const bool keyDown);
         bool _KeyHandler(WORD vkey, WORD scanCode, ::Microsoft::Terminal::Core::ControlKeyStates modifiers, bool keyDown);
+        bool _TryHandleVimKey(WORD vkey, WORD scanCode, ::Microsoft::Terminal::Core::ControlKeyStates modifiers, bool keyDown);
+        bool _SuppressVimCharacter(wchar_t character, WORD scanCode);
+        bool _SuppressVimText(std::wstring_view text);
+        safe_void_coroutine _VimModeChanged(IInspectable sender, IInspectable args);
         static ::Microsoft::Terminal::Core::ControlKeyStates _GetPressedModifierKeys() noexcept;
-        bool _TryHandleKeyBinding(const WORD vkey, const WORD scanCode, ::Microsoft::Terminal::Core::ControlKeyStates modifiers) const;
+        bool _TryHandleKeyBinding(const WORD vkey, const WORD scanCode, ::Microsoft::Terminal::Core::ControlKeyStates modifiers);
         static void _ClearKeyboardState(const WORD vkey, const WORD scanCode) noexcept;
         bool _TrySendKeyEvent(const WORD vkey, const WORD scanCode, ::Microsoft::Terminal::Core::ControlKeyStates modifiers, const bool keyDown);
 
@@ -462,6 +469,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             Control::ControlCore::OpenHyperlink_revoker coreOpenHyperlink;
             Control::ControlCore::TitleChanged_revoker TitleChanged;
             Control::ControlCore::WorkingDirectoryChanged_revoker WorkingDirectoryChanged;
+            Control::ControlCore::VimModeChanged_revoker VimModeChanged;
             Control::ControlCore::WriteToClipboard_revoker WriteToClipboard;
             Control::ControlCore::TabColorChanged_revoker TabColorChanged;
             Control::ControlCore::TaskbarProgressChanged_revoker TaskbarProgressChanged;

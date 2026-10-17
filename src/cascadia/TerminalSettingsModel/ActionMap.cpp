@@ -101,6 +101,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 { ShortcutAction::IdentifyWindow, USES_RESOURCE(L"IdentifyWindowCommandKey") },
                 { ShortcutAction::IdentifyWindows, USES_RESOURCE(L"IdentifyWindowsCommandKey") },
                 { ShortcutAction::MarkMode, USES_RESOURCE(L"MarkModeCommandKey") },
+                { ShortcutAction::EnterVimMode, USES_RESOURCE(L"EnterVimModeCommandKey") },
                 { ShortcutAction::MoveFocus, USES_RESOURCE(L"MoveFocusCommandKey") },
                 { ShortcutAction::MovePane, USES_RESOURCE(L"MovePaneCommandKey") },
                 { ShortcutAction::MoveTab, USES_RESOURCE(L"MoveTab") },

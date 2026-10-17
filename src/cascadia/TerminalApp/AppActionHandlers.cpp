@@ -1469,6 +1469,15 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void TerminalPage::_HandleEnterVimMode(const IInspectable& sender,
+                                         const ActionEventArgs& args)
+    {
+        if (const auto& control{ _senderOrActiveControl(sender) })
+        {
+            args.Handled(control.EnterVimMode());
+        }
+    }
+
     void TerminalPage::_HandleMarkMode(const IInspectable& sender,
                                        const ActionEventArgs& args)
     {

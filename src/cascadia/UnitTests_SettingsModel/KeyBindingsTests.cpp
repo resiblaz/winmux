@@ -6,6 +6,7 @@
 #include "../TerminalSettingsModel/ColorScheme.h"
 #include "../TerminalSettingsModel/CascadiaSettings.h"
 #include "../TerminalSettingsModel/ActionMap.h"
+#include "../TerminalSettingsModel/ActionAndArgs.h"
 #include "../TerminalSettingsModel/resource.h"
 #include "JsonTestClass.h"
 #include "TestUtils.h"
@@ -27,6 +28,7 @@ namespace SettingsModelUnitTests
         TEST_METHOD(KeyChords);
         TEST_METHOD(WorkspaceActionsCanBeCustomized);
         TEST_METHOD(DefaultWorkspaceSurfaceBindings);
+        TEST_METHOD(VimModeEntryBindings);
         TEST_METHOD(ManyKeysSameAction);
         TEST_METHOD(LayerKeybindings);
         TEST_METHOD(HashDeduplication);
@@ -172,6 +174,27 @@ namespace SettingsModelUnitTests
                          ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, 'C', 0 }).Action());
         VERIFY_ARE_EQUAL(ShortcutAction::ToggleWorkspaceSidebar,
                          ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Control, 'B', 0 }).Action());
+    }
+
+    void KeyBindingsTests::VimModeEntryBindings()
+    {
+        const auto defaults = VerifyParseSucceeded(implementation::LoadStringResource(IDR_DEFAULTS));
+        const auto actionMap = winrt::make_self<implementation::ActionMap>();
+        actionMap->LayerJson(defaults["actions"], OriginTag::InBox);
+        actionMap->LayerJson(defaults["keybindings"], OriginTag::InBox);
+        VERIFY_ARE_EQUAL(ShortcutAction::EnterVimMode,
+                         ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::Menu, 'V', 0 }).Action());
+
+        const auto rebind = VerifyParseSucceeded(R"([
+            { "command": "unbound", "keys": "alt+v" },
+            { "command": "enterVimMode", "keys": "f6" }
+        ])");
+        actionMap->LayerJson(rebind, OriginTag::User);
+        VERIFY_IS_NULL(actionMap->GetActionByKeyChord({ VirtualKeyModifiers::Menu, 'V', 0 }));
+        const auto entry = ::TestUtils::GetActionAndArgs(*actionMap, { VirtualKeyModifiers::None, VK_F6, 0 });
+        VERIFY_ARE_EQUAL(ShortcutAction::EnterVimMode, entry.Action());
+        const auto json = implementation::ActionAndArgs::ToJson(entry);
+        VERIFY_ARE_EQUAL(std::string{ "enterVimMode" }, json.asString());
     }
 
     void KeyBindingsTests::ManyKeysSameAction()

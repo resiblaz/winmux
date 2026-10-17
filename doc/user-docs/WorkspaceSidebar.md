@@ -44,6 +44,38 @@ A custom workspace name belongs to the workspace. It survives terminal switches,
 
 When the window is narrower than 640 DIP, the sidebar temporarily uses its 48-DIP compact layout. Widening the window restores the saved expanded/collapsed state and width.
 
+## Vim navigation and copying
+
+The portable build enables Vim navigation by default. Configure it in `profiles.defaults`, or override it on an individual profile:
+
+```json
+{
+    "profiles": {
+        "defaults": {
+            "experimental.vimMode": true
+        }
+    }
+}
+```
+
+Set the value to `false` to disable it. The setting reloads without restarting: disabling it clears Vim navigation and returns to normal terminal input; enabling it starts in Insert. Portable updates preserve an explicit value, including profile-specific opt-outs.
+
+The indicator belongs to each terminal pane:
+
+| Mode | Keys |
+| --- | --- |
+| INSERT | Type normally, including `Esc`; `Alt+V` enters Normal. |
+| NORMAL | `h/j/k/l` or arrow keys move the native Mark Mode cursor. `v` anchors a selection. `i/a` return to Insert. |
+| VISUAL | Movement extends or shrinks the selection. `y` copies a nonempty selection and returns to Normal at its current endpoint. `Esc/v` cancel the range while keeping the browsing position. `i/a` return to Insert. |
+
+Selection uses the terminal's existing endpoint semantics: press `v`, move, then copy with `y`. Pressing `y` on an empty selection leaves the clipboard unchanged. The `i/a` used to leave navigation are consumed; subsequent text goes to the shell's original cursor. Unsupported plain keys, including `b/e`, are consumed while navigating. This first version supports English command keys and does not add input-method composition behavior.
+
+Entry is the configurable `enterVimMode` action (`Terminal.EnterVimMode`), bound to `Alt+V` by default. It can also be invoked from the command palette. Escape is not reserved in Insert, so inline terminal applications such as Codex can receive it to cancel menus or interrupt work. Binding this action to Escape yourself reintroduces that conflict. Repeating the entry action while already navigating preserves the current mode and position.
+
+Alternate-screen applications such as a normally configured nvim receive input through the existing path; the Vim indicator is hidden while the alternate screen is active. Returning to the main screen starts in Insert. If a terminal application is configured not to use the alternate screen, disable this feature on its profile. A tmux session that stays in the alternate screen also keeps this feature inactive.
+
+Resizing the terminal, replacing its connection, clearing its buffer, pressing a mouse button, or pasting ends Vim navigation. Existing mouse selection and legacy `Ctrl+Shift+M` Mark Mode keep their usual behavior. Workspace and terminal shortcuts remain available. Vim modes are not saved across application restarts.
+
 ## Workspace context and notifications
 
 The sidebar can show:

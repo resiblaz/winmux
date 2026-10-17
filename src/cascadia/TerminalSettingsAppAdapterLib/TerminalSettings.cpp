@@ -290,6 +290,7 @@ namespace winrt::Microsoft::Terminal::Settings
         _HistorySize = profile.HistorySize();
         _SnapOnInput = profile.SnapOnInput();
         _AltGrAliasing = profile.AltGrAliasing();
+        _VimModeEnabled = profile.VimModeEnabled();
         _AnswerbackMessage = profile.AnswerbackMessage();
 
         const auto fontInfo = profile.FontInfo();

@@ -238,7 +238,10 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         {
             return;
         }
-        core->SendInput(text);
+        if (!_termControl->_SuppressVimText(text))
+        {
+            core->SendInput(text);
+        }
     }
 
     ::Microsoft::Console::Render::Renderer* TsfDataProvider::GetRenderer()
@@ -321,6 +324,8 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         // "Bubbled" events - ones we want to handle, by raising our own event.
         _revokers.TitleChanged = _core.TitleChanged(winrt::auto_revoke, { get_weak(), &TermControl::_bubbleTitleChanged });
         _revokers.WorkingDirectoryChanged = _core.WorkingDirectoryChanged(winrt::auto_revoke, { get_weak(), &TermControl::_bubbleWorkingDirectoryChanged });
+        _revokers.VimModeChanged = _core.VimModeChanged(winrt::auto_revoke, { get_weak(), &TermControl::_VimModeChanged });
+        _VimModeChanged(nullptr, nullptr);
         _revokers.TabColorChanged = _core.TabColorChanged(winrt::auto_revoke, { get_weak(), &TermControl::_bubbleTabColorChanged });
         _revokers.TaskbarProgressChanged = _core.TaskbarProgressChanged(winrt::auto_revoke, { get_weak(), &TermControl::_bubbleSetTaskbarProgress });
         _revokers.ConnectionStateChanged = _core.ConnectionStateChanged(winrt::auto_revoke, { get_weak(), &TermControl::_bubbleConnectionStateChanged });
@@ -1506,6 +1511,13 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             modifiers |= ControlKeyStates::EnhancedKey;
         }
 
+        if (!modifiers.IsCtrlPressed() && !modifiers.IsAltPressed() && !modifiers.IsWinPressed() &&
+            _SuppressVimCharacter(ch, scanCode))
+        {
+            e.Handled(true);
+            return;
+        }
+
         // Broadcast the character to all listeners
         // only broadcast if there's an actual listener. Saves the overhead of some object creation.
         if (CharSent)
@@ -1523,11 +1535,13 @@ namespace winrt::Microsoft::Terminal::Control::implementation
                                    const WORD scanCode,
                                    const winrt::Microsoft::Terminal::Core::ControlKeyStates modifiers)
     {
+        _core.ExitVimMode();
         return _core.SendCharEvent(character, scanCode, modifiers);
     }
 
     void TermControl::RawWriteString(const winrt::hstring& text)
     {
+        _core.ExitVimMode();
         _core.SendInput(text);
     }
 
@@ -1605,6 +1619,10 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         // Short-circuit isReadOnly check to avoid warning dialog
         if (_core.IsInReadOnlyMode())
         {
+            if (_TryHandleVimKey(vkey, scanCode, modifiers, keyDown))
+            {
+                return true;
+            }
             return !keyDown || _TryHandleKeyBinding(vkey, scanCode, modifiers);
         }
 
@@ -1787,6 +1805,11 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         // nor by triggering an action bound to it. GH#20244
         GetTSFHandle().FlushPendingComposition();
 
+        if (!GetTSFHandle().HasActiveComposition() && _TryHandleVimKey(vkey, scanCode, modifiers, keyDown))
+        {
+            return true;
+        }
+
         // GH#2235: Terminal::Settings hasn't been modified to differentiate
         // between AltGr and Ctrl+Alt yet.
         // -> Don't check for key bindings if this is an AltGr key combination.
@@ -1830,7 +1853,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     // - vkey: The vkey of the key pressed.
     // - scanCode: The scan code of the key pressed.
     // - modifiers: The ControlKeyStates representing the modifier key states.
-    bool TermControl::_TryHandleKeyBinding(const WORD vkey, const WORD scanCode, ::Microsoft::Terminal::Core::ControlKeyStates modifiers) const
+    bool TermControl::_TryHandleKeyBinding(const WORD vkey, const WORD scanCode, ::Microsoft::Terminal::Core::ControlKeyStates modifiers)
     {
         // Mark mode has a specific set of pre-defined key bindings.
         // If we're in mark mode, we should be prioritizing those over
@@ -1856,6 +1879,13 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         if (!success)
         {
             return false;
+        }
+
+        if (_core.VimModeAvailable() && _core.VimModeState() != VimMode::Insert)
+        {
+            // A configured action can enter navigation. Consume its entire
+            // gesture, including the release and any delayed text event.
+            _vimInputState.Consume(vkey, scanCode);
         }
 
         // Let's assume the user has bound the dead key "^" to a sendInput command that sends "b".
@@ -1918,6 +1948,10 @@ namespace winrt::Microsoft::Terminal::Control::implementation
                                        const winrt::Microsoft::Terminal::Core::ControlKeyStates modifiers,
                                        const bool keyDown)
     {
+        if (keyDown && ::Microsoft::Terminal::Core::Terminal::IsInputKey(vkey))
+        {
+            _core.ExitVimMode();
+        }
         // If the terminal translated the key, mark the event as handled.
         // This will prevent the system from trying to get the character out
         // of it and sending us a CharacterReceived event.
@@ -2426,6 +2460,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         RestorePointerCursor.raise(*this, nullptr);
 
         _focused = false;
+        _vimInputState.Reset();
 
         // This will disable the accessibility notifications, because the
         // UiaEngine lives in ControlInteractivity

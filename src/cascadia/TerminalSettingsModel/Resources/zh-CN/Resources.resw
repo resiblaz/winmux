@@ -1016,4 +1016,7 @@
   <data name="SplitSizeActionArgumentLocalized" xml:space="preserve">
     <value>拆分大小</value>
   </data>
+  <data name="EnterVimModeCommandKey" xml:space="preserve">
+    <value>进入 Vim 浏览模式</value>
+  </data>
 </root>

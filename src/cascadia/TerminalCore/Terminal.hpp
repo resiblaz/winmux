@@ -309,6 +309,7 @@ public:
     SelectionInteractionMode SelectionMode() const noexcept;
     void SwitchSelectionEndpoint() noexcept;
     void CollapseSelectionToActiveEndpoint();
+    void SetMarkSelection(til::point anchor, til::point position, bool selecting);
     void ExpandSelectionToWord();
     void ToggleMarkMode();
     void SelectHyperlink(const SearchDirection dir);

@@ -1380,6 +1380,11 @@ namespace TerminalAppLocalTests
             broadcasts = 0;
             connection->Input.clear();
             press(VK_F6);
+            const auto wordScan = static_cast<uint8_t>(MapVirtualKeyW('E', MAPVK_VK_TO_VSC));
+            VERIFY_IS_TRUE(control.OnDirectKeyEvent('E', wordScan, true));
+            VERIFY_IS_TRUE(control.OnDirectKeyEvent('E', wordScan, true));
+            VERIFY_IS_TRUE(control.OnDirectKeyEvent('E', wordScan, false));
+            press('B');
             press('L');
             press('V');
             press('L');

@@ -5,6 +5,9 @@
 
 #include "../TerminalCore/ControlKeyStates.hpp"
 #include <winrt/Microsoft.Terminal.Control.h>
+#include <optional>
+#include <string_view>
+#include <til/point.h>
 
 namespace Microsoft::Terminal::Core
 {
@@ -13,6 +16,8 @@ namespace Microsoft::Terminal::Core
 
 namespace winrt::Microsoft::Terminal::Control::implementation
 {
+    class VimTextNavigator;
+
     struct VimKeyResult
     {
         bool Handled{};
@@ -35,10 +40,14 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         bool Enter(Terminal& terminal);
         void Exit(Terminal& terminal);
         void ReturnToNormal(Terminal& terminal);
-        VimKeyResult HandleKey(Terminal& terminal, WORD vkey, Modifiers modifiers);
+        VimKeyResult HandleKey(Terminal& terminal, WORD vkey, Modifiers modifiers, std::wstring_view wordDelimiters);
 
     private:
+        void _setInclusiveSelection(Terminal& terminal, const VimTextNavigator& navigator, til::point anchor, til::point position);
         bool _enabled{};
         VimMode _mode{ VimMode::Insert };
+        std::optional<til::CoordType> _preferredColumn;
+        bool _visualActiveGlyphEnd{};
+        bool _visualAnchorGlyphEnd{};
     };
 }

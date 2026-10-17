@@ -86,6 +86,34 @@ namespace TerminalCoreUnitTests
             VERIFY_ARE_EQUAL(term.GetSelectionAnchor(), term.GetSelectionEnd());
         }
 
+        TEST_METHOD(VimMarkSelectionPreservesNativeOwnership)
+        {
+            Terminal term{ Terminal::TestDummyMarker{} };
+            DummyRenderer renderer{ &term };
+            term.Create({ 20, 5 }, 0, renderer);
+            term.ToggleMarkMode();
+            term.SetMarkSelection({ 2, 0 }, { 5, 0 }, true);
+            VERIFY_ARE_EQUAL(til::point(2, 0), term.GetSelectionAnchor());
+            VERIFY_ARE_EQUAL(til::point(5, 0), term.GetSelectionEnd());
+            VERIFY_IS_TRUE(term.SelectionEndpointTarget() == Terminal::SelectionEndpoint::End);
+            term.SetMarkSelection({ 2, 0 }, { 1, 0 }, true);
+            VERIFY_ARE_EQUAL(til::point(1, 0), term.GetSelectionAnchor());
+            VERIFY_IS_TRUE(term.SelectionEndpointTarget() == Terminal::SelectionEndpoint::Start);
+            term.SetMarkSelection({ 2, 0 }, { 5, 0 }, false);
+            term.UpdateSelection(Terminal::SelectionDirection::Left, Terminal::SelectionExpansion::Char, {});
+            VERIFY_ARE_EQUAL(til::point(4, 0), term.GetSelectionAnchor());
+            VERIFY_ARE_EQUAL(term.GetSelectionAnchor(), term.GetSelectionEnd());
+            term.SetMarkSelection({ -1, -1 }, { 100, 100 }, true);
+            VERIFY_ARE_EQUAL(til::point(0, 0), term.GetSelectionAnchor());
+            VERIFY_ARE_EQUAL(til::point(20, 4), term.GetSelectionEnd());
+            term.ClearSelection();
+            term.SetSelectionAnchor({ 3, 0 });
+            const auto previousEnd = term.GetSelectionEnd();
+            term.SetMarkSelection({ 0, 0 }, { 10, 0 }, true);
+            VERIFY_ARE_EQUAL(previousEnd, term.GetSelectionEnd());
+            VERIFY_IS_TRUE(term.SelectionMode() == Terminal::SelectionInteractionMode::Mouse);
+        }
+
         TEST_METHOD(SelectArea)
         {
             Terminal term{ Terminal::TestDummyMarker{} };

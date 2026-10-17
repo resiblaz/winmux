@@ -32,6 +32,7 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="VimModeController.h" />
     <ClInclude Include="VimInputState.h" />
+    <ClInclude Include="VimTextNavigator.h" />
     <ClInclude Include="ControlCore.h">
       <DependentUpon>ControlCore.idl</DependentUpon>
     </ClInclude>
@@ -85,6 +86,7 @@
     </ClCompile>
     <ClCompile Include="init.cpp" />
     <ClCompile Include="VimModeController.cpp" />
+    <ClCompile Include="VimTextNavigator.cpp" />
     <ClCompile Include="ControlCore.Vim.cpp" />
     <ClCompile Include="TermControl.Vim.cpp" />
     <ClCompile Include="KeyChord.cpp">

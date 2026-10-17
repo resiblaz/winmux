@@ -447,6 +447,34 @@ void Terminal::CollapseSelectionToActiveEndpoint()
     _ScrollToPoint(position);
 }
 
+// Set a keyboard browsing position/range without invoking mouse-selection
+// expansion. The caller computes navigation policy; native pivot, selection
+// ownership, buffer rotation and rendering continue to use SelectionInfo.
+void Terminal::SetMarkSelection(til::point anchor, til::point position, const bool selecting)
+{
+    _assertLocked();
+    if (!IsSelectionActive() || _selectionMode != SelectionInteractionMode::Mark)
+    {
+        return;
+    }
+    const auto clamp = [&](til::point point) {
+        point.y = std::clamp(point.y, 0, _GetMutableViewport().BottomInclusive());
+        point.x = std::clamp(point.x, 0, _activeBuffer().GetSize().Width());
+        return point;
+    };
+    position = clamp(position);
+    anchor = selecting ? clamp(anchor) : position;
+    auto selection = _selection.write();
+    selection->pivot = anchor;
+    bool targetStart = false;
+    std::tie(selection->start, selection->end) = _PivotSelection(position, targetStart);
+    selection->blockSelection = false;
+    _selectionEndpoint = selecting ? (targetStart ? SelectionEndpoint::Start : SelectionEndpoint::End) :
+                                    (SelectionEndpoint::Start | SelectionEndpoint::End);
+    _anchorInactiveSelectionEndpoint = selecting;
+    _ScrollToPoint(position);
+}
+
 void Terminal::ExpandSelectionToWord()
 {
     if (IsSelectionActive())

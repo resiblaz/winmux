@@ -3,10 +3,23 @@
 
 #include "pch.h"
 #include "VimModeController.h"
+#include "VimTextNavigator.h"
 #include "../TerminalCore/Terminal.hpp"
 
 namespace winrt::Microsoft::Terminal::Control::implementation
 {
+    namespace
+    {
+        // Always derive positions from the native selection, so scrollback
+        // rotation cannot leave a second, stale set of coordinates behind.
+        std::pair<til::point, til::point> SelectionPoints(VimModeController::Terminal& terminal)
+        {
+            return terminal.SelectionEndpointTarget() == VimModeController::Terminal::SelectionEndpoint::Start ?
+                       std::pair{ terminal.GetSelectionEnd(), terminal.GetSelectionAnchor() } :
+                       std::pair{ terminal.GetSelectionAnchor(), terminal.GetSelectionEnd() };
+        }
+    }
+
     VimMode VimModeController::State() const noexcept
     {
         return _mode;
@@ -45,6 +58,20 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             // but stop interpreting it as Vim navigation.
             _mode = VimMode::Insert;
         }
+        if (_mode == VimMode::Insert)
+        {
+            _preferredColumn.reset();
+            _visualActiveGlyphEnd = false;
+            _visualAnchorGlyphEnd = false;
+        }
+        else if (_mode == VimMode::Visual && (_visualActiveGlyphEnd || _visualAnchorGlyphEnd))
+        {
+            // Existing selection actions can switch the active endpoint.
+            // In an inclusive range, whichever endpoint is End represents
+            // the boundary after its glyph, regardless of who switched it.
+            _visualActiveGlyphEnd = terminal.SelectionEndpointTarget() == Terminal::SelectionEndpoint::End;
+            _visualAnchorGlyphEnd = terminal.SelectionEndpointTarget() == Terminal::SelectionEndpoint::Start;
+        }
     }
 
     bool VimModeController::Enter(Terminal& terminal)
@@ -63,6 +90,9 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             return false;
         }
         terminal.ToggleMarkMode();
+        _preferredColumn.reset();
+        _visualActiveGlyphEnd = false;
+        _visualAnchorGlyphEnd = false;
         _mode = VimMode::Normal;
         return true;
     }
@@ -77,15 +107,40 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             }
             _mode = VimMode::Insert;
         }
+        _preferredColumn.reset();
+        _visualActiveGlyphEnd = false;
+        _visualAnchorGlyphEnd = false;
     }
 
     void VimModeController::ReturnToNormal(Terminal& terminal)
     {
+        std::optional<til::point> wordEnd;
+        if (_visualActiveGlyphEnd && terminal.SelectionEndpointTarget() == Terminal::SelectionEndpoint::End)
+        {
+            const VimTextNavigator navigator{ terminal.GetTextBuffer(), terminal.GetTextBufferEndPosition().y };
+            wordEnd = navigator.BeforeEndpoint(terminal.GetSelectionEnd());
+        }
         terminal.CollapseSelectionToActiveEndpoint();
+        if (wordEnd)
+        {
+            terminal.SetMarkSelection(*wordEnd, *wordEnd, false);
+        }
+        _preferredColumn.reset();
+        _visualActiveGlyphEnd = false;
+        _visualAnchorGlyphEnd = false;
         _mode = VimMode::Normal;
     }
 
-    VimKeyResult VimModeController::HandleKey(Terminal& terminal, const WORD vkey, const Modifiers modifiers)
+    void VimModeController::_setInclusiveSelection(Terminal& terminal, const VimTextNavigator& navigator, til::point anchor, til::point position)
+    {
+        _visualActiveGlyphEnd = position >= anchor;
+        _visualAnchorGlyphEnd = position < anchor;
+        position = _visualActiveGlyphEnd ? navigator.AfterGlyph(position) : position;
+        anchor = _visualAnchorGlyphEnd ? navigator.AfterGlyph(anchor) : anchor;
+        terminal.SetMarkSelection(anchor, position, true);
+    }
+
+    VimKeyResult VimModeController::HandleKey(Terminal& terminal, const WORD vkey, const Modifiers modifiers, const std::wstring_view wordDelimiters)
     {
         Reconcile(terminal);
         if (!Available(terminal) || modifiers.IsCtrlPressed() || modifiers.IsAltPressed() || modifiers.IsWinPressed())
@@ -107,6 +162,22 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         if (modifiers.IsShiftPressed())
         {
             return { .Handled = true };
+        }
+
+        const VimTextNavigator navigator{ terminal.GetTextBuffer(), terminal.GetTextBufferEndPosition().y, wordDelimiters };
+        auto [anchor, position] = SelectionPoints(terminal);
+        bool clamped = false;
+        if (_mode == VimMode::Visual)
+        {
+            const auto constrainedAnchor = navigator.ClampEndpoint(anchor);
+            const auto constrainedPosition = navigator.ClampEndpoint(position);
+            clamped = constrainedAnchor != anchor || constrainedPosition != position;
+            anchor = constrainedAnchor;
+            position = constrainedPosition;
+            if (clamped)
+            {
+                terminal.SetMarkSelection(anchor, position, true);
+            }
         }
 
         std::optional<Terminal::SelectionDirection> direction;
@@ -136,8 +207,15 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         case 'V':
             if (_mode == VimMode::Normal)
             {
-                terminal.SwitchSelectionEndpoint();
-                _mode = VimMode::Visual;
+                position = navigator.ClampEndpoint(position);
+                terminal.SetMarkSelection(position, position, !navigator.Empty());
+                if (!navigator.Empty())
+                {
+                    _mode = VimMode::Visual;
+                }
+                _preferredColumn.reset();
+                _visualActiveGlyphEnd = false;
+                _visualAnchorGlyphEnd = false;
             }
             else
             {
@@ -153,16 +231,77 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             break;
         case 'Y':
             return { .Handled = true,
+                     .SelectionChanged = clamped,
                      .CopySelection = _mode == VimMode::Visual && terminal.GetSelectionAnchor() != terminal.GetSelectionEnd() };
+        case 'B':
+        case 'E':
+        {
+            // Word motions include both endpoint glyphs in Visual ranges.
+            // The native end remains exclusive; remember only the endpoint
+            // interpretation, never a coordinate that rotation could invalidate.
+            const auto cursor = _visualActiveGlyphEnd && terminal.SelectionEndpointTarget() == Terminal::SelectionEndpoint::End ?
+                                    navigator.BeforeEndpoint(position) : position;
+            const auto target = vkey == 'B' ? navigator.WordStart(cursor) : navigator.WordEnd(cursor);
+            if (_visualAnchorGlyphEnd)
+            {
+                anchor = navigator.BeforeEndpoint(anchor);
+            }
+            if (_mode == VimMode::Visual)
+            {
+                _setInclusiveSelection(terminal, navigator, anchor, target);
+            }
+            else
+            {
+                terminal.SetMarkSelection(target, target, false);
+            }
+            _preferredColumn.reset();
+            return { .Handled = true, .SelectionChanged = true };
+        }
         default:
             break;
         }
 
         if (direction)
         {
-            terminal.UpdateSelection(*direction, Terminal::SelectionExpansion::Char, {});
+            if (_mode == VimMode::Visual)
+            {
+                const auto inclusive = _visualActiveGlyphEnd || _visualAnchorGlyphEnd;
+                if (_visualActiveGlyphEnd)
+                {
+                    position = navigator.BeforeEndpoint(position);
+                }
+                if (_visualAnchorGlyphEnd)
+                {
+                    anchor = navigator.BeforeEndpoint(anchor);
+                }
+                if (*direction == Terminal::SelectionDirection::Up || *direction == Terminal::SelectionDirection::Down)
+                {
+                    if (!_preferredColumn)
+                    {
+                        _preferredColumn = position.x;
+                    }
+                    position = navigator.Vertical(position, *direction == Terminal::SelectionDirection::Up ? -1 : 1, *_preferredColumn);
+                }
+                else
+                {
+                    position = navigator.Horizontal(position, *direction == Terminal::SelectionDirection::Right);
+                    _preferredColumn.reset();
+                }
+                if (inclusive)
+                {
+                    _setInclusiveSelection(terminal, navigator, anchor, navigator.ClampCursor(position));
+                }
+                else
+                {
+                    terminal.SetMarkSelection(anchor, position, true);
+                }
+            }
+            else
+            {
+                terminal.UpdateSelection(*direction, Terminal::SelectionExpansion::Char, {});
+            }
             return { .Handled = true, .SelectionChanged = true };
         }
-        return { .Handled = true };
+        return { .Handled = true, .SelectionChanged = clamped };
     }
 }

@@ -80,7 +80,8 @@ namespace winrt::Microsoft::Terminal::Control::implementation
                 return false;
             }
 
-            result = _vimModeController.HandleKey(*_terminal, vkey, modifiers);
+            const auto wordDelimiters = _settings.WordDelimiters();
+            result = _vimModeController.HandleKey(*_terminal, vkey, modifiers, { wordDelimiters.c_str(), wordDelimiters.size() });
             if (result.CopySelection)
             {
                 const auto formats = _settings.CopyFormatting();

@@ -80,7 +80,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 
         static bool IsMovement(const uint16_t key) noexcept
         {
-            return key == 'H' || key == 'J' || key == 'K' || key == 'L' || (key >= 0x25 && key <= 0x28);
+            return key == 'H' || key == 'J' || key == 'K' || key == 'L' || key == 'B' || key == 'E' || (key >= 0x25 && key <= 0x28);
         }
 
     private:

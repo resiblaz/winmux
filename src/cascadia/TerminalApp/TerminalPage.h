@@ -455,6 +455,9 @@ namespace winrt::TerminalApp::implementation
         void _AboutButtonOnClick(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
 
         void _KeyDownHandler(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::Input::KeyRoutedEventArgs& e);
+        void _WorkspaceNumberKeyHandler(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::Input::KeyRoutedEventArgs& e);
+        bool _TryHandleWorkspaceNumberKey(uint32_t vkey, uint8_t scanCode, bool down, ::Microsoft::Terminal::Core::ControlKeyStates modifiers);
+        bool _IsWorkspaceNumberPrefix(bool workspace, uint32_t digit, uint8_t scanCode = 0) const;
         static ::Microsoft::Terminal::Core::ControlKeyStates _GetPressedModifierKeys() noexcept;
         static void _ClearKeyboardState(const WORD vkey, const WORD scanCode) noexcept;
         void _HookupKeyBindings(const Microsoft::Terminal::Settings::Model::IActionMapView& actionMap) noexcept;

@@ -242,14 +242,151 @@ namespace winrt::TerminalApp::implementation
         e.Handled(true);
     }
 
+    void TerminalPage::_WorkspaceNumberKeyHandler(const IInspectable&, const Windows::UI::Xaml::Input::KeyRoutedEventArgs& e)
+    {
+        const auto status = e.KeyStatus();
+        if (_TryHandleWorkspaceNumberKey(static_cast<uint32_t>(e.OriginalKey()),
+                                         gsl::narrow_cast<uint8_t>(status.ScanCode),
+                                         !status.IsKeyReleased,
+                                         _GetPressedModifierKeys()))
+        {
+            e.Handled(true);
+        }
+    }
+
+    bool TerminalPage::_IsWorkspaceNumberPrefix(const bool workspace, const uint32_t digit, const uint8_t scanCode) const
+    {
+        const auto actionMap = _settings.ActionMap();
+        const KeyChord chord{ workspace, !workspace, false, false, '0' + gsl::narrow_cast<int32_t>(digit), scanCode };
+        const auto command = actionMap.GetActionByKeyChord(chord);
+        if (!command)
+        {
+            return digit == 0 && !actionMap.IsKeyChordExplicitlyUnbound(chord);
+        }
+        if (digit == 0)
+        {
+            return false;
+        }
+
+        const auto action = command.ActionAndArgs();
+        if (workspace && action.Action() == ShortcutAction::SwitchToTab)
+        {
+            if (const auto args = action.Args().try_as<SwitchToTabArgs>())
+            {
+                // Ctrl+9 keeps its legacy action in horizontal mode. In a
+                // Sidebar number gesture, 9 is the ninth Workspace, not last.
+                return args.TabIndex() == digit - 1 || (digit == 9 && args.TabIndex() == UINT32_MAX);
+            }
+        }
+        else if (!workspace && action.Action() == ShortcutAction::SwitchToWorkspaceSurface)
+        {
+            if (const auto args = action.Args().try_as<SwitchToWorkspaceSurfaceArgs>())
+            {
+                return args.SurfaceIndex() == digit - 1;
+            }
+        }
+        return false;
+    }
+
+    bool TerminalPage::_TryHandleWorkspaceNumberKey(const uint32_t vkey,
+                                                    const uint8_t scanCode,
+                                                    const bool down,
+                                                    const ControlKeyStates modifiers)
+    {
+        if (!_workspaceFeatures)
+        {
+            return false;
+        }
+
+        auto& sidebar = _SidebarController();
+        auto& input = sidebar.NumberInput;
+        using Target = WorkspaceNumberInput::Target;
+        if (vkey >= '0' && vkey <= '9' &&
+            (down ? input.IsDigitHeld(vkey - '0') : input.ReleaseDigit(vkey - '0')))
+        {
+            return true;
+        }
+        if (vkey == VK_ESCAPE && input.Escape(down))
+        {
+            return true;
+        }
+        if (!sidebar.Enabled)
+        {
+            input.Reset();
+            return false;
+        }
+
+        const auto ctrlKey = vkey == VK_CONTROL || vkey == VK_LCONTROL || vkey == VK_RCONTROL;
+        const auto altKey = vkey == VK_MENU || vkey == VK_LMENU || vkey == VK_RMENU;
+        if (ctrlKey || altKey)
+        {
+            if (ctrlKey && _workspaceSidebar)
+            {
+                winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar)->ShowSwitchHints(down || modifiers.IsCtrlPressed());
+            }
+
+            const auto target = ctrlKey ? Target::Workspace : Target::Surface;
+            if (down && input.PendingTarget() && input.PendingTarget() != target)
+            {
+                input.Cancel();
+            }
+            if (!down && !(ctrlKey ? modifiers.IsCtrlPressed() : modifiers.IsAltPressed()))
+            {
+                const auto workspaceId = sidebar.NumberInputWorkspaceId;
+                if (const auto selection = input.Finish(target))
+                {
+                    if (target == Target::Workspace)
+                    {
+                        if (selection->Number <= _WorkspaceItems().Size())
+                        {
+                            _actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToTab, SwitchToTabArgs{ selection->Number - 1 } });
+                        }
+                    }
+                    else if (const auto item = _WorkspaceItemForTab(_GetFocusedTab());
+                             item && item.WorkspaceId() == workspaceId && selection->Number <= item.SurfaceCount())
+                    {
+                        _actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToWorkspaceSurface, SwitchToWorkspaceSurfaceArgs{ selection->Number - 1 } });
+                    }
+                }
+            }
+            // Preserve the normal modifier release path for terminal input.
+            return false;
+        }
+
+        if (!down)
+        {
+            return false;
+        }
+        const auto numberModifier = modifiers.IsCtrlPressed() != modifiers.IsAltPressed() &&
+                                    !modifiers.IsShiftPressed() && !modifiers.IsWinPressed();
+        if (!numberModifier || vkey < '0' || vkey > '9')
+        {
+            input.Cancel();
+            return false;
+        }
+
+        const auto target = modifiers.IsCtrlPressed() ? Target::Workspace : Target::Surface;
+        if (!input.PendingTarget())
+        {
+            // Respect custom bindings and explicit unbindings of a prefix.
+            if (!_IsWorkspaceNumberPrefix(target == Target::Workspace, vkey - '0', scanCode))
+            {
+                return false;
+            }
+            sidebar.NumberInputWorkspaceId = _WorkspaceIdForTab(_GetFocusedTab());
+        }
+        input.PressDigit(target, vkey - '0');
+        _ClearKeyboardState(gsl::narrow_cast<WORD>(vkey), scanCode);
+        return true;
+    }
+
     bool TerminalPage::OnDirectKeyEvent(const uint32_t vkey, const uint8_t scanCode, const bool down)
     {
         const auto modifiers = _GetPressedModifierKeys();
 
-        if (_SidebarController().Enabled && (vkey == VK_CONTROL || vkey == VK_LCONTROL || vkey == VK_RCONTROL))
+        if (_TryHandleWorkspaceNumberKey(vkey, scanCode, down, modifiers))
         {
-            winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar)->ShowSwitchHints(down);
-            return false;
+            return true;
         }
 
         if (vkey == VK_SPACE && modifiers.IsAltPressed() && down)
@@ -352,6 +489,7 @@ namespace winrt::TerminalApp::implementation
     // - bindings: An IActionMapView object to wire up with our event handlers
     void TerminalPage::_HookupKeyBindings(const IActionMapView& actionMap) noexcept
     {
+        _SidebarController().NumberInput.Cancel();
         _bindings->SetDispatch(*_actionDispatch);
         _bindings->SetActionMap(actionMap);
     }

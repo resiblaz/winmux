@@ -57,6 +57,7 @@ namespace winrt::TerminalApp::implementation
         std::optional<winrt::guid> SourceSnapshotId() const noexcept;
         uint64_t SourceSnapshotRevision() const noexcept;
         void ShowSwitchShortcutHint(bool value);
+        void UpdateSwitchShortcut(const winrt::hstring& shortcut);
         void RefreshGitBranch();
         void UpdateListeningPorts(std::vector<uint16_t> ports);
         const std::vector<uint16_t>& ListeningPorts() const noexcept;
@@ -97,6 +98,7 @@ namespace winrt::TerminalApp::implementation
 
         winrt::guid _workspaceId{};
         winrt::hstring _customName;
+        winrt::hstring _switchShortcutText;
         TerminalApp::Tab _tab{ nullptr };
         TerminalApp::Tab _directoryTab{ nullptr };
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _surfaces;

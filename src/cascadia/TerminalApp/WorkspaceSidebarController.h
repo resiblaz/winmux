@@ -4,6 +4,7 @@
 #pragma once
 
 #include "WorkspaceItemViewModel.h"
+#include "WorkspaceNumberInput.h"
 
 namespace winrt::TerminalApp::implementation
 {
@@ -15,6 +16,7 @@ namespace winrt::TerminalApp::implementation
         void Stop() noexcept
         {
             ListeningPortsTimer.Stop();
+            NumberInput.Reset();
             ListeningPortsRefreshInFlight = false;
             ListeningPortsRefreshPending = false;
             ++ListeningPortsGeneration;
@@ -27,6 +29,8 @@ namespace winrt::TerminalApp::implementation
         }
 
         bool Enabled{};
+        WorkspaceNumberInput NumberInput;
+        winrt::guid NumberInputWorkspaceId{};
         bool LayoutInitialized{};
         SafeDispatcherTimer ListeningPortsTimer;
         bool ListeningPortsRefreshInFlight{};

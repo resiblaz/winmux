@@ -497,7 +497,26 @@ namespace winrt::TerminalApp::implementation
     {
         if (const auto& realArgs = args.ActionArgs().try_as<SwitchToTabArgs>())
         {
-            _SelectTab({ realArgs.TabIndex() });
+            if (_SidebarController().Enabled)
+            {
+                const auto workspaces = _WorkspaceItems();
+                if (workspaces.Size() > 0)
+                {
+                    const auto index = std::min(realArgs.TabIndex(), workspaces.Size() - 1);
+                    const auto item = workspaces.GetAt(index);
+                    const auto restoreFocus = _workspaceToolTabSelected && item.SourceTab() == _GetFocusedTab();
+                    _SetWorkspaceToolTabSelected(false);
+                    _SelectWorkspace(item);
+                    if (restoreFocus)
+                    {
+                        item.SourceTab().Focus(FocusState::Programmatic);
+                    }
+                }
+            }
+            else if (_tabs.Size() > 0)
+            {
+                _SelectTab(realArgs.TabIndex());
+            }
             args.Handled(true);
         }
     }

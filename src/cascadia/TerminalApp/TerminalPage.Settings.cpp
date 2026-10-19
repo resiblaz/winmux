@@ -153,6 +153,8 @@ namespace winrt::TerminalApp::implementation
             tabImpl->SetActionMap(_settings.ActionMap());
         }
 
+        _UpdateTabIndices();
+
         if (const auto focusedTab{ _GetFocusedTabImpl() })
         {
             if (const auto profile{ focusedTab->GetFocusedProfile() })
@@ -486,6 +488,10 @@ namespace winrt::TerminalApp::implementation
     // - <none>
     void TerminalPage::WindowVisibilityChanged(const bool showOrHide)
     {
+        if (!showOrHide)
+        {
+            _SidebarController().NumberInput.Reset();
+        }
         _visible = showOrHide;
         for (const auto& tab : _tabs)
         {
@@ -1665,6 +1671,14 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::WindowActivated(const bool activated)
     {
+        if (!activated)
+        {
+            _SidebarController().NumberInput.Reset();
+            if (_workspaceSidebar)
+            {
+                winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar)->ShowSwitchHints(false);
+            }
+        }
         // Stash if we're activated. Use that when we reload
         // the settings, change active panes, etc.
         _activated = activated;

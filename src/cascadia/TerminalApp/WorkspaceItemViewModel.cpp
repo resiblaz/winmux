@@ -263,18 +263,15 @@ namespace winrt::TerminalApp::implementation
             _tabChangedRevoker = _tab.PropertyChanged(winrt::auto_revoke, [weakThis{ get_weak() }](const auto&, const auto& args) {
                 if (const auto self = weakThis.get())
                 {
-                    // Workspace directory metadata follows the leftmost surface.
-                    if (args.PropertyName() != L"WorkingDirectory")
+                    // Directory metadata follows the leftmost surface; shortcut
+                    // hints belong to the Workspace ordinal, not the active Tab.
+                    if (args.PropertyName() != L"WorkingDirectory" && args.PropertyName() != L"SwitchShortcutText")
                     {
                         self->PropertyChanged.raise(*self, args);
                         const auto propertyName = args.PropertyName();
-                        if (propertyName == L"Title" || propertyName == L"IsPinned" || propertyName == L"SwitchShortcutText")
+                        if (propertyName == L"Title" || propertyName == L"IsPinned")
                         {
                             self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"AutomationName" });
-                        }
-                        if (propertyName == L"SwitchShortcutText")
-                        {
-                            self->PropertyChanged.raise(*self, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"SwitchShortcutHintText" });
                         }
                         if (propertyName == L"IsPinned")
                         {
@@ -461,7 +458,19 @@ namespace winrt::TerminalApp::implementation
 
     winrt::hstring WorkspaceItemViewModel::SwitchShortcutText() const
     {
-        return _tab ? _tab.SwitchShortcutText() : winrt::hstring{};
+        return _switchShortcutText;
+    }
+
+    void WorkspaceItemViewModel::UpdateSwitchShortcut(const winrt::hstring& shortcut)
+    {
+        if (_switchShortcutText != shortcut)
+        {
+            _switchShortcutText = shortcut;
+            for (const auto propertyName : { L"SwitchShortcutText", L"SwitchShortcutHintText", L"AutomationName" })
+            {
+                PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ propertyName });
+            }
+        }
     }
 
     winrt::hstring WorkspaceItemViewModel::SwitchShortcutHintText() const

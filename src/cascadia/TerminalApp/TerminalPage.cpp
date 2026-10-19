@@ -218,6 +218,14 @@ namespace winrt::TerminalApp::implementation
         _tabRow = this->TabRow();
         _tabView = _tabRow.TabView();
         _workspaceSidebar = this->WorkspaceSidebar();
+        const Windows::UI::Xaml::Input::PointerEventHandler cancelNumber{ [weakThis{ get_weak() }](auto&&, auto&&) {
+            if (const auto page = weakThis.get())
+            {
+                page->_SidebarController().NumberInput.Cancel();
+            }
+        } };
+        Root().AddHandler(UIElement::PointerPressedEvent(), winrt::box_value(cancelNumber), true);
+        _tabRow.AddHandler(UIElement::PointerPressedEvent(), winrt::box_value(cancelNumber), true);
         _conclusionSidebar = this->ConclusionSidebar();
         winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->SetTabContentMode(true);
         _workspaceFeatures->History().Attach(_conclusionSidebar);

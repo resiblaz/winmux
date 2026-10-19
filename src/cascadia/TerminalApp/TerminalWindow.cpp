@@ -1084,10 +1084,12 @@ namespace winrt::TerminalApp::implementation
     {
         if (_root)
         {
-            // Workspace navigation uses modifier-only feedback and Ctrl+P.
+            // Alt release bypasses XAML; the page must finish a number before
+            // TermControl consumes that event. Ctrl also drives sidebar hints.
             // Give the page a non-consuming preview before TermControl handles
             // and consumes the same low-level keyboard event.
-            if (vkey == VK_CONTROL || vkey == VK_LCONTROL || vkey == VK_RCONTROL || vkey == L'P')
+            if (vkey == VK_CONTROL || vkey == VK_LCONTROL || vkey == VK_RCONTROL ||
+                vkey == VK_MENU || vkey == VK_LMENU || vkey == VK_RMENU || vkey == L'P')
             {
                 if (const auto keyListener{ _root.try_as<UI::IDirectKeyListener>() }; keyListener && keyListener.OnDirectKeyEvent(vkey, scanCode, down))
                 {

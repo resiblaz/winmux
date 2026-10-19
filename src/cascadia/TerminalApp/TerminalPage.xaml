@@ -11,7 +11,9 @@
       xmlns:mtu="using:Microsoft.Terminal.UI"
       xmlns:mux="using:Microsoft.UI.Xaml.Controls"
       Background="Transparent"
-      mc:Ignorable="d">
+      mc:Ignorable="d"
+      PreviewKeyDown="_WorkspaceNumberKeyHandler"
+      PreviewKeyUp="_WorkspaceNumberKeyHandler">
 
     <Page.Resources>
         <Style x:Key="WorkspaceSurfaceTabItemStyle"
@@ -44,6 +46,8 @@
         <local:TabRowControl x:Name="TabRow"
                              Grid.Row="0"
                              Grid.Column="1"
+                             PreviewKeyDown="_WorkspaceNumberKeyHandler"
+                             PreviewKeyUp="_WorkspaceNumberKeyHandler"
                              KeyUp="_KeyDownHandler" />
 
         <StackPanel Grid.Row="1"

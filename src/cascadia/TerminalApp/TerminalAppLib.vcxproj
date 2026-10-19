@@ -156,6 +156,7 @@
     <ClInclude Include="WorkspaceSnapshotCoordinator.h" />
     <ClInclude Include="WorkspaceSessionRestoreState.h" />
     <ClInclude Include="WorkspaceSidebarController.h" />
+    <ClInclude Include="WorkspaceNumberInput.h" />
     <ClInclude Include="WorkspaceNotification.h">
       <DependentUpon>WorkspaceNotification.idl</DependentUpon>
     </ClInclude>

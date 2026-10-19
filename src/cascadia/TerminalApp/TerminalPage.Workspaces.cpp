@@ -83,6 +83,10 @@ namespace winrt::TerminalApp::implementation
         }
 
         _SidebarController().Enabled = enabled;
+        if (!enabled)
+        {
+            _SidebarController().NumberInput.Reset();
+        }
         _SidebarController().LayoutInitialized = true;
         _SetWorkspaceToolTabSelected(enabled && _workspaceToolTabSelected);
         _workspaceFeatures->History().UpdateView();

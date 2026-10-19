@@ -19,6 +19,7 @@
 #include "../TerminalApp/CommandPalette.h"
 #include "../TerminalApp/ContentManager.h"
 #include "CppWinrtTailored.h"
+#include <TerminalCore/ControlKeyStates.hpp>
 
 using namespace Microsoft::Console;
 using namespace TerminalApp;
@@ -222,6 +223,10 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
         TEST_METHOD(WorkspaceGroupsMultipleTerminalSurfaces);
         TEST_METHOD(WorkspaceSurfaceShortcutActions);
+        TEST_METHOD(WorkspaceSwitchShortcutActions);
+        TEST_METHOD(WorkspaceSwitchStartupActions);
+        TEST_METHOD(WorkspaceNumberInputRecognizesOrdinals);
+        TEST_METHOD(WorkspaceNumberShortcutActions);
         TEST_METHOD(WorkspaceAutomationRequiresSurfaceId);
         TEST_METHOD(WorkspaceAutomationTargetsExactSurface);
         TEST_METHOD(WorkspaceNamesSurviveSurfaceChangesAndRestore);
@@ -995,6 +1000,317 @@ namespace TerminalAppLocalTests
             VERIFY_IS_NOT_NULL(newWorkspace);
             VERIFY_ARE_EQUAL(1u, newWorkspace.SurfaceCount());
             VERIFY_IS_TRUE(workspace.WorkspaceId() != newWorkspace.WorkspaceId());
+        });
+    }
+
+    void TabTests::WorkspaceSwitchShortcutActions()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            // The synthetic setup has no inbox settings. Exercise the actual
+            // shipping bindings rather than duplicating them in this fixture.
+            const auto bindings = CascadiaSettings::LoadDefaults().ActionMap().KeyBindings();
+            for (const auto& binding : bindings)
+            {
+                page->_settings.ActionMap().AddAction(binding.Value(), binding.Key());
+            }
+            page->_SidebarController().Enabled = true;
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+            page->_OpenNewWorkspace();
+            page->_OpenNewTab(NewTerminalArgs{ 2 });
+            const auto first = page->_WorkspaceItems().GetAt(0);
+            const auto second = page->_WorkspaceItems().GetAt(1);
+            VERIFY_ARE_EQUAL(2u, first.SurfaceCount());
+            VERIFY_ARE_EQUAL(2u, second.SurfaceCount());
+
+            const auto press = [&](const VirtualKeyModifiers modifiers, const int32_t key) {
+                VERIFY_IS_TRUE(page->_bindings->TryKeyChord({ modifiers, key, 0 }));
+            };
+            const auto verifyHints = [&](const winrt::TerminalApp::WorkspaceItemViewModel& item, const wchar_t* shortcut, const wchar_t* hint) {
+                const auto impl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+                impl->ShowSwitchShortcutHint(true);
+                VERIFY_ARE_EQUAL(shortcut, item.SwitchShortcutText());
+                VERIFY_ARE_EQUAL(hint, item.SwitchShortcutHintText());
+            };
+
+            // Ctrl ordinals count Workspaces and retain each one's active Surface.
+            press(VirtualKeyModifiers::Control, '1');
+            VERIFY_ARE_EQUAL(first.Surfaces().GetAt(1), page->_GetFocusedTab());
+            press(VirtualKeyModifiers::Menu, '1');
+            VERIFY_ARE_EQUAL(first.Surfaces().GetAt(0), page->_GetFocusedTab());
+            verifyHints(first, L"ctrl+1", L"1");
+            verifyHints(second, L"ctrl+2", L"2");
+            press(VirtualKeyModifiers::Control, '2');
+            VERIFY_ARE_EQUAL(second.Surfaces().GetAt(1), page->_GetFocusedTab());
+            press(VirtualKeyModifiers::Menu, '1');
+            VERIFY_ARE_EQUAL(second.Surfaces().GetAt(0), page->_GetFocusedTab());
+            press(VirtualKeyModifiers::Control, '1');
+            VERIFY_ARE_EQUAL(first.Surfaces().GetAt(0), page->_GetFocusedTab());
+            press(VirtualKeyModifiers::Control, '2');
+            VERIFY_ARE_EQUAL(second.Surfaces().GetAt(0), page->_GetFocusedTab());
+            verifyHints(second, L"ctrl+2", L"2");
+
+            // Last/out-of-range ordinals must not select a different Surface.
+            press(VirtualKeyModifiers::Control, '1');
+            press(VirtualKeyModifiers::Control, '9');
+            VERIFY_ARE_EQUAL(second.Surfaces().GetAt(0), page->_GetFocusedTab());
+            press(VirtualKeyModifiers::Control, '8');
+            VERIFY_ARE_EQUAL(second.Surfaces().GetAt(0), page->_GetFocusedTab());
+            page->_SetWorkspaceToolTabSelected(true);
+            press(VirtualKeyModifiers::Control, '2');
+            VERIFY_IS_FALSE(page->_workspaceToolTabSelected);
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_tabContent.Visibility());
+
+            // Pinning changes Workspace ordinals, including their displayed hints.
+            page->_ToggleWorkspacePin(second.SourceTab());
+            verifyHints(second, L"ctrl+1", L"1");
+            verifyHints(first, L"ctrl+2", L"2");
+            press(VirtualKeyModifiers::Control, '1');
+            VERIFY_ARE_EQUAL(second.SourceTab(), page->_GetFocusedTab());
+            press(VirtualKeyModifiers::Control, '2');
+            VERIFY_ARE_EQUAL(first.SourceTab(), page->_GetFocusedTab());
+
+            second.Surfaces().GetAt(1).Close();
+            second.Surfaces().GetAt(0).Close();
+            VERIFY_ARE_EQUAL(1u, page->_WorkspaceItems().Size());
+            verifyHints(first, L"ctrl+1", L"1");
+            press(VirtualKeyModifiers::Control, '1');
+            VERIFY_ARE_EQUAL(first.Surfaces().GetAt(0), page->_GetFocusedTab());
+
+            // Horizontal layout keeps its flat Tab selection behavior.
+            page->_SidebarController().Enabled = false;
+            press(VirtualKeyModifiers::Control, '2');
+            VERIFY_ARE_EQUAL(first.Surfaces().GetAt(1), page->_GetFocusedTab());
+        });
+    }
+
+    void TabTests::WorkspaceNumberInputRecognizesOrdinals()
+    {
+        using NumberInput = winrt::TerminalApp::implementation::WorkspaceNumberInput;
+        using Target = NumberInput::Target;
+        for (const auto target : { Target::Workspace, Target::Surface })
+        {
+            for (uint32_t number = 1; number <= 99; ++number)
+            {
+                NumberInput input;
+                for (const auto digit : std::to_wstring(number))
+                {
+                    input.PressDigit(target, digit - L'0');
+                    // Auto-repeat is one held key, not another decimal digit.
+                    input.PressDigit(target, digit - L'0');
+                    VERIFY_IS_TRUE(input.ReleaseDigit(digit - L'0'));
+                }
+                const auto selection = input.Finish(target);
+                VERIFY_IS_TRUE(selection.has_value());
+                VERIFY_ARE_EQUAL(number, selection->Number);
+                VERIFY_IS_TRUE(target == selection->Kind);
+                VERIFY_IS_FALSE(input.PendingTarget().has_value());
+                VERIFY_IS_FALSE(input.Finish(target).has_value());
+            }
+        }
+
+        for (const auto invalid : { L"0", L"01", L"00", L"100", L"123", L"999" })
+        {
+            NumberInput input;
+            for (const auto digit : std::wstring_view{ invalid })
+            {
+                input.PressDigit(Target::Workspace, digit - L'0');
+                input.ReleaseDigit(digit - L'0');
+            }
+            VERIFY_IS_FALSE(input.Finish(Target::Workspace).has_value());
+        }
+
+        NumberInput input;
+        input.PressDigit(Target::Surface, 1);
+        VERIFY_IS_FALSE(input.Finish(Target::Workspace).has_value());
+        VERIFY_IS_TRUE(input.Escape(true));
+        VERIFY_IS_FALSE(input.Finish(Target::Surface).has_value());
+        VERIFY_IS_TRUE(input.Escape(true));
+        VERIFY_IS_TRUE(input.Escape(false));
+        VERIFY_IS_TRUE(input.ReleaseDigit(1));
+        input.PressDigit(Target::Workspace, 9);
+        input.Cancel();
+        VERIFY_IS_FALSE(input.Finish(Target::Workspace).has_value());
+        VERIFY_IS_TRUE(input.IsDigitHeld(9));
+        input.Reset();
+        VERIFY_IS_FALSE(input.IsDigitHeld(9));
+        VERIFY_IS_FALSE(input.PendingTarget().has_value());
+    }
+
+    void TabTests::WorkspaceNumberShortcutActions()
+    {
+        using Modifiers = ::Microsoft::Terminal::Core::ControlKeyStates;
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            const auto bindings = CascadiaSettings::LoadDefaults().ActionMap().KeyBindings();
+            for (const auto& binding : bindings)
+            {
+                page->_settings.ActionMap().AddAction(binding.Value(), binding.Key());
+            }
+            page->_SidebarController().Enabled = true;
+            const auto first = page->_WorkspaceItems().GetAt(0);
+            for (uint32_t index = 1; index < 12; ++index)
+            {
+                page->_OpenNewWorkspace();
+            }
+            const auto ninth = page->_WorkspaceItems().GetAt(8);
+            const auto tenth = page->_WorkspaceItems().GetAt(9);
+            const auto twelfth = page->_WorkspaceItems().GetAt(11);
+            page->_SelectWorkspace(tenth);
+            for (uint32_t index = 1; index < 12; ++index)
+            {
+                page->_OpenNewTab(NewTerminalArgs{ 1 });
+            }
+            VERIFY_ARE_EQUAL(12u, page->_WorkspaceItems().Size());
+            VERIFY_ARE_EQUAL(12u, tenth.SurfaceCount());
+            VERIFY_ARE_EQUAL(L"ctrl+9", ninth.SwitchShortcutText());
+            VERIFY_ARE_EQUAL(L"ctrl+10", tenth.SwitchShortcutText());
+            VERIFY_ARE_EQUAL(L"ctrl+12", twelfth.SwitchShortcutText());
+            winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(twelfth)->ShowSwitchShortcutHint(true);
+            VERIFY_ARE_EQUAL(L"12", twelfth.SwitchShortcutHintText());
+            page->_SelectWorkspace(first);
+
+            const Modifiers ctrl{ Modifiers::LeftCtrlPressed };
+            const Modifiers alt{ Modifiers::LeftAltPressed };
+            const auto send = [&](const uint32_t key, const bool down, const Modifiers modifiers) {
+                return page->_TryHandleWorkspaceNumberKey(key, static_cast<uint8_t>(MapVirtualKeyW(key, MAPVK_VK_TO_VSC)), down, modifiers);
+            };
+            const auto enter = [&](const Modifiers modifiers, const wchar_t* number) {
+                const auto before = page->_GetFocusedTab();
+                for (const auto digit : std::wstring_view{ number })
+                {
+                    VERIFY_IS_TRUE(send(digit, true, modifiers));
+                    VERIFY_IS_TRUE(send(digit, false, modifiers));
+                    VERIFY_ARE_EQUAL(before, page->_GetFocusedTab(), L"Do not preview a shorter number while composing.");
+                }
+            };
+            const auto release = [&](const Modifiers modifiers) {
+                VERIFY_IS_FALSE(send(modifiers.IsCtrlPressed() ? VK_CONTROL : VK_MENU, false, {}));
+            };
+
+            enter(ctrl, L"12");
+            release(ctrl);
+            VERIFY_ARE_EQUAL(twelfth.SourceTab(), page->_GetFocusedTab());
+            enter(ctrl, L"10");
+            release(ctrl);
+            VERIFY_ARE_EQUAL(tenth.Surfaces().GetAt(11), page->_GetFocusedTab());
+            for (const auto number : { 10u, 11u, 12u })
+            {
+                enter(alt, std::to_wstring(number).c_str());
+                release(alt);
+                VERIFY_ARE_EQUAL(tenth.Surfaces().GetAt(number - 1), page->_GetFocusedTab());
+                VERIFY_ARE_EQUAL(tenth, page->_WorkspaceItemForTab(page->_GetFocusedTab()));
+            }
+            enter(ctrl, L"9");
+            release(ctrl);
+            VERIFY_ARE_EQUAL(ninth.SourceTab(), page->_GetFocusedTab(), L"9 is an ordinal, not the last Workspace.");
+            enter(ctrl, L"10");
+            release(ctrl);
+            VERIFY_ARE_EQUAL(tenth.Surfaces().GetAt(11), page->_GetFocusedTab());
+
+            const Modifiers rightCtrl{ Modifiers::RightCtrlPressed };
+            enter(rightCtrl, L"12");
+            VERIFY_IS_FALSE(send(VK_LCONTROL, false, rightCtrl));
+            VERIFY_ARE_EQUAL(tenth.Surfaces().GetAt(11), page->_GetFocusedTab());
+            VERIFY_IS_FALSE(send(VK_RCONTROL, false, {}));
+            VERIFY_ARE_EQUAL(twelfth.SourceTab(), page->_GetFocusedTab());
+            enter(ctrl, L"10");
+            release(ctrl);
+
+            const auto selected = page->_GetFocusedTab();
+            enter(alt, L"99");
+            release(alt);
+            VERIFY_ARE_EQUAL(selected, page->_GetFocusedTab());
+            enter(ctrl, L"99");
+            release(ctrl);
+            VERIFY_ARE_EQUAL(selected, page->_GetFocusedTab());
+            enter(ctrl, L"123");
+            release(ctrl);
+            VERIFY_ARE_EQUAL(selected, page->_GetFocusedTab());
+            enter(alt, L"01");
+            release(alt);
+            VERIFY_ARE_EQUAL(selected, page->_GetFocusedTab());
+            VERIFY_IS_FALSE(send('0', true, ctrl), L"Ctrl+0 retains the existing font-reset action.");
+
+            enter(ctrl, L"1");
+            VERIFY_IS_TRUE(send(VK_ESCAPE, true, ctrl));
+            VERIFY_IS_TRUE(send(VK_ESCAPE, false, ctrl));
+            release(ctrl);
+            VERIFY_ARE_EQUAL(selected, page->_GetFocusedTab());
+            enter(ctrl, L"1");
+            page->WindowActivated(false);
+            release(ctrl);
+            VERIFY_ARE_EQUAL(selected, page->_GetFocusedTab());
+            enter(ctrl, L"1");
+            VERIFY_IS_FALSE(send('C', true, ctrl));
+            release(ctrl);
+            VERIFY_ARE_EQUAL(selected, page->_GetFocusedTab());
+            VERIFY_IS_FALSE(send('1', true, ctrl | alt));
+            VERIFY_IS_FALSE(send(VK_NUMPAD1, true, alt));
+
+            // Key releases and auto-repeat stay consumed if the modifier was
+            // released before the final digit key.
+            VERIFY_IS_TRUE(send('1', true, ctrl));
+            VERIFY_IS_TRUE(send('1', true, ctrl));
+            release(ctrl);
+            VERIFY_ARE_EQUAL(first.SourceTab(), page->_GetFocusedTab());
+            VERIFY_IS_TRUE(send('1', true, {}));
+            VERIFY_IS_TRUE(send('1', false, {}));
+            VERIFY_IS_FALSE(send('1', false, {}));
+
+            // Explicit remapping of a prefix must retain its original action.
+            page->_settings.ActionMap().RegisterKeyBinding(
+                { VirtualKeyModifiers::Control, '1', 0 },
+                ActionAndArgs{ ShortcutAction::SendInput, SendInputArgs{ L"custom" } });
+            VERIFY_IS_FALSE(send('1', true, ctrl));
+            VERIFY_IS_FALSE(page->_SidebarController().NumberInput.PendingTarget().has_value());
+            page->_UpdateTabIndices();
+            VERIFY_IS_TRUE(tenth.SwitchShortcutText().empty());
+            page->_settings.ActionMap().AddKeyBinding({ VirtualKeyModifiers::Control, '2', 0 }, L"");
+            VERIFY_IS_FALSE(send('2', true, ctrl));
+            VERIFY_IS_FALSE(page->_SidebarController().NumberInput.PendingTarget().has_value());
+
+            page->_SidebarController().Enabled = false;
+            VERIFY_IS_FALSE(send('2', true, ctrl));
+            VERIFY_IS_FALSE(send('2', true, alt));
+        });
+    }
+
+    void TabTests::WorkspaceSwitchStartupActions()
+    {
+        const auto page = _commonSetup();
+        const auto completed = std::make_shared<bool>(false);
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+            page->_OpenNewWorkspace();
+            page->_OpenNewTab(NewTerminalArgs{ 2 });
+            VERIFY_ARE_EQUAL(2u, page->_WorkspaceItems().Size());
+            VERIFY_ARE_EQUAL(4u, page->_tabs.Size());
+            VERIFY_ARE_EQUAL(page->_tabs.GetAt(3), page->_GetFocusedTab());
+
+            // Saved layouts and CLI focus-tab address flat indices, even in a
+            // live Sidebar window. Index 1 is the first Workspace's second Tab.
+            page->ProcessStartupActions({ ActionAndArgs{ ShortcutAction::SwitchToTab, SwitchToTabArgs{ 1 } } }, {}, {},
+                                        [completed]() { *completed = true; });
+        });
+        bool finished{};
+        for (uint32_t attempt = 0; attempt < 500 && !finished; ++attempt)
+        {
+            TestOnUIThread([&]() { finished = *completed; });
+            if (!finished)
+            {
+                Sleep(10);
+            }
+        }
+        VERIFY_IS_TRUE(finished);
+        TestOnUIThread([&]() {
+            VERIFY_ARE_EQUAL(page->_tabs.GetAt(1), page->_GetFocusedTab());
+            VERIFY_ARE_EQUAL(page->_WorkspaceItems().GetAt(0), page->_WorkspaceItemForTab(page->_GetFocusedTab()));
+            const auto layout = page->GetWindowLayout();
+            const auto select = layout.TabLayout().GetAt(layout.TabLayout().Size() - 1);
+            VERIFY_ARE_EQUAL(ShortcutAction::SwitchToTab, select.Action());
+            VERIFY_ARE_EQUAL(1u, select.Args().as<SwitchToTabArgs>().TabIndex());
         });
     }
 

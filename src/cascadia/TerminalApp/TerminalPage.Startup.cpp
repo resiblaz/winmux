@@ -397,7 +397,19 @@ namespace winrt::TerminalApp::implementation
                 co_await wil::resume_foreground(Dispatcher(), CoreDispatcherPriority::Low);
             }
 
-            _actionDispatch->DoAction(actions[i]);
+            // Persisted layouts and command lines address the flat Tab list.
+            // Interactive SwitchToTab actions address Workspaces in Sidebar mode.
+            if (actions[i].Action() == ShortcutAction::SwitchToTab)
+            {
+                if (const auto args = actions[i].Args().try_as<SwitchToTabArgs>(); args && _tabs.Size() > 0)
+                {
+                    _SelectTab(args.TabIndex());
+                }
+            }
+            else
+            {
+                _actionDispatch->DoAction(actions[i]);
+            }
             suspend = true;
         }
 

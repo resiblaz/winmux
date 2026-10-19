@@ -1232,6 +1232,7 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_UpdatedSelectedTab(const winrt::TerminalApp::Tab& tab)
     {
+        _SidebarController().NumberInput.Cancel();
         // Unfocus all the tabs.
         for (const auto& tab : _tabs)
         {
@@ -1331,6 +1332,26 @@ namespace winrt::TerminalApp::implementation
             auto tab{ _tabs.GetAt(i) };
             auto tabImpl{ winrt::get_self<Tab>(tab) };
             tabImpl->UpdateTabViewIndex(i, size);
+        }
+
+        const auto workspaces = _WorkspaceItems();
+        const auto actionMap = _settings.ActionMap();
+        for (uint32_t i = 0; i < workspaces.Size(); ++i)
+        {
+            winrt::hstring shortcut;
+            const auto number = i + 1;
+            const auto prefix = number < 10 ? number : number / 10;
+            if (number <= WorkspaceNumberInput::MaximumNumber && _IsWorkspaceNumberPrefix(true, prefix))
+            {
+                shortcut = winrt::hstring{ fmt::format(FMT_COMPILE(L"ctrl+{}"), number) };
+            }
+            else
+            {
+                const auto id = fmt::format(FMT_COMPILE(L"Terminal.SwitchToTab{}"), i);
+                const auto keyChord = actionMap.GetKeyBindingForAction(id);
+                shortcut = keyChord ? KeyChordSerialization::ToString(keyChord) : L"";
+            }
+            winrt::get_self<WorkspaceItemViewModel>(workspaces.GetAt(i))->UpdateSwitchShortcut(shortcut);
         }
     }
 

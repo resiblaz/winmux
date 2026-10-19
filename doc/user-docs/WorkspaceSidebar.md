@@ -31,7 +31,8 @@ Replace it with `"tabLayout": "workspaceSidebar"`. If both keys exist, `tabLayou
 - Select a workspace with the mouse or Up/Down Arrow.
 - Press `Ctrl+N` to create a workspace.
 - Press `Alt+N` or `Ctrl+Shift+T` to create a terminal in the current workspace, using the current terminal's active pane directory. The new-terminal button and workspace menu use the same behavior. An explicitly supplied starting directory takes precedence; if the current directory is unavailable or no longer exists, the selected profile's starting directory is used. `Ctrl+N` creates a separate workspace using the default profile's starting directory.
-- Press `Ctrl+1` through `Ctrl+8` to select the corresponding workspace; `Ctrl+9` selects the last workspace.
+- Hold `Ctrl`, type a workspace number from `1` through `99` using the top-row number keys, then release `Ctrl` to select it. For example, hold `Ctrl`, type `1` then `2`, and release `Ctrl` to select workspace 12. A single digit also takes effect on release; `Ctrl+9` selects workspace 9.
+- Hold `Alt`, type `1` through `99`, then release `Alt` to select that terminal tab within the current workspace. Workspace and terminal numbering are independent, and each workspace remembers its selected terminal.
 - Press `Ctrl+R` to quickly rename the active workspace, or `F2` while the sidebar list is focused.
 - Press `Delete` to close the selected workspace.
 - Press `Shift+F10` for Pin, rename, close, notification, and Agent Resume actions.
@@ -39,6 +40,8 @@ Replace it with `"tabLayout": "workspaceSidebar"`. If both keys exist, `tabLayou
 - Drag the right edge to resize the sidebar, or focus the resize handle and use Left/Right Arrow. `Home` and `End` choose the minimum and maximum width.
 
 The shortcuts use the regular Actions settings and can be reassigned.
+
+Number entry accepts one or two digits and switches only once, on modifier release. Within number entry, zero, leading zeroes, more than two digits, and numbers that do not exist leave the selection unchanged. Held-key repetition does not add digits. Press `Esc` to cancel; using another shortcut, clicking, or leaving the window also cancels a pending number. Use the top-row digits; Alt+numpad keeps its existing character-entry behavior. Bindings or explicit unbindings of a starting digit take precedence, including the existing `Ctrl+0` font-reset action. The 99 limit applies to direct numeric navigation, not the number of workspaces or terminals you can create. Horizontal layout retains its existing single-digit shortcuts.
 
 A custom workspace name belongs to the workspace. It survives terminal switches, terminal closure, window restoration, and snapshot reopening. Clear the name in the rename dialog to follow the active terminal's title again; terminal titles can still be customized independently.
 

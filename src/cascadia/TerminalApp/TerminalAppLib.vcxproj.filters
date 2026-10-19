@@ -181,6 +181,9 @@
     <ClInclude Include="WorkspaceSidebarController.h">
       <Filter>workspace</Filter>
     </ClInclude>
+    <ClInclude Include="WorkspaceNumberInput.h">
+      <Filter>workspace</Filter>
+    </ClInclude>
     <ClInclude Include="WorkspaceNotification.h">
       <Filter>workspace</Filter>
     </ClInclude>

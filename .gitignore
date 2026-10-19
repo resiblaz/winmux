@@ -290,6 +290,10 @@ profiles.json
 # Local portable Release output
 /dist/
 
+# Versioned release notes are source documentation.
+!/doc/releases/
+!/doc/releases/*.md
+
 # Local planning notes and acceptance artifacts
 /work_path/
 /workpath/

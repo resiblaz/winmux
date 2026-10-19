@@ -7,7 +7,10 @@ param(
 
     [switch]$NoLaunch,
 
-    [string]$OutputDirectory
+    [string]$OutputDirectory,
+
+    # Release preparation supplies the exact MSIX from its successful gate.
+    [string]$PackagePath
 )
 
 Set-StrictMode -Version Latest
@@ -131,13 +134,26 @@ if (-not $SkipBuild)
     & $localBuildScript -Platform $Platform -BuildOnly
 }
 
-$terminalAppx = Get-ChildItem -LiteralPath $packageRoot -Recurse -File -Filter '*.msix' |
-    Where-Object {
-        $_.Directory.Name -like "*_${Platform}_Test" -and
-        $_.Name -notlike '*_Debug.msix'
-    } |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1
+if ($PackagePath)
+{
+    $resolvedPackage = if ([System.IO.Path]::IsPathRooted($PackagePath)) { $PackagePath } else { Join-Path $repoRoot $PackagePath }
+    $terminalAppx = Get-Item -LiteralPath $resolvedPackage -ErrorAction Stop
+    if ($terminalAppx.Extension -ne '.msix' -or $terminalAppx.Directory.Name -notlike "*_${Platform}_Test" -or
+        $terminalAppx.Name -like '*_Debug.msix')
+    {
+        throw "PackagePath must identify a $Platform Release MSIX in its _Test output directory."
+    }
+}
+else
+{
+    $terminalAppx = Get-ChildItem -LiteralPath $packageRoot -Recurse -File -Filter '*.msix' |
+        Where-Object {
+            $_.Directory.Name -like "*_${Platform}_Test" -and
+            $_.Name -notlike '*_Debug.msix'
+        } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+}
 if (-not $terminalAppx)
 {
     throw "No $Platform $configuration Terminal MSIX was found under $packageRoot. Run without -SkipBuild."
@@ -355,6 +371,8 @@ try
     Write-Host 'Winmux portable Release completed.' -ForegroundColor Green
     [pscustomobject]@{
         Package = $configuredZip
+        SourcePackage = $terminalAppx.FullName
+        Version = $version
         Deployment = $deploymentPath
         Launcher = $deploymentExecutable
         CommandLine = Join-Path $deploymentPath 'wmx.exe'

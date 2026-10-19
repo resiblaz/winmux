@@ -166,12 +166,18 @@ try
         (Join-Path $repoRoot 'tools\deploy\PortableDeployment.ps1'),
         (Join-Path $repoRoot 'tools\deploy\test-portable-deployment.ps1'),
         (Join-Path $repoRoot 'tools\deploy\test-portable-settings.ps1'),
+        (Join-Path $repoRoot 'tools\deploy\GitHubRelease.ps1'),
+        (Join-Path $repoRoot 'tools\deploy\prepare-github-release.ps1'),
+        (Join-Path $repoRoot 'tools\deploy\publish-github-release.ps1'),
+        (Join-Path $repoRoot 'tools\deploy\test-github-release.ps1'),
         $PSCommandPath)
 
     Invoke-CheckedCommand -Executable (Get-Command pwsh.exe -ErrorAction Stop).Source -Arguments @(
         '-NoLogo', '-NoProfile', '-File', (Join-Path $repoRoot 'tools\deploy\test-portable-settings.ps1'))
     Invoke-CheckedCommand -Executable (Get-Command pwsh.exe -ErrorAction Stop).Source -Arguments @(
         '-NoLogo', '-NoProfile', '-File', (Join-Path $repoRoot 'tools\deploy\test-portable-deployment.ps1'))
+    Invoke-CheckedCommand -Executable (Get-Command pwsh.exe -ErrorAction Stop).Source -Arguments @(
+        '-NoLogo', '-NoProfile', '-File', (Join-Path $repoRoot 'tools\deploy\test-github-release.ps1'))
 
     if (-not $SkipHookTests)
     {

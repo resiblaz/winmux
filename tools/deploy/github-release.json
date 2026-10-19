@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "repository": "resiblaz/winmux",
+  "platform": "x64",
+  "baselineVersion": "0.0.1.0",
+  "baselineCommit": "76ab6165fc13d45a90d75e5f5978efb6a2056dfc"
+}

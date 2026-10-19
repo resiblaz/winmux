@@ -100,6 +100,29 @@ Keep the current source directory in place during migration so existing `bin/obj
 
 Do not copy `winmux.exe` by itself. The entire extracted `winmux-<version>` directory is required at runtime.
 
+### GitHub releases (Windows x64 only)
+
+The release baseline is package version `0.0.1.0` at commit `76ab6165fc13d45a90d75e5f5978efb6a2056dfc`. `tools/deploy/github-release.json` records this fixed baseline. GitHub release tags are `winmux-v<version>`. Only Intel/AMD Windows x64 portable packages are supported.
+
+Read `doc/releasing.md` for the complete procedure. Commit the scripts, package-version changes, and versioned release notes before preparing a release. Run all stages from that clean source commit.
+
+```powershell
+# Run the existing full incremental gate, then package once using -SkipBuild.
+pwsh -NoLogo -NoProfile -File .\tools\deploy\prepare-github-release.ps1
+
+# Push only this release tag and create/resume a draft with verified attachments.
+pwsh -NoLogo -NoProfile -File .\tools\deploy\publish-github-release.ps1 `
+    -Manifest .\dist\releases\0.0.1.0\release.json
+
+# After manual acceptance, verify the downloads and publish the existing draft.
+pwsh -NoLogo -NoProfile -File .\tools\deploy\publish-github-release.ps1 `
+    -Manifest .\dist\releases\0.0.1.0\release.json -Publish
+```
+
+Preparation preserves the incremental build graph and selects an exact versioned Release MSIX. It packages into a separate temporary directory, leaving the active portable deployment and settings alone. The frozen bundle in `dist/releases/<version>/` binds the ZIP, notes, checksums, full-gate result, and source commit. Re-running with the same source reuses it; a different source or conflicting hash requires a new version.
+
+Publishing requires GitHub CLI authentication with write access to `resiblaz/winmux` and the release commit pushed to `develop`. It defaults to a draft, downloads and verifies attachments, and never force-pushes a tag or overwrites an attachment. `-Publish` publishes an existing complete draft. Both scripts support `-WhatIf`. The offline integration tests in `test-github-release.ps1` run as part of the full gate without network or GitHub changes.
+
 ### Registered local Release
 
 Use the registered MSIX workflow when package identity, execution aliases, or Start menu registration are needed:

@@ -24,7 +24,7 @@ Winmux 基于 Windows Terminal 的原生终端引擎，把项目工作区、终�
 
 ## 快速开始
 
-**发布目标：Intel/AMD Windows x64；基准版本：`0.0.1.0`。** 系统要求 Windows 10 2004（build 19041）及以上，或 Windows 11。
+**发布目标：Intel/AMD Windows x64；首发版本：`1.26.0.0`（标签 `v1.26.0.0`）。** 系统要求 Windows 10 2004（build 19041）及以上，或 Windows 11。
 
 1. 在 [Releases](https://github.com/resiblaz/winmux/releases) 下载 `winmux_<version>_windows_x64.zip`。页面暂时没有 ZIP 附件时，可使用下方的[源码构建](#源码构建)。
 2. 完整解压压缩包，保留 DLL、资源文件、`settings/` 和 `.portable` 标记。
@@ -132,7 +132,7 @@ pwsh -NoLogo -NoProfile -File .\tools\deploy\build-portable-release.ps1 -SkipBui
 - [工作区、Vim、通知与自动化指南](doc/user-docs/WorkspaceSidebar.md)
 - [增量构建与本地部署](AGENT.md)
 - [GitHub 发布流程](doc/releasing.md)
-- [0.0.1.0 基准版本说明](doc/releases/0.0.1.0.md)
+- [1.26.0.0 首发版本说明](doc/releases/1.26.0.0.md)
 - [报告问题](https://github.com/resiblaz/winmux/issues)
 
 Winmux 基于 [Microsoft Windows Terminal](https://github.com/microsoft/terminal)，工作区交互受到 [cmux](https://github.com/manaflow-ai/cmux) 启发。原始版权声明、[MIT 许可证](LICENSE)及第三方声明均予以保留。

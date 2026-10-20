@@ -85,7 +85,7 @@ try
         schemaVersion = 1
         repository = $config.repository
         version = $version
-        tag = "winmux-v$version"
+        tag = "v$version"
         platform = 'x64'
         configuration = 'Release'
         sourceCommit = '1111111111111111111111111111111111111111'
@@ -104,6 +104,10 @@ try
     [IO.File]::AppendAllText($package, 'tampered')
     Expect-ReleaseFailure { Get-WinmuxReleaseBundle $manifest } 'differ from the frozen manifest'
     [IO.File]::WriteAllBytes($package, $originalZip)
+    $script:fixture.tag = "winmux-v$version"
+    Save-ReleaseFixture
+    Expect-ReleaseFailure { Get-WinmuxReleaseBundle $manifest } 'identity'
+    $script:fixture.tag = "v$version"
     $script:fixture.platform = 'x86'
     Save-ReleaseFixture
     Expect-ReleaseFailure { Get-WinmuxReleaseBundle $manifest } 'architecture'
@@ -149,9 +153,18 @@ try
             'ls-files' { $a[-1]; return }
             'rev-parse' { if ($a[1] -eq 'HEAD') { $state.Commit } else { $state.LocalTag }; return }
             'show-ref' { if (-not $state.LocalTag) { $global:LASTEXITCODE = 1 }; return }
-            'ls-remote' { if ($state.RemoteTag) { $state.RemoteTag + [char]9 + "refs/tags/winmux-v$version^{}" }; return }
-            'tag' { $state.LocalTag = $a[3]; $state.Mutations.Add('tag'); return }
-            'push' { $state.RemoteTag = $state.LocalTag; $state.Mutations.Add('push'); return }
+            'ls-remote' { if ($state.RemoteTag) { $state.RemoteTag + [char]9 + "refs/tags/v$version^{}" }; return }
+            'tag' {
+                if ($a[2] -cne "v$version") { throw 'Release tags must use v<version>.' }
+                $state.LocalTag = $a[3]; $state.Mutations.Add('tag'); return
+            }
+            'push' {
+                if ($a[1] -cne 'origin' -or $a[2] -cne "refs/tags/v$($version):refs/tags/v$version")
+                {
+                    throw 'Only the exact v<version> release tag may be pushed.'
+                }
+                $state.RemoteTag = $state.LocalTag; $state.Mutations.Add('push'); return
+            }
             default { throw "Unexpected test git command: $($a -join ' ')" }
         }
     }
@@ -294,6 +307,7 @@ exit 0
     $null = & $miniPrepare
     $prepared = Get-WinmuxReleaseBundle $miniManifest
     Assert-ReleaseTest ($prepared.Data.gate.passed -and $prepared.Data.sourceCommit -eq $global:WinmuxReleaseTest.Commit) 'Successful preparation must bind a full-gate result to its source commit.'
+    Assert-ReleaseTest ($prepared.Data.tag -ceq "v$version") 'Preparation must freeze the v<version> release tag.'
     $gateRuns = [IO.File]::ReadAllText((Join-Path $miniDeploy 'gate-runs.txt'))
     $null = & $miniPrepare
     Assert-ReleaseTest ([IO.File]::ReadAllText((Join-Path $miniDeploy 'gate-runs.txt')) -ceq $gateRuns) 'Reusing a frozen release must not rebuild or repackage.'
@@ -306,6 +320,7 @@ exit 0
 
     $null = & $publishScript -Manifest $manifest
     Assert-ReleaseTest ($global:WinmuxReleaseTest.Release.draft -and
+        $global:WinmuxReleaseTest.Release.tag_name -ceq "v$version" -and
         $global:WinmuxReleaseTest.Release.assets.Count -eq 3 -and
         $global:WinmuxReleaseTest.RemoteTag -eq $script:fixture.sourceCommit) 'A draft must contain the exact source and three assets.'
     $mutations = $global:WinmuxReleaseTest.Mutations.Count

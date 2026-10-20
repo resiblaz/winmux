@@ -1,6 +1,6 @@
 # Publishing Winmux releases
 
-Winmux publishes portable ZIPs for Intel/AMD Windows x64. The fixed baseline is package version `0.0.1.0` at source commit `76ab6165fc13d45a90d75e5f5978efb6a2056dfc`. The first tag is `winmux-v0.0.1.0`. The release itself points to the committed source that passed its gate, including the release tooling and notes.
+Winmux publishes portable ZIPs for Intel/AMD Windows x64. The fixed baseline is package version `0.0.1.0` at source commit `76ab6165fc13d45a90d75e5f5978efb6a2056dfc`. The first Winmux GitHub release is package version `1.26.0.0` with tag `v1.26.0.0`, continuing the inherited upstream `v1.25.*` tag history. The release itself points to the committed source that passed its gate, including the release tooling and notes.
 
 ## Requirements
 
@@ -16,11 +16,11 @@ The account must have write access to `resiblaz/winmux`. Both the fetch and push
 
 ## 1. Commit the release version and notes
 
-The package version in `src/cascadia/CascadiaPackage/Package-Dev.appxmanifest` is authoritative. The baseline is already `0.0.1.0`. For later releases, increment it, for example to `0.0.1.1`, and add `doc/releases/<version>.md` using [the notes template](releases/TEMPLATE.md). Keep the baseline in `tools/deploy/github-release.json` unchanged.
+The package version in `src/cascadia/CascadiaPackage/Package-Dev.appxmanifest` is authoritative. The first release version is `1.26.0.0`. For later releases, increment it, for example to `1.26.0.1`, and add `doc/releases/<version>.md` using [the notes template](releases/TEMPLATE.md). Keep the baseline in `tools/deploy/github-release.json` unchanged.
 
 Commit all source and notes before preparation. A dirty worktree, including untracked source files, is rejected. All subsequent stages use that same clean source commit.
 
-Write notes around user-visible features, fixes, upgrade instructions, and known issues. For subsequent releases, review changes since the previous `winmux-v*` tag. The first release describes the baseline feature set rather than the entire inherited upstream history.
+Write notes around user-visible features, fixes, upgrade instructions, and known issues. For subsequent releases, review changes since the previous Winmux release's `v<version>` tag. The first release describes the baseline feature set rather than the entire inherited upstream history.
 
 ## 2. Prepare and freeze the bundle
 
@@ -32,7 +32,7 @@ pwsh -NoLogo -NoProfile -File .\tools\deploy\prepare-github-release.ps1
 To prepare a prerelease instead, use:
 
 ```powershell
-pwsh -NoLogo -NoProfile -File .\tools\deploy\prepare-github-release.ps1 -Version 0.0.1.0 -Prerelease
+pwsh -NoLogo -NoProfile -File .\tools\deploy\prepare-github-release.ps1 -Version 1.26.0.0 -Prerelease
 ```
 
 Choose stable or prerelease when preparing; that choice is frozen with the bundle.
@@ -42,8 +42,8 @@ Preparation runs the full workspace release gate once, then repackages the exact
 The result is:
 
 ```text
-dist/releases/0.0.1.0/
-  winmux_0.0.1.0_windows_x64.zip
+dist/releases/1.26.0.0/
+  winmux_1.26.0.0_windows_x64.zip
   release.json
   SHA256SUMS.txt
   release-notes.md
@@ -59,10 +59,10 @@ After the release commit is pushed to `develop`:
 
 ```powershell
 pwsh -NoLogo -NoProfile -File .\tools\deploy\publish-github-release.ps1 `
-    -Manifest .\dist\releases\0.0.1.0\release.json
+    -Manifest .\dist\releases\1.26.0.0\release.json
 ```
 
-This creates an annotated `winmux-v<version>` tag at the recorded commit, pushes only that tag, creates a draft, and attaches exactly the ZIP, `release.json`, and `SHA256SUMS.txt`. The notes file becomes the release body. Existing local and remote tags must resolve to the recorded source commit.
+This creates an annotated `v<version>` tag at the recorded commit, pushes only that tag, creates a draft, and attaches exactly the ZIP, `release.json`, and `SHA256SUMS.txt`. The notes file becomes the release body. Existing local and remote tags must resolve to the recorded source commit.
 
 The script downloads the attachments and compares their SHA256 hashes with the frozen local files, then runs the extracted portable CLI smoke check. An interrupted upload can be resumed with the same command; already uploaded matching files are retained.
 
@@ -72,7 +72,7 @@ Review the draft notes and perform manual acceptance from a fresh extraction: la
 
 ```powershell
 pwsh -NoLogo -NoProfile -File .\tools\deploy\publish-github-release.ps1 `
-    -Manifest .\dist\releases\0.0.1.0\release.json -Publish
+    -Manifest .\dist\releases\1.26.0.0\release.json -Publish
 ```
 
 This requires an existing complete draft, rechecks the remote tag and downloaded assets, runs the extracted CLI smoke check, then publishes. Stable releases are set as Latest; prereleases are not. Retrying an identical published release verifies it and makes no changes.
@@ -84,7 +84,7 @@ Both commands support `-WhatIf`: local validation runs, but builds, tags, upload
 ```powershell
 pwsh -NoLogo -NoProfile -File .\tools\deploy\prepare-github-release.ps1 -WhatIf
 pwsh -NoLogo -NoProfile -File .\tools\deploy\publish-github-release.ps1 `
-    -Manifest .\dist\releases\0.0.1.0\release.json -WhatIf
+    -Manifest .\dist\releases\1.26.0.0\release.json -WhatIf
 ```
 
 - Build or test failure: correct it, commit, and rerun preparation. Preserve `bin/`, `obj/`, generated files, and dependencies.

@@ -24,7 +24,7 @@ Workspace names are saved independently of terminal titles. A project can keep i
 
 ## Get started
 
-**Release target: Intel/AMD Windows x64. Baseline version: `0.0.1.0`.** Requires Windows 10 version 2004 (build 19041) or later, including Windows 11.
+**Release target: Intel/AMD Windows x64. First release: `1.26.0.0` (tag `v1.26.0.0`).** Requires Windows 10 version 2004 (build 19041) or later, including Windows 11.
 
 1. Download `winmux_<version>_windows_x64.zip` from [Releases](https://github.com/resiblaz/winmux/releases). If no ZIP has been published yet, use the [source build](#build-from-source) below.
 2. Extract the entire archive. Keep its DLLs, resources, `settings/` directory, and `.portable` marker together.
@@ -132,7 +132,7 @@ Preserve `bin/`, `obj/`, generated files, and dependency caches between builds. 
 - [Workspaces, Vim, notifications, and automation](doc/user-docs/WorkspaceSidebar.md)
 - [Incremental builds and local deployment](AGENT.md)
 - [GitHub releases](doc/releasing.md)
-- [0.0.1.0 baseline release notes](doc/releases/0.0.1.0.md)
+- [1.26.0.0 first release notes](doc/releases/1.26.0.0.md)
 - [Report an issue](https://github.com/resiblaz/winmux/issues)
 
 Winmux is based on [Microsoft Windows Terminal](https://github.com/microsoft/terminal), with workspace interaction inspired by [cmux](https://github.com/manaflow-ai/cmux). Original copyright notices, the [MIT license](LICENSE), and third-party notices are retained.

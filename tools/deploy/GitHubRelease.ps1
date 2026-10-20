@@ -223,7 +223,7 @@ function Get-WinmuxReleaseBundle
     $packageName = "winmux_$($data.version)_windows_x64.zip"
     if ($data.schemaVersion -ne 1 -or $data.repository -cne $config.repository -or
         $data.platform -cne 'x64' -or $data.configuration -cne 'Release' -or
-        $data.tag -cne "winmux-v$($data.version)" -or $data.sourceCommit -cnotmatch '^[0-9a-f]{40}$' -or
+        $data.tag -cne "v$($data.version)" -or $data.sourceCommit -cnotmatch '^[0-9a-f]{40}$' -or
         $data.baseline.version -cne $config.baselineVersion -or $data.baseline.commit -cne $config.baselineCommit -or
         [version]$data.version -lt [version]$config.baselineVersion -or
         $data.gate.passed -isnot [bool] -or -not $data.gate.passed -or

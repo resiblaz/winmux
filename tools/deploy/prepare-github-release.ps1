@@ -88,7 +88,7 @@ try
         schemaVersion = 1
         repository = $config.repository
         version = $Version
-        tag = "winmux-v$Version"
+        tag = "v$Version"
         platform = 'x64'
         configuration = 'Release'
         sourceCommit = $commit

@@ -1,3 +1,26 @@
+function New-PortableDefaultSettings
+{
+    # Leave defaultProfile unset so the app selects an installed shell on the
+    # destination machine, rather than copying the build machine's preference.
+    return [ordered]@{
+        '$schema' = 'https://raw.githubusercontent.com/resiblaz/winmux/develop/doc/cascadia/profiles.schema.json'
+        '$help' = 'https://github.com/resiblaz/winmux/blob/develop/doc/user-docs/WorkspaceSidebar.md'
+        tabLayout = 'workspaceSidebar'
+        firstWindowPreference = 'persistedLayout'
+        profiles = [ordered]@{
+            defaults = [ordered]@{
+                'experimental.vimMode' = $true
+                font = [ordered]@{
+                    face = 'JetBrainsMono Nerd Font Mono'
+                    size = 14
+                }
+                padding = '3'
+                scrollbarState = 'hidden'
+            }
+        }
+    } | ConvertTo-Json -Depth 6
+}
+
 function Get-JsonContainerRange
 {
     param([string]$Content, [AllowEmptyString()][string]$JsonPath)

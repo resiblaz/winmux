@@ -299,6 +299,7 @@ try
                     '*WorkspaceCommandlineTests*',
                     '*WorkspaceActionsCanBeCustomized*',
                     '*DefaultWorkspaceSurfaceBindings*',
+                    '*PortableInitialSettings*',
                     '*VimModeSettings*',
                     '*VimModeEntryBindings*',
                     '*AgentHistoryRetentionSettings*'))

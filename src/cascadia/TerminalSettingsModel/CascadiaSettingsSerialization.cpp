@@ -271,13 +271,16 @@ void SettingsLoader::GenerateExtensionPackagesFromProfileGenerators()
     }
 }
 
-// A new settings.json gets a special treatment:
+// Fill in runtime defaults for a new or preseeded portable settings.json:
 // 1. The default profile is a PowerShell 7+ one, if one was generated,
 //    and falls back to the standard PowerShell 5 profile otherwise.
 // 2. cmd.exe gets a localized name.
-void SettingsLoader::ApplyRuntimeInitialSettings()
+bool SettingsLoader::ApplyRuntimeInitialSettings()
 {
+    bool modified = false;
+
     // 1.
+    if (!userSettings.globals->HasUnparsedDefaultProfile())
     {
         const auto preferredPowershellProfile = PowershellCoreProfileGenerator::GetPreferredPowershellProfileName();
         auto guid = DEFAULT_WINDOWS_POWERSHELL_GUID;
@@ -292,19 +295,23 @@ void SettingsLoader::ApplyRuntimeInitialSettings()
         }
 
         userSettings.globals->DefaultProfile(guid);
+        modified = true;
     }
 
     // 2.
     {
         for (const auto& profile : userSettings.profiles)
         {
-            if (profile->Guid() == DEFAULT_COMMAND_PROMPT_GUID)
+            if (profile->Guid() == DEFAULT_COMMAND_PROMPT_GUID && !profile->HasName())
             {
                 profile->Name(RS_(L"CommandPromptDisplayName"));
+                modified = true;
                 break;
             }
         }
     }
+
+    return modified;
 }
 
 // Adds profiles from .inboxSettings as parents of matching profiles in .userSettings.
@@ -1282,10 +1289,12 @@ try
 
     // ApplyRuntimeInitialSettings depends on generated profiles.
     // --> ApplyRuntimeInitialSettings must be called after GenerateProfiles.
-    // Doesn't run when there is a Release settings.json that exists
-    if (firstTimeSetup && !releaseSettingExists)
+    // Portable packages preseed settings.json. Initialize missing defaults on
+    // the destination machine too, while preserving explicit user preferences.
+    // Imported Release settings retain their existing initialization behavior.
+    if (!releaseSettingExists && (firstTimeSetup || IsPortableMode()))
     {
-        loader.ApplyRuntimeInitialSettings();
+        mustWriteToDisk |= loader.ApplyRuntimeInitialSettings();
     }
 
     loader.MergeInboxIntoUserSettings();

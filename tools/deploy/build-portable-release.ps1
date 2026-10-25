@@ -222,19 +222,7 @@ try
     $settingsDirectory = Join-Path $terminalRoot.FullName 'settings'
     $settingsPath = Join-Path $settingsDirectory 'settings.json'
     New-Item -ItemType Directory -Path $settingsDirectory -Force | Out-Null
-    $defaultSettings = [ordered]@{
-        '$schema' = 'https://raw.githubusercontent.com/resiblaz/winmux/develop/doc/cascadia/profiles.schema.json'
-        '$help' = 'https://github.com/resiblaz/winmux/blob/develop/doc/user-docs/WorkspaceSidebar.md'
-        tabLayout = 'workspaceSidebar'
-        firstWindowPreference = 'persistedLayout'
-        profiles = [ordered]@{
-            defaults = [ordered]@{
-                'experimental.vimMode' = $true
-                padding = '3'
-                scrollbarState = 'hidden'
-            }
-        }
-    } | ConvertTo-Json -Depth 4
+    $defaultSettings = New-PortableDefaultSettings
     [System.IO.File]::WriteAllText($settingsPath, $defaultSettings + "`r`n", [System.Text.UTF8Encoding]::new($false))
 
     $configuredZipName = "winmux_${version}_windows_${Platform}.zip"

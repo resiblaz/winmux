@@ -65,6 +65,9 @@ namespace SettingsModelUnitTests
         TEST_METHOD(ModifyColorSchemeAndRoundtrip);
         TEST_METHOD(FixupUserSettingsDetectsChanges);
         TEST_METHOD(FixupCommandlinePatching);
+        TEST_METHOD(PortableInitialSettingsPreferPowerShell7);
+        TEST_METHOD(PortableInitialSettingsFallBackToWindowsPowerShell);
+        TEST_METHOD(PortableInitialSettingsPreserveExplicitPreferences);
 
     private:
         // Method Description:
@@ -103,6 +106,65 @@ namespace SettingsModelUnitTests
             return json;
         }
     };
+
+    void SerializationTests::PortableInitialSettingsPreferPowerShell7()
+    {
+        static constexpr std::string_view userJson{ R"({
+            "tabLayout": "workspaceSidebar",
+            "profiles": { "defaults": { "font": { "face": "JetBrainsMono Nerd Font Mono", "size": 14 } } }
+        })" };
+        static constexpr std::string_view inboxJson{ R"({
+            "profiles": [
+                { "guid": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}", "name": "Windows PowerShell" },
+                { "guid": "{574e775e-4f2a-5b96-ac1e-a2962a402336}", "name": "PowerShell" }
+            ]
+        })" };
+        implementation::SettingsLoader loader{ userJson, inboxJson };
+
+        VERIFY_IS_TRUE(loader.ApplyRuntimeInitialSettings());
+        VERIFY_ARE_EQUAL(winrt::guid(L"{574e775e-4f2a-5b96-ac1e-a2962a402336}"), loader.userSettings.globals->DefaultProfile());
+        VERIFY_IS_FALSE(loader.ApplyRuntimeInitialSettings(), L"Resolved defaults must not trigger another settings write");
+        VERIFY_ARE_EQUAL(L"JetBrainsMono Nerd Font Mono", loader.userSettings.baseLayerProfile->FontInfo().FontFace());
+        VERIFY_ARE_EQUAL(14.0f, loader.userSettings.baseLayerProfile->FontInfo().FontSize());
+    }
+
+    void SerializationTests::PortableInitialSettingsFallBackToWindowsPowerShell()
+    {
+        implementation::SettingsLoader loader{ R"({ "profiles": { "defaults": {} } })", implementation::LoadStringResource(IDR_DEFAULTS) };
+
+        VERIFY_IS_TRUE(loader.ApplyRuntimeInitialSettings());
+        VERIFY_ARE_EQUAL(winrt::guid(L"{61c54bbd-c2c6-5271-96e7-009a87ff44bf}"), loader.userSettings.globals->DefaultProfile());
+        VERIFY_IS_FALSE(loader.ApplyRuntimeInitialSettings());
+    }
+
+    void SerializationTests::PortableInitialSettingsPreserveExplicitPreferences()
+    {
+        static constexpr std::string_view inboxJson{ R"({
+            "profiles": [
+                { "guid": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}", "name": "Windows PowerShell" },
+                { "guid": "{574e775e-4f2a-5b96-ac1e-a2962a402336}", "name": "PowerShell" }
+            ]
+        })" };
+        for (const auto defaultProfile : { "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}", "Custom prompt" })
+        {
+            auto userJson = VerifyParseSucceeded(R"({
+                "profiles": {
+                    "defaults": { "font": { "face": "Consolas", "size": 15 } },
+                    "list": [{ "guid": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}", "name": "Custom prompt" }]
+                }
+            })");
+            userJson["defaultProfile"] = defaultProfile;
+            implementation::SettingsLoader loader{ toString(userJson), inboxJson };
+            const auto globalsBefore = toString(loader.userSettings.globals->ToJson());
+            const auto profileBefore = toString(loader.userSettings.profiles.at(0)->ToJson());
+
+            VERIFY_IS_FALSE(loader.ApplyRuntimeInitialSettings());
+            VERIFY_ARE_EQUAL(globalsBefore, toString(loader.userSettings.globals->ToJson()));
+            VERIFY_ARE_EQUAL(profileBefore, toString(loader.userSettings.profiles.at(0)->ToJson()));
+            VERIFY_ARE_EQUAL(L"Consolas", loader.userSettings.baseLayerProfile->FontInfo().FontFace());
+            VERIFY_ARE_EQUAL(15.0f, loader.userSettings.baseLayerProfile->FontInfo().FontSize());
+        }
+    }
 
     void SerializationTests::GlobalSettings()
     {

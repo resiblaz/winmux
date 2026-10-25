@@ -2,6 +2,23 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'PortableSettings.ps1')
 
+$defaults = New-PortableDefaultSettings | ConvertFrom-Json -AsHashtable
+if ($defaults.profiles.defaults.font.face -cne 'JetBrainsMono Nerd Font Mono' -or $defaults.profiles.defaults.font.size -ne 14)
+{
+    throw 'Fresh portable settings must use JetBrainsMono Nerd Font Mono at size 14.'
+}
+if ($defaults.Contains('defaultProfile') -or $defaults.profiles.Contains('list'))
+{
+    throw 'Fresh portable settings must let the destination machine select and generate shell profiles.'
+}
+if ($defaults.tabLayout -cne 'workspaceSidebar' -or $defaults.firstWindowPreference -cne 'persistedLayout' -or
+    $defaults.profiles.defaults['experimental.vimMode'] -ne $true -or
+    $defaults.profiles.defaults.padding -cne '3' -or $defaults.profiles.defaults.scrollbarState -cne 'hidden')
+{
+    throw 'Fresh portable settings lost an existing workspace default.'
+}
+Write-Host 'PASS: 3 fresh portable settings assertions'
+
 $fixtures = @(
     @{} | ConvertTo-Json -Compress
     '{"profiles":{}}'

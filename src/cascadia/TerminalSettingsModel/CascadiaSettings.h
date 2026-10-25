@@ -88,7 +88,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
 
         void GenerateProfiles();
         void GenerateExtensionPackagesFromProfileGenerators();
-        void ApplyRuntimeInitialSettings();
+        bool ApplyRuntimeInitialSettings();
         void MergeInboxIntoUserSettings();
         void FindFragmentsAndMergeIntoUserSettings(bool generateExtensionPackages);
         void MergeFragmentIntoUserSettings(const winrt::hstring& source, const winrt::hstring& basePath, const std::string_view& content);

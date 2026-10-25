@@ -14,6 +14,8 @@ Open **Settings → Appearance → Tab layout** and select **Workspace sidebar**
 
 The Winmux portable build enables `workspaceSidebar` by default. Registered installations retain their existing preference; the underlying settings default is `horizontal`.
 
+Fresh portable settings use `JetBrainsMono Nerd Font Mono` at size `14` for all profiles. Install that font to get the intended appearance; if it is unavailable, the renderer falls back to Consolas. On first launch, the app prefers an installed PowerShell 7 profile and otherwise uses Windows PowerShell 5.1. The choice is made on the machine running the portable app. Portable updates preserve existing shell and font preferences, including profile overrides.
+
 ### Migrate from the experimental setting
 
 The legacy setting remains readable:

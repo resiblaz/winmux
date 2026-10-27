@@ -149,6 +149,33 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         return til::point{ 0, position.y + 1 };
     }
 
+    til::point VimTextNavigator::Paragraph(til::point position, const bool forward) const
+    {
+        position = ClampCursor(position);
+        const auto emptyLine = [this](const til::CoordType row) {
+            // An empty continuation row still belongs to its soft-wrapped
+            // logical line and must not split a paragraph.
+            return _lineEnd(row) == 0 && (row == 0 || !_buffer.GetRowByOffset(row - 1).WasWrapForced());
+        };
+        auto seenText = !emptyLine(position.y);
+        const auto delta = forward ? 1 : -1;
+        for (auto row = position.y + delta; row >= 0 && row <= _lastRow; row += delta)
+        {
+            if (emptyLine(row))
+            {
+                if (seenText)
+                {
+                    return { 0, row };
+                }
+            }
+            else
+            {
+                seenText = true;
+            }
+        }
+        return forward ? ClampCursor({ _lineEnd(_lastRow), _lastRow }) : til::point{ 0, 0 };
+    }
+
     til::point VimTextNavigator::WordStart(til::point position) const
     {
         position = ClampEndpoint(position);

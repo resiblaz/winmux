@@ -80,7 +80,8 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 
         static bool IsMovement(const uint16_t key) noexcept
         {
-            return key == 'H' || key == 'J' || key == 'K' || key == 'L' || key == 'B' || key == 'W' || key == 'E' || (key >= 0x25 && key <= 0x28);
+            return key == 'H' || key == 'J' || key == 'K' || key == 'L' || key == 'B' || key == 'W' || key == 'E' ||
+                   (key >= 0x25 && key <= 0x28) || key == 0xdb || key == 0xdd; // VK_OEM_4 / VK_OEM_6: { / }
         }
 
     private:
@@ -93,7 +94,9 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         bool _matches(const wchar_t character) const noexcept
         {
             const auto key = _pendingText->Key;
-            return character == key || (key >= 'A' && key <= 'Z' && character == key + (L'a' - L'A'));
+            return character == key || (key >= 'A' && key <= 'Z' && character == key + (L'a' - L'A')) ||
+                   (key == 0xdb && (character == L'[' || character == L'{')) ||
+                   (key == 0xdd && (character == L']' || character == L'}'));
         }
 
         std::bitset<256> _consumed;

@@ -227,6 +227,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceSwitchStartupActions);
         TEST_METHOD(WorkspaceNumberInputRecognizesOrdinals);
         TEST_METHOD(WorkspaceNumberShortcutActions);
+        TEST_METHOD(WorkspaceNumberShortcutTiming);
         TEST_METHOD(WorkspaceAutomationRequiresSurfaceId);
         TEST_METHOD(WorkspaceAutomationTargetsExactSurface);
         TEST_METHOD(WorkspaceNamesSurviveSurfaceChangesAndRestore);
@@ -1273,6 +1274,101 @@ namespace TerminalAppLocalTests
             page->_SidebarController().Enabled = false;
             VERIFY_IS_FALSE(send('2', true, ctrl));
             VERIFY_IS_FALSE(send('2', true, alt));
+        });
+    }
+
+    void TabTests::WorkspaceNumberShortcutTiming()
+    {
+        using Modifiers = ::Microsoft::Terminal::Core::ControlKeyStates;
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            const auto bindings = CascadiaSettings::LoadDefaults().ActionMap().KeyBindings();
+            for (const auto& binding : bindings)
+            {
+                page->_settings.ActionMap().AddAction(binding.Value(), binding.Key());
+            }
+            page->_SidebarController().Enabled = true;
+            const auto first = page->_WorkspaceItems().GetAt(0);
+            for (uint32_t index = 1; index < 9; ++index)
+            {
+                page->_OpenNewWorkspace();
+            }
+            const auto ninth = page->_WorkspaceItems().GetAt(8);
+            for (uint32_t index = 1; index < 9; ++index)
+            {
+                page->_OpenNewTab(NewTerminalArgs{ 1 });
+            }
+            VERIFY_ARE_EQUAL(9u, page->_WorkspaceItems().Size());
+            VERIFY_ARE_EQUAL(9u, ninth.SurfaceCount());
+
+            const Modifiers ctrl{ Modifiers::LeftCtrlPressed };
+            const Modifiers alt{ Modifiers::LeftAltPressed };
+            const auto send = [&](const uint32_t key, const bool down, const Modifiers modifiers) {
+                return page->_TryHandleWorkspaceNumberKey(key, static_cast<uint8_t>(MapVirtualKeyW(key, MAPVK_VK_TO_VSC)), down, modifiers);
+            };
+            const auto press = [&](const uint32_t key, const Modifiers modifiers, const auto& expected) {
+                VERIFY_IS_TRUE(send(key, true, modifiers));
+                VERIFY_ARE_EQUAL(expected, page->_GetFocusedTab());
+                VERIFY_IS_TRUE(send(key, false, modifiers));
+            };
+            const auto release = [&](const Modifiers modifiers) {
+                VERIFY_IS_FALSE(send(modifiers.IsCtrlPressed() ? VK_CONTROL : VK_MENU, false, {}));
+            };
+
+            // Each fresh digit switches immediately without releasing Ctrl.
+            press('1', ctrl, first.SourceTab());
+            press('2', ctrl, page->_WorkspaceItems().GetAt(1).SourceTab());
+            press('9', ctrl, ninth.Surfaces().GetAt(8));
+            release(ctrl);
+            VERIFY_ARE_EQUAL(ninth.Surfaces().GetAt(8), page->_GetFocusedTab());
+            press('1', alt, ninth.Surfaces().GetAt(0));
+            press('9', alt, ninth.Surfaces().GetAt(8));
+            release(alt);
+            VERIFY_ARE_EQUAL(ninth.Surfaces().GetAt(8), page->_GetFocusedTab());
+
+            // An immediate switch consumes repeats and the eventual key-up,
+            // even if focus changes before the modifier or digit is released.
+            VERIFY_IS_TRUE(send('1', true, ctrl));
+            VERIFY_ARE_EQUAL(first.SourceTab(), page->_GetFocusedTab());
+            page->_SelectWorkspace(ninth);
+            VERIFY_IS_TRUE(send('1', true, ctrl));
+            release(ctrl);
+            VERIFY_ARE_EQUAL(ninth.Surfaces().GetAt(8), page->_GetFocusedTab());
+            VERIFY_IS_TRUE(send('1', true, {}));
+            VERIFY_IS_TRUE(send('1', false, {}));
+            VERIFY_IS_FALSE(send('1', false, {}));
+
+            // Ten terminals defer Alt until release, while nine workspaces
+            // still switch immediately with Ctrl.
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+            VERIFY_ARE_EQUAL(10u, ninth.SurfaceCount());
+            press('9', alt, ninth.Surfaces().GetAt(9));
+            release(alt);
+            VERIFY_ARE_EQUAL(ninth.Surfaces().GetAt(8), page->_GetFocusedTab());
+            press('1', alt, ninth.Surfaces().GetAt(8));
+            press('0', alt, ninth.Surfaces().GetAt(8));
+            release(alt);
+            VERIFY_ARE_EQUAL(ninth.Surfaces().GetAt(9), page->_GetFocusedTab());
+            press('1', ctrl, first.SourceTab());
+            press('9', ctrl, ninth.Surfaces().GetAt(9));
+            release(ctrl);
+
+            // At ten workspaces, Ctrl defers even for a single digit. Alt
+            // still switches immediately in a workspace with two terminals.
+            page->_OpenNewWorkspace();
+            const auto tenth = page->_WorkspaceItems().GetAt(9);
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+            VERIFY_ARE_EQUAL(10u, page->_WorkspaceItems().Size());
+            VERIFY_ARE_EQUAL(2u, tenth.SurfaceCount());
+            press('1', alt, tenth.Surfaces().GetAt(0));
+            release(alt);
+            press('9', ctrl, tenth.Surfaces().GetAt(0));
+            release(ctrl);
+            VERIFY_ARE_EQUAL(ninth.Surfaces().GetAt(9), page->_GetFocusedTab());
+            press('1', ctrl, ninth.Surfaces().GetAt(9));
+            press('0', ctrl, ninth.Surfaces().GetAt(9));
+            release(ctrl);
+            VERIFY_ARE_EQUAL(tenth.Surfaces().GetAt(0), page->_GetFocusedTab());
         });
     }
 

@@ -3255,7 +3255,7 @@
         },
         "experimental.vimMode": {
           "default": false,
-          "description": "Enable Vim-style terminal navigation. Alt+V (the configurable enterVimMode action) enters Normal; i/a return to Insert, v selects within text bounds, hjkl move, b/e jump to word beginnings/ends, and y copies. Escape passes through in Insert. Navigation is inactive in the alternate screen buffer. Can be set in profiles.defaults or overridden per profile.",
+          "description": "Enable Vim-style terminal navigation. Alt+V (the configurable enterVimMode action) enters Normal; i/a return to Insert, v selects within text bounds, hjkl move, b/w/e jump to word beginnings/ends, { and } jump to paragraph boundaries, and y copies. Escape passes through in Insert. Navigation is inactive in the alternate screen buffer. Can be set in profiles.defaults or overridden per profile.",
           "type": "boolean"
         },
         "answerbackMessage": {

@@ -301,6 +301,24 @@ namespace winrt::TerminalApp::implementation
         auto& sidebar = _SidebarController();
         auto& input = sidebar.NumberInput;
         using Target = WorkspaceNumberInput::Target;
+        const auto finishNumber = [&](const Target target) {
+            const auto workspaceId = sidebar.NumberInputWorkspaceId;
+            if (const auto selection = input.Finish(target))
+            {
+                if (target == Target::Workspace)
+                {
+                    if (selection->Number <= _WorkspaceItems().Size())
+                    {
+                        _actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToTab, SwitchToTabArgs{ selection->Number - 1 } });
+                    }
+                }
+                else if (const auto item = _WorkspaceItemForTab(_GetFocusedTab());
+                         item && item.WorkspaceId() == workspaceId && selection->Number <= item.SurfaceCount())
+                {
+                    _actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToWorkspaceSurface, SwitchToWorkspaceSurfaceArgs{ selection->Number - 1 } });
+                }
+            }
+        };
         if (vkey >= '0' && vkey <= '9' &&
             (down ? input.IsDigitHeld(vkey - '0') : input.ReleaseDigit(vkey - '0')))
         {
@@ -332,22 +350,7 @@ namespace winrt::TerminalApp::implementation
             }
             if (!down && !(ctrlKey ? modifiers.IsCtrlPressed() : modifiers.IsAltPressed()))
             {
-                const auto workspaceId = sidebar.NumberInputWorkspaceId;
-                if (const auto selection = input.Finish(target))
-                {
-                    if (target == Target::Workspace)
-                    {
-                        if (selection->Number <= _WorkspaceItems().Size())
-                        {
-                            _actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToTab, SwitchToTabArgs{ selection->Number - 1 } });
-                        }
-                    }
-                    else if (const auto item = _WorkspaceItemForTab(_GetFocusedTab());
-                             item && item.WorkspaceId() == workspaceId && selection->Number <= item.SurfaceCount())
-                    {
-                        _actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToWorkspaceSurface, SwitchToWorkspaceSurfaceArgs{ selection->Number - 1 } });
-                    }
-                }
+                finishNumber(target);
             }
             // Preserve the normal modifier release path for terminal input.
             return false;
@@ -366,7 +369,8 @@ namespace winrt::TerminalApp::implementation
         }
 
         const auto target = modifiers.IsCtrlPressed() ? Target::Workspace : Target::Surface;
-        if (!input.PendingTarget())
+        const auto startingNumber = !input.PendingTarget();
+        if (startingNumber)
         {
             // Respect custom bindings and explicit unbindings of a prefix.
             if (!_IsWorkspaceNumberPrefix(target == Target::Workspace, vkey - '0', scanCode))
@@ -377,6 +381,17 @@ namespace winrt::TerminalApp::implementation
         }
         input.PressDigit(target, vkey - '0');
         _ClearKeyboardState(gsl::narrow_cast<WORD>(vkey), scanCode);
+        if (startingNumber)
+        {
+            const auto item = _WorkspaceItemForTab(_GetFocusedTab());
+            const auto count = target == Target::Workspace ? _WorkspaceItems().Size() : (item ? item.SurfaceCount() : 0u);
+            if (count < 10)
+            {
+                // A single digit is unambiguous. Finish before dispatch changes
+                // focus, but retain the held key until its release is consumed.
+                finishNumber(target);
+            }
+        }
         return true;
     }
 

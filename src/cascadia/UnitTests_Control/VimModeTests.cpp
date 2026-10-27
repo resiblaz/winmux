@@ -69,9 +69,14 @@ namespace ControlUnitTests
             return fixture;
         }
 
-        void Key(const Fixture& fixture, const WORD key)
+        void Key(const Fixture& fixture, const WORD key, const ::Microsoft::Terminal::Core::ControlKeyStates modifiers = {})
         {
-            VERIFY_IS_TRUE(fixture.Core->TryVimModeKeybinding(key, {}));
+            VERIFY_IS_TRUE(fixture.Core->TryVimModeKeybinding(key, modifiers));
+        }
+
+        void Paragraph(const Fixture& fixture, const bool forward)
+        {
+            Key(fixture, forward ? VK_OEM_6 : VK_OEM_4, ::Microsoft::Terminal::Core::ControlKeyStates::ShiftPressed);
         }
 
         void Enter(const Fixture& fixture)
@@ -363,6 +368,125 @@ namespace ControlUnitTests
             VERIFY_ARE_EQUAL(til::point(3, 0), Anchor(wide));
         }
 
+        TEST_METHOD(VimParagraphMotionsAndBounds)
+        {
+            const auto fixture = Create(true, L"alpha\r\nbeta\r\n\r\n\r\n  gamma\r\n   \r\ndelta\r\n\r\nend\r\n\r\n");
+            Enter(fixture);
+            Position(fixture, { 2, 1 });
+            for (const auto expected : { til::point(0, 2), til::point(0, 5), til::point(0, 7), til::point(2, 8), til::point(2, 8) })
+            {
+                Paragraph(fixture, true);
+                VERIFY_ARE_EQUAL(expected, Anchor(fixture));
+            }
+            for (const auto expected : { til::point(0, 7), til::point(0, 5), til::point(0, 3), til::point(0, 0), til::point(0, 0) })
+            {
+                Paragraph(fixture, false);
+                VERIFY_ARE_EQUAL(expected, Anchor(fixture));
+            }
+            // Paragraph jumps reset the column remembered by vertical motion.
+            Position(fixture, { 4, 0 });
+            Key(fixture, 'J');
+            Paragraph(fixture, true);
+            Key(fixture, 'J');
+            Key(fixture, 'J');
+            VERIFY_ARE_EQUAL(til::point(0, 4), Anchor(fixture));
+            VERIFY_IS_TRUE(fixture.Connection->Input.empty());
+        }
+
+        TEST_METHOD(VimParagraphVisualRanges)
+        {
+            const auto text = std::wstring(L"one\r\n\r\ntwo\r\n\r\n\x4e2d\U0001f600");
+            const auto fixture = Create(true, text + L"\r");
+            std::wstring copied;
+            fixture.Core->WriteToClipboard([&](auto&&, const Control::WriteToClipboardEventArgs& args) { copied = args.Plain(); });
+            Enter(fixture);
+            Position(fixture, { 0, 0 });
+            Key(fixture, 'V');
+            Paragraph(fixture, true);
+            VERIFY_ARE_EQUAL(til::point(0, 1), DisplayCursor(fixture)->position);
+            Paragraph(fixture, true);
+            Paragraph(fixture, true);
+            VERIFY_ARE_EQUAL(til::point(2, 4), DisplayCursor(fixture)->position);
+            VERIFY_ARE_EQUAL(til::point(4, 4), Active(fixture));
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(text, copied);
+            VERIFY_ARE_EQUAL(til::point(2, 4), Anchor(fixture));
+
+            Key(fixture, 'V');
+            Paragraph(fixture, false);
+            Paragraph(fixture, false);
+            Paragraph(fixture, false);
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(text, copied);
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+
+            // Cross the anchor in both directions after an inclusive word motion.
+            Position(fixture, { 0, 2 });
+            Key(fixture, 'V');
+            Key(fixture, 'E');
+            Paragraph(fixture, false);
+            VERIFY_ARE_EQUAL(til::point(0, 1), Active(fixture));
+            Paragraph(fixture, true);
+            VERIFY_ARE_EQUAL(til::point(0, 3), Active(fixture));
+            Paragraph(fixture, false);
+            Key(fixture, VK_ESCAPE);
+            VERIFY_ARE_EQUAL(til::point(0, 1), Anchor(fixture));
+        }
+
+        TEST_METHOD(VimParagraphSoftWrapAndSpaces)
+        {
+            const auto fixture = Create(true, L"");
+            const auto width = fixture.Core->_terminal->GetTextBuffer().GetSize().Width();
+            fixture.Connection->Output(std::wstring(width, L'a') + std::wstring(width, L' ') + L"tail\r\n\r\nend\r");
+            Enter(fixture);
+            Position(fixture, { 0, 0 });
+            Paragraph(fixture, true);
+            VERIFY_ARE_EQUAL(til::point(0, 3), Anchor(fixture));
+            Paragraph(fixture, false);
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+
+            // The last continuation row can be empty after trimming spaces.
+            fixture.Core->ExitVimMode();
+            fixture.Connection->Output(L"\x1b[2J\x1b[H" + std::wstring(width, L'a') + L"   \r\nnext\r\n\r\nend\r");
+            Enter(fixture);
+            Position(fixture, { 0, 0 });
+            Paragraph(fixture, true);
+            VERIFY_ARE_EQUAL(til::point(0, 3), Anchor(fixture));
+            Paragraph(fixture, false);
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+        }
+
+        TEST_METHOD(VimParagraphKeysRespectModesAndModifiers)
+        {
+            using Modifiers = ::Microsoft::Terminal::Core::ControlKeyStates;
+            const auto fixture = Create(true, L"one\r\n\r\ntwo\r");
+            for (const auto key : std::array<WORD, 2>{ VK_OEM_4, VK_OEM_6 })
+            {
+                VERIFY_IS_FALSE(fixture.Core->TryVimModeKeybinding(key, Modifiers::ShiftPressed));
+            }
+            Enter(fixture);
+            Position(fixture, { 0, 0 });
+            Key(fixture, VK_OEM_4);
+            Key(fixture, VK_OEM_6);
+            Key(fixture, 'L', Modifiers::ShiftPressed);
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+            for (const auto modifier : std::array<DWORD, 3>{ LEFT_CTRL_PRESSED, LEFT_ALT_PRESSED, LEFT_WIN_PRESSED })
+            {
+                for (const auto key : std::array<WORD, 2>{ VK_OEM_4, VK_OEM_6 })
+                {
+                    VERIFY_IS_FALSE(fixture.Core->TryVimModeKeybinding(key, Modifiers{ modifier | SHIFT_PRESSED }));
+                }
+            }
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+            Paragraph(fixture, true);
+            VERIFY_ARE_EQUAL(til::point(0, 1), Anchor(fixture));
+            fixture.Connection->Output(L"\x1b[?1049h");
+            for (const auto key : std::array<WORD, 2>{ VK_OEM_4, VK_OEM_6 })
+            {
+                VERIFY_IS_FALSE(fixture.Core->TryVimModeKeybinding(key, Modifiers::ShiftPressed));
+            }
+        }
+
         TEST_METHOD(VimWordMotionsAndDelimiters)
         {
             const auto fixture = Create(true, L"foo_bar::baz  qux\r");
@@ -384,6 +508,58 @@ namespace ControlUnitTests
             Key(fixture, 'E');
             VERIFY_ARE_EQUAL(til::point(11, 0), Anchor(fixture));
             VERIFY_IS_TRUE(fixture.Connection->Input.empty());
+        }
+
+        TEST_METHOD(VimVisualSelectsSinglePeriod)
+        {
+            for (const auto period : { std::wstring_view{ L"." }, std::wstring_view{ L"\x3002" } })
+            {
+                const auto fixture = Create(true, std::wstring{ period } + L"\r");
+                std::wstring copied;
+                fixture.Core->WriteToClipboard([&](auto&&, const Control::WriteToClipboardEventArgs& args) { copied = args.Plain(); });
+                Enter(fixture);
+                Key(fixture, 'V');
+                VERIFY_IS_TRUE(fixture.Core->HasSelection());
+                Key(fixture, 'Y');
+                VERIFY_ARE_EQUAL(std::wstring{ period }, copied);
+                VERIFY_IS_TRUE(fixture.Core->VimModeState() == Control::VimMode::Normal);
+                VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+                VERIFY_IS_TRUE(fixture.Connection->Input.empty());
+            }
+        }
+
+        TEST_METHOD(VimVisualCharacterMotionsIncludePeriod)
+        {
+            for (const auto period : { std::wstring_view{ L"." }, std::wstring_view{ L"\x3002" } })
+            {
+                const auto text = std::wstring{ L"ab" } + std::wstring{ period };
+                const auto fixture = Create(true, text + L"\r");
+                std::wstring copied;
+                fixture.Core->WriteToClipboard([&](auto&&, const Control::WriteToClipboardEventArgs& args) { copied = args.Plain(); });
+                Enter(fixture);
+                Key(fixture, 'V');
+                Key(fixture, 'L');
+                Key(fixture, VK_RIGHT);
+                VERIFY_ARE_EQUAL(til::point(2, 0), DisplayCursor(fixture)->position);
+                Key(fixture, 'Y');
+                VERIFY_ARE_EQUAL(text, copied);
+                VERIFY_ARE_EQUAL(til::point(2, 0), Anchor(fixture));
+
+                Key(fixture, 'V');
+                Key(fixture, 'H');
+                Key(fixture, VK_LEFT);
+                Key(fixture, 'Y');
+                VERIFY_ARE_EQUAL(text, copied);
+                VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+
+                Position(fixture, { 2, 0 });
+                Key(fixture, 'V');
+                Key(fixture, 'H');
+                Key(fixture, 'L');
+                Key(fixture, 'Y');
+                VERIFY_ARE_EQUAL(std::wstring{ period }, copied);
+                VERIFY_ARE_EQUAL(til::point(2, 0), Anchor(fixture));
+            }
         }
 
         TEST_METHOD(VimWordSelectionIncludesEndpoints)
@@ -444,7 +620,8 @@ namespace ControlUnitTests
             Key(fixture, 'J');
             VERIFY_ARE_EQUAL(til::point(0, 2), Active(fixture));
             Key(fixture, 'J');
-            VERIFY_ARE_EQUAL(til::point(5, 3), Active(fixture));
+            VERIFY_ARE_EQUAL(til::point(6, 3), Active(fixture));
+            VERIFY_ARE_EQUAL(til::point(5, 3), DisplayCursor(fixture)->position);
             for (int i = 0; i < 4; ++i)
             {
                 Key(fixture, 'L');
@@ -467,7 +644,8 @@ namespace ControlUnitTests
             Enter(fixture);
             Position(fixture, { 15, 4 });
             Key(fixture, 'V');
-            VERIFY_ARE_EQUAL(til::point(0, 2), Active(fixture));
+            VERIFY_ARE_EQUAL(til::point(1, 2), Active(fixture));
+            VERIFY_ARE_EQUAL(til::point(0, 2), DisplayCursor(fixture)->position);
             Key(fixture, 'L');
             Key(fixture, 'Y');
             VERIFY_ARE_EQUAL(std::wstring(L"c"), copied);
@@ -490,6 +668,8 @@ namespace ControlUnitTests
                 copied = args.Plain();
             });
             Enter(fixture);
+            Paragraph(fixture, false);
+            Paragraph(fixture, true);
             Key(fixture, 'V');
             Key(fixture, 'B');
             Key(fixture, 'E');
@@ -520,11 +700,15 @@ namespace ControlUnitTests
             VERIFY_ARE_EQUAL(std::wstring(L"a\x4e2d\U0001f600" L"e\x0301"), copied);
             Position(fixture, { 2, 0 }); // Trailing cell of a wide glyph.
             Key(fixture, 'V');
-            VERIFY_ARE_EQUAL(til::point(1, 0), Active(fixture));
-            Key(fixture, 'L');
             VERIFY_ARE_EQUAL(til::point(3, 0), Active(fixture));
+            VERIFY_ARE_EQUAL(til::point(1, 0), DisplayCursor(fixture)->position);
             Key(fixture, 'Y');
             VERIFY_ARE_EQUAL(std::wstring(L"\x4e2d"), copied);
+            Key(fixture, 'V');
+            Key(fixture, 'L');
+            VERIFY_ARE_EQUAL(til::point(5, 0), Active(fixture));
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(std::wstring(L"\x4e2d\U0001f600"), copied);
         }
 
         TEST_METHOD(VimWordSoftWrapAndHardNewline)
@@ -588,14 +772,18 @@ namespace ControlUnitTests
             Key(fixture, 'L');
             VERIFY_ARE_EQUAL(til::point(2, 0), Anchor(fixture));
             Key(fixture, 'V');
-            Key(fixture, 'Y');
-            VERIFY_ARE_EQUAL(0, copies);
             VERIFY_IS_TRUE(fixture.Core->VimModeState() == Control::VimMode::Visual);
             Key(fixture, 'L');
             Key(fixture, 'L');
             Key(fixture, 'Y');
-            VERIFY_ARE_EQUAL(std::wstring(L"cd"), copied);
+            VERIFY_ARE_EQUAL(std::wstring(L"cde"), copied);
             VERIFY_ARE_EQUAL(1, copies);
+            VERIFY_IS_TRUE(fixture.Core->VimModeState() == Control::VimMode::Normal);
+            VERIFY_ARE_EQUAL(til::point(4, 0), Anchor(fixture));
+            Key(fixture, 'V');
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(std::wstring(L"e"), copied);
+            VERIFY_ARE_EQUAL(2, copies);
             VERIFY_IS_TRUE(fixture.Core->VimModeState() == Control::VimMode::Normal);
             VERIFY_ARE_EQUAL(til::point(4, 0), Anchor(fixture));
             Key(fixture, 'X');
@@ -622,7 +810,7 @@ namespace ControlUnitTests
             Key(fixture, 'H');
             Key(fixture, 'H');
             Key(fixture, 'Y');
-            VERIFY_ARE_EQUAL(std::wstring(L"bc"), copied);
+            VERIFY_ARE_EQUAL(std::wstring(L"bcd"), copied);
             VERIFY_ARE_EQUAL(til::point(1, 0), Anchor(fixture));
             Key(fixture, 'V');
             Key(fixture, 'L');
@@ -745,6 +933,14 @@ namespace ControlUnitTests
             VERIFY_IS_TRUE(Control::implementation::VimInputState::IsMovement('B'));
             VERIFY_IS_TRUE(Control::implementation::VimInputState::IsMovement('W'));
             VERIFY_IS_TRUE(Control::implementation::VimInputState::IsMovement('E'));
+            VERIFY_IS_TRUE(Control::implementation::VimInputState::IsMovement(VK_OEM_4));
+            VERIFY_IS_TRUE(Control::implementation::VimInputState::IsMovement(VK_OEM_6));
+            input.Consume(VK_OEM_4, 26);
+            VERIFY_IS_TRUE(input.SuppressCharacter(L'{', 0, false));
+            VERIFY_IS_TRUE(input.Release(VK_OEM_4));
+            input.Consume(VK_OEM_6, 27);
+            VERIFY_IS_TRUE(input.SuppressText(L"}", false));
+            VERIFY_IS_TRUE(input.Release(VK_OEM_6));
             input.Consume('W', 17);
             VERIFY_IS_TRUE(input.SuppressCharacter(L'w', 17, true));
             VERIFY_IS_TRUE(input.Release('W'));

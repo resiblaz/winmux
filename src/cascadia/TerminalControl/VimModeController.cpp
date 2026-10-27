@@ -187,7 +187,8 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         {
             return { .SelectionChanged = reconciled };
         }
-        if (modifiers.IsShiftPressed())
+        const auto paragraphMotion = modifiers.IsShiftPressed() && (vkey == VK_OEM_4 || vkey == VK_OEM_6);
+        if (modifiers.IsShiftPressed() && !paragraphMotion)
         {
             return { .Handled = true, .SelectionChanged = reconciled };
         }
@@ -235,15 +236,21 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         case 'V':
             if (_mode == VimMode::Normal)
             {
-                position = navigator.ClampEndpoint(position);
-                terminal.SetMarkSelection(position, position, !navigator.Empty());
-                if (!navigator.Empty())
-                {
-                    _mode = VimMode::Visual;
-                }
+                position = navigator.ClampCursor(position);
                 _preferredColumn.reset();
                 _visualActiveGlyphEnd = false;
                 _visualAnchorGlyphEnd = false;
+                if (!navigator.Empty())
+                {
+                    // Visual starts with the current glyph selected. Subsequent
+                    // character motions keep both endpoint glyphs included.
+                    _setInclusiveSelection(terminal, navigator, position, position);
+                    _mode = VimMode::Visual;
+                }
+                else
+                {
+                    terminal.SetMarkSelection(position, position, false);
+                }
             }
             else
             {
@@ -261,16 +268,24 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             return { .Handled = true,
                      .SelectionChanged = clamped,
                      .CopySelection = _mode == VimMode::Visual && terminal.GetSelectionAnchor() != terminal.GetSelectionEnd() };
+        case VK_OEM_4: // Shift+[ = {
+        case VK_OEM_6: // Shift+] = }
+            if (!paragraphMotion)
+            {
+                break;
+            }
+            [[fallthrough]];
         case 'B':
         case 'W':
         case 'E':
         {
-            // Word motions include both endpoint glyphs in Visual ranges.
+            // Word and paragraph motions include both endpoint glyphs in Visual ranges.
             // The native end remains exclusive; remember only the endpoint
             // interpretation, never a coordinate that rotation could invalidate.
             const auto cursor = _visualActiveGlyphEnd && terminal.SelectionEndpointTarget() == Terminal::SelectionEndpoint::End ?
                                     navigator.BeforeEndpoint(position) : position;
-            const auto target = vkey == 'B' ? navigator.WordStart(cursor) :
+            const auto target = paragraphMotion ? navigator.Paragraph(cursor, vkey == VK_OEM_6) :
+                                vkey == 'B' ? navigator.WordStart(cursor) :
                                 vkey == 'W' ? navigator.NextWordStart(cursor) : navigator.WordEnd(cursor);
             if (_visualAnchorGlyphEnd)
             {

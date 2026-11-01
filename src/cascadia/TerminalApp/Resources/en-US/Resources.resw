@@ -1120,6 +1120,9 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebarClearNotificationHistoryMenuItem.Text" xml:space="preserve">
     <value>Clear notification history</value>
   </data>
+  <data name="WorkspaceSurfaceTab_UnreadNotificationText" xml:space="preserve">
+    <value>{0} unread notifications: {1}</value>
+  </data>
   <data name="WorkspaceSidebar_UnreadAutomationName" xml:space="preserve">
     <value>{0} unread notifications; open latest notification</value>
   </data>

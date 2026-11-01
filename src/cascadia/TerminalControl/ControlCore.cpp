@@ -1860,7 +1860,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         const auto lock = _terminal->LockForWriting();
 
         // GH #19358: select the focused search result before clearing search
-        if (const auto focusedSearchResult = _terminal->GetSearchHighlightFocused())
+        if (const auto focusedSearchResult = _terminal->GetSearchHighlightFocused(); focusedSearchResult && !_vimSearchActive)
         {
             // search results are buffer-relative, whereas the selection functions expect viewport-relative coordinates
             const auto scrollOffset{ _terminal->GetScrollOffset() };

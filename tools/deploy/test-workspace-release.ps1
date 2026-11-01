@@ -279,6 +279,8 @@ try
                     '*WorkspaceWorkingDirectory*',
                     '*WorkspaceClosingTerminals*',
                     '*TabTests*WorkspaceSnapshot*',
+                    '*WorkspaceNotification*',
+                    '*PaneAttentionState*',
                     '*WorkspaceLayoutPersistsMetadata*'))
             {
                 Invoke-TaefSelection -Taef $taef -TestDll $terminalAppTests -Pattern $pattern

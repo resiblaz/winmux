@@ -4,6 +4,7 @@
 #pragma once
 
 #include <optional>
+#include <cstdint>
 #include <string_view>
 #include <til/point.h>
 
@@ -27,6 +28,10 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         til::point NextWordStart(til::point position) const;
         til::point WordEnd(til::point position) const;
         til::point Paragraph(til::point position, bool forward) const;
+        til::point LineStart(til::point position, bool firstNonBlank = false) const;
+        til::point LineEnd(til::point position, uint32_t count = 1) const;
+        til::point LineNumber(uint32_t number) const;
+        til::point BufferBoundary(bool end) const;
         til::point AfterGlyph(til::point position) const;
         til::point BeforeEndpoint(til::point position) const;
 

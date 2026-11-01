@@ -176,6 +176,70 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         return forward ? ClampCursor({ _lineEnd(_lastRow), _lastRow }) : til::point{ 0, 0 };
     }
 
+    til::point VimTextNavigator::LineStart(til::point position, const bool firstNonBlank) const
+    {
+        position = ClampCursor(position);
+        while (position.y > 0 && _buffer.GetRowByOffset(position.y - 1).WasWrapForced())
+        {
+            --position.y;
+        }
+        position.x = 0;
+        if (firstNonBlank)
+        {
+            const auto start = position;
+            const auto end = LineEnd(position);
+            while (_classAt(position) == static_cast<int>(DelimiterClass::ControlChar))
+            {
+                const auto next = _next(position);
+                if (!next || *next > end)
+                {
+                    return start;
+                }
+                position = *next;
+            }
+        }
+        return position;
+    }
+
+    til::point VimTextNavigator::LineEnd(til::point position, uint32_t count) const
+    {
+        position = ClampCursor(position);
+        do
+        {
+            while (position.y < _lastRow && _buffer.GetRowByOffset(position.y).WasWrapForced())
+            {
+                ++position.y;
+            }
+            if (count <= 1 || position.y == _lastRow)
+            {
+                break;
+            }
+            ++position.y;
+        } while (--count);
+        return ClampCursor({ _lineEnd(position.y), position.y });
+    }
+
+    til::point VimTextNavigator::LineNumber(uint32_t number) const
+    {
+        til::point position{};
+        while (number > 1 && position.y < _lastRow)
+        {
+            position = LineEnd(position);
+            if (position.y == _lastRow)
+            {
+                break;
+            }
+            position = { 0, position.y + 1 };
+            --number;
+        }
+        return LineStart(position);
+    }
+
+    til::point VimTextNavigator::BufferBoundary(const bool end) const
+    {
+        return end ? ClampCursor({ _lineEnd(_lastRow), _lastRow }) : til::point{};
+    }
+
     til::point VimTextNavigator::WordStart(til::point position) const
     {
         position = ClampEndpoint(position);

@@ -141,6 +141,9 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         bool VimModeAvailable() const;
         bool EnterVimMode();
         void ExitVimMode();
+        bool BeginVimSearch();
+        SearchResults SearchVim(const SearchRequest& request, bool commit);
+        void CancelVimSearch();
 
         void GotFocus();
         void LostFocus();
@@ -362,6 +365,8 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         void _updateAntiAliasingMode();
         void _connectionOutputHandler(winrt::array_view<const char16_t> str);
         bool _refreshVimModeUnderLock();
+        SearchResults _searchVimUnderLock(const SearchRequest& request, uint32_t count, bool move);
+        void _clearVimSearchUnderLock();
         void _connectionStateChangedHandler(const TerminalConnection::ITerminalConnection&, const Windows::Foundation::IInspectable&);
         void _updateHoveredCell(const std::optional<til::point> terminalPosition);
         void _refreshHoveredCell();
@@ -436,6 +441,8 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         std::atomic<bool> _initializedTerminal{ false };
         bool _isReadOnly{ false };
         VimModeController _vimModeController;
+        SearchRequest _vimSearchRequest{};
+        bool _vimSearchActive{};
         Control::VimMode _reportedVimMode{ Control::VimMode::Insert };
         bool _reportedVimModeAvailable{};
         bool _closing{ false };

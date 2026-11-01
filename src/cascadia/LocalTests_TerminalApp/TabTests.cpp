@@ -20,6 +20,8 @@
 #include "../TerminalApp/ContentManager.h"
 #include "CppWinrtTailored.h"
 #include <TerminalCore/ControlKeyStates.hpp>
+#include <winrt/Windows.UI.Xaml.Automation.Peers.h>
+#include <winrt/Windows.UI.Xaml.Automation.Provider.h>
 
 using namespace Microsoft::Console;
 using namespace TerminalApp;
@@ -238,6 +240,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceWorkingDirectoryNewTerminalFollowsActivePane);
         TEST_METHOD(WorkspaceWorkingDirectoryNewTerminalHonorsLaunchContext);
         TEST_METHOD(WorkspaceVimModeInputRouting);
+        TEST_METHOD(WorkspaceVimModeSearchRouting);
         TEST_METHOD(WorkspaceClosingTerminalsKeepsSelectionValid);
         TEST_METHOD(WorkspaceGitBranchParsesStructuredOutput);
         TEST_METHOD(WorkspaceListeningPortsProjectMetadata);
@@ -250,6 +253,8 @@ namespace TerminalAppLocalTests
         TEST_METHOD(WorkspaceSnapshotStaleSourceIsCleared);
         TEST_METHOD(WorkspaceStatusPillTracksStructuredState);
         TEST_METHOD(WorkspaceLayoutPersistsMetadata);
+        TEST_METHOD(WorkspaceNotificationBadgesTargetExactSurface);
+        TEST_METHOD(WorkspaceNotificationBadgesFollowHistoryChanges);
         TEST_METHOD(WorkspaceNotificationStateTracksUnread);
         TEST_METHOD(WorkspaceNotificationRefreshIsBounded);
         TEST_METHOD(PaneAttentionState);
@@ -2189,6 +2194,91 @@ namespace TerminalAppLocalTests
         });
     }
 
+    void TabTests::WorkspaceNotificationBadgesTargetExactSurface()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+            const auto item = page->_WorkspaceItems().GetAt(0);
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            const auto first = page->_tabs.GetAt(0);
+            const auto second = page->_tabs.GetAt(1);
+            const auto secondImpl = page->_GetTabImpl(second);
+            const auto firstId = itemImpl->SurfaceIdForTab(first);
+            const auto secondId = itemImpl->SurfaceIdForTab(second);
+            page->_SelectTab(0);
+            page->_activated = true;
+
+            // Both terminals have pane 0. A background completion belongs only
+            // to the second tab, even while the first tab is being viewed.
+            VERIFY_ARE_EQUAL(page->_GetTabImpl(first)->GetActivePane()->Id().value(), secondImpl->GetActivePane()->Id().value());
+            VERIFY_IS_TRUE(page->_RecordWorkspaceNotification(secondImpl, secondImpl->GetActiveContent(), L"Build", L"Build completed"));
+            VERIFY_ARE_EQUAL(0u, first.TabStatus().UnreadNotificationCount());
+            VERIFY_ARE_EQUAL(1u, second.TabStatus().UnreadNotificationCount());
+            VERIFY_IS_TRUE(first.TabStatus().NotificationText().empty());
+            VERIFY_IS_TRUE(std::wstring_view{ second.TabStatus().NotificationText() }.find(L"Build completed") != std::wstring_view::npos);
+            page->_MarkWorkspaceNotificationsReadForActivePane(page->_GetTabImpl(first));
+            VERIFY_ARE_EQUAL(1u, second.TabStatus().UnreadNotificationCount());
+
+            // Keep another pane unread when the tab's active pane is viewed.
+            item.AddNotification(secondId, 7, L"Tests", L"Tests completed");
+            item.AddNotification(firstId, 0, L"First", L"First terminal notification");
+            VERIFY_ARE_EQUAL(2u, second.TabStatus().UnreadNotificationCount());
+            page->_SelectTab(1);
+            VERIFY_ARE_EQUAL(1u, second.TabStatus().UnreadNotificationCount());
+            VERIFY_ARE_EQUAL(1u, first.TabStatus().UnreadNotificationCount());
+            VERIFY_IS_TRUE(std::wstring_view{ second.TabStatus().NotificationText() }.find(L"Tests completed") != std::wstring_view::npos);
+
+            item.MarkNotificationsReadForSurfacePane(secondId, 7);
+            VERIFY_ARE_EQUAL(0u, second.TabStatus().UnreadNotificationCount());
+            VERIFY_IS_TRUE(second.TabStatus().NotificationText().empty());
+            VERIFY_ARE_EQUAL(1u, first.TabStatus().UnreadNotificationCount());
+            item.MarkAllNotificationsRead();
+            VERIFY_ARE_EQUAL(0u, first.TabStatus().UnreadNotificationCount());
+            VERIFY_IS_TRUE(first.TabStatus().NotificationText().empty());
+        });
+    }
+
+    void TabTests::WorkspaceNotificationBadgesFollowHistoryChanges()
+    {
+        const auto page = _commonSetup();
+        TestOnUIThread([&]() {
+            page->_SidebarController().Enabled = true;
+            page->_OpenNewTab(NewTerminalArgs{ 1 });
+            const auto item = page->_WorkspaceItems().GetAt(0);
+            const auto itemImpl = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item);
+            const auto first = page->_tabs.GetAt(0);
+            const auto second = page->_tabs.GetAt(1);
+            const auto firstId = itemImpl->SurfaceIdForTab(first);
+            const auto secondId = itemImpl->SurfaceIdForTab(second);
+
+            item.AddNotification(firstId, 0, L"First", L"");
+            for (uint32_t index = 0; index < 100; ++index)
+            {
+                item.AddNotification(secondId, 0, L"Second", winrt::to_hstring(index));
+            }
+            VERIFY_ARE_EQUAL(100u, item.UnreadCount());
+            VERIFY_ARE_EQUAL(0u, first.TabStatus().UnreadNotificationCount());
+            VERIFY_IS_TRUE(first.TabStatus().NotificationText().empty());
+            VERIFY_ARE_EQUAL(100u, second.TabStatus().UnreadNotificationCount());
+            VERIFY_IS_TRUE(std::wstring_view{ second.TabStatus().NotificationText() }.find(L"Second: 99") != std::wstring_view::npos);
+
+            item.ClearNotificationHistory();
+            VERIFY_ARE_EQUAL(0u, second.TabStatus().UnreadNotificationCount());
+            VERIFY_IS_TRUE(second.TabStatus().NotificationText().empty());
+
+            item.AddNotification(firstId, 0, L"Title only", L"");
+            VERIFY_IS_TRUE(std::wstring_view{ first.TabStatus().NotificationText() }.find(L"Title only") != std::wstring_view::npos);
+            item.AddNotification(secondId, 0, L"", L"Message only");
+            VERIFY_IS_TRUE(std::wstring_view{ second.TabStatus().NotificationText() }.find(L"Message only") != std::wstring_view::npos);
+            VERIFY_IS_TRUE(itemImpl->RemoveSurface(second));
+            VERIFY_ARE_EQUAL(0u, second.TabStatus().UnreadNotificationCount());
+            VERIFY_IS_TRUE(second.TabStatus().NotificationText().empty());
+            VERIFY_ARE_EQUAL(1u, first.TabStatus().UnreadNotificationCount());
+        });
+    }
+
     void TabTests::WorkspaceNotificationStateTracksUnread()
     {
         const auto page = _commonSetup();
@@ -2339,6 +2429,77 @@ namespace TerminalAppLocalTests
     // - initialSettings: a CascadiaSettings to initialize the TerminalPage with.
     // Return Value:
     // - <none>
+    void TabTests::WorkspaceVimModeSearchRouting()
+    {
+        const CascadiaSettings settings{ LR"({
+            "profiles":{"defaults":{"experimental.vimMode":true,"closeOnExit":"never"},"list":[{"name":"vim-search"}]}
+        })",
+                                         {} };
+        winrt::com_ptr<winrt::TerminalApp::implementation::TerminalPage> page;
+        _initializeTerminalPage(page, settings);
+        winrt::Microsoft::Terminal::Control::TermControl control{ nullptr };
+        winrt::Microsoft::Terminal::Control::ControlCore core{ nullptr };
+        winrt::com_ptr<WorkspaceDirectoryConnection> connection;
+        FrameworkElement searchBox{ nullptr };
+        const auto invoke = [](const FrameworkElement& element) {
+            using namespace winrt::Windows::UI::Xaml::Automation;
+            const auto peer = Peers::FrameworkElementAutomationPeer::CreatePeerForElement(element);
+            peer.GetPattern(Peers::PatternInterface::Invoke).as<Provider::IInvokeProvider>().Invoke();
+        };
+        const auto press = [&](const uint32_t key) {
+            const auto scan = static_cast<uint8_t>(MapVirtualKeyW(key, MAPVK_VK_TO_VSC));
+            VERIFY_IS_TRUE(control.OnDirectKeyEvent(key, scan, true));
+            // Slash transfers focus to the search box before its key-up.
+            control.OnDirectKeyEvent(key, scan, false);
+        };
+        TestOnUIThread([&]() {
+            control = page->_GetActiveControl();
+            core = _contentManager->TryLookupCore(control.ContentId()).Core();
+            connection = winrt::make_self<WorkspaceDirectoryConnection>();
+            control.Connection(*connection);
+            core.Initialize(600, 400, 1.0f);
+            connection->TerminalOutput.raise(winrt_wstring_to_array_view(L"alpha hit beta hit\r"));
+            VERIFY_IS_TRUE(core.EnterVimMode());
+            press(VK_OEM_2);
+            searchBox = control.FindName(L"SearchBox").as<FrameworkElement>();
+        });
+        auto focused = false;
+        for (int attempt = 0; attempt < 30 && !focused; ++attempt)
+        {
+            TestOnUIThread([&]() { focused = control.SearchBoxEditInFocus(); });
+            if (!focused)
+            {
+                Sleep(50);
+            }
+        }
+        VERIFY_IS_TRUE(focused);
+        TestOnUIThread([&]() {
+            const auto before = core.SelectionInfo();
+            searchBox.FindName(L"TextBox").as<TextBox>().Text(L"hit");
+            VERIFY_ARE_EQUAL(before.StartPos.X, core.SelectionInfo().StartPos.X);
+            VERIFY_ARE_EQUAL(before.StartPos.Y, core.SelectionInfo().StartPos.Y);
+            VERIFY_IS_TRUE(core.VimModeState() == winrt::Microsoft::Terminal::Control::VimMode::Normal);
+            invoke(searchBox.FindName(L"CloseButton").as<FrameworkElement>());
+        });
+        TestOnUIThread([&]() {
+            VERIFY_ARE_EQUAL(0, core.SelectionInfo().StartPos.X);
+            press('2');
+            press('L');
+            VERIFY_ARE_EQUAL(2, core.SelectionInfo().EndPos.X);
+            press(VK_OEM_2);
+        });
+        TestOnUIThread([&]() {
+            searchBox.FindName(L"TextBox").as<TextBox>().Text(L"missing");
+            invoke(searchBox.FindName(L"CloseButton").as<FrameworkElement>());
+        });
+        TestOnUIThread([&]() {
+            VERIFY_ARE_EQUAL(2, core.SelectionInfo().EndPos.X);
+            VERIFY_IS_TRUE(core.VimModeState() == winrt::Microsoft::Terminal::Control::VimMode::Normal);
+            VERIFY_IS_TRUE(connection->Input.empty());
+            core.ExitVimMode();
+        });
+    }
+
     void TabTests::_initializeTerminalPage(winrt::com_ptr<winrt::TerminalApp::implementation::TerminalPage>& page,
                                            CascadiaSettings initialSettings)
     {

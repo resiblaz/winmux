@@ -151,6 +151,11 @@ namespace winrt::TerminalApp::implementation
                 const auto removedSurfaceId = _surfaceEntries[index].Id;
                 _surfaceEntries.erase(_surfaceEntries.begin() + index);
                 _surfaces.RemoveAt(index);
+                if (const auto status = tab.TabStatus())
+                {
+                    status.UnreadNotificationCount(0);
+                    status.NotificationText(L"");
+                }
                 for (auto notificationIndex = _notifications.Size(); notificationIndex > 0; --notificationIndex)
                 {
                     if (_notifications.GetAt(notificationIndex - 1).SurfaceId() == removedSurfaceId)
@@ -814,6 +819,39 @@ namespace winrt::TerminalApp::implementation
             unreadCount += notification.IsRead() ? 0 : 1;
         }
         UnreadCount(unreadCount);
+
+        // Surface tabs must reflect their own unread history, including when
+        // another surface has a pane with the same local ID. Recompute after
+        // reads, clears and history eviction so the badge cannot become stale.
+        for (const auto& entry : _surfaceEntries)
+        {
+            uint32_t surfaceUnreadCount = 0;
+            TerminalApp::WorkspaceNotification latestUnread{ nullptr };
+            for (const auto& notification : _notifications)
+            {
+                if (notification.SurfaceId() == entry.Id && !notification.IsRead())
+                {
+                    ++surfaceUnreadCount;
+                    latestUnread = notification;
+                }
+            }
+
+            if (const auto status = entry.Tab.TabStatus())
+            {
+                winrt::hstring text;
+                if (latestUnread)
+                {
+                    auto summary = latestUnread.Title();
+                    if (!latestUnread.Message().empty())
+                    {
+                        summary = summary.empty() ? latestUnread.Message() : summary + L": " + latestUnread.Message();
+                    }
+                    text = winrt::hstring{ RS_fmt(L"WorkspaceSurfaceTab_UnreadNotificationText", surfaceUnreadCount, summary) };
+                }
+                status.UnreadNotificationCount(surfaceUnreadCount);
+                status.NotificationText(text);
+            }
+        }
 
         const auto latest = LatestUnreadNotification();
         LatestNotification(latest ? (latest.Message().empty() ? latest.Title() : latest.Message()) : winrt::hstring{});

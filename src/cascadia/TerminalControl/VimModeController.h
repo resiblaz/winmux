@@ -5,6 +5,7 @@
 
 #include "../TerminalCore/ControlKeyStates.hpp"
 #include <winrt/Microsoft.Terminal.Control.h>
+#include <cstdint>
 #include <optional>
 #include <string_view>
 #include <til/point.h>
@@ -23,6 +24,9 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         bool Handled{};
         bool SelectionChanged{};
         bool CopySelection{};
+        uint32_t CopyLineCount{};
+        int SearchDirection{};
+        uint32_t Count{ 1 };
     };
 
     // Operates on the existing Mark selection, under the caller's terminal lock.
@@ -42,6 +46,8 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         bool Enter(Terminal& terminal);
         void Exit(Terminal& terminal);
         void ReturnToNormal(Terminal& terminal);
+        void ResetCommand() noexcept;
+        void MoveTo(Terminal& terminal, til::point position);
         VimKeyResult HandleKey(Terminal& terminal, WORD vkey, Modifiers modifiers, std::wstring_view wordDelimiters);
 
     private:
@@ -51,5 +57,15 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         std::optional<til::CoordType> _preferredColumn;
         bool _visualActiveGlyphEnd{};
         bool _visualAnchorGlyphEnd{};
+        enum class PendingCommand
+        {
+            None,
+            Goto,
+            Yank
+        };
+        PendingCommand _pendingCommand{};
+        uint32_t _count{};
+        uint32_t _operatorCount{ 1 };
+        bool _operatorHasCount{};
     };
 }

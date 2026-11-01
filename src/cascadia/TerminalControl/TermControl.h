@@ -258,6 +258,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         TsfDataProvider _tsfDataProvider{ this };
         VimInputState _vimInputState;
         winrt::com_ptr<SearchBoxControl> _searchBox;
+        bool _vimSearchActive{};
 
         enum class AltNumpadEncoding
         {
@@ -410,6 +411,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         bool _SuppressVimCharacter(wchar_t character, WORD scanCode);
         bool _SuppressVimText(std::wstring_view text);
         safe_void_coroutine _VimModeChanged(IInspectable sender, IInspectable args);
+        void _OpenVimSearch();
         static ::Microsoft::Terminal::Core::ControlKeyStates _GetPressedModifierKeys() noexcept;
         bool _TryHandleKeyBinding(const WORD vkey, const WORD scanCode, ::Microsoft::Terminal::Core::ControlKeyStates modifiers);
         static void _ClearKeyboardState(const WORD vkey, const WORD scanCode) noexcept;

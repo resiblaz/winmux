@@ -679,6 +679,8 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     // - Loads the search box from the xaml UI and focuses it.
     void TermControl::CreateSearchBoxControl()
     {
+        _vimSearchActive = false;
+        winrt::get_self<ControlCore>(_core)->CancelVimSearch();
         // Lazy load the search box control.
         if (auto loadedSearchBox{ FindName(L"SearchBox") })
         {
@@ -766,6 +768,26 @@ namespace winrt::Microsoft::Terminal::Control::implementation
                               const bool caseSensitive,
                               const bool regularExpression)
     {
+        if (_vimSearchActive)
+        {
+            const auto results = winrt::get_self<ControlCore>(_core)->SearchVim(SearchRequest{
+                                                                                    .Text = text,
+                                                                                    .GoForward = goForward,
+                                                                                    .CaseSensitive = caseSensitive,
+                                                                                    .RegularExpression = regularExpression,
+                                                                                },
+                                                                                true);
+            _handleSearchResults(results);
+            if (!results.SearchRegexInvalid)
+            {
+                _CloseSearchBoxControl(nullptr, nullptr);
+                if (GetKeyState(VK_RETURN) & 0x8000)
+                {
+                    _vimInputState.Consume(VK_RETURN, static_cast<uint16_t>(MapVirtualKeyW(VK_RETURN, MAPVK_VK_TO_VSC)));
+                }
+            }
+            return;
+        }
         if (_searchBox && _searchBox->IsOpen())
         {
             _handleSearchResults(_core.Search(SearchRequest{
@@ -793,6 +815,17 @@ namespace winrt::Microsoft::Terminal::Control::implementation
                                      const bool caseSensitive,
                                      const bool regularExpression)
     {
+        if (_vimSearchActive)
+        {
+            _handleSearchResults(winrt::get_self<ControlCore>(_core)->SearchVim(SearchRequest{
+                                                                                    .Text = text,
+                                                                                    .GoForward = goForward,
+                                                                                    .CaseSensitive = caseSensitive,
+                                                                                    .RegularExpression = regularExpression,
+                                                                                },
+                                                                                false));
+            return;
+        }
         if (_searchBox && _searchBox->IsOpen())
         {
             _handleSearchResults(_core.Search(SearchRequest{
@@ -816,10 +849,24 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     // Return Value:
     // - <none>
     void TermControl::_CloseSearchBoxControl(const winrt::Windows::Foundation::IInspectable& /*sender*/,
-                                             const RoutedEventArgs& /*args*/)
+                                             const RoutedEventArgs& args)
     {
         _searchBox->Close();
-        _core.ClearSearch();
+        if (_vimSearchActive)
+        {
+            _vimSearchActive = false;
+            winrt::get_self<ControlCore>(_core)->CancelVimSearch();
+            _vimInputState.Reset();
+            if (const auto keyArgs = args.try_as<Input::KeyRoutedEventArgs>())
+            {
+                const auto key = static_cast<uint16_t>(keyArgs.OriginalKey());
+                _vimInputState.Consume(key, static_cast<uint16_t>(keyArgs.KeyStatus().ScanCode));
+            }
+        }
+        else
+        {
+            _core.ClearSearch();
+        }
 
         // Clear search highlights scroll marks (by triggering an update after closing the search box)
         if (_showMarksInScrollbar)
@@ -3816,6 +3863,12 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     {
         if (!_searchBox || !_searchBox->IsOpen())
         {
+            return;
+        }
+
+        if (_vimSearchActive)
+        {
+            _SearchChanged(_searchBox->Text(), _searchBox->GoForward(), _searchBox->CaseSensitive(), _searchBox->RegularExpression());
             return;
         }
 

@@ -57,11 +57,11 @@ namespace ControlUnitTests
             winrt::com_ptr<Control::implementation::ControlCore> Core;
         };
 
-        Fixture Create(const bool enabled = true, const std::wstring_view text = L"abcdef\r")
+        Fixture Create(const bool enabled = true, const std::wstring_view text = L"abcdef\r", const int32_t historySize = 0)
         {
             Fixture fixture{ winrt::make_self<MockControlSettings>(), winrt::make_self<RecordingConnection>(), nullptr };
             fixture.Settings->VimModeEnabled(enabled);
-            fixture.Settings->HistorySize(0);
+            fixture.Settings->HistorySize(historySize);
             fixture.Core = winrt::make_self<Control::implementation::ControlCore>(*fixture.Settings, *fixture.Settings, *fixture.Connection);
             fixture.Core->_inUnitTests = true;
             VERIFY_IS_TRUE(fixture.Core->Initialize(270, 380, 1.0f));
@@ -962,6 +962,301 @@ namespace ControlUnitTests
             VERIFY_IS_FALSE(input.IsConsumed('V'));
             VERIFY_IS_FALSE(input.SuppressText(L"v", false));
             VERIFY_IS_FALSE(input.Release('V'));
+        }
+
+        TEST_METHOD(VimBufferAndLogicalLineJumps)
+        {
+            using Modifiers = ::Microsoft::Terminal::Core::ControlKeyStates;
+            const auto fixture = Create(true, L"  alpha\r\nbeta\r\nlast\r");
+            std::wstring copied;
+            fixture.Core->WriteToClipboard([&](auto&&, const Control::WriteToClipboardEventArgs& args) { copied = args.Plain(); });
+            Enter(fixture);
+            Position(fixture, { 2, 1 });
+            Key(fixture, 'G', Modifiers::ShiftPressed);
+            VERIFY_ARE_EQUAL(til::point(3, 2), Anchor(fixture));
+            Key(fixture, 'G');
+            VERIFY_ARE_EQUAL(til::point(3, 2), Anchor(fixture));
+            Key(fixture, 'G');
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+            Key(fixture, '6', Modifiers::ShiftPressed);
+            VERIFY_ARE_EQUAL(til::point(2, 0), Anchor(fixture));
+            Key(fixture, '4', Modifiers::ShiftPressed);
+            VERIFY_ARE_EQUAL(til::point(6, 0), Anchor(fixture));
+            Key(fixture, '0');
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+            Key(fixture, '2');
+            Key(fixture, 'G', Modifiers::ShiftPressed);
+            VERIFY_ARE_EQUAL(til::point(0, 1), Anchor(fixture));
+            Key(fixture, '3');
+            Key(fixture, 'G');
+            Key(fixture, 'G');
+            VERIFY_ARE_EQUAL(til::point(0, 2), Anchor(fixture));
+            Key(fixture, 'G');
+            Key(fixture, 'G');
+            Key(fixture, 'V');
+            Key(fixture, 'G', Modifiers::ShiftPressed);
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(std::wstring(L"  alpha\r\nbeta\r\nlast"), copied);
+            VERIFY_ARE_EQUAL(til::point(3, 2), Anchor(fixture));
+            Key(fixture, 'V');
+            Key(fixture, 'G');
+            Key(fixture, 'G');
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(std::wstring(L"  alpha\r\nbeta\r\nlast"), copied);
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+            VERIFY_IS_TRUE(fixture.Connection->Input.empty());
+        }
+
+        TEST_METHOD(VimCountedMotionsAndCommandCancellation)
+        {
+            const auto fixture = Create(true, L"one two three four\r\na\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r");
+            Enter(fixture);
+            Position(fixture, { 0, 0 });
+            Key(fixture, '5');
+            Key(fixture, 'J');
+            VERIFY_ARE_EQUAL(til::point(0, 5), Anchor(fixture));
+            Key(fixture, '2');
+            Key(fixture, 'K');
+            VERIFY_ARE_EQUAL(til::point(0, 3), Anchor(fixture));
+            Key(fixture, '5');
+            Key(fixture, VK_ESCAPE);
+            Key(fixture, 'J');
+            VERIFY_ARE_EQUAL(til::point(0, 4), Anchor(fixture));
+            Key(fixture, 'G');
+            Key(fixture, VK_ESCAPE);
+            Key(fixture, 'K');
+            VERIFY_ARE_EQUAL(til::point(0, 3), Anchor(fixture));
+            Key(fixture, '5');
+            Key(fixture, 'X');
+            Key(fixture, 'J');
+            VERIFY_ARE_EQUAL(til::point(0, 4), Anchor(fixture));
+            for (int i = 0; i < 16; ++i)
+            {
+                Key(fixture, '9');
+            }
+            Key(fixture, 'J');
+            VERIFY_ARE_EQUAL(til::point(0, 7), Anchor(fixture));
+            Key(fixture, 'G');
+            Key(fixture, 'G');
+            Key(fixture, '3');
+            Key(fixture, 'W');
+            VERIFY_ARE_EQUAL(til::point(14, 0), Anchor(fixture));
+            Key(fixture, '2');
+            Key(fixture, 'B');
+            VERIFY_ARE_EQUAL(til::point(4, 0), Anchor(fixture));
+            Key(fixture, '0');
+            Key(fixture, '1');
+            Key(fixture, '0');
+            Key(fixture, 'L');
+            VERIFY_ARE_EQUAL(til::point(10, 0), Anchor(fixture));
+            Key(fixture, 'V');
+            Key(fixture, '5');
+            Key(fixture, 'H');
+            Key(fixture, VK_ESCAPE);
+            VERIFY_ARE_EQUAL(til::point(5, 0), Anchor(fixture));
+            Key(fixture, '5');
+            Key(fixture, 'I');
+            Enter(fixture);
+            Position(fixture, { 0, 0 });
+            Key(fixture, 'J');
+            VERIFY_ARE_EQUAL(til::point(0, 1), Anchor(fixture));
+            VERIFY_IS_TRUE(fixture.Connection->Input.empty());
+        }
+
+        TEST_METHOD(VimWrappedLineMotionsAndLinewiseYank)
+        {
+            using Modifiers = ::Microsoft::Terminal::Core::ControlKeyStates;
+            const auto fixture = Create(true, L"");
+            const auto width = fixture.Core->_terminal->GetTextBuffer().GetSize().Width();
+            const auto line = L"  " + std::wstring(width + 4, L'a') + L"\x4e2d!";
+            fixture.Connection->Output(line + L"\r\nnext\r\n\r\nlast\r");
+            std::wstring copied = L"unchanged";
+            auto copies = 0;
+            fixture.Core->WriteToClipboard([&](auto&&, const Control::WriteToClipboardEventArgs& args) {
+                copied = args.Plain();
+                ++copies;
+            });
+            Enter(fixture);
+            Position(fixture, { 3, 1 });
+            Key(fixture, '0');
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+            Key(fixture, '6', Modifiers::ShiftPressed);
+            VERIFY_ARE_EQUAL(til::point(2, 0), Anchor(fixture));
+            Key(fixture, '4', Modifiers::ShiftPressed);
+            VERIFY_ARE_EQUAL(til::point(8, 1), Anchor(fixture));
+            Key(fixture, '2');
+            Key(fixture, 'G', Modifiers::ShiftPressed);
+            VERIFY_ARE_EQUAL(til::point(0, 2), Anchor(fixture));
+            Key(fixture, '1');
+            Key(fixture, 'G');
+            Key(fixture, 'G');
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+            Key(fixture, '2');
+            Key(fixture, '4', Modifiers::ShiftPressed);
+            VERIFY_ARE_EQUAL(til::point(3, 2), Anchor(fixture));
+            Position(fixture, { 8, 1 });
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(0, copies);
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(line + L"\r\n", copied);
+            VERIFY_ARE_EQUAL(til::point(8, 1), Anchor(fixture));
+            VERIFY_IS_TRUE(fixture.Core->VimModeState() == Control::VimMode::Normal);
+            Key(fixture, '2');
+            Key(fixture, 'Y');
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(line + L"\r\nnext\r\n", copied);
+            Key(fixture, 'Y');
+            Key(fixture, '2');
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(line + L"\r\nnext\r\n", copied);
+            Position(fixture, { 0, 3 });
+            Key(fixture, 'Y');
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(std::wstring(L"\r\n"), copied);
+            Position(fixture, { 2, 2 });
+            Key(fixture, '9');
+            Key(fixture, '9');
+            Key(fixture, 'Y');
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(std::wstring(L"next\r\n\r\nlast\r\n"), copied);
+            VERIFY_ARE_EQUAL(til::point(2, 2), Anchor(fixture));
+            fixture.Core->ExitVimMode();
+            fixture.Connection->Output(L"\x1b[2J\x1b[H");
+            Enter(fixture);
+            const auto before = copies;
+            Key(fixture, 'Y');
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(before, copies);
+        }
+
+        TEST_METHOD(VimJumpsAndYanksIncludeScrollback)
+        {
+            const auto fixture = Create(true, L"", 100);
+            for (int row = 0; row < 40; ++row)
+            {
+                fixture.Connection->Output(L"line\r\n");
+            }
+            Enter(fixture);
+            Key(fixture, 'G');
+            Key(fixture, 'G');
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+            std::wstring copied;
+            fixture.Core->WriteToClipboard([&](auto&&, const Control::WriteToClipboardEventArgs& args) { copied = args.Plain(); });
+            Key(fixture, '2');
+            Key(fixture, 'Y');
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(std::wstring(L"line\r\nline\r\n"), copied);
+            Key(fixture, 'G', ::Microsoft::Terminal::Core::ControlKeyStates::ShiftPressed);
+            VERIFY_ARE_EQUAL(til::point(3, 39), Anchor(fixture));
+        }
+
+        TEST_METHOD(VimSearchCommitCancelRepeatAndVisualRange)
+        {
+            using Modifiers = ::Microsoft::Terminal::Core::ControlKeyStates;
+            const auto fixture = Create(true, L"hit one hit\r\nnothing\r\nhit \x4e2d hit\r");
+            const Control::SearchRequest request{ .Text = L"hit", .GoForward = true, .CaseSensitive = true };
+            Enter(fixture);
+            Position(fixture, { 0, 0 });
+            VERIFY_IS_TRUE(fixture.Core->BeginVimSearch());
+            const auto preview = fixture.Core->SearchVim(request, false);
+            VERIFY_ARE_EQUAL(4, preview.TotalMatches);
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+            fixture.Core->CancelVimSearch();
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+            VERIFY_IS_TRUE(fixture.Core->BeginVimSearch());
+            fixture.Core->SearchVim(request, true);
+            fixture.Core->CancelVimSearch();
+            VERIFY_ARE_EQUAL(til::point(8, 0), Anchor(fixture));
+            Key(fixture, 'N');
+            VERIFY_ARE_EQUAL(til::point(0, 2), Anchor(fixture));
+            Key(fixture, 'N', Modifiers::ShiftPressed);
+            VERIFY_ARE_EQUAL(til::point(8, 0), Anchor(fixture));
+            Key(fixture, '2');
+            Key(fixture, 'N');
+            VERIFY_ARE_EQUAL(til::point(7, 2), Anchor(fixture));
+            Key(fixture, 'N');
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+            Key(fixture, 'N', Modifiers::ShiftPressed);
+            VERIFY_ARE_EQUAL(til::point(7, 2), Anchor(fixture));
+
+            Position(fixture, { 0, 0 });
+            Key(fixture, 'V');
+            Key(fixture, 'L');
+            const auto active = Active(fixture);
+            VERIFY_IS_TRUE(fixture.Core->BeginVimSearch());
+            fixture.Core->SearchVim(request, false);
+            fixture.Core->CancelVimSearch();
+            VERIFY_IS_TRUE(fixture.Core->VimModeState() == Control::VimMode::Visual);
+            VERIFY_ARE_EQUAL(active, Active(fixture));
+            VERIFY_IS_TRUE(fixture.Core->BeginVimSearch());
+            fixture.Core->SearchVim(request, true);
+            fixture.Core->CancelVimSearch();
+            std::wstring copied;
+            fixture.Core->WriteToClipboard([&](auto&&, const Control::WriteToClipboardEventArgs& args) { copied = args.Plain(); });
+            Key(fixture, 'Y');
+            VERIFY_ARE_EQUAL(std::wstring(L"hit one h"), copied);
+            VERIFY_ARE_EQUAL(til::point(8, 0), Anchor(fixture));
+            VERIFY_IS_TRUE(fixture.Connection->Input.empty());
+        }
+
+        TEST_METHOD(VimSearchLineEndMatchesAdvanceBetweenCharacters)
+        {
+            using Modifiers = ::Microsoft::Terminal::Core::ControlKeyStates;
+            const auto fixture = Create(true, L"first\r\nsecond\r\nlast\r");
+            Enter(fixture);
+            Position(fixture, { 0, 0 });
+            VERIFY_IS_TRUE(fixture.Core->BeginVimSearch());
+            fixture.Core->SearchVim({ .Text = L"$", .GoForward = true, .RegularExpression = true }, true);
+            fixture.Core->CancelVimSearch();
+            VERIFY_ARE_EQUAL(til::point(4, 0), Anchor(fixture));
+            Key(fixture, 'N');
+            VERIFY_ARE_EQUAL(til::point(5, 1), Anchor(fixture));
+            Key(fixture, 'N');
+            VERIFY_ARE_EQUAL(til::point(3, 2), Anchor(fixture));
+            Key(fixture, 'N');
+            VERIFY_ARE_EQUAL(til::point(4, 0), Anchor(fixture));
+            Key(fixture, 'N', Modifiers::ShiftPressed);
+            VERIFY_ARE_EQUAL(til::point(3, 2), Anchor(fixture));
+        }
+
+        TEST_METHOD(VimSearchMissingTextOutputAndModeChanges)
+        {
+            const auto fixture = Create(true, L"one hit\r\ntwo HIT\r\nlast\r");
+            Enter(fixture);
+            Position(fixture, { 0, 0 });
+            VERIFY_IS_TRUE(fixture.Core->BeginVimSearch());
+            const Control::SearchRequest request{ .Text = L"hit", .GoForward = true };
+            fixture.Core->SearchVim(request, false);
+            fixture.Core->ClearSearch(); // Output invalidation must not take ownership of the Mark selection.
+            VERIFY_IS_TRUE(fixture.Core->VimModeState() == Control::VimMode::Normal);
+            VERIFY_ARE_EQUAL(til::point(0, 0), Anchor(fixture));
+            fixture.Core->SearchVim(request, true);
+            fixture.Core->CancelVimSearch();
+            VERIFY_ARE_EQUAL(til::point(4, 0), Anchor(fixture));
+            fixture.Connection->Output(L"\x1b[2;1Herased\x1b[K");
+            Key(fixture, 'N');
+            VERIFY_ARE_EQUAL(til::point(4, 0), Anchor(fixture));
+            VERIFY_IS_TRUE(fixture.Core->BeginVimSearch());
+            const auto missing = fixture.Core->SearchVim({ .Text = L"missing", .GoForward = true }, true);
+            VERIFY_ARE_EQUAL(0, missing.TotalMatches);
+            VERIFY_ARE_EQUAL(til::point(4, 0), Anchor(fixture));
+            fixture.Core->CancelVimSearch();
+            Key(fixture, 'N');
+            VERIFY_ARE_EQUAL(til::point(4, 0), Anchor(fixture));
+            VERIFY_IS_TRUE(fixture.Core->BeginVimSearch());
+            const auto invalid = fixture.Core->SearchVim({ .Text = L"[", .GoForward = true, .RegularExpression = true }, true);
+            VERIFY_IS_TRUE(invalid.SearchRegexInvalid);
+            fixture.Connection->Output(L"\x1b[?1049h");
+            VERIFY_IS_FALSE(fixture.Core->BeginVimSearch());
+            VERIFY_IS_TRUE(fixture.Core->VimModeState() == Control::VimMode::Insert);
+            fixture.Core->CancelVimSearch();
+            fixture.Connection->Output(L"\x1b[?1049l");
+            Enter(fixture);
+            VERIFY_IS_TRUE(fixture.Core->BeginVimSearch());
+            fixture.Settings->VimModeEnabled(false);
+            fixture.Core->UpdateSettings(*fixture.Settings, *fixture.Settings);
+            fixture.Core->SearchVim(request, true);
+            VERIFY_IS_TRUE(fixture.Core->VimModeState() == Control::VimMode::Insert);
         }
     };
 }

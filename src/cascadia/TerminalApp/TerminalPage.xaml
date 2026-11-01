@@ -142,18 +142,46 @@
                                   Height="30"
                                   Padding="10,0,3,0"
                                   AutomationProperties.Name="{x:Bind Title, Mode=OneWay}"
+                                  AutomationProperties.HelpText="{x:Bind TabStatus.NotificationText, Mode=OneWay}"
                                   Background="Transparent">
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="24" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock VerticalAlignment="Center"
+                                <Border x:Name="WorkspaceSurfaceNotificationBadge"
+                                        Height="18"
+                                        MinWidth="32"
+                                        Margin="0,0,6,0"
+                                        Padding="5,0"
+                                        VerticalAlignment="Center"
+                                        AutomationProperties.Name="{x:Bind TabStatus.NotificationText, Mode=OneWay}"
+                                        Background="{ThemeResource AttentionPaneBorderColor}"
+                                        CornerRadius="9"
+                                        ToolTipService.ToolTip="{x:Bind TabStatus.NotificationText, Mode=OneWay}"
+                                        Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(TabStatus.NotificationText), Mode=OneWay}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <FontIcon Margin="0,0,3,0"
+                                                  VerticalAlignment="Center"
+                                                  FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                  FontSize="10"
+                                                  Foreground="{ThemeResource AttentionPaneForegroundBrush}"
+                                                  Glyph="&#xE7F4;" />
+                                        <TextBlock VerticalAlignment="Center"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{ThemeResource AttentionPaneForegroundBrush}"
+                                                   Text="{x:Bind TabStatus.UnreadNotificationCount, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Grid.Column="1"
+                                           VerticalAlignment="Center"
                                            FontSize="12"
                                            Text="{x:Bind Title, Mode=OneWay}"
                                            TextTrimming="CharacterEllipsis"
                                            ToolTipService.ToolTip="{x:Bind Title, Mode=OneWay}" />
                                 <Button x:Uid="WorkspaceSurfaceTabCloseButton"
-                                        Grid.Column="1"
+                                        Grid.Column="2"
                                         Width="22"
                                         Height="22"
                                         Padding="0"

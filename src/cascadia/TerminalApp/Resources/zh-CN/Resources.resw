@@ -1120,6 +1120,9 @@
   <data name="WorkspaceSidebarClearNotificationHistoryMenuItem.Text" xml:space="preserve">
     <value>清除通知历史</value>
   </data>
+  <data name="WorkspaceSurfaceTab_UnreadNotificationText" xml:space="preserve">
+    <value>{0} 条未读通知：{1}</value>
+  </data>
   <data name="WorkspaceSidebar_UnreadAutomationName" xml:space="preserve">
     <value>{0} 条未读通知；打开最新通知</value>
   </data>

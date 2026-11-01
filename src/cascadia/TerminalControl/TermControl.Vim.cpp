@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "TermControl.h"
+#include "ControlCore.h"
 
 namespace winrt::Microsoft::Terminal::Control::implementation
 {
@@ -29,6 +30,8 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         }
         if (modifiers.IsCtrlPressed() || modifiers.IsAltPressed() || modifiers.IsWinPressed())
         {
+            // Modified shortcuts cancel a partially entered Vim command.
+            _core.TryVimModeKeybinding(vkey, modifiers);
             _vimInputState.Release(vkey);
             _vimInputState.UnhandledKeyDown();
             return false;
@@ -44,11 +47,43 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         {
             _vimInputState.Consume(vkey, scanCode);
             _ClearKeyboardState(vkey, scanCode);
+            if (vkey == VK_OEM_2 && !modifiers.IsShiftPressed())
+            {
+                _OpenVimSearch();
+            }
             return true;
         }
 
         _vimInputState.UnhandledKeyDown();
         return false;
+    }
+
+    void TermControl::_OpenVimSearch()
+    {
+        if (!winrt::get_self<ControlCore>(_core)->BeginVimSearch())
+        {
+            return;
+        }
+        if (const auto searchBox = FindName(L"SearchBox").try_as<Control::SearchBoxControl>())
+        {
+            _searchBox.copy_from(winrt::get_self<SearchBoxControl>(searchBox));
+            _vimSearchActive = true;
+            _searchBox->GoForwardButton().IsChecked(true);
+            _searchBox->GoBackwardButton().IsChecked(false);
+            _searchBox->PopulateTextbox(L"");
+            _searchBox->ClearStatus();
+            _searchBox->Open([weakThis = get_weak()]() {
+                if (const auto self = weakThis.get(); self && !self->_IsClosing() && self->_vimSearchActive)
+                {
+                    self->_searchBox->SetFocusOnTextbox();
+                    self->_refreshSearch();
+                }
+            });
+        }
+        else
+        {
+            winrt::get_self<ControlCore>(_core)->CancelVimSearch();
+        }
     }
 
     bool TermControl::_SuppressVimCharacter(const wchar_t character, const WORD scanCode)
@@ -70,6 +105,10 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         if (const auto self = weakThis.get(); self && !self->_IsClosing())
         {
             const auto available = self->_core.VimModeAvailable();
+            if (self->_vimSearchActive && (!available || self->_core.VimModeState() == VimMode::Insert))
+            {
+                self->_CloseSearchBoxControl(nullptr, nullptr);
+            }
             self->VimModeIndicator().Visibility(available ? Windows::UI::Xaml::Visibility::Visible : Windows::UI::Xaml::Visibility::Collapsed);
             if (!available)
             {

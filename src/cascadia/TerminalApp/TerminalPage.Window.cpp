@@ -280,7 +280,12 @@ namespace winrt::TerminalApp::implementation
         case ConfirmOnClose::Automatic:
         {
             // Warn if there's more than one tab, or the one tab has more than one pane.
-            return _HasMultipleTabs() || _GetTabImpl(_tabs.GetAt(0))->GetLeafPaneCount() > 1;
+            if (_tabs.Size() == 0)
+            {
+                return false;
+            }
+            const auto firstTab = _GetTabImpl(_tabs.GetAt(0));
+            return _HasMultipleTabs() || (firstTab && firstTab->GetLeafPaneCount() > 1);
         }
         case ConfirmOnClose::Never:
         default:

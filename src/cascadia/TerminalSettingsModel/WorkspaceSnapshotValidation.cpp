@@ -29,12 +29,81 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
             return std::ranges::any_of(value, [](const auto ch) { return ch < L' ' || ch == 0x7f; });
         }
 
+        bool _isAsciiDriveLetter(const wchar_t ch) noexcept
+        {
+            return (ch >= L'A' && ch <= L'Z') || (ch >= L'a' && ch <= L'z');
+        }
+
+        bool _hasParentTraversal(const std::wstring_view value)
+        {
+            const std::filesystem::path parsed{ value };
+            for (const auto& component : parsed)
+            {
+                if (component.native() == L"..")
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         bool _isAbsoluteSafePath(const winrt::hstring& value) noexcept
         try
         {
-            return _isBoundedText(value, WorkspaceSnapshotValidator::MaximumTextCharacters) &&
-                   !_containsControlCharacter(value) &&
-                   std::filesystem::path{ std::wstring_view{ value } }.is_absolute();
+            if (!_isBoundedText(value, WorkspaceSnapshotValidator::MaximumTextCharacters) ||
+                _containsControlCharacter(value))
+            {
+                return false;
+            }
+            const std::wstring_view text{ value };
+            if (text.size() < 3 ||
+                !_isAsciiDriveLetter(text[0]) ||
+                text[1] != L':' ||
+                (text[2] != L'\\' && text[2] != L'/') ||
+                text.find(L"://") != std::wstring_view::npos)
+            {
+                return false;
+            }
+            return !_hasParentTraversal(text);
+        }
+        catch (...)
+        {
+            return false;
+        }
+
+        bool _isSafeStartingDirectory(const winrt::hstring& value) noexcept
+        try
+        {
+            if (value.empty())
+            {
+                return true;
+            }
+            if (!_isBoundedText(value, WorkspaceSnapshotValidator::MaximumTextCharacters) ||
+                _containsControlCharacter(value))
+            {
+                return false;
+            }
+            const std::wstring_view text{ value };
+            if (text.starts_with(L"\\\\") || text.starts_with(L"//") ||
+                text.starts_with(L"\\/") || text.starts_with(L"/\\") ||
+                text.starts_with(L"\\??\\") || text.starts_with(L"\\??/") ||
+                text.find(L"://") != std::wstring_view::npos ||
+                _hasParentTraversal(text))
+            {
+                return false;
+            }
+            if (text == L"~" || text.starts_with(L"~/") || text.starts_with(L"~\\"))
+            {
+                return true;
+            }
+            constexpr std::wstring_view userProfilePrefix{ L"%USERPROFILE%" };
+            if (til::starts_with_insensitive_ascii(text, userProfilePrefix) &&
+                (text.size() == userProfilePrefix.size() || text[userProfilePrefix.size()] == L'\\' || text[userProfilePrefix.size()] == L'/') &&
+                text.find(L'%', userProfilePrefix.size()) == std::wstring_view::npos)
+            {
+                return true;
+            }
+            return _isAbsoluteSafePath(value);
         }
         catch (...)
         {
@@ -77,7 +146,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                     terminalArgs.Profile().empty() ||
                     !_isBoundedText(terminalArgs.Profile(), WorkspaceSnapshotValidator::MaximumTextCharacters) ||
                     !terminalArgs.Commandline().empty() ||
-                    !_isBoundedText(terminalArgs.StartingDirectory(), WorkspaceSnapshotValidator::MaximumTextCharacters) ||
+                    !_isSafeStartingDirectory(terminalArgs.StartingDirectory()) ||
                     !_isBoundedText(terminalArgs.TabTitle(), WorkspaceSnapshotValidator::MaximumTextCharacters) ||
                     !_isBoundedText(terminalArgs.ColorScheme(), WorkspaceSnapshotValidator::MaximumTextCharacters) ||
                     terminalArgs.ProfileIndex() ||
@@ -242,7 +311,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
             {
                 return { WorkspaceSnapshotValidationError::InvalidName };
             }
-            if (!_isBoundedText(snapshot.RootDirectory(), MaximumTextCharacters))
+            if (!snapshot.RootDirectory().empty() && !_isAbsoluteSafePath(snapshot.RootDirectory()))
             {
                 return { WorkspaceSnapshotValidationError::InvalidRootDirectory };
             }
@@ -301,7 +370,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                     if (entry.Version == 0 || entry.WorkspaceId != snapshot.WorkspaceId() ||
                         entry.Provider.empty() || !_isBoundedText(entry.Provider, MaximumIdentifierCharacters) ||
                         entry.SessionId.empty() || !_isBoundedText(entry.SessionId, MaximumIdentifierCharacters) ||
-                        !_isBoundedText(entry.WorkingDirectory, MaximumTextCharacters) ||
+                        (!entry.WorkingDirectory.empty() && !_isAbsoluteSafePath(entry.WorkingDirectory)) ||
                         !entry.RequiresConfirmation)
                     {
                         return { WorkspaceSnapshotValidationError::InvalidAgentResume };

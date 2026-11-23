@@ -151,6 +151,7 @@ namespace SettingsModelUnitTests
         TEST_METHOD(DuplicateKeysAndTrailingContentAreRejected);
         TEST_METHOD(ConflictModesUseStoreCas);
         TEST_METHOD(ExportRequiresExplicitForceToOverwrite);
+        TEST_METHOD(ImportRejectsSymlinkAndDevicePaths);
     };
 
     void WorkspaceSnapshotExchangeTests::RoundTripUsesStrictPortableEnvelope()
@@ -357,5 +358,37 @@ namespace SettingsModelUnitTests
         const auto replaced = _readExchangeJson(path);
         VERIFY_ARE_EQUAL(5000ll, replaced["exportedAt"].asInt64());
         VERIFY_ARE_EQUAL(std::string{ "Updated before forced export" }, replaced["snapshot"]["name"].asString());
+    }
+
+    void WorkspaceSnapshotExchangeTests::ImportRejectsSymlinkAndDevicePaths()
+    {
+        ExchangeTestDirectory directory;
+        WorkspaceSnapshotStore source{ directory.Path / L"source", WorkspaceSnapshotStoreScope::Standard };
+        WorkspaceSnapshotStore destination{ directory.Path / L"destination", WorkspaceSnapshotStoreScope::Standard };
+
+        VERIFY_ARE_EQUAL(
+            WorkspaceSnapshotExchangeStatus::IoError,
+            WorkspaceSnapshotExchange::ImportFromFile(destination, L"\\\\.\\NUL", WorkspaceSnapshotImportMode::Fail, ProfileExists).Status);
+
+        const auto created = source.Commit(_exchangeSnapshot(), std::nullopt);
+        VERIFY_ARE_EQUAL(WorkspaceSnapshotStoreStatus::Succeeded, created.Status);
+        const auto targetPath = directory.Path / L"real.wtworkspace";
+        VERIFY_ARE_EQUAL(
+            WorkspaceSnapshotExchangeStatus::Succeeded,
+            WorkspaceSnapshotExchange::ExportToFile(source, created.Snapshot.Id(), targetPath, false, 4000).Status);
+
+        const auto symlinkPath = directory.Path / L"link.wtworkspace";
+        std::error_code error;
+        std::filesystem::create_symlink(targetPath, symlinkPath, error);
+        if (error)
+        {
+            Log::Comment(L"File symlink creation is unavailable; symlink import check skipped.");
+            return;
+        }
+
+        VERIFY_ARE_EQUAL(
+            WorkspaceSnapshotExchangeStatus::IoError,
+            WorkspaceSnapshotExchange::ImportFromFile(destination, symlinkPath, WorkspaceSnapshotImportMode::Fail, ProfileExists).Status);
+        VERIFY_IS_TRUE(destination.List().empty());
     }
 }

@@ -384,10 +384,19 @@ void MarkdownToXaml::_RenderNode(cmark_node* node, cmark_event_type ev_type)
     {
         _EndParagraph();
 
-        const auto codeHstring{ winrt::to_hstring(cmark_node_get_literal(node)) };
-        // The literal for a code node always includes the trailing newline.
-        // Trim that off.
-        const std::wstring_view codeView{ codeHstring.c_str(), codeHstring.size() - 1 };
+        const auto literal = cmark_node_get_literal(node);
+        const auto codeHstring{ literal ? winrt::to_hstring(literal) : winrt::hstring{} };
+        // The literal for a code node typically includes a trailing newline.
+        // Trim that off safely when present.
+        std::wstring_view codeView{ codeHstring };
+        if (!codeView.empty() && codeView.back() == L'\n')
+        {
+            codeView.remove_suffix(1);
+        }
+        if (!codeView.empty() && codeView.back() == L'\r')
+        {
+            codeView.remove_suffix(1);
+        }
 
         auto codeBlock = winrt::make<winrt::Microsoft::Terminal::UI::Markdown::implementation::CodeBlock>(winrt::hstring{ codeView });
         if (_isCompactSafeMode())

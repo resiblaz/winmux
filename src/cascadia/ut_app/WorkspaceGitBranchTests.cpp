@@ -14,6 +14,7 @@ namespace TerminalAppUnitTests
         END_TEST_CLASS()
 
         TEST_METHOD(QueriesRepositoryAndCachesResult);
+        TEST_METHOD(RejectsUnsafeAndUncDirectorySyntax);
 
     private:
         static std::filesystem::path _findRepositoryRoot();
@@ -59,5 +60,46 @@ namespace TerminalAppUnitTests
         VERIFY_ARE_EQUAL(queried.RepositoryRoot, cached.RepositoryRoot);
         VERIFY_ARE_EQUAL(queried.Branch, cached.Branch);
         VERIFY_IS_TRUE(cached.FromCache);
+
+        WorkspaceGitBranch::ClearCacheForTests();
+        const auto withTrailingSlash = WorkspaceGitBranch::QueryCached(repositoryRoot.wstring() + L"\\", std::chrono::seconds{ 3 }, std::chrono::milliseconds{ 0 });
+        VERIFY_IS_TRUE(withTrailingSlash.IsRepository);
+        VERIFY_ARE_EQUAL(queried.RepositoryRoot, withTrailingSlash.RepositoryRoot);
+        VERIFY_ARE_EQUAL(queried.Branch, withTrailingSlash.Branch);
+    }
+
+    void WorkspaceGitBranchTests::RejectsUnsafeAndUncDirectorySyntax()
+    {
+        using winrt::TerminalApp::implementation::WorkspaceGitBranch;
+
+        for (const auto rejected : {
+                 L"",
+                 L"C:",
+                 L"C:relative",
+                 L"relative\\path",
+                 L"\\\\server\\share",
+                 L"//server/share",
+                 L"\\\\?\\C:\\src",
+                 L"\\\\.\\C:\\src",
+                 L"\\??\\C:\\src",
+                 L"file://C:/src",
+                 L"C:\\src\\..\\repo",
+                 L"C:/src/../repo",
+                 L"C:\\src\nrepo",
+             })
+        {
+            VERIFY_IS_FALSE(WorkspaceGitBranch::IsSupportedDirectorySyntax(rejected));
+            VERIFY_IS_FALSE(WorkspaceGitBranch::IsSupportedDirectory(rejected));
+        }
+
+        for (const auto accepted : {
+                 L"C:\\",
+                 L"C:/",
+                 L"C:\\src\\repo",
+                 L"D:/work/repo",
+             })
+        {
+            VERIFY_IS_TRUE(WorkspaceGitBranch::IsSupportedDirectorySyntax(accepted));
+        }
     }
 }

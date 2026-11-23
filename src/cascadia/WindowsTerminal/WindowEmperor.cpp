@@ -987,12 +987,19 @@ safe_void_coroutine WindowEmperor::_dispatchCommandlineCurrentDesktop(winrt::Ter
 
     if (winrt::guid currentDesktop; VirtualDesktopUtils::GetCurrentVirtualDesktopId(reinterpret_cast<GUID*>(&currentDesktop)))
     {
+        const auto windows = _windows;
         int64_t max = INT64_MIN;
-        for (const auto& w : _windows)
+        for (const auto& w : windows)
         {
+            if (std::ranges::find(_windows, w) == _windows.end())
+            {
+                continue;
+            }
             const auto lastActivatedTime = w->GetLastActivatedTime();
             const auto desktopId = co_await w->GetVirtualDesktopId();
-            if (desktopId == currentDesktop && lastActivatedTime > max)
+            // GetVirtualDesktopId(), as current implemented, should always return on the main thread.
+            _assertIsMainThread();
+            if (desktopId == currentDesktop && lastActivatedTime > max && std::ranges::find(_windows, w) != _windows.end())
             {
                 max = lastActivatedTime;
                 mostRecent = w;
@@ -1001,6 +1008,10 @@ safe_void_coroutine WindowEmperor::_dispatchCommandlineCurrentDesktop(winrt::Ter
 
         // GetVirtualDesktopId(), as current implemented, should always return on the main thread.
         _assertIsMainThread();
+        if (mostRecent && std::ranges::find(_windows, mostRecent) == _windows.end())
+        {
+            mostRecent.reset();
+        }
         window = mostRecent.get();
     }
     else
@@ -1027,18 +1038,28 @@ safe_void_coroutine WindowEmperor::_openWorkspaceSnapshotCurrentDesktop(const wi
 
     if (winrt::guid currentDesktop; VirtualDesktopUtils::GetCurrentVirtualDesktopId(reinterpret_cast<GUID*>(&currentDesktop)))
     {
+        const auto windows = _windows;
         int64_t max = INT64_MIN;
-        for (const auto& candidate : _windows)
+        for (const auto& candidate : windows)
         {
+            if (std::ranges::find(_windows, candidate) == _windows.end())
+            {
+                continue;
+            }
             const auto lastActivatedTime = candidate->GetLastActivatedTime();
             const auto desktopId = co_await candidate->GetVirtualDesktopId();
-            if (desktopId == currentDesktop && lastActivatedTime > max)
+            _assertIsMainThread();
+            if (desktopId == currentDesktop && lastActivatedTime > max && std::ranges::find(_windows, candidate) != _windows.end())
             {
                 max = lastActivatedTime;
                 mostRecent = candidate;
             }
         }
         _assertIsMainThread();
+        if (mostRecent && std::ranges::find(_windows, mostRecent) == _windows.end())
+        {
+            mostRecent.reset();
+        }
         window = mostRecent.get();
     }
     else

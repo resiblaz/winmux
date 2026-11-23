@@ -514,7 +514,8 @@ namespace winrt::TerminalApp::implementation
                                                std::optional<winrt::Windows::Foundation::Point> dragPoint)
     {
         auto startupActions = _stashed.draggedTab->BuildStartupActions(BuildStartupKind::Content);
-        const auto workspaceItem = _WorkspaceItemForTab(*_stashed.draggedTab);
+        const auto rawWorkspaceItem = _WorkspaceItemForTab(*_stashed.draggedTab);
+        const auto workspaceItem = rawWorkspaceItem && rawWorkspaceItem.SurfaceCount() == 1 ? rawWorkspaceItem : nullptr;
         const auto workspaceId = workspaceItem ? workspaceItem.WorkspaceId() : winrt::guid{};
         const auto workspaceItemImpl = workspaceItem ? winrt::get_self<implementation::WorkspaceItemViewModel>(workspaceItem) : nullptr;
         const auto sourceSnapshotId = workspaceItemImpl && workspaceItemImpl->SourceSnapshotId() ?

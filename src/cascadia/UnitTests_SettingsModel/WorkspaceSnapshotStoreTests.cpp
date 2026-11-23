@@ -137,6 +137,7 @@ namespace SettingsModelUnitTests
         TEST_METHOD(SchemaV2RoundTripsGitBinding);
         TEST_METHOD(MultiSurfaceMetadataRoundTrips);
         TEST_METHOD(ValidatorRejectsMalformedGitBinding);
+        TEST_METHOD(ValidatorRejectsUnsafePaths);
         TEST_METHOD(TwoStoresUseRevisionCas);
         TEST_METHOD(TouchMergesWithoutRevisionChange);
         TEST_METHOD(ReturnedSnapshotsAreDetached);
@@ -226,6 +227,75 @@ namespace SettingsModelUnitTests
 
         binding.CapturedAt(WorkspaceSnapshotValidator::MaximumUnixMilliseconds + 1);
         VERIFY_IS_FALSE(static_cast<bool>(WorkspaceSnapshotValidator::Validate(snapshot, true)));
+    }
+
+    void WorkspaceSnapshotStoreTests::ValidatorRejectsUnsafePaths()
+    {
+        const std::array<std::wstring_view, 9> unsafePaths{
+            L"\\\\server\\share\\repo",
+            L"//server/share/repo",
+            L"\\\\?\\C:\\src\\repo",
+            L"\\\\.\\C:\\src\\repo",
+            L"\\??\\C:\\src\\repo",
+            L"C:\\src\\..\\repo",
+            L"C:/src/../repo",
+            L"C:\\src\nrepo",
+            L"relative\\path",
+        };
+
+        for (const auto unsafePath : unsafePaths)
+        {
+            auto snapshot = _snapshot();
+            snapshot.RootDirectory(winrt::hstring{ unsafePath });
+            VERIFY_IS_FALSE(static_cast<bool>(WorkspaceSnapshotValidator::Validate(snapshot, true)));
+
+            snapshot = _snapshot();
+            NewTerminalArgs terminalArgs{};
+            terminalArgs.Profile(L"{0caa0dad-35be-5f56-a8ff-afceeeaa6101}");
+            terminalArgs.StartingDirectory(winrt::hstring{ unsafePath });
+            snapshot.Actions(winrt::single_threaded_vector<ActionAndArgs>({ ActionAndArgs{ ShortcutAction::NewTab, NewTabArgs{ terminalArgs } } }));
+            VERIFY_IS_FALSE(static_cast<bool>(WorkspaceSnapshotValidator::Validate(snapshot, true)));
+
+            snapshot = _snapshot();
+            AgentResumeInfo resume{};
+            resume.Version = 1;
+            resume.WorkspaceId = snapshot.WorkspaceId();
+            resume.Provider = L"codex";
+            resume.SessionId = L"12345678-1234-1234-1234-123456789abc";
+            resume.WorkingDirectory = winrt::hstring{ unsafePath };
+            resume.RequiresConfirmation = true;
+            snapshot.AgentResumeEntries(winrt::single_threaded_vector<AgentResumeInfo>({ resume }));
+            VERIFY_IS_FALSE(static_cast<bool>(WorkspaceSnapshotValidator::Validate(snapshot, true)));
+
+            snapshot = _snapshot();
+            auto binding = _gitBinding();
+            binding.WorktreePath(winrt::hstring{ unsafePath });
+            snapshot.RootDirectory(winrt::hstring{ unsafePath });
+            snapshot.GitBinding(binding);
+            VERIFY_IS_FALSE(static_cast<bool>(WorkspaceSnapshotValidator::Validate(snapshot, true)));
+        }
+
+        // Safe profile defaults and empty optional paths remain accepted.
+        for (const auto safeStartingDir : { L"", L"C:\\src\\repo", L"%USERPROFILE%", L"~" })
+        {
+            auto snapshot = _snapshot();
+            snapshot.RootDirectory(L"");
+            NewTerminalArgs terminalArgs{};
+            terminalArgs.Profile(L"{0caa0dad-35be-5f56-a8ff-afceeeaa6101}");
+            terminalArgs.StartingDirectory(safeStartingDir);
+            snapshot.Actions(winrt::single_threaded_vector<ActionAndArgs>({ ActionAndArgs{ ShortcutAction::NewTab, NewTabArgs{ terminalArgs } } }));
+            VERIFY_IS_TRUE(static_cast<bool>(WorkspaceSnapshotValidator::Validate(snapshot, true)));
+        }
+
+        for (const auto unsafeDefaultTraversal : { L"%USERPROFILE%\\..\\other", L"~/../etc" })
+        {
+            auto snapshot = _snapshot();
+            NewTerminalArgs terminalArgs{};
+            terminalArgs.Profile(L"{0caa0dad-35be-5f56-a8ff-afceeeaa6101}");
+            terminalArgs.StartingDirectory(unsafeDefaultTraversal);
+            snapshot.Actions(winrt::single_threaded_vector<ActionAndArgs>({ ActionAndArgs{ ShortcutAction::NewTab, NewTabArgs{ terminalArgs } } }));
+            VERIFY_IS_FALSE(static_cast<bool>(WorkspaceSnapshotValidator::Validate(snapshot, true)));
+        }
     }
 
     void WorkspaceSnapshotStoreTests::TwoStoresUseRevisionCas()

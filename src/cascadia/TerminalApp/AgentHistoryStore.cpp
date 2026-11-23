@@ -554,9 +554,9 @@ namespace winrt::TerminalApp::implementation
             return sqlite3_step(statement.get()) == SQLITE_ROW;
         }
 
-        bool _enableWal(sqlite3* database) noexcept
+        bool _queryJournalModeIsWal(sqlite3* database, const char* pragmaSql) noexcept
         {
-            const auto statement = _prepare(database, "PRAGMA journal_mode=WAL;");
+            const auto statement = _prepare(database, pragmaSql);
             if (!statement || sqlite3_step(statement.get()) != SQLITE_ROW)
             {
                 return false;
@@ -568,12 +568,29 @@ namespace winrt::TerminalApp::implementation
             return mode == "wal" && sqlite3_step(statement.get()) == SQLITE_DONE;
         }
 
+        bool _enableWal(sqlite3* database) noexcept
+        {
+            if (_queryJournalModeIsWal(database, "PRAGMA journal_mode;"))
+            {
+                return true;
+            }
+            return _queryJournalModeIsWal(database, "PRAGMA journal_mode=WAL;");
+        }
+
         bool _initializeSchema(sqlite3* database) noexcept
         {
             int version{};
             if (!_querySingleInteger(database, "PRAGMA user_version;", version) || version < 0 || version > SchemaVersion)
             {
                 return false;
+            }
+
+            if (version == SchemaVersion &&
+                _schemaObjectExists(database, "table", "ai_session") &&
+                _schemaObjectExists(database, "table", "ai_turn") &&
+                _schemaObjectExists(database, "table", "ai_history_event"))
+            {
+                return true;
             }
 
             Transaction transaction{ database };
@@ -752,6 +769,25 @@ namespace winrt::TerminalApp::implementation
             return _querySingleInteger(database, "PRAGMA user_version;", version) && version == SchemaVersion;
         }
 
+        bool _fullTextSearchTriggersExist(sqlite3* database) noexcept
+        {
+            return _schemaObjectExists(database, "trigger", "ai_turn_fts_insert") &&
+                   _schemaObjectExists(database, "trigger", "ai_turn_fts_delete") &&
+                   _schemaObjectExists(database, "trigger", "ai_turn_fts_update");
+        }
+
+        bool _probeFullTextSearch(sqlite3* database) noexcept
+        {
+            const auto probe = _prepare(database,
+                                        "SELECT rowid FROM ai_turn_fts WHERE ai_turn_fts MATCH '\"fts-probe\"' LIMIT 1;");
+            if (!probe)
+            {
+                return false;
+            }
+            const auto probeResult = sqlite3_step(probe.get());
+            return probeResult == SQLITE_ROW || probeResult == SQLITE_DONE;
+        }
+
         bool _initializeFullTextSearch(sqlite3* database) noexcept
         {
             // FTS5 and its trigram tokenizer are system-SQLite capabilities.
@@ -759,11 +795,23 @@ namespace winrt::TerminalApp::implementation
             // the history database unavailable.
             try
             {
-                const auto alreadyExists = _schemaObjectExists(database, "table", "ai_turn_fts");
+                if (_schemaObjectExists(database, "table", "ai_turn_fts") &&
+                    _fullTextSearchTriggersExist(database))
+                {
+                    return _probeFullTextSearch(database);
+                }
+
                 Transaction transaction{ database };
                 if (!transaction)
                 {
                     return false;
+                }
+
+                const auto tableExisted = _schemaObjectExists(database, "table", "ai_turn_fts");
+                const auto allTriggersExisted = _fullTextSearchTriggersExist(database);
+                if (tableExisted && allTriggersExisted)
+                {
+                    return _probeFullTextSearch(database) && transaction.Commit();
                 }
 
                 constexpr auto ftsSchema = R"sql(
@@ -836,8 +884,18 @@ namespace winrt::TerminalApp::implementation
                     return false;
                 }
 
-                if (!alreadyExists &&
-                    !_execute(database, R"sql(
+                // If the virtual table already existed while triggers were
+                // missing (for example after _disableFullTextSearchWrites),
+                // clear any stale index entries before re-indexing completed
+                // turns so incomplete turns (final_markdown = '') remain
+                // excluded and the index stays consistent with the triggers.
+                if (tableExisted &&
+                    !_execute(database, "INSERT INTO ai_turn_fts(ai_turn_fts) VALUES('delete-all');"))
+                {
+                    return false;
+                }
+
+                if (!_execute(database, R"sql(
                         INSERT INTO ai_turn_fts (
                             rowid, workspace_title, provider, session_id, turn_id,
                             cwd, title, prompt, final_markdown, model
@@ -852,14 +910,7 @@ namespace winrt::TerminalApp::implementation
                     return false;
                 }
 
-                const auto probe = _prepare(database,
-                                            "SELECT rowid FROM ai_turn_fts WHERE ai_turn_fts MATCH '\"fts-probe\"' LIMIT 1;");
-                if (!probe)
-                {
-                    return false;
-                }
-                const auto probeResult = sqlite3_step(probe.get());
-                if (probeResult != SQLITE_ROW && probeResult != SQLITE_DONE)
+                if (!_probeFullTextSearch(database))
                 {
                     return false;
                 }

@@ -40,6 +40,8 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         if (_vimInputState.IsConsumed(vkey) &&
             (!VimInputState::IsMovement(vkey) || _core.VimModeState() == VimMode::Insert))
         {
+            _vimInputState.Consume(vkey, scanCode);
+            _ClearKeyboardState(vkey, scanCode);
             return true;
         }
 

@@ -456,6 +456,8 @@ namespace winrt::TerminalApp::implementation
 
         void _KeyDownHandler(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::Input::KeyRoutedEventArgs& e);
         void _WorkspaceNumberKeyHandler(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::Input::KeyRoutedEventArgs& e);
+        void _WorkspaceNumberLostFocusHandler(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& e);
+        void _CancelWorkspaceNumberInput();
         bool _TryHandleWorkspaceNumberKey(uint32_t vkey, uint8_t scanCode, bool down, ::Microsoft::Terminal::Core::ControlKeyStates modifiers);
         bool _IsWorkspaceNumberPrefix(bool workspace, uint32_t digit, uint8_t scanCode = 0) const;
         static ::Microsoft::Terminal::Core::ControlKeyStates _GetPressedModifierKeys() noexcept;
@@ -515,6 +517,7 @@ namespace winrt::TerminalApp::implementation
         bool _FocusWorkspaceNotification(const TerminalApp::WorkspaceItemViewModel& item);
         bool _FocusWorkspaceNotification(const TerminalApp::WorkspaceItemViewModel& item, const TerminalApp::WorkspaceNotification& notification);
         bool _FocusLatestWorkspaceNotification();
+        void _ClearWorkspaceAttention(const TerminalApp::WorkspaceItemViewModel& item) const;
         void _MarkWorkspaceNotificationsRead(const TerminalApp::WorkspaceItemViewModel& item);
         void _ClearWorkspaceNotificationHistory(const TerminalApp::WorkspaceItemViewModel& item);
         void _MarkAllWorkspaceNotificationsRead();

@@ -292,6 +292,8 @@ namespace TerminalAppLocalTests
         TEST_METHOD(StructuredQueryFiltersSessionAndClosedReceivedRange);
         TEST_METHOD(FullTextSearchTracksUpdatesDeletesAndLiteralQueries);
         TEST_METHOD(FullTextSearchFallbackPreservesSearchBoundaries);
+        TEST_METHOD(ReopenAlreadyInitializedStoreTakesNoWriteLock);
+        TEST_METHOD(RebuildsFullTextSearchWhenTriggersWereDropped);
         TEST_METHOD(PinnedTurnsSortFirst);
         TEST_METHOD(DeleteTurnAndSession);
         TEST_METHOD(DeleteWorkspaceAndAllUnpinnedPreserveReceiptsAndPins);
@@ -1292,6 +1294,94 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(L"fallback-turn", matches[0].TurnId);
         }
         VERIFY_ARE_EQUAL(size_t{ 1 }, store.ListTurns(std::nullopt, L"渲染").size());
+    }
+
+    void AgentHistoryStoreTests::ReopenAlreadyInitializedStoreTakesNoWriteLock()
+    {
+        const auto workspaceId = Guid(L"25252525-2525-4525-8525-252525252525");
+        {
+            AgentHistoryStore bootstrap{ _databasePath };
+            VERIFY_IS_TRUE(bootstrap.IsAvailable());
+            auto record = MakeRecord(workspaceId, L"wal-read-session", L"wal-read-turn", 100);
+            record.FinalMarkdown = L"concurrent reader needle";
+            VERIFY_IS_TRUE(bootstrap.UpsertTurn(record));
+        }
+
+        const auto writer = OpenDatabase(_databasePath);
+        Execute(writer.get(), "BEGIN IMMEDIATE;");
+
+        // Opening an already-initialized store in WAL mode must not acquire
+        // any write lock (neither PRAGMA journal_mode=WAL nor BEGIN IMMEDIATE).
+        AgentHistoryStore reader{ _databasePath };
+        VERIFY_IS_TRUE(reader.IsAvailable());
+        const auto matches = reader.ListTurns(std::nullopt, L"reader needle");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, matches.size());
+        VERIFY_ARE_EQUAL(L"wal-read-turn", matches[0].TurnId);
+
+        Execute(writer.get(), "ROLLBACK;");
+    }
+
+    void AgentHistoryStoreTests::RebuildsFullTextSearchWhenTriggersWereDropped()
+    {
+        const auto workspaceId = Guid(L"26262626-2626-4626-8626-262626262626");
+        {
+            AgentHistoryStore bootstrap{ _databasePath };
+            VERIFY_IS_TRUE(bootstrap.IsAvailable());
+
+            auto kept = MakeRecord(workspaceId, L"rebuild-session", L"turn-kept", 100);
+            kept.FinalMarkdown = L"stale token before trigger drop";
+            auto deleted = MakeRecord(workspaceId, L"rebuild-session", L"turn-deleted", 200);
+            deleted.FinalMarkdown = L"vanished token before trigger drop";
+            VERIFY_IS_TRUE(bootstrap.UpsertTurn(kept));
+            VERIFY_IS_TRUE(bootstrap.UpsertTurn(deleted));
+        }
+
+        {
+            const auto database = OpenDatabase(_databasePath);
+            Execute(database.get(), R"sql(
+                DROP TRIGGER IF EXISTS ai_turn_fts_insert;
+                DROP TRIGGER IF EXISTS ai_turn_fts_delete;
+                DROP TRIGGER IF EXISTS ai_turn_fts_update;
+                UPDATE ai_turn
+                SET final_markdown = 'fresh token after rebuild'
+                WHERE turn_id = 'turn-kept';
+                DELETE FROM ai_turn WHERE turn_id = 'turn-deleted';
+                INSERT INTO ai_turn (
+                    provider, session_id, turn_id, workspace_id, workspace_title, cwd,
+                    title, prompt, final_markdown, model, event_at, received_at, pinned
+                ) VALUES (
+                    'codex', 'rebuild-session', 'turn-incomplete', '26262626-2626-4626-8626-262626262626',
+                    'Workspace', 'C:\work', '', 'hidden incomplete rebuild token', '',
+                    'gpt-test', 300, 301, 0
+                );
+            )sql");
+        }
+
+        AgentHistoryStore reopened{ _databasePath };
+        VERIFY_IS_TRUE(reopened.IsAvailable());
+
+        const auto freshMatches = reopened.ListTurns(std::nullopt, L"fresh token");
+        VERIFY_ARE_EQUAL(size_t{ 1 }, freshMatches.size());
+        VERIFY_ARE_EQUAL(L"turn-kept", freshMatches[0].TurnId);
+        VERIFY_IS_TRUE(reopened.ListTurns(std::nullopt, L"stale token").empty());
+        VERIFY_IS_TRUE(reopened.ListTurns(std::nullopt, L"vanished token").empty());
+        VERIFY_IS_TRUE(reopened.ListTurns(std::nullopt, L"hidden incomplete").empty());
+
+        const auto database = OpenDatabase(_databasePath);
+        if (QueryInteger(database.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ai_turn_fts';") == 1)
+        {
+            VERIFY_ARE_EQUAL(3, QueryInteger(database.get(),
+                                             "SELECT count(*) FROM sqlite_master WHERE type='trigger' "
+                                             "AND name IN ('ai_turn_fts_insert', 'ai_turn_fts_delete', 'ai_turn_fts_update');"));
+            VERIFY_ARE_EQUAL(1, QueryInteger(database.get(),
+                                             "SELECT count(*) FROM ai_turn_fts WHERE ai_turn_fts MATCH '\"fresh token\"';"));
+            VERIFY_ARE_EQUAL(0, QueryInteger(database.get(),
+                                             "SELECT count(*) FROM ai_turn_fts WHERE ai_turn_fts MATCH '\"stale token\"';"));
+            VERIFY_ARE_EQUAL(0, QueryInteger(database.get(),
+                                             "SELECT count(*) FROM ai_turn_fts WHERE ai_turn_fts MATCH '\"vanished token\"';"));
+            VERIFY_ARE_EQUAL(0, QueryInteger(database.get(),
+                                             "SELECT count(*) FROM ai_turn_fts WHERE ai_turn_fts MATCH '\"hidden incomplete\"';"));
+        }
     }
 
     void AgentHistoryStoreTests::PinnedTurnsSortFirst()

@@ -7,6 +7,7 @@
 #include "../../types/inc/utils.hpp"
 
 #include <aclapi.h>
+#include <cstddef>
 #include <wil/token_helpers.h>
 
 using namespace winrt::Windows::Data::Json;
@@ -866,6 +867,7 @@ namespace winrt::TerminalApp::implementation
         struct DispatchState
         {
             wil::unique_handle Event{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+            std::atomic_bool Cancelled{ false };
             std::string Response;
         };
 
@@ -894,6 +896,7 @@ namespace winrt::TerminalApp::implementation
                 return false;
             }
 
+            Stopped = std::make_shared<std::atomic_bool>(false);
             try
             {
                 Worker = std::thread{ [this]() { _run(); } };
@@ -901,6 +904,7 @@ namespace winrt::TerminalApp::implementation
             }
             catch (...)
             {
+                Stopped->store(true, std::memory_order_release);
                 StopEvent.reset();
                 return false;
             }
@@ -908,6 +912,10 @@ namespace winrt::TerminalApp::implementation
 
         void Stop() noexcept
         {
+            if (Stopped)
+            {
+                Stopped->store(true, std::memory_order_release);
+            }
             if (StopEvent)
             {
                 SetEvent(StopEvent.get());
@@ -923,11 +931,10 @@ namespace winrt::TerminalApp::implementation
         {
             try
             {
-                wil::unique_handle processToken{ GetCurrentProcessToken() };
-                const auto tokenUser = wil::get_token_information<TOKEN_USER>(processToken.get());
+                const auto tokenUser = wil::get_token_information<TOKEN_USER>(GetCurrentProcessToken());
 
                 EXPLICIT_ACCESSW access{};
-                access.grfAccessPermissions = GENERIC_ALL;
+                access.grfAccessPermissions = FILE_GENERIC_READ | FILE_GENERIC_WRITE;
                 access.grfAccessMode = SET_ACCESS;
                 access.grfInheritance = NO_INHERITANCE;
                 access.Trustee.TrusteeForm = TRUSTEE_IS_SID;
@@ -942,8 +949,31 @@ namespace winrt::TerminalApp::implementation
                     return false;
                 }
 
+                const auto integrity = wil::get_token_information<TOKEN_MANDATORY_LABEL>(GetCurrentProcessToken());
+                if (!integrity || !integrity->Label.Sid || !IsValidSid(integrity->Label.Sid))
+                {
+                    return false;
+                }
+
+                const auto sidLength = GetLengthSid(integrity->Label.Sid);
+                const auto rawSaclSize = sizeof(ACL) + sizeof(SYSTEM_MANDATORY_LABEL_ACE) - sizeof(DWORD) + sidLength;
+                const auto saclSize = (rawSaclSize + sizeof(DWORD) - 1) & ~(sizeof(DWORD) - 1);
+                Sacl.assign(saclSize, std::byte{});
+                const auto sacl = reinterpret_cast<PACL>(Sacl.data());
+                if (!InitializeAcl(sacl, gsl::narrow<DWORD>(saclSize), ACL_REVISION) ||
+                    !AddMandatoryAce(sacl,
+                                     ACL_REVISION,
+                                     0,
+                                     SYSTEM_MANDATORY_LABEL_NO_WRITE_UP | SYSTEM_MANDATORY_LABEL_NO_READ_UP,
+                                     integrity->Label.Sid))
+                {
+                    Sacl.clear();
+                    return false;
+                }
+
                 if (!InitializeSecurityDescriptor(&SecurityDescriptor, SECURITY_DESCRIPTOR_REVISION) ||
-                    !SetSecurityDescriptorDacl(&SecurityDescriptor, TRUE, Acl.get(), FALSE))
+                    !SetSecurityDescriptorDacl(&SecurityDescriptor, TRUE, Acl.get(), FALSE) ||
+                    !SetSecurityDescriptorSacl(&SecurityDescriptor, TRUE, sacl, FALSE))
                 {
                     return false;
                 }
@@ -973,10 +1003,10 @@ namespace winrt::TerminalApp::implementation
                                                        &attributes) };
         }
 
-        IoResult _waitForIo(const HANDLE pipe, OVERLAPPED& overlapped, const std::chrono::milliseconds timeout, DWORD& bytesTransferred) const
+        IoResult _waitForIo(const HANDLE pipe, OVERLAPPED& overlapped, const DWORD timeoutMs, DWORD& bytesTransferred) const
         {
             const HANDLE handles[]{ StopEvent.get(), overlapped.hEvent };
-            const auto wait = WaitForMultipleObjects(ARRAYSIZE(handles), handles, FALSE, gsl::narrow<DWORD>(timeout.count()));
+            const auto wait = WaitForMultipleObjects(ARRAYSIZE(handles), handles, FALSE, timeoutMs);
             if (wait == WAIT_OBJECT_0)
             {
                 CancelIoEx(pipe, &overlapped);
@@ -995,6 +1025,12 @@ namespace winrt::TerminalApp::implementation
                 return error == ERROR_BROKEN_PIPE || error == ERROR_PIPE_NOT_CONNECTED ? IoResult::Disconnected : IoResult::Failed;
             }
             return IoResult::Completed;
+        }
+
+        IoResult _waitForIo(const HANDLE pipe, OVERLAPPED& overlapped, const std::chrono::milliseconds timeout, DWORD& bytesTransferred) const
+        {
+            const auto clampedMs = timeout.count() <= 0 ? 0LL : timeout.count();
+            return _waitForIo(pipe, overlapped, gsl::narrow<DWORD>(clampedMs), bytesTransferred);
         }
 
         IoResult _connect(const HANDLE pipe) const
@@ -1023,7 +1059,7 @@ namespace winrt::TerminalApp::implementation
             }
 
             DWORD bytesTransferred = 0;
-            return _waitForIo(pipe, overlapped, std::chrono::duration_cast<std::chrono::milliseconds>(PipeRequestTimeout), bytesTransferred);
+            return _waitForIo(pipe, overlapped, INFINITE, bytesTransferred);
         }
 
         IoResult _readRequest(const HANDLE pipe, std::string& request) const
@@ -1204,6 +1240,10 @@ namespace winrt::TerminalApp::implementation
         {
             if (!Dispatcher)
             {
+                if (Stopped && Stopped->load(std::memory_order_acquire))
+                {
+                    return {};
+                }
                 try
                 {
                     return Handler(request);
@@ -1221,7 +1261,14 @@ namespace winrt::TerminalApp::implementation
             }
 
             const auto handler = Handler;
-            if (!Dispatcher.TryEnqueue([state, handler, request = std::move(request)]() {
+            const auto stopped = Stopped;
+            if (!Dispatcher.TryEnqueue([state, stopped, handler, request = std::move(request)]() {
+                    if ((stopped && stopped->load(std::memory_order_acquire)) ||
+                        state->Cancelled.load(std::memory_order_acquire))
+                    {
+                        SetEvent(state->Event.get());
+                        return;
+                    }
                     try
                     {
                         state->Response = handler(request);
@@ -1242,6 +1289,7 @@ namespace winrt::TerminalApp::implementation
             {
                 return std::move(state->Response);
             }
+            state->Cancelled.store(true, std::memory_order_release);
             if (wait == WAIT_TIMEOUT)
             {
                 return WorkspaceAutomationProtocol::MakeError({}, "request_timeout", "UI request timed out");
@@ -1286,27 +1334,42 @@ namespace winrt::TerminalApp::implementation
             {
                 winrt::init_apartment(winrt::apartment_type::multi_threaded);
                 const auto uninitialize = wil::scope_exit([]() noexcept { winrt::uninit_apartment(); });
+                wil::unique_hfile pipe;
                 while (WaitForSingleObject(StopEvent.get(), 0) != WAIT_OBJECT_0)
                 {
-                    auto pipe = _createPipe();
                     if (!pipe)
                     {
-                        if (WaitForSingleObject(StopEvent.get(), 250) == WAIT_OBJECT_0)
+                        pipe = _createPipe();
+                        if (!pipe)
                         {
-                            break;
+                            if (WaitForSingleObject(StopEvent.get(), 250) == WAIT_OBJECT_0)
+                            {
+                                break;
+                            }
+                            continue;
                         }
-                        continue;
                     }
 
                     const auto connectResult = _connect(pipe.get());
                     if (connectResult == IoResult::Completed)
                     {
                         _serve(pipe.get());
-                        DisconnectNamedPipe(pipe.get());
+                        if (!DisconnectNamedPipe(pipe.get()))
+                        {
+                            pipe.reset();
+                        }
                     }
                     else if (connectResult == IoResult::Stopped)
                     {
                         break;
+                    }
+                    else
+                    {
+                        pipe.reset();
+                        if (WaitForSingleObject(StopEvent.get(), 250) == WAIT_OBJECT_0)
+                        {
+                            break;
+                        }
                     }
                 }
             }
@@ -1318,9 +1381,11 @@ namespace winrt::TerminalApp::implementation
         std::wstring PipeName;
         winrt::Windows::System::DispatcherQueue Dispatcher{ nullptr };
         RequestHandler Handler;
+        std::shared_ptr<std::atomic_bool> Stopped{ std::make_shared<std::atomic_bool>(false) };
         wil::unique_handle StopEvent;
         std::thread Worker;
         wil::unique_hlocal_ptr<ACL> Acl;
+        std::vector<std::byte> Sacl;
         SECURITY_DESCRIPTOR SecurityDescriptor{};
     };
 

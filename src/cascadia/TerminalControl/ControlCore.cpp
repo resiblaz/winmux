@@ -197,64 +197,76 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             _dispatcher = controller.DispatcherQueue();
         }
 
-        const auto shared = _shared.lock();
-        // Raises an OutputIdle event once there hasn't been any output for at least 100ms.
-        // It also updates all regex patterns in the viewport.
-        //
-        // NOTE: Calling UpdatePatternLocations from a background
-        // thread is a workaround for us to hit GH#12607 less often.
-        shared->outputIdle = std::make_unique<til::throttled_func<>>(
-            til::throttled_func_options{
-                .delay = std::chrono::milliseconds{ 100 },
-                .debounce = true,
-                .trailing = true,
-            },
-            [this, weakThis = get_weak(), dispatcher = _dispatcher]() {
-                dispatcher.TryEnqueue(DispatcherQueuePriority::Normal, [weakThis]() {
-                    if (const auto self = weakThis.get(); self && !self->_IsClosing())
-                    {
-                        self->OutputIdle.raise(*self, nullptr);
-                    }
+        // Destroy any previously active throttled funcs outside _shared's lock,
+        // because their destructors wait for callbacks that may acquire _terminal's lock.
+        std::unique_ptr<til::throttled_func<>> oldOutputIdle;
+        std::unique_ptr<til::throttled_func<bool>> oldFocusChanged;
+        std::shared_ptr<ThrottledFunc<Control::ScrollPositionChangedArgs>> oldUpdateScrollBar;
+        {
+            const auto shared = _shared.lock();
+            shared->dispatcher = _dispatcher;
+            oldOutputIdle = std::move(shared->outputIdle);
+            oldFocusChanged = std::move(shared->focusChanged);
+            oldUpdateScrollBar = std::move(shared->updateScrollBar);
+
+            // Raises an OutputIdle event once there hasn't been any output for at least 100ms.
+            // It also updates all regex patterns in the viewport.
+            //
+            // NOTE: Calling UpdatePatternLocations from a background
+            // thread is a workaround for us to hit GH#12607 less often.
+            shared->outputIdle = std::make_unique<til::throttled_func<>>(
+                til::throttled_func_options{
+                    .delay = std::chrono::milliseconds{ 100 },
+                    .debounce = true,
+                    .trailing = true,
+                },
+                [this, weakThis = get_weak(), dispatcher = _dispatcher]() {
+                    dispatcher.TryEnqueue(DispatcherQueuePriority::Normal, [weakThis]() {
+                        if (const auto self = weakThis.get(); self && !self->_IsClosing())
+                        {
+                            self->OutputIdle.raise(*self, nullptr);
+                        }
+                    });
+
+                    // We can't use a `weak_ptr` to `_terminal` here, because it takes significant
+                    // dependency on the lifetime of `this` (primarily on our `_renderer`).
+                    // and a `weak_ptr` would allow it to outlive `this`.
+                    // Theoretically `debounced_func_trailing` should call `WaitForThreadpoolTimerCallbacks()`
+                    // with cancel=true on destruction, which should ensure that our use of `this` here is safe.
+                    const auto lock = _terminal->LockForWriting();
+                    _terminal->UpdatePatternsUnderLock();
                 });
 
-                // We can't use a `weak_ptr` to `_terminal` here, because it takes significant
-                // dependency on the lifetime of `this` (primarily on our `_renderer`).
-                // and a `weak_ptr` would allow it to outlive `this`.
-                // Theoretically `debounced_func_trailing` should call `WaitForThreadpoolTimerCallbacks()`
-                // with cancel=true on destruction, which should ensure that our use of `this` here is safe.
-                const auto lock = _terminal->LockForWriting();
-                _terminal->UpdatePatternsUnderLock();
-            });
+            // If you rapidly show/hide Windows Terminal, something about GotFocus()/LostFocus() gets broken.
+            // We'll then receive easily 10+ such calls from WinUI the next time the application is shown.
+            shared->focusChanged = std::make_unique<til::throttled_func<bool>>(
+                til::throttled_func_options{
+                    .delay = std::chrono::milliseconds{ 25 },
+                    .debounce = true,
+                    .trailing = true,
+                },
+                [this](const bool focused) {
+                    // Theoretically `debounced_func_trailing` should call `WaitForThreadpoolTimerCallbacks()`
+                    // with cancel=true on destruction, which should ensure that our use of `this` here is safe.
+                    _focusChanged(focused);
+                });
 
-        // If you rapidly show/hide Windows Terminal, something about GotFocus()/LostFocus() gets broken.
-        // We'll then receive easily 10+ such calls from WinUI the next time the application is shown.
-        shared->focusChanged = std::make_unique<til::throttled_func<bool>>(
-            til::throttled_func_options{
-                .delay = std::chrono::milliseconds{ 25 },
-                .debounce = true,
-                .trailing = true,
-            },
-            [this](const bool focused) {
-                // Theoretically `debounced_func_trailing` should call `WaitForThreadpoolTimerCallbacks()`
-                // with cancel=true on destruction, which should ensure that our use of `this` here is safe.
-                _focusChanged(focused);
-            });
-
-        // Scrollbar updates are also expensive (XAML), so we'll throttle them as well.
-        shared->updateScrollBar = std::make_shared<ThrottledFunc<Control::ScrollPositionChangedArgs>>(
-            _dispatcher,
-            til::throttled_func_options{
-                .delay = std::chrono::milliseconds{ 8 },
-                .trailing = true,
-            },
-            [weakThis = get_weak()](const auto& update) {
-                if (auto core{ weakThis.get() }; core && !core->_IsClosing())
-                {
-                    // GH#20219: re-evaluate if we're hovering over a hyperlink after scrolling
-                    core->_refreshHoveredCell();
-                    core->ScrollPositionChanged.raise(*core, update);
-                }
-            });
+            // Scrollbar updates are also expensive (XAML), so we'll throttle them as well.
+            shared->updateScrollBar = std::make_shared<ThrottledFunc<Control::ScrollPositionChangedArgs>>(
+                _dispatcher,
+                til::throttled_func_options{
+                    .delay = std::chrono::milliseconds{ 8 },
+                    .trailing = true,
+                },
+                [weakThis = get_weak()](const auto& update) {
+                    if (auto core{ weakThis.get() }; core && !core->_IsClosing())
+                    {
+                        // GH#20219: re-evaluate if we're hovering over a hyperlink after scrolling
+                        core->_refreshHoveredCell();
+                        core->ScrollPositionChanged.raise(*core, update);
+                    }
+                });
+        }
     }
 
     // Safely disconnects event handlers from the connection and closes it. This is necessary because
@@ -290,14 +302,33 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         // Clear out any throttled funcs that we had wired up to run on this UI
         // thread. These will be recreated in _setupDispatcherAndCallbacks, when
         // we're re-attached to a new control (on a possibly new UI thread).
-        const auto shared = _shared.lock();
-        shared->outputIdle.reset();
-        shared->updateScrollBar.reset();
+        // Destroy them outside _shared's lock because their destructors wait for
+        // callbacks that may acquire _terminal's lock.
+        std::unique_ptr<til::throttled_func<>> outputIdle;
+        std::shared_ptr<ThrottledFunc<Control::ScrollPositionChangedArgs>> updateScrollBar;
+        {
+            const auto shared = _shared.lock();
+            shared->dispatcher = nullptr;
+            outputIdle = std::move(shared->outputIdle);
+            updateScrollBar = std::move(shared->updateScrollBar);
+        }
     }
 
     void ControlCore::AttachToNewControl()
     {
         _setupDispatcherAndCallbacks();
+        bool vimModeQueued = false;
+        {
+            const auto lock = _terminal->LockForWriting();
+            const auto modeBefore = _reportedVimMode;
+            const auto availableBefore = _reportedVimModeAvailable;
+            _refreshVimModeUnderLock();
+            vimModeQueued = (_reportedVimMode != modeBefore || _reportedVimModeAvailable != availableBefore);
+        }
+        if (!vimModeQueued)
+        {
+            VimModeChanged.raise(*this, nullptr);
+        }
         const auto actualNewSize = _actualFont.GetSize();
         // Bubble this up, so our new control knows how big we want the font.
         FontSizeChanged.raise(*this, winrt::make<FontSizeChangedArgs>(actualNewSize.width, actualNewSize.height));
@@ -1882,7 +1913,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     {
         if (!_IsClosing())
         {
-            _closing = true;
+            _closing.store(true, std::memory_order_release);
 
             // Ensure Close() doesn't hang, waiting for MidiAudio to finish playing an hour long song.
             _midiAudio.BeginSkip();

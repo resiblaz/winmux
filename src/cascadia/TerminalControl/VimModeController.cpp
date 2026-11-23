@@ -121,13 +121,15 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             return false;
         }
         terminal.ToggleMarkMode();
+        const auto pos = terminal.GetSelectionAnchor();
+        terminal.SetMarkSelection(pos, pos, false);
         _preferredColumn.reset();
         _visualActiveGlyphEnd = false;
         _visualAnchorGlyphEnd = false;
         _mode = VimMode::Normal;
         ResetCommand();
         Reconcile(terminal);
-        return true;
+        return _mode != VimMode::Insert;
     }
 
     void VimModeController::Exit(Terminal& terminal)

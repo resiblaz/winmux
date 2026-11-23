@@ -1258,5 +1258,114 @@ namespace ControlUnitTests
             fixture.Core->SearchVim(request, true);
             VERIFY_IS_TRUE(fixture.Core->VimModeState() == Control::VimMode::Insert);
         }
+
+        TEST_METHOD(VimEnterWithFocusedSearchHighlight)
+        {
+            const auto fixture = Create(true, L"alpha beta gamma\r");
+            const auto search = fixture.Core->Search({ .Text = L"beta", .GoForward = true, .CaseSensitive = true, .ExecuteSearch = true });
+            VERIFY_ARE_EQUAL(1, search.TotalMatches);
+            VERIFY_ARE_EQUAL(0, search.CurrentMatch);
+            VERIFY_IS_FALSE(fixture.Core->HasSelection());
+
+            VERIFY_IS_TRUE(fixture.Core->EnterVimMode());
+            VERIFY_IS_TRUE(fixture.Core->VimModeState() == Control::VimMode::Normal);
+            VERIFY_ARE_EQUAL(til::point(6, 0), Anchor(fixture));
+            VERIFY_ARE_EQUAL(til::point(6, 0), Active(fixture));
+            {
+                const auto lock = fixture.Core->_terminal->LockForReading();
+                const auto& terminal = *fixture.Core->_terminal;
+                VERIFY_ARE_EQUAL(terminal.GetSelectionAnchor(), terminal.GetSelectionEnd());
+                VERIFY_IS_TRUE(terminal.SelectionEndpointTarget() ==
+                               static_cast<Control::implementation::VimModeController::Terminal::SelectionEndpoint>(3));
+            }
+
+            // Navigation and exit work cleanly without leaking a legacy Mark selection.
+            Key(fixture, 'L');
+            VERIFY_ARE_EQUAL(til::point(7, 0), Anchor(fixture));
+            Key(fixture, 'I');
+            VERIFY_IS_TRUE(fixture.Core->VimModeState() == Control::VimMode::Insert);
+            VERIFY_IS_FALSE(fixture.Core->HasSelection());
+        }
+
+        TEST_METHOD(VimExitKeyRepeatSuppression)
+        {
+            struct ExitKey
+            {
+                uint16_t vkey;
+                uint16_t scanCode;
+                wchar_t lower;
+            };
+            Control::implementation::VimInputState input;
+            for (const auto& key : std::array<ExitKey, 2>{ ExitKey{ 'I', 23, L'i' }, ExitKey{ 'A', 30, L'a' } })
+            {
+                const std::wstring text(1, key.lower);
+                // Initial key-down exits Vim mode into Insert and arms pending character suppression.
+                input.Consume(key.vkey, key.scanCode);
+                VERIFY_IS_TRUE(input.IsConsumed(key.vkey));
+                VERIFY_IS_TRUE(input.SuppressCharacter(key.lower, key.scanCode, false));
+                VERIFY_IS_FALSE(input.SuppressCharacter(key.lower, key.scanCode, false));
+
+                // Held auto-repeat key-down re-arms suppression via Consume without releasing the key.
+                VERIFY_IS_TRUE(input.IsConsumed(key.vkey));
+                input.Consume(key.vkey, key.scanCode);
+                VERIFY_IS_TRUE(input.SuppressCharacter(key.lower, key.scanCode, false));
+                VERIFY_IS_FALSE(input.SuppressCharacter(key.lower, key.scanCode, false));
+
+                // Auto-repeat delivered through the TSF text path is suppressed when re-armed.
+                input.Consume(key.vkey, key.scanCode);
+                VERIFY_IS_TRUE(input.SuppressText(text, false));
+                VERIFY_IS_FALSE(input.SuppressText(text, false));
+
+                // Key-up clears the consumed key so a fresh key-down in Insert passes through.
+                VERIFY_IS_TRUE(input.Release(key.vkey));
+                VERIFY_IS_FALSE(input.IsConsumed(key.vkey));
+                input.UnhandledKeyDown();
+                VERIFY_IS_FALSE(input.SuppressCharacter(key.lower, key.scanCode, false));
+                VERIFY_IS_FALSE(input.SuppressText(text, false));
+            }
+        }
+
+        TEST_METHOD(VimDetachReattachAndCrossThreadOutput)
+        {
+            const auto fixture = Create(true, L"alpha beta\r");
+            Enter(fixture);
+            VERIFY_IS_TRUE(fixture.Core->_reportedVimMode == Control::VimMode::Normal);
+            VERIFY_IS_TRUE(fixture.Core->_reportedVimModeAvailable);
+
+            fixture.Core->Detach();
+            {
+                const auto shared = fixture.Core->_shared.lock_shared();
+                VERIFY_IS_FALSE(static_cast<bool>(shared->dispatcher));
+            }
+
+            // Simulate ConPTY output arriving on a background thread while detached.
+            fixture.Core->_inUnitTests = false;
+            std::thread([&]() {
+                fixture.Connection->Output(L"\x1b[?1049h");
+            }).join();
+            fixture.Core->_inUnitTests = true;
+
+            VERIFY_IS_TRUE(fixture.Core->VimModeState() == Control::VimMode::Insert);
+            VERIFY_IS_FALSE(fixture.Core->VimModeAvailable());
+            // While detached, reported UI state is held back until reattach.
+            VERIFY_IS_TRUE(fixture.Core->_reportedVimMode == Control::VimMode::Normal);
+            VERIFY_IS_TRUE(fixture.Core->_reportedVimModeAvailable);
+
+            auto notified = std::make_shared<wil::unique_event>(wil::EventOptions::ManualReset);
+            const auto token = fixture.Core->VimModeChanged([notified](auto&&, auto&&) {
+                notified->SetEvent();
+            });
+            const auto revoke = wil::scope_exit([&]() {
+                fixture.Core->VimModeChanged(token);
+            });
+            fixture.Core->AttachToNewControl();
+            {
+                const auto shared = fixture.Core->_shared.lock_shared();
+                VERIFY_IS_TRUE(static_cast<bool>(shared->dispatcher));
+            }
+            VERIFY_IS_TRUE(fixture.Core->_reportedVimMode == Control::VimMode::Insert);
+            VERIFY_IS_FALSE(fixture.Core->_reportedVimModeAvailable);
+            VERIFY_IS_TRUE(notified->wait(5000));
+        }
     };
 }

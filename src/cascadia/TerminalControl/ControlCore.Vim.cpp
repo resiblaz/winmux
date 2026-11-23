@@ -41,20 +41,28 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         }
         _renderer->SetCursorOverride(cursor);
         const auto mode = _vimModeController.State();
-        const auto available = initialized && !_IsClosing() && _vimModeController.Available(*_terminal);
+        const auto available = initialized && !_IsClosingAnyThread() && _vimModeController.Available(*_terminal);
         if (mode == _reportedVimMode && available == _reportedVimModeAvailable)
+        {
+            return selectionChanged;
+        }
+        winrt::Windows::System::DispatcherQueue dispatcher{ nullptr };
+        {
+            const auto shared = _shared.lock_shared();
+            dispatcher = shared->dispatcher;
+        }
+        // Never invoke consumers synchronously while holding the terminal lock.
+        if (!dispatcher || !dispatcher.TryEnqueue([weakThis = get_weak()]() {
+                if (const auto self = weakThis.get(); self && !self->_IsClosingAnyThread())
+                {
+                    self->VimModeChanged.raise(*self, nullptr);
+                }
+            }))
         {
             return selectionChanged;
         }
         _reportedVimMode = mode;
         _reportedVimModeAvailable = available;
-        // Never invoke consumers synchronously while holding the terminal lock.
-        _dispatcher.TryEnqueue([weakThis = get_weak()]() {
-            if (const auto self = weakThis.get(); self && !self->_IsClosing())
-            {
-                self->VimModeChanged.raise(*self, nullptr);
-            }
-        });
         return true;
     }
 

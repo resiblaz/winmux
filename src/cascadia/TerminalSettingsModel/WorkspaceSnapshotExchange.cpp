@@ -115,13 +115,18 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                                                 FILE_SHARE_READ,
                                                 nullptr,
                                                 OPEN_EXISTING,
-                                                FILE_FLAG_SEQUENTIAL_SCAN,
+                                                FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_SEQUENTIAL_SCAN,
                                                 nullptr) };
             if (!file)
             {
                 return GetLastError() == ERROR_FILE_NOT_FOUND ?
                            WorkspaceSnapshotExchangeStatus::NotFound :
                            WorkspaceSnapshotExchangeStatus::IoError;
+            }
+
+            if (GetFileType(file.get()) != FILE_TYPE_DISK)
+            {
+                return WorkspaceSnapshotExchangeStatus::IoError;
             }
 
             FILE_ATTRIBUTE_TAG_INFO tagInfo{};

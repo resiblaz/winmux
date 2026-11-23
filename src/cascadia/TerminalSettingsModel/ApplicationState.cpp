@@ -633,7 +633,17 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         // property, just skip it.
 #define MTSM_APPLICATION_STATE_GEN(source, type, name, key, ...) \
     if (WI_IsFlagSet(parseSource, source))                       \
-        state->name = JsonUtils::GetValueForKey<std::optional<type>>(root, key);
+    {                                                            \
+        try                                                      \
+        {                                                        \
+            state->name = JsonUtils::GetValueForKey<std::optional<type>>(root, key); \
+        }                                                        \
+        catch (...)                                              \
+        {                                                        \
+            LOG_CAUGHT_EXCEPTION();                              \
+            state->name = std::nullopt;                          \
+        }                                                        \
+    }
 
         MTSM_APPLICATION_STATE_FIELDS(MTSM_APPLICATION_STATE_GEN)
 #undef MTSM_APPLICATION_STATE_GEN
@@ -655,7 +665,13 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
             // type of property, just skip it.
 #define MTSM_APPLICATION_STATE_GEN(source, type, name, key, ...) \
     if (WI_IsFlagSet(parseSource, source))                       \
-        JsonUtils::SetValueForKey(root, key, state->name);
+    {                                                            \
+        try                                                      \
+        {                                                        \
+            JsonUtils::SetValueForKey(root, key, state->name);   \
+        }                                                        \
+        CATCH_LOG()                                              \
+    }
 
             MTSM_APPLICATION_STATE_FIELDS(MTSM_APPLICATION_STATE_GEN)
 #undef MTSM_APPLICATION_STATE_GEN
@@ -663,11 +679,16 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
             // workspaceSnapshots is a migration-only legacy field. Successful
             // entries live in the independent store and must not be resurrected
             // by a later state.json write from this process.
-            if (WI_IsFlagSet(parseSource, FileSource::Local) &&
-                (!state->WorkspaceSnapshots || !*state->WorkspaceSnapshots || (*state->WorkspaceSnapshots).Size() == 0))
+            try
             {
-                root.removeMember("workspaceSnapshots");
+                if (WI_IsFlagSet(parseSource, FileSource::Local) &&
+                    root.isObject() &&
+                    (!state->WorkspaceSnapshots || !*state->WorkspaceSnapshots || (*state->WorkspaceSnapshots).Size() == 0))
+                {
+                    root.removeMember("workspaceSnapshots");
+                }
             }
+            CATCH_LOG()
         }
         return root;
     }

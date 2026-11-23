@@ -242,8 +242,72 @@ namespace winrt::TerminalApp::implementation
         e.Handled(true);
     }
 
+    namespace
+    {
+        bool _IsTextInputElement(const DependencyObject& element)
+        {
+            return element &&
+                   (element.try_as<TextBox>() ||
+                    element.try_as<PasswordBox>() ||
+                    element.try_as<RichEditBox>() ||
+                    element.try_as<AutoSuggestBox>());
+        }
+    }
+
+    void TerminalPage::_CancelWorkspaceNumberInput()
+    {
+        if (!_workspaceFeatures)
+        {
+            return;
+        }
+
+        _SidebarController().NumberInput.Reset();
+        if (_workspaceSidebar)
+        {
+            winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar)->ShowSwitchHints(false);
+        }
+    }
+
+    void TerminalPage::_WorkspaceNumberLostFocusHandler(const IInspectable&, const RoutedEventArgs&)
+    {
+        const auto root = XamlRoot();
+        if (!root)
+        {
+            return;
+        }
+
+        auto focusedElementOrAncestor = Windows::UI::Xaml::Input::FocusManager::GetFocusedElement(root).try_as<DependencyObject>();
+        if (_IsTextInputElement(focusedElementOrAncestor))
+        {
+            _CancelWorkspaceNumberInput();
+            return;
+        }
+
+        const auto self = get_strong().as<DependencyObject>();
+        while (focusedElementOrAncestor)
+        {
+            if (focusedElementOrAncestor == self || (_tabRow && focusedElementOrAncestor == _tabRow))
+            {
+                return;
+            }
+            focusedElementOrAncestor = VisualTreeHelper::GetParent(focusedElementOrAncestor);
+        }
+
+        _CancelWorkspaceNumberInput();
+    }
+
     void TerminalPage::_WorkspaceNumberKeyHandler(const IInspectable&, const Windows::UI::Xaml::Input::KeyRoutedEventArgs& e)
     {
+        if (const auto root = XamlRoot())
+        {
+            if (const auto focused = Windows::UI::Xaml::Input::FocusManager::GetFocusedElement(root).try_as<DependencyObject>();
+                _IsTextInputElement(focused))
+            {
+                _CancelWorkspaceNumberInput();
+                return;
+            }
+        }
+
         const auto status = e.KeyStatus();
         if (_TryHandleWorkspaceNumberKey(static_cast<uint32_t>(e.OriginalKey()),
                                          gsl::narrow_cast<uint8_t>(status.ScanCode),
@@ -305,17 +369,30 @@ namespace winrt::TerminalApp::implementation
             const auto workspaceId = sidebar.NumberInputWorkspaceId;
             if (const auto selection = input.Finish(target))
             {
+                bool dispatched = false;
                 if (target == Target::Workspace)
                 {
                     if (selection->Number <= _WorkspaceItems().Size())
                     {
-                        _actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToTab, SwitchToTabArgs{ selection->Number - 1 } });
+                        dispatched = _actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToTab, SwitchToTabArgs{ selection->Number - 1 } });
                     }
                 }
                 else if (const auto item = _WorkspaceItemForTab(_GetFocusedTab());
                          item && item.WorkspaceId() == workspaceId && selection->Number <= item.SurfaceCount())
                 {
-                    _actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToWorkspaceSurface, SwitchToWorkspaceSurfaceArgs{ selection->Number - 1 } });
+                    dispatched = _actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToWorkspaceSurface, SwitchToWorkspaceSurfaceArgs{ selection->Number - 1 } });
+                }
+
+                if (dispatched)
+                {
+                    if (_commandPaletteIs(Visibility::Visible))
+                    {
+                        CommandPaletteElement().Visibility(Visibility::Collapsed);
+                    }
+                    if (_suggestionsControlIs(Visibility::Visible))
+                    {
+                        SuggestionsElement().Visibility(Visibility::Collapsed);
+                    }
                 }
             }
         };

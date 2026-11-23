@@ -16,6 +16,7 @@ namespace winrt::TerminalApp::implementation
     class WorkspaceGitBranch
     {
     public:
+        static bool IsSupportedDirectorySyntax(std::wstring_view directory) noexcept;
         static bool IsSupportedDirectory(std::wstring_view directory) noexcept;
         static WorkspaceGitBranchResult QueryCached(std::wstring_view directory,
                                                     std::chrono::milliseconds timeout,

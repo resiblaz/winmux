@@ -226,6 +226,8 @@ namespace winrt::TerminalApp::implementation
         } };
         Root().AddHandler(UIElement::PointerPressedEvent(), winrt::box_value(cancelNumber), true);
         _tabRow.AddHandler(UIElement::PointerPressedEvent(), winrt::box_value(cancelNumber), true);
+        LostFocus({ get_weak(), &TerminalPage::_WorkspaceNumberLostFocusHandler });
+        _tabRow.LostFocus({ get_weak(), &TerminalPage::_WorkspaceNumberLostFocusHandler });
         _conclusionSidebar = this->ConclusionSidebar();
         winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->SetTabContentMode(true);
         _workspaceFeatures->History().Attach(_conclusionSidebar);

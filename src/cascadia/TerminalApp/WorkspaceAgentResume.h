@@ -141,8 +141,12 @@ namespace winrt::TerminalApp::implementation::WorkspaceAgentResume
                     entry = entry.substr(1, entry.size() - 2);
                 }
 
+                const auto isLocalDrivePath = entry.size() >= 3 &&
+                                              ((entry[0] >= L'A' && entry[0] <= L'Z') || (entry[0] >= L'a' && entry[0] <= L'z')) &&
+                                              entry[1] == L':' &&
+                                              (entry[2] == L'\\' || entry[2] == L'/');
                 const std::filesystem::path directory{ entry };
-                if (!entry.empty() && !entry.starts_with(L"\\\\") && directory.is_absolute())
+                if (!entry.empty() && !entry.starts_with(L"\\\\") && !entry.starts_with(L"//") && isLocalDrivePath && directory.is_absolute())
                 {
                     const auto candidate = (directory / L"codex.cmd").lexically_normal().native();
                     const auto attributes = GetFileAttributesW(candidate.c_str());

@@ -36,16 +36,35 @@ namespace winrt::TerminalApp::implementation
             });
         }
 
+        bool _isAsciiDriveLetter(const wchar_t ch) noexcept
+        {
+            return (ch >= L'A' && ch <= L'Z') || (ch >= L'a' && ch <= L'z');
+        }
+
         bool _validPathSyntax(const std::filesystem::path& path) noexcept
         {
             try
             {
                 const auto& value = path.native();
-                return !value.empty() &&
-                       value.size() <= WorkspaceGitMetadata::MaximumPathCharacters &&
-                       value.find(L'\0') == std::wstring::npos &&
-                       !_hasControlCharacter(value) &&
-                       path.is_absolute();
+                if (value.size() < 3 ||
+                    value.size() > WorkspaceGitMetadata::MaximumPathCharacters ||
+                    value.find(L'\0') != std::wstring::npos ||
+                    _hasControlCharacter(value) ||
+                    !_isAsciiDriveLetter(value[0]) ||
+                    value[1] != L':' ||
+                    (value[2] != L'\\' && value[2] != L'/') ||
+                    value.find(L"://") != std::wstring::npos)
+                {
+                    return false;
+                }
+                for (const auto& component : path)
+                {
+                    if (component.native() == L"..")
+                    {
+                        return false;
+                    }
+                }
+                return true;
             }
             catch (...)
             {
@@ -234,7 +253,7 @@ namespace winrt::TerminalApp::implementation
                     }
 
                     const std::filesystem::path directory{ entry };
-                    if (!entry.empty() && directory.is_absolute())
+                    if (!entry.empty() && !entry.starts_with(L"\\\\") && !entry.starts_with(L"//") && directory.is_absolute())
                     {
                         const auto candidate = (directory / L"git.exe").lexically_normal();
                         const auto attributes = GetFileAttributesW(candidate.c_str());

@@ -665,11 +665,16 @@ namespace winrt::TerminalApp::implementation
         }
 
         _tabs.RemoveAt(tabIndex);
-        _workspaceFeatures->Workspaces().RemoveSurface(tab);
+        const auto workspaceRemoved = _workspaceFeatures->Workspaces().RemoveSurface(tab);
         _tabView.TabItems().RemoveAt(tabIndex);
         _UpdateTabIndices();
 
         _workspaceFeatures->Workspaces().AssertInvariants(_tabs);
+        if (!workspaceRemoved)
+        {
+            _RefreshWorkspaceNotifications();
+            _RefreshWorkspaceListeningPorts();
+        }
 
         // To close the window here, we need to close the hosting window.
         if (_tabs.Size() == 0)
@@ -1431,6 +1436,8 @@ namespace winrt::TerminalApp::implementation
             targetWorkspaceIndex = item.IsPinned() ?
                                        std::min(targetWorkspaceIndex, pinnedWorkspaceCount - 1) :
                                        std::max(targetWorkspaceIndex, pinnedWorkspaceCount);
+            const auto wasReordering = std::exchange(_SidebarController().Reordering, true);
+            auto restoreReordering = wil::scope_exit([&]() noexcept { _SidebarController().Reordering = wasReordering; });
             workspaces.Move(currentWorkspaceIndex.value(), targetWorkspaceIndex);
         }
 

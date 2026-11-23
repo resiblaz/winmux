@@ -1266,10 +1266,11 @@ namespace winrt::TerminalApp::implementation
                 winrt::auto_revoke,
                 [dispatcher, weakThis, weakContent](auto&&, auto&&) -> safe_void_coroutine {
                     const auto weakThisCopy = weakThis;
+                    const auto weakContentCopy = weakContent;
                     co_await wil::resume_foreground(dispatcher);
                     if (const auto tab = weakThisCopy.get())
                     {
-                        if (const auto terminalContent = weakContent.get(); terminalContent && tab->GetActiveContent() == terminalContent)
+                        if (const auto terminalContent = weakContentCopy.get(); terminalContent && tab->GetActiveContent() == terminalContent)
                         {
                             tab->PropertyChanged.raise(*tab, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"WorkingDirectory" });
                         }

@@ -91,9 +91,9 @@ namespace winrt::TerminalApp::implementation
         void _SyncSessions_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _LoadSession_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _ResumeSession_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
-        void _Pin_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        safe_void_coroutine _Pin_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _Copy_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
-        void _Delete_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        safe_void_coroutine _Delete_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         safe_void_coroutine _ClearHistory_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
 
     private:
@@ -118,7 +118,7 @@ namespace winrt::TerminalApp::implementation
         winrt::guid _activeWorkspaceId{};
         winrt::hstring _activeWorkspaceTitle;
         winrt::hstring _activeWorkspaceCwd;
-        AgentHistoryStore _historyStore;
+        std::optional<AgentHistoryStore> _historyStore;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::AgentHistoryItem> _historyItems;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::AgentHistoryItem> _sessionItems;
         CodexHistorySyncHandler _codexSyncHandler;
@@ -135,6 +135,7 @@ namespace winrt::TerminalApp::implementation
         void _UpdateSessionActions();
         TerminalApp::AgentHistoryItem _SelectedSession();
         TerminalApp::AgentHistoryItem _ItemFromSender(const Windows::Foundation::IInspectable& sender) const;
+        AgentHistoryStore& _EnsureHistoryStore();
     };
 }
 

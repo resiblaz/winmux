@@ -553,20 +553,21 @@ namespace winrt::TerminalApp::implementation
         const auto currentItem = request->Item.get();
         const auto currentItemImpl = currentItem ? winrt::get_self<implementation::WorkspaceItemViewModel>(currentItem) : nullptr;
         const auto currentGeneration = currentCoordinator._saveGenerations.find(request->WorkspaceId);
-        const auto requestStillCurrent = currentItem &&
+        const auto bindingStillCurrent = currentItem &&
                                          std::ranges::find(currentItems, currentItem) != currentItems.end() &&
                                          currentItem.WorkspaceId() == request->WorkspaceId &&
-                                         currentItem.WorkingDirectory() == request->WorkingDirectory &&
-                                         currentItem.Title() == request->Title &&
                                          currentGeneration != currentCoordinator._saveGenerations.end() &&
                                          currentGeneration->second == request->Generation &&
                                          currentItemImpl->SourceSnapshotId() == request->SourceSnapshotId &&
                                          currentItemImpl->SourceSnapshotRevision() == request->SourceRevision;
+        const auto requestStillCurrent = bindingStillCurrent &&
+                                         currentItem.WorkingDirectory() == request->WorkingDirectory &&
+                                         currentItem.Title() == request->Title;
         const auto hasPendingSave = currentCoordinator._pendingSaveItems.contains(request->WorkspaceId);
 
         if (result.Status == SnapshotSaveStatus::Succeeded)
         {
-            if (requestStillCurrent)
+            if (bindingStillCurrent)
             {
                 currentCoordinator.BindItem(currentItem, result.Snapshot.Id(), result.Snapshot.Revision());
             }
@@ -817,21 +818,27 @@ namespace winrt::TerminalApp::implementation
         auto latestSnapshot = ApplicationState::SharedInstance().WorkspaceSnapshotById(snapshotId);
         co_await wil::resume_foreground(dispatcher);
 
-        const auto page = weakThis.get();
+        auto page = weakThis.get();
         if (!page || !page->_workspaceFeatures)
         {
             co_return;
         }
-        auto& coordinator = page->_workspaceFeatures->Snapshots();
-        if (coordinator._stopped)
+        if (page->_workspaceFeatures->Snapshots()._stopped)
         {
             co_return;
         }
-        auto clearInFlight = wil::scope_exit([&]() {
-            coordinator._openOperationInFlight = false;
-            if (!page->_SessionRestore().SnapshotReplayInFlight)
+        auto clearInFlight = wil::scope_exit([weakThis]() {
+            if (const auto currentPage = weakThis.get(); currentPage && currentPage->_workspaceFeatures)
             {
-                coordinator._FinishWorkspaceSnapshotReplacement(false);
+                auto& currentCoordinator = currentPage->_workspaceFeatures->Snapshots();
+                if (!currentCoordinator._stopped)
+                {
+                    currentCoordinator._openOperationInFlight = false;
+                    if (!currentPage->_SessionRestore().SnapshotReplayInFlight)
+                    {
+                        currentCoordinator._FinishWorkspaceSnapshotReplacement(false);
+                    }
+                }
             }
         });
 
@@ -846,6 +853,7 @@ namespace winrt::TerminalApp::implementation
         if (validation.Status == WorkspaceGitValidationStatus::ValidExact ||
             validation.Status == WorkspaceGitValidationStatus::SameRepositoryHeadAdvanced)
         {
+            auto& coordinator = page->_workspaceFeatures->Snapshots();
             if (existingWorkspaceFound)
             {
                 const auto existingIndex = page->_FindWorkspaceIndex(snapshot.WorkspaceId());
@@ -912,7 +920,19 @@ namespace winrt::TerminalApp::implementation
             dialog.SecondaryButtonText(RS_(L"WorkspaceSnapshotGitRebind"));
         }
 
-        const auto result = co_await dialog.ShowAsync();
+        const auto presenter = page->_dialogPresenter.get();
+        if (!presenter)
+        {
+            co_return;
+        }
+        page = nullptr;
+        const auto result = co_await presenter.ShowDialog(dialog);
+        page = weakThis.get();
+        if (!page || !page->_workspaceFeatures || page->_workspaceFeatures->Snapshots()._stopped)
+        {
+            co_return;
+        }
+
         if (validation.Status == WorkspaceGitValidationStatus::MissingWorktree)
         {
             if (result == ContentDialogResult::Primary)
@@ -928,7 +948,18 @@ namespace winrt::TerminalApp::implementation
                 alternatives.SecondaryButtonText(RS_(L"WorkspaceSnapshotGitRebind"));
                 alternatives.CloseButtonText(RS_(L"WorkspaceSnapshotGitCancel"));
                 alternatives.DefaultButton(ContentDialogButton::Close);
-                const auto alternative = co_await alternatives.ShowAsync();
+                const auto alternativesPresenter = page->_dialogPresenter.get();
+                if (!alternativesPresenter)
+                {
+                    co_return;
+                }
+                page = nullptr;
+                const auto alternative = co_await alternativesPresenter.ShowDialog(alternatives);
+                page = weakThis.get();
+                if (!page || !page->_workspaceFeatures || page->_workspaceFeatures->Snapshots()._stopped)
+                {
+                    co_return;
+                }
                 choice = alternative == ContentDialogResult::Primary   ? OpenChoice::OpenTerminalOnly :
                          alternative == ContentDialogResult::Secondary ? OpenChoice::Rebind :
                                                                          OpenChoice::Cancel;
@@ -941,6 +972,7 @@ namespace winrt::TerminalApp::implementation
                                                                 OpenChoice::Cancel;
         }
 
+        auto& coordinator = page->_workspaceFeatures->Snapshots();
         if (choice == OpenChoice::OpenTerminalOnly)
         {
             if (existingWorkspaceFound)
@@ -1028,21 +1060,27 @@ namespace winrt::TerminalApp::implementation
         const auto rebound = WorkspaceGitMetadata{}.Query(std::filesystem::path{ workingDirectory.c_str() });
         co_await wil::resume_foreground(dispatcher);
 
-        const auto page = weakThis.get();
+        auto page = weakThis.get();
         if (!page || !page->_workspaceFeatures)
         {
             co_return;
         }
-        auto& coordinator = page->_workspaceFeatures->Snapshots();
-        if (coordinator._stopped)
+        if (page->_workspaceFeatures->Snapshots()._stopped)
         {
             co_return;
         }
-        auto clearInFlight = wil::scope_exit([&]() {
-            coordinator._openOperationInFlight = false;
-            if (!page->_SessionRestore().SnapshotReplayInFlight)
+        auto clearInFlight = wil::scope_exit([weakThis]() {
+            if (const auto currentPage = weakThis.get(); currentPage && currentPage->_workspaceFeatures)
             {
-                coordinator._FinishWorkspaceSnapshotReplacement(false);
+                auto& currentCoordinator = currentPage->_workspaceFeatures->Snapshots();
+                if (!currentCoordinator._stopped)
+                {
+                    currentCoordinator._openOperationInFlight = false;
+                    if (!currentPage->_SessionRestore().SnapshotReplayInFlight)
+                    {
+                        currentCoordinator._FinishWorkspaceSnapshotReplacement(false);
+                    }
+                }
             }
         });
 
@@ -1063,7 +1101,19 @@ namespace winrt::TerminalApp::implementation
         confirmRebind.PrimaryButtonText(RS_(L"WorkspaceSnapshotGitRebindConfirm"));
         confirmRebind.CloseButtonText(RS_(L"WorkspaceSnapshotGitCancel"));
         confirmRebind.DefaultButton(ContentDialogButton::Close);
-        if (co_await confirmRebind.ShowAsync() != ContentDialogResult::Primary)
+        const auto presenter = page->_dialogPresenter.get();
+        if (!presenter)
+        {
+            co_return;
+        }
+        page = nullptr;
+        const auto confirmResult = co_await presenter.ShowDialog(confirmRebind);
+        page = weakThis.get();
+        if (!page || !page->_workspaceFeatures || page->_workspaceFeatures->Snapshots()._stopped)
+        {
+            co_return;
+        }
+        if (confirmResult != ContentDialogResult::Primary)
         {
             co_return;
         }
@@ -1077,12 +1127,12 @@ namespace winrt::TerminalApp::implementation
         }
 
         clearInFlight.release();
-        coordinator._CommitWorkspaceSnapshotRebindAsync(snapshotId,
-                                                        revision,
-                                                        std::move(savedBinding),
-                                                        rebound.Binding,
-                                                        workspaceId,
-                                                        std::move(workingDirectory));
+        page->_workspaceFeatures->Snapshots()._CommitWorkspaceSnapshotRebindAsync(snapshotId,
+                                                                                  revision,
+                                                                                  std::move(savedBinding),
+                                                                                  rebound.Binding,
+                                                                                  workspaceId,
+                                                                                  std::move(workingDirectory));
     }
 
     safe_void_coroutine WorkspaceSnapshotCoordinator::_CommitWorkspaceSnapshotRebindAsync(
@@ -1492,7 +1542,9 @@ namespace winrt::TerminalApp::implementation
                     MenuFlyoutItem deleteItem{};
                     deleteItem.Text(RS_(L"DeleteWorkspaceMenuItem"));
                     deleteItem.Click([weakThis{ _page.get_weak() }, snapshotId, name = snapshot.Name()](auto&&, auto&&) -> safe_void_coroutine {
-                        auto page = weakThis.get();
+                        const auto weakThisCopy = weakThis;
+                        const auto snapshotIdCopy = snapshotId;
+                        auto page = weakThisCopy.get();
                         if (!page)
                         {
                             co_return;
@@ -1507,12 +1559,13 @@ namespace winrt::TerminalApp::implementation
 
                         if (const auto presenter = page->_dialogPresenter.get())
                         {
+                            page = nullptr;
                             const auto result = co_await presenter.ShowDialog(dialog);
-                            page = weakThis.get();
-                            if (page && page->_workspaceFeatures && result == ContentDialogResult::Primary)
+                            page = weakThisCopy.get();
+                            if (page && page->_workspaceFeatures && !page->_workspaceFeatures->Snapshots()._stopped && result == ContentDialogResult::Primary)
                             {
                                 auto& coordinator = page->_workspaceFeatures->Snapshots();
-                                coordinator._RemoveWorkspaceSnapshotAsync(snapshotId);
+                                coordinator._RemoveWorkspaceSnapshotAsync(snapshotIdCopy);
                             }
                         }
                     });
@@ -1597,7 +1650,9 @@ namespace winrt::TerminalApp::implementation
                     auto trashIcon = UI::IconPathConverter::IconWUX(L"\xE74D"); // Delete  glyph
 
                     deleteItem.Click([weakThis{ _page.get_weak() }, name](auto&&, auto&&) -> safe_void_coroutine {
-                        auto page{ weakThis.get() };
+                        const auto weakThisCopy = weakThis;
+                        const auto nameCopy = name;
+                        auto page{ weakThisCopy.get() };
                         if (!page)
                         {
                             co_return;
@@ -1605,25 +1660,26 @@ namespace winrt::TerminalApp::implementation
 
                         // Build and show a confirmation ContentDialog.
                         ContentDialog dialog{};
-                        dialog.Title(winrt::box_value(winrt::hstring{ RS_fmt(L"ConfirmDeleteWorkspaceTitle", name) }));
-                        dialog.Content(winrt::box_value(winrt::hstring{ RS_fmt(L"ConfirmDeleteWorkspaceBody", name) }));
+                        dialog.Title(winrt::box_value(winrt::hstring{ RS_fmt(L"ConfirmDeleteWorkspaceTitle", nameCopy) }));
+                        dialog.Content(winrt::box_value(winrt::hstring{ RS_fmt(L"ConfirmDeleteWorkspaceBody", nameCopy) }));
                         dialog.PrimaryButtonText(RS_(L"ConfirmDeleteWorkspaceDelete"));
                         dialog.CloseButtonText(RS_(L"ConfirmDeleteWorkspaceCancel"));
                         dialog.DefaultButton(ContentDialogButton::Close);
 
                         if (auto presenter{ page->_dialogPresenter.get() })
                         {
+                            page = nullptr;
                             const auto result = co_await presenter.ShowDialog(dialog);
                             // Re-check after co_await
-                            page = weakThis.get();
+                            page = weakThisCopy.get();
                             if (!page)
                             {
                                 co_return;
                             }
                             if (result == ContentDialogResult::Primary)
                             {
-                                ApplicationState::SharedInstance().RemoveWorkspace(name);
-                                if (page->_workspaceFeatures)
+                                ApplicationState::SharedInstance().RemoveWorkspace(nameCopy);
+                                if (page->_workspaceFeatures && !page->_workspaceFeatures->Snapshots()._stopped)
                                 {
                                     page->_workspaceFeatures->Snapshots().PopulateFlyout();
                                 }

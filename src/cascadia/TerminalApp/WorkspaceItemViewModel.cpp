@@ -702,7 +702,7 @@ namespace winrt::TerminalApp::implementation
     {
         const auto directory = WorkingDirectory();
         const auto generation = ++_gitBranchRequestGeneration;
-        if (!WorkspaceGitBranch::IsSupportedDirectory(directory))
+        if (!WorkspaceGitBranch::IsSupportedDirectorySyntax(directory))
         {
             GitBranch(L"");
             GitRepositoryRoot(L"");

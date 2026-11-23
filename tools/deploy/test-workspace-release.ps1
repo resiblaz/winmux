@@ -26,13 +26,15 @@ $testHostDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\TestHostA
 $settingsTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_SettingsModel"
 $controlTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_Control"
 $coreTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_TerminalCore"
+$appUnitTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_TerminalApp"
 $wt = Join-Path $repoRoot "src\cascadia\CascadiaPackage\bin\$Platform\$configuration\wmx.exe"
 $workspaceTestTargets = @(
     'Terminal\Tests\TerminalApp_LocalTests',
     'Terminal\Tests\TestHostApp',
     'Terminal\Tests\SettingsModel_UnitTests',
     'Terminal\Tests\Control_UnitTests',
-    'Terminal\Tests\UnitTests')
+    'Terminal\Tests\UnitTests',
+    'Terminal\Tests\TerminalApp_UnitTests')
 $oldClMpCount = $env:CL_MPCount
 
 function Invoke-CheckedCommand
@@ -244,6 +246,7 @@ try
         $settingsTests = Join-Path $settingsTestDirectory 'SettingsModel.Unit.Tests.dll'
         $controlTests = Join-Path $controlTestDirectory 'Control.Unit.Tests.dll'
         $coreTests = Join-Path $coreTestDirectory 'Terminal.Core.Unit.Tests.dll'
+        $appUnitTests = Join-Path $appUnitTestDirectory 'Terminal.App.Unit.Tests.dll'
         $taef = @(
             (Join-Path $testHostDirectory 'TE.exe'),
             (Join-Path $settingsTestDirectory 'TE.exe'),
@@ -256,7 +259,8 @@ try
             -not (Test-Path -LiteralPath $terminalAppTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $settingsTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $controlTests -PathType Leaf) -or
-            -not (Test-Path -LiteralPath $coreTests -PathType Leaf))
+            -not (Test-Path -LiteralPath $coreTests -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $appUnitTests -PathType Leaf))
         {
             throw 'Native test outputs are missing. Run without -SkipTestBuild.'
         }
@@ -332,7 +336,21 @@ try
         Push-Location $coreTestDirectory
         try
         {
-            Invoke-TaefSelection -Taef $taef -TestDll $coreTests -Pattern '*SelectionTest*'
+            foreach ($pattern in @('*SelectionTest*', '*TerminalApiTest*'))
+            {
+                Invoke-TaefSelection -Taef $taef -TestDll $coreTests -Pattern $pattern
+            }
+        }
+        finally
+        {
+            Pop-Location
+        }
+        Push-Location $appUnitTestDirectory
+        try
+        {
+            # TerminalApp.UnitTests covers workspace automation, Git branch,
+            # listening-port and desktop-notification logic.
+            Invoke-TaefSelection -Taef $taef -TestDll $appUnitTests -Pattern '*'
         }
         finally
         {

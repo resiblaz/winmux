@@ -111,8 +111,8 @@ namespace winrt::TerminalApp::implementation
                 if (const auto pane{ tabImpl->GetActivePane() })
                 {
                     auto startupActions = pane->BuildStartupActions(0, 1, BuildStartupKind::MovePane);
-                    const auto movesWholeWorkspace = pane == tabImpl->GetRootPane();
-                    const auto workspaceItem = movesWholeWorkspace ? _WorkspaceItemForTab(*tabImpl) : nullptr;
+                    const auto rawWorkspaceItem = pane == tabImpl->GetRootPane() ? _WorkspaceItemForTab(*tabImpl) : nullptr;
+                    const auto workspaceItem = rawWorkspaceItem && rawWorkspaceItem.SurfaceCount() == 1 ? rawWorkspaceItem : nullptr;
                     const auto workspaceId = workspaceItem ? workspaceItem.WorkspaceId() : winrt::guid{};
                     const auto workspaceItemImpl = workspaceItem ? winrt::get_self<implementation::WorkspaceItemViewModel>(workspaceItem) : nullptr;
                     const auto sourceSnapshotId = workspaceItemImpl && workspaceItemImpl->SourceSnapshotId() ?
@@ -270,7 +270,8 @@ namespace winrt::TerminalApp::implementation
             if (tab)
             {
                 auto startupActions = tab->BuildStartupActions(BuildStartupKind::Content);
-                const auto workspaceItem = _WorkspaceItemForTab(*tab);
+                const auto rawWorkspaceItem = _WorkspaceItemForTab(*tab);
+                const auto workspaceItem = rawWorkspaceItem && rawWorkspaceItem.SurfaceCount() == 1 ? rawWorkspaceItem : nullptr;
                 const auto workspaceId = workspaceItem ? workspaceItem.WorkspaceId() : winrt::guid{};
                 const auto workspaceItemImpl = workspaceItem ? winrt::get_self<implementation::WorkspaceItemViewModel>(workspaceItem) : nullptr;
                 const auto sourceSnapshotId = workspaceItemImpl && workspaceItemImpl->SourceSnapshotId() ?

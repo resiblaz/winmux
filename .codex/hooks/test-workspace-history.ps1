@@ -365,6 +365,43 @@ try {
     Assert-True ($promptRequest.params.eventId -cmatch '^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$') 'eventId must be canonical lowercase UUID.'
     Assert-True ([long] $promptRequest.params.eventAt -gt 0 -and [long] $promptRequest.params.eventAt -le 253402300799999) 'eventAt must be a bounded Unix-millisecond timestamp.'
 
+    # Regression test: valid CJK characters whose CP936/GBK bytes happen to form
+    # valid UTF-8 sequences must never be corrupted in prompts, finals, or cwd.
+    $cjkPipe = New-TestPipeName
+    $cjkWorkspace = [guid]::NewGuid().ToString('D')
+    $cjkServer = Start-FakeTerminalServer -PipeName $cjkPipe -ExpectedConnections 2
+    $cjkInbox = [System.IO.Path]::Combine($testRoot, 'cjk-inbox')
+    $cjkCwd = 'C:\work\小'
+    $cjkText = '一小前全说'
+    $cjkPromptPayload = [ordered]@{
+        session_id = 'session-cjk'
+        turn_id = 'turn-cjk-prompt'
+        cwd = $cjkCwd
+        hook_event_name = 'UserPromptSubmit'
+        prompt = $cjkText
+    }
+    $cjkPromptResult = Invoke-HookProcess -EventName UserPromptSubmit -Payload $cjkPromptPayload -InboxDirectory $cjkInbox -WorkspaceId $cjkWorkspace -PipeName $cjkPipe -TerminalSessionId $null
+    Assert-Equal $cjkPromptResult.ExitCode 0 'CJK prompt hook failed.'
+    $cjkStopPayload = [ordered]@{
+        session_id = 'session-cjk'
+        turn_id = 'turn-cjk-stop'
+        cwd = $cjkCwd
+        hook_event_name = 'Stop'
+        last_assistant_message = $cjkText
+    }
+    $cjkStopResult = Invoke-HookProcess -EventName Stop -Payload $cjkStopPayload -InboxDirectory $cjkInbox -WorkspaceId $cjkWorkspace -PipeName $cjkPipe -TerminalSessionId $null
+    Assert-Equal $cjkStopResult.ExitCode 0 'CJK Stop hook failed.'
+    Assert-Equal $cjkStopResult.Stdout.Trim() '{}' 'CJK Stop must emit empty JSON.'
+    $cjkLines = @(Receive-FakeTerminalRequests $cjkServer)
+    Assert-Equal $cjkLines.Count 2 'Expected two CJK requests.'
+    $cjkPromptRequest = $cjkLines[0] | ConvertFrom-Json
+    $cjkStopRequest = $cjkLines[1] | ConvertFrom-Json
+    Assert-Equal $cjkPromptRequest.params.prompt $cjkText 'Valid CJK prompt was corrupted.'
+    Assert-Equal $cjkPromptRequest.params.cwd $cjkCwd 'Valid CJK prompt cwd was corrupted.'
+    Assert-Equal $cjkStopRequest.params.finalMarkdown $cjkText 'Valid CJK final markdown was corrupted.'
+    Assert-Equal $cjkStopRequest.params.title $cjkText 'Valid CJK final title was corrupted.'
+    Assert-Equal $cjkStopRequest.params.cwd $cjkCwd 'Valid CJK stop cwd was corrupted.'
+
     # Stop sends finalMarkdown plus a mandatory title, truncating safely at 8000.
     $finalPipe = New-TestPipeName
     $finalWorkspace = [guid]::NewGuid().ToString('D')

@@ -440,6 +440,12 @@ namespace TerminalAppLocalTests
         const auto binding = metadata.Query(repository);
         VerifyStatus(WorkspaceGitMetadataStatus::Succeeded, binding.Status);
         VerifyStatus(WorkspaceGitMetadataStatus::Invalid, metadata.Query(L"relative\\path").Status);
+        VerifyStatus(WorkspaceGitMetadataStatus::Invalid, metadata.Query(L"\\\\server\\share\\repo").Status);
+        VerifyStatus(WorkspaceGitMetadataStatus::Invalid, metadata.Query(L"//server/share/repo").Status);
+        VerifyStatus(WorkspaceGitMetadataStatus::Invalid, metadata.Query(L"\\\\?\\C:\\repo").Status);
+        VerifyStatus(WorkspaceGitMetadataStatus::Invalid, metadata.Query(L"\\\\.\\C:\\repo").Status);
+        VerifyStatus(WorkspaceGitMetadataStatus::Invalid, metadata.Query(L"\\??\\C:\\repo").Status);
+        VerifyStatus(WorkspaceGitMetadataStatus::Invalid, metadata.Query(repository / L".." / repository.filename()).Status);
         VerifyStatus(WorkspaceGitMetadataStatus::Invalid,
                      metadata.Query(std::filesystem::path{ L"C:\\" +
                                                            std::wstring(WorkspaceGitMetadata::MaximumPathCharacters, L'a') })

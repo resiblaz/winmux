@@ -172,32 +172,31 @@ function Test-AllowedProperties {
     return $true
 }
 
-function Repair-HookTextEncoding {
-    param([AllowNull()][string] $Text)
-
-    if ([string]::IsNullOrEmpty($Text)) {
-        return $Text
+function Read-HookStandardInput {
+    if (-not [Console]::IsInputRedirected) {
+        return ''
     }
 
+    $stdin = [Console]::OpenStandardInput()
+    $buffer = [System.IO.MemoryStream]::new()
     try {
-        # Some Windows pwsh -File launch paths materialize redirected UTF-8 via
-        # the active ANSI code page. Reverse that conversion only if both sides
-        # are lossless; correctly decoded Unicode is left untouched.
-        $codePage = [System.Globalization.CultureInfo]::CurrentCulture.TextInfo.ANSICodePage
-        $legacy = [System.Text.Encoding]::GetEncoding(
-            $codePage,
-            [System.Text.EncoderFallback]::ExceptionFallback,
-            [System.Text.DecoderFallback]::ExceptionFallback)
-        $candidate = $script:Utf8Strict.GetString($legacy.GetBytes($Text))
-        if ($candidate -ne $Text) {
-            return $candidate
+        $stdin.CopyTo($buffer)
+        $bytes = $buffer.ToArray()
+        if ($bytes.Length -eq 0) {
+            return ''
         }
-    }
-    catch {
-        # The input was not a lossless ANSI mis-decoding of UTF-8.
-    }
 
-    return $Text
+        $offset = 0
+        if ($bytes.Length -ge 3 -and
+            $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+            $offset = 3
+        }
+        return $script:Utf8Strict.GetString($bytes, $offset, $bytes.Length - $offset)
+    }
+    finally {
+        $buffer.Dispose()
+        $stdin.Dispose()
+    }
 }
 
 function Limit-HookText {
@@ -206,14 +205,13 @@ function Limit-HookText {
         [int] $MaximumCharacters = $script:MaximumTextCharacters
     )
 
-    $value = Repair-HookTextEncoding $Text
-    if ([string]::IsNullOrWhiteSpace($value)) {
+    if ([string]::IsNullOrWhiteSpace($Text)) {
         return ''
     }
 
     # Preserve markdown line breaks and tabs, but never forward other control
     # characters to the pipe or durable inbox.
-    $value = ($value -replace '[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]', '').Trim()
+    $value = ($Text -replace '[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]', '').Trim()
     if ($value.Length -le $MaximumCharacters) {
         return $value
     }
@@ -234,7 +232,11 @@ function Limit-KeyText {
         [int] $MaximumCharacters
     )
 
-    $value = (Repair-HookTextEncoding $Text).Trim()
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return ''
+    }
+
+    $value = $Text.Trim()
     if ([string]::IsNullOrWhiteSpace($value) -or
         $value.Length -gt $MaximumCharacters -or
         $value -match '[\u0000-\u001F\u007F-\u009F]') {
@@ -273,11 +275,11 @@ function Normalize-PipeName {
 function Normalize-Directory {
     param([AllowNull()][string] $Path)
 
-    $value = Repair-HookTextEncoding $Path
-    if ([string]::IsNullOrWhiteSpace($value)) {
+    if ([string]::IsNullOrWhiteSpace($Path)) {
         return ''
     }
 
+    $value = $Path
     try {
         $fullPath = [System.IO.Path]::GetFullPath($value)
         $root = [System.IO.Path]::GetPathRoot($fullPath)
@@ -1623,12 +1625,13 @@ try {
             $InboxDirectory = Get-DefaultInboxDirectory
         }
 
-        # Support both pwsh -File pipeline binding and direct Console.In.
+        # Support both pipeline binding and redirected UTF-8 stdin without
+        # touching legacy ANSI/OEM console decoding.
         $rawInput = if (-not [string]::IsNullOrWhiteSpace($PipelineHookInput)) {
             $PipelineHookInput
         }
         else {
-            [Console]::In.ReadToEnd()
+            Read-HookStandardInput
         }
 
         if (-not [string]::IsNullOrWhiteSpace($rawInput)) {

@@ -4,8 +4,6 @@
 #include "pch.h"
 #include "WorkspaceGitBranch.h"
 
-#include <Shlwapi.h>
-
 namespace winrt::TerminalApp::implementation
 {
     namespace
@@ -62,21 +60,75 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    bool WorkspaceGitBranch::IsSupportedDirectorySyntax(const std::wstring_view directory) noexcept
+    {
+        if (directory.size() < 3 || directory.size() > 32767)
+        {
+            return false;
+        }
+
+        const auto drive = directory[0];
+        const auto isAsciiDrive = (drive >= L'A' && drive <= L'Z') || (drive >= L'a' && drive <= L'z');
+        if (!isAsciiDrive ||
+            directory[1] != L':' ||
+            (directory[2] != L'\\' && directory[2] != L'/') ||
+            directory.find(L"://") != std::wstring_view::npos)
+        {
+            return false;
+        }
+
+        for (const auto ch : directory)
+        {
+            if (ch < L' ' || ch == 0x7f)
+            {
+                return false;
+            }
+        }
+
+        size_t index = 3;
+        while (index < directory.size())
+        {
+            while (index < directory.size() && (directory[index] == L'\\' || directory[index] == L'/'))
+            {
+                ++index;
+            }
+            const auto start = index;
+            while (index < directory.size() && directory[index] != L'\\' && directory[index] != L'/')
+            {
+                ++index;
+            }
+            if (directory.substr(start, index - start) == L"..")
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     bool WorkspaceGitBranch::IsSupportedDirectory(const std::wstring_view directory) noexcept
     {
-        if (directory.empty())
+        if (!IsSupportedDirectorySyntax(directory))
         {
             return false;
         }
 
-        const std::wstring path{ directory };
-        if (path.find(L"://") != std::wstring::npos || PathIsUNCW(path.c_str()))
+        const std::array<wchar_t, 4> driveRoot{ directory[0], L':', L'\\', L'\0' };
+        if (GetDriveTypeW(driveRoot.data()) == DRIVE_REMOTE)
         {
             return false;
         }
 
-        const auto attributes = GetFileAttributesW(path.c_str());
-        return attributes != INVALID_FILE_ATTRIBUTES && WI_IsFlagSet(attributes, FILE_ATTRIBUTE_DIRECTORY);
+        try
+        {
+            const std::wstring path{ directory };
+            const auto attributes = GetFileAttributesW(path.c_str());
+            return attributes != INVALID_FILE_ATTRIBUTES && WI_IsFlagSet(attributes, FILE_ATTRIBUTE_DIRECTORY);
+        }
+        catch (...)
+        {
+            return false;
+        }
     }
 
     WorkspaceGitBranchResult WorkspaceGitBranch::QueryCached(const std::wstring_view directory,
@@ -141,6 +193,9 @@ namespace winrt::TerminalApp::implementation
 
     WorkspaceGitBranchResult WorkspaceGitBranch::_Query(const std::wstring_view directory, const std::chrono::milliseconds timeout)
     {
+        constexpr DWORD PipeBufferSize{ 64 * 1024 };
+        constexpr size_t MaximumOutputBytes{ 8192 };
+
         SECURITY_ATTRIBUTES securityAttributes{
             .nLength = sizeof(SECURITY_ATTRIBUTES),
             .lpSecurityDescriptor = nullptr,
@@ -148,7 +203,15 @@ namespace winrt::TerminalApp::implementation
         };
         wil::unique_handle readPipe;
         wil::unique_handle writePipe;
-        if (!CreatePipe(readPipe.addressof(), writePipe.addressof(), &securityAttributes, 0) ||
+        wil::unique_handle nullInput{ CreateFileW(L"NUL",
+                                                   GENERIC_READ,
+                                                   FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                                   &securityAttributes,
+                                                   OPEN_EXISTING,
+                                                   FILE_ATTRIBUTE_NORMAL,
+                                                   nullptr) };
+        if (!nullInput ||
+            !CreatePipe(readPipe.addressof(), writePipe.addressof(), &securityAttributes, PipeBufferSize) ||
             !SetHandleInformation(readPipe.get(), HANDLE_FLAG_INHERIT, 0))
         {
             return {};
@@ -157,11 +220,16 @@ namespace winrt::TerminalApp::implementation
         STARTUPINFOEXW startupInfo{};
         startupInfo.StartupInfo.cb = sizeof(startupInfo);
         startupInfo.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+        startupInfo.StartupInfo.hStdInput = nullInput.get();
         startupInfo.StartupInfo.hStdOutput = writePipe.get();
         startupInfo.StartupInfo.hStdError = writePipe.get();
 
         SIZE_T attributeListSize = 0;
         InitializeProcThreadAttributeList(nullptr, 1, 0, &attributeListSize);
+        if (attributeListSize == 0)
+        {
+            return {};
+        }
         std::vector<std::byte> attributeListStorage(attributeListSize);
         startupInfo.lpAttributeList = reinterpret_cast<PPROC_THREAD_ATTRIBUTE_LIST>(attributeListStorage.data());
         if (!InitializeProcThreadAttributeList(startupInfo.lpAttributeList, 1, 0, &attributeListSize))
@@ -172,7 +240,7 @@ namespace winrt::TerminalApp::implementation
             DeleteProcThreadAttributeList(startupInfo.lpAttributeList);
         });
 
-        HANDLE inheritedHandles[]{ writePipe.get() };
+        HANDLE inheritedHandles[]{ nullInput.get(), writePipe.get() };
         if (!UpdateProcThreadAttribute(startupInfo.lpAttributeList,
                                        0,
                                        PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
@@ -184,9 +252,8 @@ namespace winrt::TerminalApp::implementation
             return {};
         }
 
-        std::wstring commandLine{ L"git.exe -c core.quotepath=false -C \"" };
-        commandLine.append(directory);
-        commandLine.append(L"\" rev-parse --show-toplevel --abbrev-ref HEAD");
+        std::wstring commandLine{ L"git.exe -c core.quotepath=false rev-parse --show-toplevel --abbrev-ref HEAD" };
+        std::wstring workingDirectory{ directory };
 
         PROCESS_INFORMATION processInformation{};
         if (!CreateProcessW(nullptr,
@@ -196,7 +263,7 @@ namespace winrt::TerminalApp::implementation
                             TRUE,
                             CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT,
                             nullptr,
-                            nullptr,
+                            workingDirectory.c_str(),
                             &startupInfo.StartupInfo,
                             &processInformation))
         {
@@ -206,35 +273,100 @@ namespace winrt::TerminalApp::implementation
         wil::unique_handle process{ processInformation.hProcess };
         wil::unique_handle thread{ processInformation.hThread };
         writePipe.reset();
+        nullInput.reset();
 
-        const auto waitResult = WaitForSingleObject(process.get(), gsl::narrow<DWORD>(std::max(timeout.count(), 1ll)));
-        if (waitResult != WAIT_OBJECT_0)
+        const auto effectiveTimeout = std::max(timeout, std::chrono::milliseconds{ 1 });
+        const auto deadline = std::chrono::steady_clock::now() + effectiveTimeout;
+        std::string output;
+        std::array<char, 1024> buffer{};
+        bool processExited = false;
+        bool outputExceeded = false;
+
+        for (;;)
         {
-            TerminateProcess(process.get(), ERROR_TIMEOUT);
+            DWORD available = 0;
+            if (!PeekNamedPipe(readPipe.get(), nullptr, 0, nullptr, &available, nullptr))
+            {
+                const auto lastError = GetLastError();
+                if (lastError == ERROR_BROKEN_PIPE)
+                {
+                    break;
+                }
+                TerminateProcess(process.get(), ERROR_GEN_FAILURE);
+                WaitForSingleObject(process.get(), 1000);
+                return {};
+            }
+
+            if (available > 0)
+            {
+                DWORD bytesRead = 0;
+                const auto toRead = std::min<DWORD>(available, gsl::narrow<DWORD>(buffer.size()));
+                if (!ReadFile(readPipe.get(), buffer.data(), toRead, &bytesRead, nullptr) || bytesRead == 0)
+                {
+                    break;
+                }
+                if (bytesRead > MaximumOutputBytes - std::min(output.size(), MaximumOutputBytes))
+                {
+                    outputExceeded = true;
+                    break;
+                }
+                output.append(buffer.data(), bytesRead);
+                continue;
+            }
+
+            if (processExited)
+            {
+                break;
+            }
+
+            const auto now = std::chrono::steady_clock::now();
+            if (now >= deadline)
+            {
+                TerminateProcess(process.get(), ERROR_TIMEOUT);
+                WaitForSingleObject(process.get(), 1000);
+                return {};
+            }
+
+            const auto remainingMs = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
+            const auto sliceMs = gsl::narrow<DWORD>(std::clamp(remainingMs, 1ll, 10ll));
+            const auto waitResult = WaitForSingleObject(process.get(), sliceMs);
+            if (waitResult == WAIT_OBJECT_0)
+            {
+                processExited = true;
+            }
+            else if (waitResult != WAIT_TIMEOUT)
+            {
+                TerminateProcess(process.get(), ERROR_GEN_FAILURE);
+                WaitForSingleObject(process.get(), 1000);
+                return {};
+            }
+        }
+
+        if (outputExceeded)
+        {
+            TerminateProcess(process.get(), ERROR_BUFFER_OVERFLOW);
             WaitForSingleObject(process.get(), 1000);
             return {};
+        }
+
+        if (!processExited)
+        {
+            const auto now = std::chrono::steady_clock::now();
+            const auto remainingMs = now < deadline ?
+                                         std::max(std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count(), 1ll) :
+                                         0ll;
+            if (WaitForSingleObject(process.get(), gsl::narrow<DWORD>(remainingMs)) != WAIT_OBJECT_0)
+            {
+                TerminateProcess(process.get(), ERROR_TIMEOUT);
+                WaitForSingleObject(process.get(), 1000);
+                return {};
+            }
         }
 
         DWORD exitCode = ERROR_GEN_FAILURE;
         if (!GetExitCodeProcess(process.get(), &exitCode) || exitCode != 0)
         {
             return {};
-        }
-
-        std::string output;
-        std::array<char, 1024> buffer{};
-        for (;;)
-        {
-            DWORD bytesRead = 0;
-            if (!ReadFile(readPipe.get(), buffer.data(), gsl::narrow<DWORD>(buffer.size()), &bytesRead, nullptr) || bytesRead == 0)
-            {
-                break;
-            }
-            output.append(buffer.data(), bytesRead);
-            if (output.size() > 8192)
-            {
-                return {};
-            }
         }
 
         return ParseOutputForTests(output);

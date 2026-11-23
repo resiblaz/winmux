@@ -37,6 +37,7 @@ namespace SettingsModelUnitTests
         TEST_METHOD(SaveWorkspaceSnapshotUpsertsById);
         TEST_METHOD(RemoveWorkspaceSnapshotIsIdempotent);
         TEST_METHOD(InvalidWorkspaceSnapshotsAreRejected);
+        TEST_METHOD(FromJsonIgnoresMalformedFieldsWithoutTerminating);
 
     private:
         static std::filesystem::path _tempRoot()
@@ -487,5 +488,27 @@ namespace SettingsModelUnitTests
 
         auto reloaded = winrt::make_self<implementation::ApplicationState>(root, implementation::WorkspaceSnapshotStoreScope::Standard);
         _verifyNoSnapshots(reloaded);
+    }
+
+    void ApplicationStateTests::FromJsonIgnoresMalformedFieldsWithoutTerminating()
+    {
+        auto state = _make();
+        Json::Value root{ Json::objectValue };
+        root["workspaceSidebarWidth"] = "not-a-number";
+        root["workspaceSidebarExpanded"] = false;
+        root["persistedWindowLayouts"] = "not-an-array";
+
+        state->FromJson(root, implementation::FileSource::Local | implementation::FileSource::Shared);
+        VERIFY_ARE_EQUAL(176.0, state->WorkspaceSidebarWidth());
+        VERIFY_IS_FALSE(state->WorkspaceSidebarExpanded());
+        VERIFY_IS_NULL(state->PersistedWindowLayouts());
+
+        Json::Value nonObject{ Json::arrayValue };
+        state->FromJson(nonObject, implementation::FileSource::Local | implementation::FileSource::Shared);
+        VERIFY_ARE_EQUAL(176.0, state->WorkspaceSidebarWidth());
+        VERIFY_IS_TRUE(state->WorkspaceSidebarExpanded());
+
+        const auto serialized = state->ToJson(implementation::FileSource::Local | implementation::FileSource::Shared);
+        VERIFY_IS_TRUE(serialized.isObject());
     }
 }

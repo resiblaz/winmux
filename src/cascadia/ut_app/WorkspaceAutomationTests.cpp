@@ -26,6 +26,7 @@ namespace TerminalAppUnitTests
         TEST_METHOD(ServesLargeResponseWithoutTruncation);
         TEST_METHOD(DoesNotLeakHandlesAcrossRequests);
         TEST_METHOD(StopsWhileAClientIsIdle);
+        TEST_METHOD(CancelsQueuedDispatchWhenStopped);
     };
 
     void WorkspaceAutomationTests::ParsesWorkspaceMethods()
@@ -250,14 +251,15 @@ namespace TerminalAppUnitTests
 
         wil::unique_hlocal_security_descriptor securityDescriptor;
         PACL dacl = nullptr;
+        PACL sacl = nullptr;
         VERIFY_ARE_EQUAL(static_cast<DWORD>(ERROR_SUCCESS),
                          GetSecurityInfo(client.get(),
                                          SE_KERNEL_OBJECT,
-                                         DACL_SECURITY_INFORMATION,
+                                         DACL_SECURITY_INFORMATION | LABEL_SECURITY_INFORMATION,
                                          nullptr,
                                          nullptr,
                                          &dacl,
-                                         nullptr,
+                                         &sacl,
                                          wil::out_param_ptr<PSECURITY_DESCRIPTOR*>(securityDescriptor)));
         VERIFY_IS_NOT_NULL(dacl);
         VERIFY_ARE_EQUAL(static_cast<WORD>(1), dacl->AceCount);
@@ -266,11 +268,22 @@ namespace TerminalAppUnitTests
         VERIFY_WIN32_BOOL_SUCCEEDED(GetAce(dacl, 0, &rawAce));
         const auto ace = static_cast<ACCESS_ALLOWED_ACE*>(rawAce);
         VERIFY_ARE_EQUAL(static_cast<BYTE>(ACCESS_ALLOWED_ACE_TYPE), ace->Header.AceType);
-        VERIFY_IS_TRUE(WI_IsFlagSet(ace->Mask, GENERIC_ALL) || (ace->Mask & FILE_ALL_ACCESS) == FILE_ALL_ACCESS);
+        VERIFY_ARE_EQUAL(static_cast<ACCESS_MASK>(FILE_GENERIC_READ | FILE_GENERIC_WRITE), ace->Mask);
+        VERIFY_IS_FALSE(WI_IsFlagSet(ace->Mask, WRITE_DAC));
+        VERIFY_IS_FALSE(WI_IsFlagSet(ace->Mask, WRITE_OWNER));
 
-        wil::unique_handle processToken{ GetCurrentProcessToken() };
-        const auto tokenUser = wil::get_token_information<TOKEN_USER>(processToken.get());
+        const auto tokenUser = wil::get_token_information<TOKEN_USER>(GetCurrentProcessToken());
         VERIFY_WIN32_BOOL_SUCCEEDED(EqualSid(&ace->SidStart, tokenUser->User.Sid));
+
+        VERIFY_IS_NOT_NULL(sacl);
+        VERIFY_ARE_EQUAL(static_cast<WORD>(1), sacl->AceCount);
+        void* rawLabelAce = nullptr;
+        VERIFY_WIN32_BOOL_SUCCEEDED(GetAce(sacl, 0, &rawLabelAce));
+        const auto labelAce = static_cast<SYSTEM_MANDATORY_LABEL_ACE*>(rawLabelAce);
+        VERIFY_ARE_EQUAL(static_cast<BYTE>(SYSTEM_MANDATORY_LABEL_ACE_TYPE), labelAce->Header.AceType);
+        VERIFY_ARE_EQUAL(static_cast<ACCESS_MASK>(SYSTEM_MANDATORY_LABEL_NO_WRITE_UP | SYSTEM_MANDATORY_LABEL_NO_READ_UP), labelAce->Mask);
+        const auto tokenIntegrity = wil::get_token_information<TOKEN_MANDATORY_LABEL>(GetCurrentProcessToken());
+        VERIFY_WIN32_BOOL_SUCCEEDED(EqualSid(&labelAce->SidStart, tokenIntegrity->Label.Sid));
 
         static constexpr std::string_view request{ R"({"version":1,"id":"pipe-1","method":"workspace.list","params":{}})"
                                                    "\n" };
@@ -459,5 +472,76 @@ namespace TerminalAppUnitTests
         server.Stop();
         const auto elapsed = std::chrono::steady_clock::now() - started;
         VERIFY_IS_TRUE(elapsed < std::chrono::seconds{ 2 });
+    }
+
+    void WorkspaceAutomationTests::CancelsQueuedDispatchWhenStopped()
+    {
+        using namespace winrt::TerminalApp::implementation;
+
+        wil::unique_event queueBlocked{ wil::EventOptions::ManualReset };
+        wil::unique_event releaseQueue{ wil::EventOptions::ManualReset };
+        wil::unique_event drainDone{ wil::EventOptions::ManualReset };
+        std::atomic_bool handlerInvoked{ false };
+
+        const auto controller = winrt::Windows::System::DispatcherQueueController::CreateOnDedicatedThread();
+        const auto dispatcher = controller.DispatcherQueue();
+        const auto shutdownQueue = wil::scope_exit([&]() noexcept {
+            releaseQueue.SetEvent();
+            try
+            {
+                controller.ShutdownQueueAsync().get();
+            }
+            catch (...)
+            {
+            }
+        });
+
+        VERIFY_IS_TRUE(dispatcher.TryEnqueue([&]() {
+            queueBlocked.SetEvent();
+            releaseQueue.wait(5000);
+        }));
+        VERIFY_IS_TRUE(queueBlocked.wait(5000));
+
+        const auto pipeName = WorkspaceAutomationServer::MakePipeName(GetCurrentProcessId(), GetTickCount64() + 1);
+        WorkspaceAutomationServer server{
+            pipeName,
+            dispatcher,
+            [&](const std::string_view) {
+                handlerInvoked.store(true, std::memory_order_release);
+                JsonObject result;
+                return WorkspaceAutomationProtocol::MakeResult("late", result);
+            }
+        };
+        VERIFY_IS_TRUE(server.Start());
+
+        wil::unique_hfile client;
+        for (size_t attempt = 0; attempt < 80 && !client; ++attempt)
+        {
+            client.reset(CreateFileW(pipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr));
+            if (!client)
+            {
+                Sleep(25);
+            }
+        }
+        VERIFY_IS_TRUE(static_cast<bool>(client));
+
+        static constexpr std::string_view request{ R"({"version":1,"id":"cancel-1","method":"workspace.list","params":{}})"
+                                                   "\n" };
+        DWORD bytesWritten = 0;
+        VERIFY_WIN32_BOOL_SUCCEEDED(WriteFile(client.get(), request.data(), gsl::narrow<DWORD>(request.size()), &bytesWritten, nullptr));
+        VERIFY_ARE_EQUAL(gsl::narrow<DWORD>(request.size()), bytesWritten);
+
+        // Give the server worker a brief moment to read the request and enqueue it behind the blocker.
+        Sleep(100);
+        server.Stop();
+
+        releaseQueue.SetEvent();
+        VERIFY_IS_TRUE(dispatcher.TryEnqueue([&]() {
+            drainDone.SetEvent();
+        }));
+        VERIFY_IS_TRUE(drainDone.wait(5000));
+        VERIFY_IS_FALSE(handlerInvoked.load(std::memory_order_acquire));
+
+        client.reset();
     }
 }

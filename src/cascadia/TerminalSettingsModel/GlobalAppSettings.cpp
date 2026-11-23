@@ -172,7 +172,7 @@ void GlobalAppSettings::LayerJson(const Json::Value& json, const OriginTag origi
     if (!json.isMember(TabLayoutKey.data()))
     {
         std::optional<bool> legacyWorkspaceSidebar;
-        if (JsonUtils::GetValueForKey(json, LegacyWorkspaceSidebarKey, legacyWorkspaceSidebar))
+        if (JsonUtils::GetValueForKey(json, LegacyWorkspaceSidebarKey, legacyWorkspaceSidebar) && legacyWorkspaceSidebar.has_value())
         {
             _TabLayout = legacyWorkspaceSidebar.value() ? TabLayout::WorkspaceSidebar : TabLayout::Horizontal;
             _fixupsAppliedDuringLoad = true;
@@ -187,7 +187,7 @@ void GlobalAppSettings::LayerJson(const Json::Value& json, const OriginTag origi
     // "confirmOnClose" enum. true -> Automatic, false -> Never.
     {
         std::optional<bool> legacyConfirmClose;
-        if (JsonUtils::GetValueForKey(json, LegacyConfirmCloseAllTabsKey, legacyConfirmClose))
+        if (JsonUtils::GetValueForKey(json, LegacyConfirmCloseAllTabsKey, legacyConfirmClose) && legacyConfirmClose.has_value())
         {
             _ConfirmOnClose = legacyConfirmClose.value() ? ConfirmOnClose::Automatic : ConfirmOnClose::Never;
             _fixupsAppliedDuringLoad = true;

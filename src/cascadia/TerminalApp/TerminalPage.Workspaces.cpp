@@ -459,6 +459,7 @@ namespace winrt::TerminalApp::implementation
             _tabView.SelectedItem(selectedItem);
         }
         _workspaceFeatures->Workspaces().AssertInvariants(_tabs);
+        _SyncWorkspaceSelection(_GetFocusedTab());
     }
 
     std::optional<uint32_t> TerminalPage::_FindWorkspaceIndex(const winrt::guid& workspaceId) const
@@ -571,6 +572,8 @@ namespace winrt::TerminalApp::implementation
             pinnedWorkspaceCount += workspace.IsPinned() ? 1u : 0u;
         }
         const auto targetIndex = item.IsPinned() ? pinnedWorkspaceCount - 1 : pinnedWorkspaceCount;
+        const auto wasReordering = std::exchange(_SidebarController().Reordering, true);
+        auto restoreReordering = wil::scope_exit([&]() noexcept { _SidebarController().Reordering = wasReordering; });
         workspaces.Move(currentIndex.value(), targetIndex);
         _SynchronizeFlatTabOrder();
     }
@@ -690,6 +693,7 @@ namespace winrt::TerminalApp::implementation
             co_return;
         }
 
+        const auto workspaceItem = item;
         const auto weakThis = get_weak();
         ContentDialog dialog{};
         dialog.Title(box_value(RS_(L"WorkspaceSidebar_AgentConfigureDialogTitle")));
@@ -700,7 +704,7 @@ namespace winrt::TerminalApp::implementation
         TextBox textBox{};
         textBox.Header(box_value(RS_(L"WorkspaceSidebar_AgentConfigureDialogHeader")));
         textBox.PlaceholderText(RS_(L"WorkspaceSidebar_AgentConfigureDialogPlaceholder"));
-        textBox.Text(item.AgentResumeSessionId());
+        textBox.Text(workspaceItem.AgentResumeSessionId());
         Automation::AutomationProperties::SetName(textBox, RS_(L"WorkspaceSidebar_AgentConfigureDialogHeader"));
         dialog.Content(textBox);
 
@@ -713,6 +717,12 @@ namespace winrt::TerminalApp::implementation
 
             if (const auto page = weakThis.get())
             {
+                const auto index = page->_FindWorkspaceIndex(workspaceItem.WorkspaceId());
+                if (!index || page->_WorkspaceItems().GetAt(index.value()) != workspaceItem)
+                {
+                    co_return;
+                }
+
                 const auto sessionId = WorkspaceAgentResume::NormalizeCodexSessionId(textBox.Text());
                 if (sessionId.empty())
                 {
@@ -724,12 +734,12 @@ namespace winrt::TerminalApp::implementation
                     co_return;
                 }
 
-                auto workingDirectory = item.WorkingDirectory();
+                auto workingDirectory = workspaceItem.WorkingDirectory();
                 if (!Utils::IsValidDirectory(workingDirectory.c_str()))
                 {
                     workingDirectory.clear();
                 }
-                item.ConfigureAgentResume(WorkspaceAgentResume::CodexProvider, sessionId, workingDirectory);
+                workspaceItem.ConfigureAgentResume(WorkspaceAgentResume::CodexProvider, sessionId, workingDirectory);
             }
         }
     }
@@ -1087,6 +1097,24 @@ namespace winrt::TerminalApp::implementation
         return _FocusWorkspaceNotification(latestItem);
     }
 
+    void TerminalPage::_ClearWorkspaceAttention(const TerminalApp::WorkspaceItemViewModel& item) const
+    {
+        if (!item)
+        {
+            return;
+        }
+
+        for (const auto& surface : item.Surfaces())
+        {
+            if (const auto tab = _GetTabImpl(surface); tab && tab->GetRootPane())
+            {
+                tab->GetRootPane()->WalkTree([](const auto& pane) {
+                    pane->SetAttention(false);
+                });
+            }
+        }
+    }
+
     void TerminalPage::_MarkWorkspaceNotificationsRead(const TerminalApp::WorkspaceItemViewModel& item)
     {
         if (!item)
@@ -1095,12 +1123,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         item.MarkAllNotificationsRead();
-        if (const auto tab = _GetTabImpl(item.SourceTab()))
-        {
-            tab->GetRootPane()->WalkTree([](const auto& pane) {
-                pane->SetAttention(false);
-            });
-        }
+        _ClearWorkspaceAttention(item);
         _RefreshWorkspaceNotifications();
     }
 
@@ -1112,12 +1135,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         item.ClearNotificationHistory();
-        if (const auto tab = _GetTabImpl(item.SourceTab()))
-        {
-            tab->GetRootPane()->WalkTree([](const auto& pane) {
-                pane->SetAttention(false);
-            });
-        }
+        _ClearWorkspaceAttention(item);
         _RefreshWorkspaceNotifications();
     }
 
@@ -1126,12 +1144,7 @@ namespace winrt::TerminalApp::implementation
         for (const auto& item : _WorkspaceItems())
         {
             item.MarkAllNotificationsRead();
-            if (const auto tab = _GetTabImpl(item.SourceTab()))
-            {
-                tab->GetRootPane()->WalkTree([](const auto& pane) {
-                    pane->SetAttention(false);
-                });
-            }
+            _ClearWorkspaceAttention(item);
         }
         _RefreshWorkspaceNotifications();
     }
@@ -1141,12 +1154,7 @@ namespace winrt::TerminalApp::implementation
         for (const auto& item : _WorkspaceItems())
         {
             item.ClearNotificationHistory();
-            if (const auto tab = _GetTabImpl(item.SourceTab()))
-            {
-                tab->GetRootPane()->WalkTree([](const auto& pane) {
-                    pane->SetAttention(false);
-                });
-            }
+            _ClearWorkspaceAttention(item);
         }
         _RefreshWorkspaceNotifications();
     }
@@ -1259,6 +1267,7 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_WorkspaceList_DragItemsStarting(const IInspectable&, const DragItemsStartingEventArgs& args)
     {
+        _SidebarController().Reordering = false;
         _SidebarController().ReorderFrom = std::nullopt;
         _SidebarController().ReorderItem = nullptr;
 
@@ -1270,6 +1279,7 @@ namespace winrt::TerminalApp::implementation
                 {
                     _SidebarController().ReorderFrom = index;
                     _SidebarController().ReorderItem = item;
+                    _SidebarController().Reordering = true;
                 }
             }
         }
@@ -1277,13 +1287,18 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_WorkspaceList_DragItemsCompleted(const IInspectable&, const DragItemsCompletedEventArgs&)
     {
+        auto resetReorderState = wil::scope_exit([&]() noexcept {
+            _SidebarController().Reordering = false;
+            _SidebarController().ReorderFrom = std::nullopt;
+            _SidebarController().ReorderItem = nullptr;
+        });
+
         if (_SidebarController().ReorderFrom.has_value() && _SidebarController().ReorderItem)
         {
             uint32_t newIndex{};
             if (_WorkspaceItems().IndexOf(_SidebarController().ReorderItem, newIndex))
             {
                 _SidebarController().Reordering = true;
-                auto restoreReordering = wil::scope_exit([&]() noexcept { _SidebarController().Reordering = false; });
 
                 uint32_t pinnedWorkspaceCount{};
                 for (const auto& item : _WorkspaceItems())
@@ -1301,9 +1316,6 @@ namespace winrt::TerminalApp::implementation
                 _SynchronizeFlatTabOrder();
             }
         }
-
-        _SidebarController().ReorderFrom = std::nullopt;
-        _SidebarController().ReorderItem = nullptr;
     }
 
 }

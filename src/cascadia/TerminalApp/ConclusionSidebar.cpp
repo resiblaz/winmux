@@ -70,12 +70,10 @@ namespace winrt::TerminalApp::implementation
     }
 
     ConclusionSidebar::ConclusionSidebar() :
-        _historyStore{ AgentHistoryStore::DefaultPath() },
         _historyItems{ winrt::single_threaded_observable_vector<TerminalApp::AgentHistoryItem>() },
         _sessionItems{ winrt::single_threaded_observable_vector<TerminalApp::AgentHistoryItem>() }
     {
         InitializeComponent();
-        _historyAvailable = _historyStore.IsAvailable();
         const auto weakThis = get_weak();
         _historySearchTimer.Interval(200ms);
         _historySearchTimer.Tick([weakThis](const auto&, const auto&) {
@@ -289,7 +287,7 @@ namespace winrt::TerminalApp::implementation
         record.Model = model;
         record.EventAt = eventAt;
         record.ReceivedAt = receivedAt;
-        if (!_historyStore.UpsertPrompt(record, event))
+        if (!_EnsureHistoryStore().UpsertPrompt(record, event))
         {
             return false;
         }
@@ -333,7 +331,7 @@ namespace winrt::TerminalApp::implementation
         record.EventAt = eventAt;
         record.ReceivedAt = receivedAt;
 
-        if (!_historyStore.UpsertFinal(record, event))
+        if (!_EnsureHistoryStore().UpsertFinal(record, event))
         {
             return false;
         }
@@ -461,14 +459,38 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void ConclusionSidebar::_Pin_Click(const Windows::Foundation::IInspectable& sender, const RoutedEventArgs&)
+    safe_void_coroutine ConclusionSidebar::_Pin_Click(const Windows::Foundation::IInspectable& sender, const RoutedEventArgs&)
     {
-        if (const auto item = _ItemFromSender(sender))
+        const auto item = _ItemFromSender(sender);
+        if (!item)
         {
-            if (_historyStore.SetTurnPinned(item.Provider(), item.SessionId(), item.TurnId(), !item.IsPinned()))
-            {
-                _RefreshHistory();
-            }
+            co_return;
+        }
+
+        const auto weakThis = get_weak();
+        const auto dispatcher = Dispatcher();
+        const auto provider = item.Provider();
+        const auto sessionId = item.SessionId();
+        const auto turnId = item.TurnId();
+        const auto pinned = !item.IsPinned();
+
+        auto updated = false;
+        try
+        {
+            co_await winrt::resume_background();
+            AgentHistoryStore store{ AgentHistoryStore::DefaultPath() };
+            updated = store.IsAvailable() && store.SetTurnPinned(provider, sessionId, turnId, pinned);
+            co_await wil::resume_foreground(dispatcher);
+        }
+        catch (...)
+        {
+            LOG_CAUGHT_EXCEPTION();
+            co_return;
+        }
+
+        if (const auto self = weakThis.get(); self && updated)
+        {
+            self->_RefreshHistory();
         }
     }
 
@@ -489,15 +511,38 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void ConclusionSidebar::_Delete_Click(const Windows::Foundation::IInspectable& sender, const RoutedEventArgs&)
+    safe_void_coroutine ConclusionSidebar::_Delete_Click(const Windows::Foundation::IInspectable& sender, const RoutedEventArgs&)
     {
-        if (const auto item = _ItemFromSender(sender))
+        const auto item = _ItemFromSender(sender);
+        if (!item)
         {
-            if (_historyStore.DeleteTurn(item.Provider(), item.SessionId(), item.TurnId()))
-            {
-                _RefreshHistory();
-                _RefreshSessions();
-            }
+            co_return;
+        }
+
+        const auto weakThis = get_weak();
+        const auto dispatcher = Dispatcher();
+        const auto provider = item.Provider();
+        const auto sessionId = item.SessionId();
+        const auto turnId = item.TurnId();
+
+        auto deleted = false;
+        try
+        {
+            co_await winrt::resume_background();
+            AgentHistoryStore store{ AgentHistoryStore::DefaultPath() };
+            deleted = store.IsAvailable() && store.DeleteTurn(provider, sessionId, turnId);
+            co_await wil::resume_foreground(dispatcher);
+        }
+        catch (...)
+        {
+            LOG_CAUGHT_EXCEPTION();
+            co_return;
+        }
+
+        if (const auto self = weakThis.get(); self && deleted)
+        {
+            self->_RefreshHistory();
+            self->_RefreshSessions();
         }
     }
 
@@ -508,42 +553,58 @@ namespace winrt::TerminalApp::implementation
             co_return;
         }
 
+        const auto xamlRoot = XamlRoot();
+        if (!xamlRoot)
+        {
+            co_return;
+        }
+
         const auto weakThis = get_weak();
+        const auto dispatcher = Dispatcher();
         const auto clearAll = _showAllWorkspaces;
         const auto workspaceId = _activeWorkspaceId;
+        const auto theme = ActualTheme();
         _historyClearInFlight = true;
         ClearHistoryButton().IsEnabled(false);
 
-        ContentDialog dialog{};
-        dialog.Title(box_value(RS_(L"ConclusionSidebar_ClearHistoryTitle")));
-        dialog.Content(box_value(clearAll ?
-                                     RS_(L"ConclusionSidebar_ClearAllHistoryBody") :
-                                     RS_(L"ConclusionSidebar_ClearWorkspaceHistoryBody")));
-        dialog.PrimaryButtonText(RS_(L"ConclusionSidebar_ClearHistoryConfirm"));
-        dialog.CloseButtonText(RS_(L"ConclusionSidebar_ClearHistoryCancel"));
-        dialog.DefaultButton(ContentDialogButton::Close);
-        if (co_await dialog.ShowAsync() != ContentDialogResult::Primary)
+        auto cleared = false;
+        try
         {
-            if (const auto self = weakThis.get())
+            ContentDialog dialog{};
+            dialog.XamlRoot(xamlRoot);
+            dialog.RequestedTheme(theme);
+            dialog.Title(box_value(RS_(L"ConclusionSidebar_ClearHistoryTitle")));
+            dialog.Content(box_value(clearAll ?
+                                         RS_(L"ConclusionSidebar_ClearAllHistoryBody") :
+                                         RS_(L"ConclusionSidebar_ClearWorkspaceHistoryBody")));
+            dialog.PrimaryButtonText(RS_(L"ConclusionSidebar_ClearHistoryConfirm"));
+            dialog.CloseButtonText(RS_(L"ConclusionSidebar_ClearHistoryCancel"));
+            dialog.DefaultButton(ContentDialogButton::Close);
+            if (co_await dialog.ShowAsync(ContentDialogPlacement::Popup) == ContentDialogResult::Primary)
             {
-                self->_historyClearInFlight = false;
-                self->_UpdateContentState();
+                co_await winrt::resume_background();
+                AgentHistoryStore store{ AgentHistoryStore::DefaultPath() };
+                cleared = store.IsAvailable() &&
+                          (clearAll ? store.DeleteAllUnpinned() : store.DeleteWorkspace(workspaceId));
             }
-            co_return;
         }
-
-        const auto self = weakThis.get();
-        if (!self)
+        catch (...)
         {
+            LOG_CAUGHT_EXCEPTION();
+        }
+
+        try
+        {
+            if (dispatcher && !dispatcher.HasThreadAccess())
+            {
+                co_await wil::resume_foreground(dispatcher);
+            }
+        }
+        catch (...)
+        {
+            LOG_CAUGHT_EXCEPTION();
             co_return;
         }
-        const auto dispatcher = self->Dispatcher();
-
-        co_await winrt::resume_background();
-        AgentHistoryStore store{ AgentHistoryStore::DefaultPath() };
-        const auto cleared = store.IsAvailable() &&
-                             (clearAll ? store.DeleteAllUnpinned() : store.DeleteWorkspace(workspaceId));
-        co_await wil::resume_foreground(dispatcher);
 
         if (const auto current = weakThis.get())
         {
@@ -805,5 +866,14 @@ namespace winrt::TerminalApp::implementation
             return element.Tag().try_as<TerminalApp::AgentHistoryItem>();
         }
         return nullptr;
+    }
+
+    AgentHistoryStore& ConclusionSidebar::_EnsureHistoryStore()
+    {
+        if (!_historyStore)
+        {
+            _historyStore.emplace(AgentHistoryStore::DefaultPath());
+        }
+        return *_historyStore;
     }
 }

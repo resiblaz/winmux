@@ -7,6 +7,7 @@
 #include "AgentHistoryStore.h"
 #include "TerminalPage.h"
 #include "WorkspaceAutomation.h"
+#include "WorkspaceFeatureSet.h"
 
 #include "../../types/inc/utils.hpp"
 
@@ -53,10 +54,14 @@ namespace winrt::TerminalApp::implementation
         auto server = std::make_unique<WorkspaceAutomationServer>(
             pipeName,
             DispatcherQueue::GetForCurrentThread(),
-            [this](const std::string_view request) {
-                if (_enabled)
+            [weakPage = _page.get_weak()](const std::string_view request) {
+                if (const auto page = weakPage.get(); page && page->_workspaceFeatures)
                 {
-                    return _HandleRequest(request);
+                    auto& controller = page->_workspaceFeatures->Automation();
+                    if (controller._enabled)
+                    {
+                        return controller._HandleRequest(request);
+                    }
                 }
                 return WorkspaceAutomationProtocol::MakeError({}, "server_unavailable", "Workspace automation is not available");
             });

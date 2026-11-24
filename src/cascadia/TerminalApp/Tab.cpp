@@ -252,7 +252,7 @@ namespace winrt::TerminalApp::implementation
 
     winrt::hstring Tab::PinIconGlyph() const
     {
-        return _isPinned ? L"\uE842" : L"\uE840";
+        return _isPinned ? L"\uE840" : L"\uE718";
     }
 
     winrt::hstring Tab::PinActionText() const

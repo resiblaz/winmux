@@ -1,5 +1,6 @@
 [CmdletBinding()]
 param(
+    [switch]$Release,
     [switch]$Install
 )
 
@@ -51,32 +52,73 @@ if (-not (Test-Path -LiteralPath $gradleBin -PathType Leaf))
 $escapedSdk = $androidSdk.Replace('\', '\\').Replace(':', '\:')
 [System.IO.File]::WriteAllText((Join-Path $projectRoot 'local.properties'), "sdk.dir=$escapedSdk`n", [System.Text.UTF8Encoding]::new($false))
 
+if ($Release)
+{
+    if (-not $env:WINMUX_KEYSTORE_PATH)
+    {
+        $signingDir = Join-Path $env:LOCALAPPDATA 'Winmux\android-signing'
+        New-Item -ItemType Directory -Path $signingDir -Force | Out-Null
+        $keystorePath = Join-Path $signingDir 'winmux-release.jks'
+        $passwordFile = Join-Path $signingDir 'keystore-password.txt'
+        if (-not (Test-Path -LiteralPath $keystorePath -PathType Leaf))
+        {
+            $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+            $bytes = New-Object byte[] 24
+            $rng.GetBytes($bytes)
+            $password = [Convert]::ToBase64String($bytes).Replace('+', 'A').Replace('/', 'B').Replace('=', '')
+            [System.IO.File]::WriteAllText($passwordFile, $password, [System.Text.UTF8Encoding]::new($false))
+
+            $keytool = Join-Path $javaHome 'bin\keytool.exe'
+            Write-Host "Generating local Release signing keystore at $keystorePath..." -ForegroundColor Cyan
+            & $keytool -genkeypair -v -storetype PKCS12 -keystore $keystorePath -alias winmux `
+                -keyalg RSA -keysize 2048 -validity 10000 `
+                -storepass $password -keypass $password `
+                -dname 'CN=Winmux Mobile, OU=LocalBuild, O=Winmux, L=Local, S=Local, C=CN' | Out-Null
+            if ($LASTEXITCODE -ne 0)
+            {
+                throw "keytool failed with exit code $LASTEXITCODE"
+            }
+        }
+        $env:WINMUX_KEYSTORE_PATH = $keystorePath
+        $env:WINMUX_KEY_ALIAS = 'winmux'
+        $env:WINMUX_KEYSTORE_PASSWORD = (Get-Content -LiteralPath $passwordFile -Raw).Trim()
+        $env:WINMUX_KEY_PASSWORD = $env:WINMUX_KEYSTORE_PASSWORD
+    }
+}
+
+$gradleTask = if ($Release) { ':app:assembleRelease' } else { ':app:assembleDebug' }
+$variantName = if ($Release) { 'Release' } else { 'Debug' }
+$expectedApk = if ($Release) {
+    Join-Path $projectRoot 'app\build\outputs\apk\release\app-release.apk'
+} else {
+    Join-Path $projectRoot 'app\build\outputs\apk\debug\app-debug.apk'
+}
+
 Push-Location $projectRoot
 try
 {
-    Write-Host "Building Winmux Mobile APK (JAVA_HOME=$javaHome, ANDROID_HOME=$androidSdk)..." -ForegroundColor Cyan
-    & $gradleBin :app:assembleDebug --no-daemon --max-workers=4
+    Write-Host "Building Winmux Mobile $variantName APK (JAVA_HOME=$javaHome, ANDROID_HOME=$androidSdk)..." -ForegroundColor Cyan
+    & $gradleBin $gradleTask --no-daemon --max-workers=4
     if ($LASTEXITCODE -ne 0)
     {
         throw "Gradle build failed with exit code $LASTEXITCODE"
     }
 
-    $apk = Join-Path $projectRoot 'app\build\outputs\apk\debug\app-debug.apk'
-    if (-not (Test-Path -LiteralPath $apk -PathType Leaf))
+    if (-not (Test-Path -LiteralPath $expectedApk -PathType Leaf))
     {
-        throw "Expected APK was not produced: $apk"
+        throw "Expected APK was not produced: $expectedApk"
     }
-    Write-Host "Built APK: $apk" -ForegroundColor Green
+    Write-Host "Built $variantName APK: $expectedApk" -ForegroundColor Green
 
     if ($Install)
     {
         $adb = Join-Path $androidSdk 'platform-tools\adb.exe'
-        & $adb install -r $apk
+        & $adb install -r $expectedApk
         if ($LASTEXITCODE -ne 0)
         {
             throw "adb install failed with exit code $LASTEXITCODE"
         }
-        Write-Host 'Installed Winmux Mobile APK onto connected Android device.' -ForegroundColor Green
+        Write-Host "Installed Winmux Mobile $variantName APK onto connected Android device." -ForegroundColor Green
     }
 }
 finally

@@ -12,13 +12,31 @@ android {
         applicationId = "com.winmux.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("WINMUX_KEYSTORE_PATH")
+            if (!keystorePath.isNullOrBlank() && file(keystorePath).exists()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("WINMUX_KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("WINMUX_KEY_ALIAS") ?: "winmux"
+                keyPassword = System.getenv("WINMUX_KEY_PASSWORD") ?: storePassword
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            val releaseKeystore = System.getenv("WINMUX_KEYSTORE_PATH")
+            signingConfig = if (!releaseKeystore.isNullOrBlank() && file(releaseKeystore).exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

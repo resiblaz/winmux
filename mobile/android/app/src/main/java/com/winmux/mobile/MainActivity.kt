@@ -76,6 +76,7 @@ class MainActivity : ComponentActivity() {
                 var selectedTab by remember { mutableStateOf(if (config.isPaired) "workspaces" else "pairing") }
                 var activeTerminal by remember { mutableStateOf<ActiveTerminalTarget?>(null) }
                 var showNewTaskSheet by remember { mutableStateOf(false) }
+                var newTaskWorkspaceId by remember { mutableStateOf("new") }
 
                 LaunchedEffect(connectionState) {
                     if (connectionState is ConnectionState.Connected) {
@@ -164,15 +165,22 @@ class MainActivity : ComponentActivity() {
                                     connectionState = connectionState,
                                     onRefresh = { scope.launch { WinmuxRepository.refreshSnapshot() } },
                                     onOpenTerminal = { target -> activeTerminal = target },
-                                    onOpenNewTask = { showNewTaskSheet = true },
+                                    onOpenNewTask = { wsId ->
+                                        newTaskWorkspaceId = wsId
+                                        showNewTaskSheet = true
+                                    },
                                     onGoToPairing = { selectedTab = "pairing" },
                                 )
                                 "decisions" -> DecisionsScreen(
                                     decisions = decisions,
-                                    onResolve = { id, choice, answers ->
-                                        scope.launch { WinmuxRepository.resolveDecision(id, choice, answers) }
+                                    onResolve = { id, choice, answers, sendText ->
+                                        scope.launch { WinmuxRepository.resolveDecision(id, choice, answers, sendText) }
                                     },
-                                    onOpenNewTask = { showNewTaskSheet = true },
+                                    onOpenTerminal = { target -> activeTerminal = target },
+                                    onOpenNewTask = {
+                                        newTaskWorkspaceId = "new"
+                                        showNewTaskSheet = true
+                                    },
                                 )
                                 "status" -> StatusScreen(
                                     systemStatus = snapshot.systemStatus,
@@ -216,6 +224,7 @@ class MainActivity : ComponentActivity() {
                     NewTaskBottomSheet(
                         snapshot = snapshot,
                         models = models,
+                        initialWorkspaceId = newTaskWorkspaceId,
                         onDismiss = { showNewTaskSheet = false },
                         onLaunched = {
                             showNewTaskSheet = false

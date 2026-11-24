@@ -21,22 +21,31 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.winmux.mobile.data.WinmuxRepository
 import com.winmux.mobile.model.ActiveTerminalTarget
 import com.winmux.mobile.model.BridgeSnapshot
 import com.winmux.mobile.model.ConnectionState
@@ -54,6 +64,7 @@ import com.winmux.mobile.model.PaneInfo
 import com.winmux.mobile.model.WorkspaceInfo
 import com.winmux.mobile.ui.components.AgentBadgeIcon
 import com.winmux.mobile.ui.theme.WinmuxColors
+import kotlinx.coroutines.launch
 
 private enum class WorkspaceFilter { ALL, RUNNING, ATTENTION }
 
@@ -63,22 +74,38 @@ fun WorkspacesScreen(
     connectionState: ConnectionState,
     onRefresh: () -> Unit,
     onOpenTerminal: (ActiveTerminalTarget) -> Unit,
-    onOpenNewTask: () -> Unit,
+    onOpenNewTask: (workspaceId: String) -> Unit,
     onGoToPairing: () -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
     var filter by remember { mutableStateOf(WorkspaceFilter.ALL) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showSearch by remember { mutableStateOf(false) }
+    var pendingCloseWorkspace by remember { mutableStateOf<WorkspaceInfo?>(null) }
+    var actionFeedback by remember { mutableStateOf<String?>(null) }
     val expandedOverrides = remember { mutableStateMapOf<String, Boolean>() }
 
     val totalPanes = snapshot.workspaces.sumOf { it.panes.size }
     val runningPanes = snapshot.workspaces.sumOf { ws -> ws.panes.count { it.hasActiveChild } }
     val attentionPanes = snapshot.workspaces.sumOf { ws -> ws.panes.count { it.hasAttention } }
 
+    val queryLower = searchQuery.trim().lowercase()
     val filteredWorkspaces = snapshot.workspaces.filter { ws ->
-        when (filter) {
+        val matchesFilter = when (filter) {
             WorkspaceFilter.ALL -> true
             WorkspaceFilter.RUNNING -> ws.hasRunning
             WorkspaceFilter.ATTENTION -> ws.hasAttention
         }
+        val matchesQuery = queryLower.isEmpty() ||
+            ws.title.lowercase().contains(queryLower) ||
+            ws.workingDirectory.lowercase().contains(queryLower) ||
+            ws.gitBranch.lowercase().contains(queryLower) ||
+            ws.panes.any {
+                it.title.lowercase().contains(queryLower) ||
+                    it.activeProcessName.lowercase().contains(queryLower) ||
+                    it.agentKind.lowercase().contains(queryLower)
+            }
+        matchesFilter && matchesQuery
     }
 
     Scaffold(
@@ -86,7 +113,7 @@ fun WorkspacesScreen(
         floatingActionButton = {
             if (snapshot.connected) {
                 FloatingActionButton(
-                    onClick = onOpenNewTask,
+                    onClick = { onOpenNewTask("new") },
                     containerColor = WinmuxColors.Accent,
                     contentColor = Color.White,
                 ) {
@@ -117,6 +144,20 @@ fun WorkspacesScreen(
                     }
                     Text(subtitle, fontSize = 12.sp, color = WinmuxColors.TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                if (snapshot.connected) {
+                    IconButton(
+                        onClick = {
+                            showSearch = !showSearch
+                            if (!showSearch) searchQuery = ""
+                        },
+                    ) {
+                        Icon(
+                            if (showSearch) Icons.Default.Close else Icons.Default.Search,
+                            contentDescription = "搜索",
+                            tint = if (showSearch) WinmuxColors.Accent else WinmuxColors.TextSecondary,
+                        )
+                    }
+                }
                 IconButton(onClick = onRefresh) {
                     Icon(Icons.Default.Refresh, contentDescription = "刷新", tint = WinmuxColors.TextSecondary)
                 }
@@ -135,6 +176,25 @@ fun WorkspacesScreen(
                     }
                 }
                 return@Column
+            }
+
+            if (showSearch) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("搜索工作区、分支、目录或 Agent...", fontSize = 12.5.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                )
+            }
+
+            if (actionFeedback != null) {
+                Text(
+                    text = actionFeedback!!,
+                    color = WinmuxColors.Accent,
+                    fontSize = 11.5.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
 
             // Compact host status strip
@@ -201,7 +261,7 @@ fun WorkspacesScreen(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(filteredWorkspaces, key = { it.id }) { ws ->
-                        val isExpanded = expandedOverrides[ws.id] ?: (ws.selected || filter != WorkspaceFilter.ALL)
+                        val isExpanded = expandedOverrides[ws.id] ?: (ws.selected || filter != WorkspaceFilter.ALL || queryLower.isNotEmpty())
                         WorkspaceCard(
                             workspace = ws,
                             expanded = isExpanded,
@@ -218,12 +278,87 @@ fun WorkspacesScreen(
                                     )
                                 )
                             },
+                            onFocusWorkspaceOnPc = {
+                                scope.launch {
+                                    runCatching {
+                                        WinmuxRepository.apiClient.selectWorkspace(WinmuxRepository.config.value, ws.id)
+                                    }.onSuccess {
+                                        WinmuxRepository.refreshSnapshot()
+                                        actionFeedback = "已在电脑端切换到「${ws.title}」"
+                                    }.onFailure { err ->
+                                        actionFeedback = err.message ?: "切换失败"
+                                    }
+                                }
+                            },
+                            onNewTaskHere = { onOpenNewTask(ws.id) },
+                            onSplitActivePane = { direction ->
+                                val targetPane = ws.panes.firstOrNull { it.active } ?: ws.panes.firstOrNull()
+                                if (targetPane != null) {
+                                    scope.launch {
+                                        runCatching {
+                                            WinmuxRepository.apiClient.splitPane(
+                                                WinmuxRepository.config.value,
+                                                ws.id,
+                                                targetPane.surfaceId,
+                                                targetPane.id,
+                                                direction,
+                                            )
+                                        }.onSuccess {
+                                            WinmuxRepository.refreshSnapshot()
+                                            actionFeedback = "已在「${ws.title}」中拆分新窗格"
+                                        }.onFailure { err ->
+                                            actionFeedback = err.message ?: "分屏失败"
+                                        }
+                                    }
+                                }
+                            },
+                            onRequestClose = { pendingCloseWorkspace = ws },
                         )
                     }
                     item { Spacer(Modifier.height(72.dp)) }
                 }
             }
         }
+    }
+
+    if (pendingCloseWorkspace != null) {
+        val targetWs = pendingCloseWorkspace!!
+        AlertDialog(
+            onDismissRequest = { pendingCloseWorkspace = null },
+            containerColor = WinmuxColors.Surface,
+            title = { Text("关闭工作区？", color = WinmuxColors.TextPrimary) },
+            text = {
+                Text(
+                    "确定要关闭电脑端工作区「${targetWs.title}」（包含 ${targetWs.panes.size} 个终端）吗？未保存的进程将会终止。",
+                    color = WinmuxColors.TextSecondary,
+                    fontSize = 13.sp,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingCloseWorkspace = null
+                        scope.launch {
+                            runCatching {
+                                WinmuxRepository.apiClient.closeWorkspace(WinmuxRepository.config.value, targetWs.id)
+                            }.onSuccess {
+                                WinmuxRepository.refreshSnapshot()
+                                actionFeedback = "已关闭工作区「${targetWs.title}」"
+                            }.onFailure { err ->
+                                actionFeedback = err.message ?: "关闭失败"
+                            }
+                        }
+                    },
+                ) {
+                    Text("确认关闭", color = WinmuxColors.Danger)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingCloseWorkspace = null }) {
+                    Text("取消", color = WinmuxColors.TextSecondary)
+                }
+            },
+        )
     }
 }
 
@@ -233,7 +368,13 @@ private fun WorkspaceCard(
     expanded: Boolean,
     onToggleExpand: () -> Unit,
     onSelectPane: (PaneInfo) -> Unit,
+    onFocusWorkspaceOnPc: () -> Unit,
+    onNewTaskHere: () -> Unit,
+    onSplitActivePane: (direction: String) -> Unit,
+    onRequestClose: () -> Unit,
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = WinmuxColors.Surface),
         border = BorderStroke(
@@ -248,7 +389,7 @@ private fun WorkspaceCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onToggleExpand)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
@@ -302,6 +443,40 @@ private fun WorkspaceCard(
                     fontFamily = FontFamily.Monospace,
                     color = WinmuxColors.TextSecondary,
                 )
+                Box {
+                    IconButton(onClick = { menuExpanded = true }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "工作区操作", tint = WinmuxColors.TextSecondary, modifier = Modifier.size(18.dp))
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                        containerColor = WinmuxColors.SurfaceElevated,
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("在电脑端切换至此工作区", color = WinmuxColors.TextPrimary, fontSize = 13.sp) },
+                            onClick = { menuExpanded = false; onFocusWorkspaceOnPc() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("在此工作区启动 Agent 任务", color = WinmuxColors.TextPrimary, fontSize = 13.sp) },
+                            onClick = { menuExpanded = false; onNewTaskHere() },
+                        )
+                        if (workspace.panes.isNotEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("向右拆分窗格", color = WinmuxColors.TextPrimary, fontSize = 13.sp) },
+                                onClick = { menuExpanded = false; onSplitActivePane("right") },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("向下拆分窗格", color = WinmuxColors.TextPrimary, fontSize = 13.sp) },
+                                onClick = { menuExpanded = false; onSplitActivePane("down") },
+                            )
+                        }
+                        HorizontalDivider(color = WinmuxColors.Border, thickness = 0.5.dp)
+                        DropdownMenuItem(
+                            text = { Text("关闭工作区", color = WinmuxColors.Danger, fontSize = 13.sp) },
+                            onClick = { menuExpanded = false; onRequestClose() },
+                        )
+                    }
+                }
             }
 
             if (expanded && workspace.panes.isNotEmpty()) {

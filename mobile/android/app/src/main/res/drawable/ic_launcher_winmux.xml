@@ -4,16 +4,39 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Deep obsidian background -->
     <path
         android:fillColor="#0F1117"
         android:pathData="M0,0h108v108h-108z" />
+    <!-- Terminal window frame -->
+    <path
+        android:fillColor="#171B24"
+        android:strokeColor="#2B3242"
+        android:strokeWidth="2"
+        android:pathData="M18,22h72a8,8 0 0,1 8,8v48a8,8 0 0,1 -8,8h-72a8,8 0 0,1 -8,-8v-48a8,8 0 0,1 8,-8z" />
+    <!-- Top window bar -->
+    <path
+        android:fillColor="#202634"
+        android:pathData="M18,22h72a8,8 0 0,1 8,8v8h-88v-8a8,8 0 0,1 8,-8z" />
+    <!-- Window dots -->
+    <path android:fillColor="#EF4444" android:pathData="M21,30m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0" />
+    <path android:fillColor="#F59E0B" android:pathData="M29,30m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0" />
+    <path android:fillColor="#22C55E" android:pathData="M37,30m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0" />
+    <!-- Left sidebar pane accent -->
+    <path
+        android:fillColor="#1C2230"
+        android:pathData="M12,38h22v46h-16a6,6 0 0,1 -6,-6z" />
+    <path android:fillColor="#4F8CFF" android:pathData="M16,46h13v3h-13z" />
+    <path android:fillColor="#22C55E" android:pathData="M16,54h10v3h-10z" />
+    <path android:fillColor="#F59E0B" android:pathData="M16,62h12v3h-12z" />
+    <!-- Clawd / Agent mascot in main terminal pane -->
     <path
         android:fillColor="#D97757"
-        android:pathData="M26,28h56v12h6v14h-6v26h-8v-14h-8v14h-8v-14h-16v14h-8v-14h-8v14h-8v-26h-6v-14h6z" />
+        android:pathData="M46,48h36v8h4v9h-4v15h-5v-9h-5v9h-5v-9h-10v9h-5v-9h-6v-15h-4v-9h4z" />
     <path
         android:fillColor="#0F1117"
-        android:pathData="M36,40h9v10h-9z" />
+        android:pathData="M53,55h6v6h-6z" />
     <path
         android:fillColor="#0F1117"
-        android:pathData="M63,40h9v10h-9z" />
+        android:pathData="M69,55h6v6h-6z" />
 </vector>

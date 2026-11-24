@@ -1,6 +1,7 @@
 package com.winmux.mobile.ui.screens
 
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,12 +11,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Refresh
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -90,6 +96,74 @@ fun PairingScreen(
             loadDevices()
         } else if (!config.isPaired) {
             pairedDevices = emptyList()
+        }
+    }
+
+    fun executePairing(
+        targetLan: String,
+        targetRemote: String,
+        targetCode: String,
+        targetFp: String,
+        targetDeviceName: String,
+    ) {
+        if (busy || targetCode.length != 6 || (targetLan.isBlank() && targetRemote.isBlank())) return
+        busy = true
+        feedback = null
+        scope.launch {
+            try {
+                val res = WinmuxRepository.apiClient.pair(
+                    lanUrl = targetLan.trim(),
+                    remoteUrl = targetRemote.trim(),
+                    code = targetCode.trim(),
+                    deviceName = targetDeviceName.trim(),
+                    certFingerprint = targetFp.trim(),
+                )
+                WinmuxRepository.updateConfig(
+                    BridgeConfig(
+                        lanUrl = res.lanUrl.ifBlank { targetLan.trim() },
+                        remoteUrl = res.remoteUrl.ifBlank { targetRemote.trim() },
+                        token = res.token,
+                        certFingerprint = res.certFingerprint.ifBlank { targetFp.trim() },
+                        hostname = res.hostname,
+                        deviceName = targetDeviceName.trim(),
+                    )
+                )
+                pairingCode = ""
+                feedback = "配对成功！"
+                onPaired()
+            } catch (e: Exception) {
+                feedback = e.message ?: "配对失败"
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    val qrScanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        val scanned = result.contents?.trim()
+        if (!scanned.isNullOrBlank()) {
+            val parsed = SettingsRepository.parsePairUri(scanned)
+            if (parsed != null) {
+                if (parsed.lanUrl.isNotBlank()) lanUrl = parsed.lanUrl
+                if (parsed.remoteUrl.isNotBlank()) remoteUrl = parsed.remoteUrl
+                if (parsed.certFingerprint.isNotBlank()) certFingerprint = parsed.certFingerprint
+                if (parsed.code.isNotBlank()) pairingCode = parsed.code
+                pairUriInput = scanned
+                if (parsed.code.length == 6 && (parsed.lanUrl.isNotBlank() || parsed.remoteUrl.isNotBlank())) {
+                    feedback = "扫码成功，正在自动建立加密连接..."
+                    executePairing(
+                        targetLan = parsed.lanUrl.ifBlank { lanUrl },
+                        targetRemote = parsed.remoteUrl.ifBlank { remoteUrl },
+                        targetCode = parsed.code,
+                        targetFp = parsed.certFingerprint.ifBlank { certFingerprint },
+                        targetDeviceName = deviceName,
+                    )
+                } else {
+                    feedback = "已识别二维码并填充配置，请确认后点击配对"
+                }
+            } else {
+                feedback = "未识别到有效的 Winmux 配对二维码（winmux://pair?...）"
+            }
         }
     }
 
@@ -180,10 +254,28 @@ fun PairingScreen(
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("配对本机 Winmux Bridge", fontWeight = FontWeight.SemiBold, color = WinmuxColors.TextPrimary)
                 Text(
-                    "在电脑运行 node tools/remote-bridge/bin/winmux-bridge.mjs 后，直接粘贴 Pair URI 或填写局域网/Tailscale 地址和 6 位配对码。",
+                    "在电脑端 Winmux 左侧栏顶部点击「远程控制」启动 Bridge，直接扫二维码即可一秒完成加密配对。",
                     color = WinmuxColors.TextSecondary,
                     fontSize = 12.sp,
                 )
+
+                Button(
+                    enabled = !busy,
+                    onClick = {
+                        val opts = ScanOptions().apply {
+                            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                            setPrompt("对准电脑端 Winmux 远程控制二维码")
+                            setBeepEnabled(false)
+                            setOrientationLocked(false)
+                        }
+                        qrScanLauncher.launch(opts)
+                    },
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                ) {
+                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("扫描桌面端二维码一键配对")
+                }
 
                 OutlinedTextField(
                     value = pairUriInput,
@@ -253,36 +345,7 @@ fun PairingScreen(
                 Button(
                     enabled = !busy && pairingCode.length == 6 && (lanUrl.isNotBlank() || remoteUrl.isNotBlank()),
                     onClick = {
-                        busy = true
-                        feedback = null
-                        scope.launch {
-                            try {
-                                val res = WinmuxRepository.apiClient.pair(
-                                    lanUrl = lanUrl.trim(),
-                                    remoteUrl = remoteUrl.trim(),
-                                    code = pairingCode.trim(),
-                                    deviceName = deviceName.trim(),
-                                    certFingerprint = certFingerprint.trim(),
-                                )
-                                WinmuxRepository.updateConfig(
-                                    BridgeConfig(
-                                        lanUrl = res.lanUrl.ifBlank { lanUrl.trim() },
-                                        remoteUrl = res.remoteUrl.ifBlank { remoteUrl.trim() },
-                                        token = res.token,
-                                        certFingerprint = res.certFingerprint.ifBlank { certFingerprint.trim() },
-                                        hostname = res.hostname,
-                                        deviceName = deviceName.trim(),
-                                    )
-                                )
-                                pairingCode = ""
-                                feedback = "配对成功！"
-                                onPaired()
-                            } catch (e: Exception) {
-                                feedback = e.message ?: "配对失败"
-                            } finally {
-                                busy = false
-                            }
-                        }
+                        executePairing(lanUrl, remoteUrl, pairingCode, certFingerprint, deviceName)
                     },
                     modifier = Modifier.fillMaxWidth().height(46.dp),
                 ) {

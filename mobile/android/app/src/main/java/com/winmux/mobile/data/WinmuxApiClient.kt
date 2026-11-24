@@ -19,6 +19,7 @@ import okhttp3.WebSocketListener
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.net.URI
 import java.net.URLEncoder
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -77,6 +78,22 @@ class WinmuxApiClient {
     @Volatile
     private var activeEndpoint: ResolvedEndpoint? = null
 
+    private fun shouldPinSelfSigned(baseUrl: String): Boolean {
+        if (!baseUrl.startsWith("https://", ignoreCase = true)) return false
+        val host = runCatching { URI(baseUrl).host }.getOrNull()?.trim('[', ']')?.lowercase() ?: return true
+        if (host.isBlank() || host == "localhost" || host.endsWith(".local")) return true
+        // IPv6 literal contains ':' ; IPv4 consists solely of digits and dots.
+        if (host.contains(':')) return true
+        return host.all { it.isDigit() || it == '.' }
+    }
+
+    private fun clientForUrl(baseUrl: String, fingerprint: String, probe: Boolean): OkHttpClient {
+        if (!shouldPinSelfSigned(baseUrl)) {
+            return if (probe) defaultProbeClient else defaultApiClient
+        }
+        return clientFor(fingerprint, probe)
+    }
+
     private fun clientFor(fingerprint: String, probe: Boolean): OkHttpClient {
         val clean = fingerprint.trim().lowercase().replace(":", "")
         if (clean.length != 64) {
@@ -133,10 +150,10 @@ class WinmuxApiClient {
         if (candidates.isEmpty()) {
             throw IOException("尚未配置电脑端 Bridge 地址")
         }
-        val probe = clientFor(config.certFingerprint, probe = true)
         var lastError: Exception? = null
         for (candidate in candidates) {
             try {
+                val probe = clientForUrl(candidate.baseUrl, config.certFingerprint, probe = true)
                 val req = Request.Builder().url("${candidate.baseUrl}/api/health").get().build()
                 probe.newCall(req).execute().use { res ->
                     if (res.isSuccessful) {
@@ -174,7 +191,7 @@ class WinmuxApiClient {
                 .post(bodyJson.toString().toRequestBody(jsonMediaType))
                 .build()
 
-            clientFor(certFingerprint, probe = false).newCall(req).execute().use { res ->
+            clientForUrl(endpoint.baseUrl, certFingerprint, probe = false).newCall(req).execute().use { res ->
                 val raw = res.body?.string().orEmpty()
                 if (!res.isSuccessful) {
                     val msg = runCatching { JSONObject(raw).optString("message") }.getOrNull()
@@ -368,7 +385,7 @@ class WinmuxApiClient {
             .url(wsUrl)
             .header("Authorization", "Bearer $token")
             .build()
-        return clientFor(certFingerprint, probe = false).newWebSocket(req, listener)
+        return clientForUrl(endpoint.baseUrl, certFingerprint, probe = false).newWebSocket(req, listener)
     }
 
     private fun executeAuthed(
@@ -385,10 +402,10 @@ class WinmuxApiClient {
         }
         if (ordered.isEmpty()) throw IOException("未配置电脑端地址")
 
-        val client = clientFor(config.certFingerprint, probe = false)
         var lastException: Exception? = null
         for (endpoint in ordered) {
             try {
+                val client = clientForUrl(endpoint.baseUrl, config.certFingerprint, probe = false)
                 val builder = Request.Builder()
                     .url("${endpoint.baseUrl}$path")
                     .header("Authorization", "Bearer ${config.token}")

@@ -226,6 +226,21 @@ namespace winrt::TerminalApp::implementation
 
         std::optional<std::filesystem::path> _resolveGitExecutable() noexcept
         {
+            static std::mutex cacheMutex;
+            static std::optional<std::filesystem::path> cachedPath;
+            {
+                const std::scoped_lock lock{ cacheMutex };
+                if (cachedPath)
+                {
+                    const auto attributes = GetFileAttributesW(cachedPath->c_str());
+                    if (attributes != INVALID_FILE_ATTRIBUTES && WI_IsFlagClear(attributes, FILE_ATTRIBUTE_DIRECTORY))
+                    {
+                        return cachedPath;
+                    }
+                    cachedPath.reset();
+                }
+            }
+
             try
             {
                 const auto pathLength = GetEnvironmentVariableW(L"PATH", nullptr, 0);
@@ -261,6 +276,8 @@ namespace winrt::TerminalApp::implementation
                             WI_IsFlagClear(attributes, FILE_ATTRIBUTE_DIRECTORY) &&
                             _validPathSyntax(candidate))
                         {
+                            const std::scoped_lock lock{ cacheMutex };
+                            cachedPath = candidate;
                             return candidate;
                         }
                     }
@@ -280,6 +297,18 @@ namespace winrt::TerminalApp::implementation
 
         std::vector<wchar_t> _gitEnvironment()
         {
+            static std::mutex envCacheMutex;
+            static std::vector<wchar_t> cachedBlock;
+            static std::chrono::steady_clock::time_point cachedAt{};
+            const auto now = std::chrono::steady_clock::now();
+            {
+                const std::scoped_lock lock{ envCacheMutex };
+                if (!cachedBlock.empty() && now - cachedAt < std::chrono::seconds{ 30 })
+                {
+                    return cachedBlock;
+                }
+            }
+
             std::vector<std::wstring> entries;
             const auto environment = GetEnvironmentStringsW();
             if (!environment)
@@ -321,6 +350,11 @@ namespace winrt::TerminalApp::implementation
                 block.push_back(L'\0');
             }
             block.push_back(L'\0');
+            {
+                const std::scoped_lock lock{ envCacheMutex };
+                cachedBlock = block;
+                cachedAt = now;
+            }
             return block;
         }
 

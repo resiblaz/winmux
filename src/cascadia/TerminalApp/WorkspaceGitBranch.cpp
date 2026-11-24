@@ -4,6 +4,9 @@
 #include "pch.h"
 #include "WorkspaceGitBranch.h"
 
+#include <filesystem>
+#include <fstream>
+
 namespace winrt::TerminalApp::implementation
 {
     namespace
@@ -57,6 +60,165 @@ namespace winrt::TerminalApp::implementation
             {
                 _cache.erase(oldest);
             }
+        }
+
+        bool _isHexObjectId(const std::string_view text) noexcept
+        {
+            if (text.size() != 40 && text.size() != 64)
+            {
+                return false;
+            }
+            for (const auto ch : text)
+            {
+                const bool isHex = (ch >= '0' && ch <= '9') ||
+                                   (ch >= 'a' && ch <= 'f') ||
+                                   (ch >= 'A' && ch <= 'F');
+                if (!isHex)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        std::optional<std::string> _readSmallUtf8File(const std::filesystem::path& filePath, const size_t maxBytes) noexcept
+        try
+        {
+            std::ifstream input{ filePath, std::ios::binary };
+            if (!input)
+            {
+                return std::nullopt;
+            }
+            std::string content(maxBytes + 1, '\0');
+            input.read(content.data(), static_cast<std::streamsize>(maxBytes + 1));
+            const auto bytesRead = static_cast<size_t>(input.gcount());
+            if (bytesRead == 0 || bytesRead > maxBytes)
+            {
+                return std::nullopt;
+            }
+            content.resize(bytesRead);
+            return content;
+        }
+        catch (...)
+        {
+            return std::nullopt;
+        }
+
+        // Fast zero-process path: walk up parent directories to locate `.git` (directory or
+        // worktree/submodule `gitdir:` pointer file) and read `<gitdir>/HEAD` directly (<0.2ms).
+        // Returns std::nullopt only when an exotic/unrecognized format requires git.exe fallback.
+        std::optional<WorkspaceGitBranchResult> _tryQueryFastFromGitDir(const std::wstring_view directory) noexcept
+        try
+        {
+            std::wstring normalized{ directory };
+            while (normalized.size() > 3 && (normalized.back() == L'\\' || normalized.back() == L'/'))
+            {
+                normalized.pop_back();
+            }
+            std::filesystem::path cursor = std::filesystem::path{ normalized }.lexically_normal();
+            if (cursor.empty())
+            {
+                return WorkspaceGitBranchResult{};
+            }
+
+            std::filesystem::path repoRoot;
+            std::filesystem::path gitDir;
+            for (size_t depth = 0; depth < 64 && !cursor.empty(); ++depth)
+            {
+                const auto candidate = cursor / L".git";
+                const auto attrs = GetFileAttributesW(candidate.c_str());
+                if (attrs != INVALID_FILE_ATTRIBUTES)
+                {
+                    repoRoot = cursor;
+                    if (WI_IsFlagSet(attrs, FILE_ATTRIBUTE_DIRECTORY))
+                    {
+                        gitDir = candidate;
+                    }
+                    else
+                    {
+                        const auto gitFile = _readSmallUtf8File(candidate, 4096);
+                        if (!gitFile)
+                        {
+                            return std::nullopt;
+                        }
+                        auto line = _trimLine(std::string_view{ *gitFile });
+                        if (const auto nl = line.find('\n'); nl != std::string_view::npos)
+                        {
+                            line = _trimLine(line.substr(0, nl));
+                        }
+                        constexpr std::string_view gitDirPrefix{ "gitdir:" };
+                        if (!line.starts_with(gitDirPrefix))
+                        {
+                            return std::nullopt;
+                        }
+                        const auto rawTarget = _trimLine(line.substr(gitDirPrefix.size()));
+                        if (rawTarget.empty())
+                        {
+                            return std::nullopt;
+                        }
+                        const auto targetPath = std::filesystem::path{ winrt::to_hstring(rawTarget).c_str() };
+                        gitDir = (targetPath.is_absolute() ? targetPath : (repoRoot / targetPath)).lexically_normal();
+                    }
+                    break;
+                }
+
+                const auto parent = cursor.parent_path();
+                if (parent == cursor)
+                {
+                    break;
+                }
+                cursor = parent;
+            }
+
+            if (gitDir.empty())
+            {
+                return WorkspaceGitBranchResult{};
+            }
+
+            const auto headContent = _readSmallUtf8File(gitDir / L"HEAD", 1024);
+            if (!headContent)
+            {
+                return std::nullopt;
+            }
+
+            auto line = _trimLine(std::string_view{ *headContent });
+            if (const auto nl = line.find('\n'); nl != std::string_view::npos)
+            {
+                line = _trimLine(line.substr(0, nl));
+            }
+            if (line.empty())
+            {
+                return std::nullopt;
+            }
+
+            std::string_view branch;
+            constexpr std::string_view headsPrefix{ "ref: refs/heads/" };
+            if (line.starts_with(headsPrefix))
+            {
+                branch = line.substr(headsPrefix.size());
+                if (branch.empty())
+                {
+                    return std::nullopt;
+                }
+            }
+            else if (_isHexObjectId(line))
+            {
+                branch = "HEAD";
+            }
+            else
+            {
+                return std::nullopt;
+            }
+
+            return WorkspaceGitBranchResult{
+                .RepositoryRoot = winrt::hstring{ repoRoot.native() },
+                .Branch = winrt::to_hstring(branch),
+                .IsRepository = true,
+            };
+        }
+        catch (...)
+        {
+            return std::nullopt;
         }
     }
 
@@ -193,6 +355,11 @@ namespace winrt::TerminalApp::implementation
 
     WorkspaceGitBranchResult WorkspaceGitBranch::_Query(const std::wstring_view directory, const std::chrono::milliseconds timeout)
     {
+        if (const auto fastResult = _tryQueryFastFromGitDir(directory))
+        {
+            return *fastResult;
+        }
+
         constexpr DWORD PipeBufferSize{ 64 * 1024 };
         constexpr size_t MaximumOutputBytes{ 8192 };
 

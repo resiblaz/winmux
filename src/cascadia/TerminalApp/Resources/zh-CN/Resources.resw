@@ -1403,13 +1403,13 @@
     <value>展开全部工作区</value>
   </data>
   <data name="WorkspaceSidebar_FilterAll" xml:space="preserve">
-    <value>全部 ({0})</value>
+    <value>全部 {0}</value>
   </data>
   <data name="WorkspaceSidebar_FilterAttention" xml:space="preserve">
-    <value>待关注 ({0})</value>
+    <value>待关注 {0}</value>
   </data>
   <data name="WorkspaceSidebar_FilterRunning" xml:space="preserve">
-    <value>运行中 ({0})</value>
+    <value>运行中 {0}</value>
   </data>
   <data name="WorkspaceSidebar_PaneCountBadge" xml:space="preserve">
     <value>{0}屏</value>

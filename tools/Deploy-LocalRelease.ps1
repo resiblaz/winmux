@@ -9,7 +9,16 @@ param(
 
     [switch]$BuildOnly,
 
-    [switch]$IncludeWorkspaceTests
+    [switch]$IncludeWorkspaceTests,
+
+    [switch]$IncludeUiTests,
+
+    [ValidateRange(0, 64)]
+    [int]$MaxCpuCount = 0,
+
+    [switch]$NormalPriority,
+
+    [switch]$ForceRestore
 )
 
 Set-StrictMode -Version Latest
@@ -26,7 +35,70 @@ $openConsoleModule = Join-Path $repoRoot 'tools\OpenConsole.psm1'
 $solution = Join-Path $repoRoot 'OpenConsole.slnx'
 $nuget = Join-Path $repoRoot 'dep\nuget\nuget.exe'
 $nugetPackages = Join-Path $repoRoot 'dep\nuget\packages.config'
+$packagesDirectory = Join-Path $repoRoot 'packages'
+$packageAssets = Join-Path $repoRoot 'src\cascadia\CascadiaPackage\obj\project.assets.json'
+$restoreStamp = Join-Path $repoRoot "obj\$Platform\$configuration\.nuget-restore.stamp"
 $oldClMpCount = $env:CL_MPCount
+
+function Resolve-BuildCpuCount
+{
+    param([int]$Requested)
+
+    if ($Requested -gt 0)
+    {
+        return $Requested
+    }
+
+    # Keep CPU headroom by default (e.g. 4 of 16 logical threads) so interactive apps and games stay smooth.
+    $defaultCount = [int][Math]::Floor([Environment]::ProcessorCount / 4)
+    return [Math]::Clamp($defaultCount, 2, 6)
+}
+
+function Test-NuGetRestoreUpToDate
+{
+    if (-not (Test-Path -LiteralPath $packagesDirectory -PathType Container))
+    {
+        return $false
+    }
+    if (-not (Get-ChildItem -LiteralPath $packagesDirectory -Directory -ErrorAction SilentlyContinue | Select-Object -First 1))
+    {
+        return $false
+    }
+    if (-not (Test-Path -LiteralPath $packageAssets -PathType Leaf))
+    {
+        return $false
+    }
+
+    $referenceTime = if (Test-Path -LiteralPath $restoreStamp -PathType Leaf)
+    {
+        (Get-Item -LiteralPath $restoreStamp).LastWriteTimeUtc
+    }
+    else
+    {
+        (Get-Item -LiteralPath $packageAssets).LastWriteTimeUtc
+    }
+
+    $restoreInputs = @(
+        $solution,
+        (Join-Path $repoRoot 'NuGet.Config'),
+        $nugetPackages,
+        (Join-Path $repoRoot '.nuget\packages.config'),
+        (Join-Path $repoRoot 'build\packages.config'),
+        (Join-Path $repoRoot 'src\common.nugetversions.props'),
+        (Join-Path $repoRoot 'src\cascadia\CascadiaPackage\CascadiaPackage.wapproj')
+    )
+
+    foreach ($inputPath in $restoreInputs)
+    {
+        if ((Test-Path -LiteralPath $inputPath -PathType Leaf) -and
+            (Get-Item -LiteralPath $inputPath).LastWriteTimeUtc -gt $referenceTime)
+        {
+            return $false
+        }
+    }
+
+    return $true
+}
 
 function Invoke-CheckedCommand
 {
@@ -45,6 +117,45 @@ function Invoke-CheckedCommand
     }
 }
 
+function Invoke-BuildCommand
+{
+    param(
+        [Parameter(Mandatory)]
+        [string]$Executable,
+
+        [Parameter(Mandatory)]
+        [string[]]$Arguments,
+
+        [switch]$UseBelowNormalPriority
+    )
+
+    if (-not $UseBelowNormalPriority)
+    {
+        Invoke-CheckedCommand $Executable @Arguments
+        return
+    }
+
+    $currentProcess = [System.Diagnostics.Process]::GetCurrentProcess()
+    $previousPriority = $currentProcess.PriorityClass
+    $priorityChanged = $false
+    try
+    {
+        if ($previousPriority -ne [System.Diagnostics.ProcessPriorityClass]::BelowNormal)
+        {
+            $currentProcess.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::BelowNormal
+            $priorityChanged = $true
+        }
+        Invoke-CheckedCommand $Executable @Arguments
+    }
+    finally
+    {
+        if ($priorityChanged)
+        {
+            $currentProcess.PriorityClass = $previousPriority
+        }
+    }
+}
+
 Push-Location $repoRoot
 try
 {
@@ -53,25 +164,41 @@ try
 
     if (-not $SkipBuild)
     {
-        Write-Host 'Restoring dependencies...' -ForegroundColor Cyan
-        Invoke-CheckedCommand $nuget restore $solution
-        Invoke-CheckedCommand $nuget restore $nugetPackages
+        if ($ForceRestore -or -not (Test-NuGetRestoreUpToDate))
+        {
+            Write-Host 'Restoring dependencies...' -ForegroundColor Cyan
+            Invoke-CheckedCommand $nuget restore $solution
+            Invoke-CheckedCommand $nuget restore $nugetPackages
+
+            $stampDirectory = Split-Path -Path $restoreStamp -Parent
+            New-Item -ItemType Directory -Path $stampDirectory -Force | Out-Null
+            Set-Content -LiteralPath $restoreStamp -Value ([DateTime]::UtcNow.ToString('o')) -Encoding Ascii
+        }
+        else
+        {
+            Write-Host 'NuGet packages are up to date; skipping restore (pass -ForceRestore to force).' -ForegroundColor DarkCyan
+        }
 
         $buildTargets = [System.Collections.Generic.List[string]]::new()
         $buildTargets.Add('Terminal\CascadiaPackage')
         if ($IncludeWorkspaceTests)
         {
             $buildTargets.Add('Terminal\Tests\TerminalApp_LocalTests')
-            $buildTargets.Add('Terminal\Tests\TestHostApp')
+            if ($IncludeUiTests)
+            {
+                $buildTargets.Add('Terminal\Tests\TestHostApp')
+            }
             $buildTargets.Add('Terminal\Tests\SettingsModel_UnitTests')
             $buildTargets.Add('Terminal\Tests\Control_UnitTests')
             $buildTargets.Add('Terminal\Tests\UnitTests')
             $buildTargets.Add('Terminal\Tests\TerminalApp_UnitTests')
         }
 
+        $resolvedMaxCpuCount = Resolve-BuildCpuCount -Requested $MaxCpuCount
+        $priorityLabel = if ($NormalPriority) { 'Normal' } else { 'BelowNormal' }
         $buildDescription = if ($IncludeWorkspaceTests) { 'package and Workspace native tests' } else { 'package' }
-        Write-Host "Building the optimized local Release $buildDescription..." -ForegroundColor Cyan
-        $env:CL_MPCount = '1'
+        Write-Host "Building the optimized local Release $buildDescription (jobs=$resolvedMaxCpuCount, priority=$priorityLabel)..." -ForegroundColor Cyan
+        $env:CL_MPCount = "$resolvedMaxCpuCount"
         $msbuild = (Get-Command msbuild.exe -ErrorAction Stop).Source
         $buildArguments = @(
             $solution
@@ -82,11 +209,13 @@ try
             '/p:AppxPackageSigningEnabled=false'
             '/p:AppxBundle=Never'
             '/p:AppxSymbolPackageEnabled=false'
-            '/m:1'
+            '/p:UseMultiToolTask=true'
+            '/p:EnforceProcessCountAcrossBuilds=true'
+            "/m:$resolvedMaxCpuCount"
             '/nologo'
             '/verbosity:minimal'
         )
-        Invoke-CheckedCommand $msbuild @buildArguments
+        Invoke-BuildCommand -Executable $msbuild -Arguments $buildArguments -UseBelowNormalPriority:(-not $NormalPriority)
     }
 
     if (-not (Test-Path -LiteralPath $appRecipe -PathType Leaf))

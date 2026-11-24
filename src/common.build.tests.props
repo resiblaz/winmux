@@ -8,4 +8,15 @@
   <PropertyGroup>
     <TerminalTAEF>true</TerminalTAEF>
   </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <!-- Test binaries do not ship. Skipping /GL on test translation units and using incremental LTCG
+           avoids full whole-program re-optimization on every local edit while linking cleanly against
+           /GL static libraries shared with CascadiaPackage. -->
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+    </ClCompile>
+    <Link>
+      <LinkTimeCodeGeneration>UseFastLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+    </Link>
+  </ItemDefinitionGroup>
 </Project>

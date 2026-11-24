@@ -50,7 +50,7 @@ $work = New-ReleaseTempDirectory
 try
 {
     # The gate owns the single package/native-test build graph and all tests.
-    & (Get-Command pwsh -ErrorAction Stop).Source -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'test-workspace-release.ps1')
+    & (Get-Command pwsh -ErrorAction Stop).Source -NoLogo -NoProfile -File (Join-Path $PSScriptRoot 'test-workspace-release.ps1') -IncludeUiTests -IncludeHookTests
     if ($LASTEXITCODE -ne 0) { throw "The full release gate failed ($LASTEXITCODE)." }
     $gateCompleted = [DateTime]::UtcNow.ToString('o')
     $null = Assert-WinmuxReleaseSource $repoRoot $commit

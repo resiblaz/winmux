@@ -11,7 +11,18 @@ param(
 
     [switch]$SkipHookTests,
 
-    [switch]$SkipCliSmoke
+    [switch]$IncludeHookTests,
+
+    [switch]$SkipCliSmoke,
+
+    [switch]$IncludeUiTests,
+
+    [ValidateRange(0, 64)]
+    [int]$MaxCpuCount = 0,
+
+    [switch]$NormalPriority,
+
+    [switch]$ForceRestore
 )
 
 Set-StrictMode -Version Latest
@@ -22,20 +33,37 @@ $configuration = 'Release'
 $openConsoleModule = Join-Path $repoRoot 'tools\OpenConsole.psm1'
 $packageBuild = Join-Path $repoRoot 'tools\Deploy-LocalRelease.ps1'
 $hookTests = Join-Path $repoRoot '.codex\hooks\test-workspace-history.ps1'
+$localTestsDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\LocalTests_TerminalApp"
 $testHostDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\TestHostApp"
 $settingsTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_SettingsModel"
 $controlTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_Control"
 $coreTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_TerminalCore"
 $appUnitTestDirectory = Join-Path $repoRoot "bin\$Platform\$configuration\UnitTests_TerminalApp"
 $wt = Join-Path $repoRoot "src\cascadia\CascadiaPackage\bin\$Platform\$configuration\wmx.exe"
-$workspaceTestTargets = @(
+$workspaceTestTargets = [System.Collections.Generic.List[string]]@(
     'Terminal\Tests\TerminalApp_LocalTests',
-    'Terminal\Tests\TestHostApp',
     'Terminal\Tests\SettingsModel_UnitTests',
     'Terminal\Tests\Control_UnitTests',
     'Terminal\Tests\UnitTests',
     'Terminal\Tests\TerminalApp_UnitTests')
+if ($IncludeUiTests)
+{
+    $workspaceTestTargets.Insert(1, 'Terminal\Tests\TestHostApp')
+}
 $oldClMpCount = $env:CL_MPCount
+
+function Resolve-BuildCpuCount
+{
+    param([int]$Requested)
+
+    if ($Requested -gt 0)
+    {
+        return $Requested
+    }
+
+    $defaultCount = [int][Math]::Floor([Environment]::ProcessorCount / 4)
+    return [Math]::Clamp($defaultCount, 2, 6)
+}
 
 function Invoke-CheckedCommand
 {
@@ -51,6 +79,45 @@ function Invoke-CheckedCommand
     if ($LASTEXITCODE -ne 0)
     {
         throw "Command failed with exit code $($LASTEXITCODE): $Executable $($Arguments -join ' ')"
+    }
+}
+
+function Invoke-BuildCommand
+{
+    param(
+        [Parameter(Mandatory)]
+        [string]$Executable,
+
+        [Parameter(Mandatory)]
+        [string[]]$Arguments,
+
+        [switch]$UseBelowNormalPriority
+    )
+
+    if (-not $UseBelowNormalPriority)
+    {
+        Invoke-CheckedCommand -Executable $Executable -Arguments $Arguments
+        return
+    }
+
+    $currentProcess = [System.Diagnostics.Process]::GetCurrentProcess()
+    $previousPriority = $currentProcess.PriorityClass
+    $priorityChanged = $false
+    try
+    {
+        if ($previousPriority -ne [System.Diagnostics.ProcessPriorityClass]::BelowNormal)
+        {
+            $currentProcess.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::BelowNormal
+            $priorityChanged = $true
+        }
+        Invoke-CheckedCommand -Executable $Executable -Arguments $Arguments
+    }
+    finally
+    {
+        if ($priorityChanged)
+        {
+            $currentProcess.PriorityClass = $previousPriority
+        }
     }
 }
 
@@ -119,11 +186,33 @@ function Invoke-TaefSelection
         [string]$TestDll,
 
         [Parameter(Mandatory)]
-        [string]$Pattern
+        [string[]]$Patterns,
+
+        [string]$Label
     )
 
-    Write-Host "TAEF: $Pattern" -ForegroundColor Cyan
-    Invoke-CheckedCommand -Executable $Taef -Arguments @($TestDll, "/name:$Pattern")
+    if ($Patterns.Count -eq 1 -and $Patterns[0] -eq '*')
+    {
+        $display = if ($Label) { $Label } else { '*' }
+        Write-Host "TAEF: $display" -ForegroundColor Cyan
+        Invoke-CheckedCommand -Executable $Taef -Arguments @($TestDll, '/name:*')
+        return
+    }
+
+    foreach ($pattern in $Patterns)
+    {
+        if ($pattern -match "[\s']")
+        {
+            throw "TAEF pattern contains unsupported whitespace or quotes: $pattern"
+        }
+    }
+
+    # Combine patterns into a single whitespace-free /select query so PowerShell passes it
+    # verbatim to TE.exe without outer quotes and each test host only cold-starts once.
+    $query = ($Patterns | ForEach-Object { "@Name='$_'" }) -join 'or'
+    $display = if ($Label) { "$Label ($($Patterns.Count) patterns)" } else { $Patterns -join ', ' }
+    Write-Host "TAEF: $display" -ForegroundColor Cyan
+    Invoke-CheckedCommand -Executable $Taef -Arguments @($TestDll, "/select:$query")
 }
 
 Push-Location $repoRoot
@@ -183,12 +272,25 @@ try
 
     if (-not $SkipHookTests)
     {
-        Write-Host 'Running durable Hook tests...' -ForegroundColor Cyan
-        Invoke-CheckedCommand -Executable (Get-Command pwsh.exe -ErrorAction Stop).Source -Arguments @(
-            '-NoLogo',
-            '-NoProfile',
-            '-File',
-            $hookTests)
+        $hookChanges = @(& $git status --porcelain -- '.codex/hooks' '.codex/hooks.json')
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw 'Failed to inspect .codex/hooks git status.'
+        }
+
+        if ($IncludeHookTests -or $hookChanges.Count -gt 0)
+        {
+            Write-Host 'Running durable Hook tests...' -ForegroundColor Cyan
+            Invoke-CheckedCommand -Executable (Get-Command pwsh.exe -ErrorAction Stop).Source -Arguments @(
+                '-NoLogo',
+                '-NoProfile',
+                '-File',
+                $hookTests)
+        }
+        else
+        {
+            Write-Host 'Skipping durable Hook tests (no .codex/hooks changes; pass -IncludeHookTests to run).' -ForegroundColor DarkCyan
+        }
     }
 
     if (-not $SkipPackageBuild)
@@ -201,10 +303,27 @@ try
             '-Platform',
             $Platform,
             '-BuildOnly')
+        if ($MaxCpuCount -gt 0)
+        {
+            $buildArguments.Add('-MaxCpuCount')
+            $buildArguments.Add("$MaxCpuCount")
+        }
+        if ($NormalPriority)
+        {
+            $buildArguments.Add('-NormalPriority')
+        }
+        if ($ForceRestore)
+        {
+            $buildArguments.Add('-ForceRestore')
+        }
         if (-not $SkipTestBuild)
         {
             Write-Host 'Building the unified Release/MSIX and native-test graph...' -ForegroundColor Cyan
             $buildArguments.Add('-IncludeWorkspaceTests')
+            if ($IncludeUiTests)
+            {
+                $buildArguments.Add('-IncludeUiTests')
+            }
         }
         else
         {
@@ -222,8 +341,10 @@ try
 
     if ($SkipPackageBuild -and -not $SkipTestBuild)
     {
-        Write-Host 'Building Workspace/History native tests...' -ForegroundColor Cyan
-        $env:CL_MPCount = '1'
+        $resolvedMaxCpuCount = Resolve-BuildCpuCount -Requested $MaxCpuCount
+        $priorityLabel = if ($NormalPriority) { 'Normal' } else { 'BelowNormal' }
+        Write-Host "Building Workspace/History native tests (jobs=$resolvedMaxCpuCount, priority=$priorityLabel)..." -ForegroundColor Cyan
+        $env:CL_MPCount = "$resolvedMaxCpuCount"
         $msbuild = (Get-Command msbuild.exe -ErrorAction Stop).Source
         $buildArguments = @(
             (Join-Path $repoRoot 'OpenConsole.slnx'),
@@ -234,29 +355,33 @@ try
             '/p:AppxPackageSigningEnabled=false',
             '/p:AppxBundle=Never',
             '/p:AppxSymbolPackageEnabled=false',
-            '/m:1',
+            '/p:UseMultiToolTask=true',
+            '/p:EnforceProcessCountAcrossBuilds=true',
+            "/m:$resolvedMaxCpuCount",
             '/nologo',
             '/verbosity:minimal')
-        Invoke-CheckedCommand -Executable $msbuild -Arguments $buildArguments
+        Invoke-BuildCommand -Executable $msbuild -Arguments $buildArguments -UseBelowNormalPriority:(-not $NormalPriority)
     }
 
     if (-not $SkipNativeTests)
     {
+        $headlessLocalTests = Join-Path $localTestsDirectory 'TerminalApp.LocalTests.dll'
         $terminalAppTests = Join-Path $testHostDirectory 'TerminalApp.LocalTests.dll'
         $settingsTests = Join-Path $settingsTestDirectory 'SettingsModel.Unit.Tests.dll'
         $controlTests = Join-Path $controlTestDirectory 'Control.Unit.Tests.dll'
         $coreTests = Join-Path $coreTestDirectory 'Terminal.Core.Unit.Tests.dll'
         $appUnitTests = Join-Path $appUnitTestDirectory 'Terminal.App.Unit.Tests.dll'
         $taef = @(
-            (Join-Path $testHostDirectory 'TE.exe'),
             (Join-Path $settingsTestDirectory 'TE.exe'),
+            (Join-Path $testHostDirectory 'TE.exe'),
             (Get-ChildItem -LiteralPath (Join-Path $repoRoot 'packages') -Recurse -Filter 'TE.exe' -File |
                 Where-Object { $_.FullName -match '\\Binaries\\x64\\TE\.exe$' } |
                 Select-Object -First 1 -ExpandProperty FullName)
         ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1
 
         if (-not $taef -or
-            -not (Test-Path -LiteralPath $terminalAppTests -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $headlessLocalTests -PathType Leaf) -or
+            ($IncludeUiTests -and -not (Test-Path -LiteralPath $terminalAppTests -PathType Leaf)) -or
             -not (Test-Path -LiteralPath $settingsTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $controlTests -PathType Leaf) -or
             -not (Test-Path -LiteralPath $coreTests -PathType Leaf) -or
@@ -265,13 +390,26 @@ try
             throw 'Native test outputs are missing. Run without -SkipTestBuild.'
         }
 
-        Push-Location $testHostDirectory
+        Push-Location $localTestsDirectory
         try
         {
-            foreach ($pattern in @(
+            # WorkspaceGitMetadataTests runs in TE.ProcessHost.exe (no RunAs=UAP window or TestHostApp needed).
+            Invoke-TaefSelection -Taef $taef -TestDll $headlessLocalTests -Label 'TerminalApp.LocalTests (headless)' -Patterns @(
+                '*WorkspaceGitMetadataTests*')
+        }
+        finally
+        {
+            Pop-Location
+        }
+
+        if ($IncludeUiTests)
+        {
+            Push-Location $testHostDirectory
+            try
+            {
+                Invoke-TaefSelection -Taef $taef -TestDll $terminalAppTests -Label 'TerminalApp.LocalTests (UWP TestHostApp)' -Patterns @(
                     '*AgentHistoryStoreTests*',
                     '*CodexAppServerTests*',
-                    '*WorkspaceGitMetadataTests*',
                     '*WorkspaceSidebar*',
                     '*WorkspaceSurfaceShortcutActions*',
                     '*WorkspaceSwitchShortcutActions*',
@@ -285,33 +423,32 @@ try
                     '*TabTests*WorkspaceSnapshot*',
                     '*WorkspaceNotification*',
                     '*PaneAttentionState*',
-                    '*WorkspaceLayoutPersistsMetadata*'))
+                    '*WorkspaceLayoutPersistsMetadata*')
+            }
+            finally
             {
-                Invoke-TaefSelection -Taef $taef -TestDll $terminalAppTests -Pattern $pattern
+                Pop-Location
             }
         }
-        finally
+        else
         {
-            Pop-Location
+            Write-Host 'Skipping UWP TestHostApp UI tests in default headless mode (pass -IncludeUiTests to run them).' -ForegroundColor Yellow
         }
 
         Push-Location $settingsTestDirectory
         try
         {
-            foreach ($pattern in @(
-                    '*ApplicationStateTests*',
-                    '*WorkspaceSnapshotStoreTests*',
-                    '*WorkspaceSnapshotExchangeTests*',
-                    '*WorkspaceCommandlineTests*',
-                    '*WorkspaceActionsCanBeCustomized*',
-                    '*DefaultWorkspaceSurfaceBindings*',
-                    '*PortableInitialSettings*',
-                    '*VimModeSettings*',
-                    '*VimModeEntryBindings*',
-                    '*AgentHistoryRetentionSettings*'))
-            {
-                Invoke-TaefSelection -Taef $taef -TestDll $settingsTests -Pattern $pattern
-            }
+            Invoke-TaefSelection -Taef $taef -TestDll $settingsTests -Label 'SettingsModel.Unit.Tests' -Patterns @(
+                '*ApplicationStateTests*',
+                '*WorkspaceSnapshotStoreTests*',
+                '*WorkspaceSnapshotExchangeTests*',
+                '*WorkspaceCommandlineTests*',
+                '*WorkspaceActionsCanBeCustomized*',
+                '*DefaultWorkspaceSurfaceBindings*',
+                '*PortableInitialSettings*',
+                '*VimModeSettings*',
+                '*VimModeEntryBindings*',
+                '*AgentHistoryRetentionSettings*')
         }
         finally
         {
@@ -324,10 +461,8 @@ try
         Push-Location $controlTestDirectory
         try
         {
-            foreach ($pattern in @('*VimModeTests*', '*ControlCoreTests*', '*ControlInteractivityTests*'))
-            {
-                Invoke-TaefSelection -Taef $taef -TestDll $controlTests -Pattern $pattern
-            }
+            Invoke-TaefSelection -Taef $taef -TestDll $controlTests -Label 'Control.Unit.Tests (Winmux Vim)' -Patterns @(
+                '*VimModeTests*')
         }
         finally
         {
@@ -336,10 +471,9 @@ try
         Push-Location $coreTestDirectory
         try
         {
-            foreach ($pattern in @('*SelectionTest*', '*TerminalApiTest*'))
-            {
-                Invoke-TaefSelection -Taef $taef -TestDll $coreTests -Pattern $pattern
-            }
+            Invoke-TaefSelection -Taef $taef -TestDll $coreTests -Label 'Terminal.Core.Unit.Tests' -Patterns @(
+                '*SelectionTest*',
+                '*TerminalApiTest*')
         }
         finally
         {
@@ -348,9 +482,10 @@ try
         Push-Location $appUnitTestDirectory
         try
         {
-            # TerminalApp.UnitTests covers workspace automation, Git branch,
-            # listening-port and desktop-notification logic.
-            Invoke-TaefSelection -Taef $taef -TestDll $appUnitTests -Pattern '*'
+            # Run Winmux-owned unit suites (skip upstream FzfTests/JsonUtilsTests).
+            Invoke-TaefSelection -Taef $taef -TestDll $appUnitTests -Label 'Terminal.App.Unit.Tests (Winmux)' -Patterns @(
+                '*DesktopNotificationTests*',
+                '*Workspace*')
         }
         finally
         {
@@ -392,7 +527,14 @@ try
         }
     }
 
-    Write-Host 'Workspace release gate passed. Manual Narrator/DPI acceptance remains separate.' -ForegroundColor Green
+    if ($IncludeUiTests)
+    {
+        Write-Host 'Workspace release gate passed. Manual Narrator/DPI acceptance remains separate.' -ForegroundColor Green
+    }
+    else
+    {
+        Write-Host 'Workspace headless gate passed. Pass -IncludeUiTests to also run UWP TestHostApp UI tests.' -ForegroundColor Green
+    }
 }
 finally
 {

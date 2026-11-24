@@ -262,6 +262,26 @@ export class WinmuxClient {
     return this.call('workspace.create', {});
   }
 
+  async closeWorkspace(workspaceId) {
+    return this.call('workspace.close', { id: workspaceId });
+  }
+
+  async splitPane(workspaceId, surfaceId, paneId, direction = 'automatic', size = 0.5) {
+    const allowedDirections = new Set(['automatic', 'up', 'right', 'down', 'left']);
+    const normalizedDir = allowedDirections.has(String(direction).toLowerCase())
+      ? String(direction).toLowerCase()
+      : 'automatic';
+    const clampedSize = Math.min(Math.max(Number(size) || 0.5, 0.1), 0.9);
+    const params = {
+      workspaceId,
+      surfaceId,
+      paneId: Number(paneId),
+      direction: normalizedDir,
+      size: clampedSize,
+    };
+    return this.call('pane.split', params);
+  }
+
   async launchAgentTask({ workspaceId, directory, agent = 'claude', prompt = '', model = '' }) {
     let targetWsId = workspaceId;
     if (!targetWsId || targetWsId === 'new') {

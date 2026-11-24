@@ -103,6 +103,22 @@ function startMockWinmuxPipe() {
       } else if (req.method === 'pane.focus') {
         state.focused.push(req.params);
         result = { workspaceId: req.params.workspaceId };
+      } else if (req.method === 'pane.split') {
+        state.splits = state.splits || [];
+        state.splits.push(req.params);
+        const list = state.panesByWorkspace[req.params.workspaceId] || [];
+        const newPane = { id: list.length, surfaceId: req.params.surfaceId, active: true, title: 'Split Pane', hasActiveChild: false, activeProcessName: '', agentKind: 'terminal' };
+        list.push(newPane);
+        result = { workspaceId: req.params.workspaceId, pane: newPane };
+      } else if (req.method === 'workspace.select') {
+        state.selectedWorkspaces = state.selectedWorkspaces || [];
+        state.selectedWorkspaces.push(req.params.id);
+        result = { workspace: state.workspaces.find((w) => w.id === req.params.id) || null };
+      } else if (req.method === 'workspace.close') {
+        state.closedWorkspaces = state.closedWorkspaces || [];
+        state.closedWorkspaces.push(req.params.id);
+        state.workspaces = state.workspaces.filter((w) => w.id !== req.params.id);
+        result = { closed: true, workspaceId: req.params.id };
       } else if (req.method === 'workspace.create') {
         state.createdWorkspaces++;
         const id = '99999999-2222-4333-8444-555555555555';
@@ -299,6 +315,43 @@ test('pairing, Winmux Named Pipe snapshot/control, WebSocket push, and blocking 
     const persisted = JSON.parse(fs.readFileSync(persistedPath, 'utf8'));
     assert.equal(persisted.decisions.length, 1);
     assert.equal(persisted.decisions[0].status, 'resolved');
+
+    // 11. Pane split + workspace select/close + paired device list
+    const splitRes = await fetch(`${baseUrl}/api/terminal/split`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        workspaceId: '11111111-2222-4333-8444-555555555555',
+        surfaceId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+        paneId: 0,
+        direction: 'right',
+      }),
+    });
+    assert.equal(splitRes.status, 200);
+    assert.equal(mockPipe.state.splits.length, 1);
+    assert.equal(mockPipe.state.splits[0].direction, 'right');
+
+    const selectRes = await fetch(`${baseUrl}/api/workspaces/select`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ workspaceId: '11111111-2222-4333-8444-555555555555' }),
+    });
+    assert.equal(selectRes.status, 200);
+    assert.equal(mockPipe.state.selectedWorkspaces.at(-1), '11111111-2222-4333-8444-555555555555');
+
+    const closeRes = await fetch(`${baseUrl}/api/workspaces/close`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ workspaceId: '99999999-2222-4333-8444-555555555555' }),
+    });
+    assert.equal(closeRes.status, 200);
+    assert.equal(mockPipe.state.closedWorkspaces.at(-1), '99999999-2222-4333-8444-555555555555');
+
+    const devicesRes = await fetch(`${baseUrl}/api/devices`, { headers: authHeaders });
+    assert.equal(devicesRes.status, 200);
+    const devicesBody = await devicesRes.json();
+    assert.equal(devicesBody.devices.length, 1);
+    assert.equal(devicesBody.devices[0].name, 'Pixel 9 Pro');
 
     ws.close();
   } finally {

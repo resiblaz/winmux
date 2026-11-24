@@ -514,8 +514,50 @@ export class WinmuxBridgeServer {
       return;
     }
 
+    if (method === 'POST' && pathname === '/api/terminal/split') {
+      const body = await readJsonBody(req);
+      if (!body.workspaceId || !body.surfaceId || !Number.isInteger(Number(body.paneId))) {
+        sendJson(res, 400, { error: 'invalid_params', message: 'workspaceId, surfaceId, and paneId are required.' });
+        return;
+      }
+      const result = await this.winmux.splitPane(
+        body.workspaceId,
+        body.surfaceId,
+        Number(body.paneId),
+        body.direction || 'automatic',
+        body.size ?? 0.5
+      );
+      await this.pollOnce();
+      sendJson(res, 200, result);
+      return;
+    }
+
     if (method === 'POST' && pathname === '/api/workspaces/create') {
       const result = await this.winmux.createWorkspace();
+      await this.pollOnce();
+      sendJson(res, 200, result);
+      return;
+    }
+
+    if (method === 'POST' && pathname === '/api/workspaces/select') {
+      const body = await readJsonBody(req);
+      if (!body.workspaceId) {
+        sendJson(res, 400, { error: 'invalid_params', message: 'workspaceId is required.' });
+        return;
+      }
+      const result = await this.winmux.selectWorkspace(body.workspaceId);
+      await this.pollOnce();
+      sendJson(res, 200, result);
+      return;
+    }
+
+    if (method === 'POST' && pathname === '/api/workspaces/close') {
+      const body = await readJsonBody(req);
+      if (!body.workspaceId) {
+        sendJson(res, 400, { error: 'invalid_params', message: 'workspaceId is required.' });
+        return;
+      }
+      const result = await this.winmux.closeWorkspace(body.workspaceId);
       await this.pollOnce();
       sendJson(res, 200, result);
       return;

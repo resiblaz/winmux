@@ -8,6 +8,51 @@
 
 namespace winrt::TerminalApp::implementation
 {
+    struct WorkspaceSidebarRowData
+    {
+        TerminalApp::WorkspaceSidebarRowKind Kind{ TerminalApp::WorkspaceSidebarRowKind::Workspace };
+        TerminalApp::WorkspaceItemViewModel Workspace{ nullptr };
+        TerminalApp::Tab Surface{ nullptr };
+        uint32_t PaneId{};
+
+        winrt::hstring Title;
+        winrt::hstring Subtitle;
+        winrt::hstring DirectoryDisplay;
+        winrt::hstring WorkingDirectory;
+        winrt::hstring GitBranch;
+        winrt::hstring GitRepositoryRoot;
+        winrt::hstring ListeningPortsDisplay;
+        winrt::hstring ListeningPortsTooltip;
+        winrt::hstring StatusText;
+        winrt::hstring UnreadBadgeText;
+        winrt::hstring LatestNotification;
+        winrt::hstring SurfaceCountText;
+        winrt::hstring PaneCountBadgeText;
+        winrt::hstring SwitchShortcutHintText;
+        winrt::hstring TreeBranchGlyph;
+        winrt::hstring ChevronGlyph;
+        winrt::hstring PinIconGlyph;
+        winrt::hstring PinActionText;
+        winrt::hstring PinAutomationName;
+        winrt::hstring NotificationAutomationName;
+        winrt::hstring NotificationHistoryCountText;
+        winrt::hstring AutomationName;
+
+        bool IsPinned{};
+        bool IsSelected{};
+        bool IsActive{};
+        bool IsCollapsed{};
+        bool IsRunning{};
+        bool HasAttention{};
+        bool ShowCollapsedUnread{};
+        bool HasAgentResume{};
+        bool IsVimActive{};
+        bool IsTerminalIcon{ true };
+        bool IsClaudeIcon{};
+        bool IsCodexIcon{};
+        bool IsAgyIcon{};
+    };
+
     struct WorkspaceSidebarRow : WorkspaceSidebarRowT<WorkspaceSidebarRow>
     {
         WorkspaceSidebarRow() = default;
@@ -67,7 +112,10 @@ namespace winrt::TerminalApp::implementation
         }
 
         bool HasSameIdentityAs(const WorkspaceSidebarRow& other) const noexcept;
+        bool HasSameIdentityAs(const WorkspaceSidebarRowData& other) const noexcept;
         bool UpdateFrom(const WorkspaceSidebarRow& next);
+        bool UpdateFrom(const WorkspaceSidebarRowData& next);
+        void ApplyInitialData(WorkspaceSidebarRowData&& next) noexcept;
 
         // Internal population helpers
         TerminalApp::WorkspaceSidebarRowKind _kind{ TerminalApp::WorkspaceSidebarRowKind::Workspace };

@@ -193,6 +193,14 @@ namespace winrt::TerminalApp::implementation
             if (const auto self = weakThis.get())
             {
                 self->_layoutElementsReady = true;
+                self->_chromeSlideTransform = TranslateTransform{};
+                self->SidebarChrome().RenderTransform(self->_chromeSlideTransform);
+                self->NotificationCenterFlyout().Closed([weakThis](auto&&, auto&&) {
+                    if (const auto s = weakThis.get())
+                    {
+                        s->_notificationCenterOpen = false;
+                    }
+                });
                 self->_ApplyLayout();
                 self->_layoutAnimationsEnabled = true;
                 self->RefreshTree();
@@ -332,7 +340,7 @@ namespace winrt::TerminalApp::implementation
             return;
         }
         _processStates = std::move(processStates);
-        ScheduleRefreshTree();
+        _ScheduleRefreshTreeThrottled();
     }
 
     void WorkspaceSidebar::SetSearchQueryForTests(winrt::hstring query)
@@ -388,6 +396,35 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void WorkspaceSidebar::_ScheduleRefreshTreeThrottled()
+    {
+        if (_refreshScheduled || _refreshThrottlePending)
+        {
+            return;
+        }
+        if (!Dispatcher())
+        {
+            RefreshTree();
+            return;
+        }
+        if (!_refreshThrottleTimer)
+        {
+            _refreshThrottleTimer = DispatcherTimer{};
+            _refreshThrottleTimer.Interval(std::chrono::milliseconds{ 60 });
+            const auto weakThis = get_weak();
+            _refreshThrottleTimer.Tick([weakThis](auto&&, auto&&) {
+                if (const auto self = weakThis.get())
+                {
+                    self->_refreshThrottleTimer.Stop();
+                    self->_refreshThrottlePending = false;
+                    self->RefreshTree();
+                }
+            });
+        }
+        _refreshThrottlePending = true;
+        _refreshThrottleTimer.Start();
+    }
+
     void WorkspaceSidebar::_RebindWorkspaceSubscriptions()
     {
         for (auto& wsSub : _subscriptions)
@@ -422,9 +459,26 @@ namespace winrt::TerminalApp::implementation
             wsSub.WorkspaceChanged = ws.PropertyChanged(winrt::auto_revoke, [weakThis](auto&&, const auto& args) {
                 if (const auto self = weakThis.get())
                 {
-                    if (args.PropertyName() != L"SwitchShortcutHintText")
+                    const auto name = args.PropertyName();
+                    // Ignore derived/non-rendered properties (e.g. IsGitBranchLoading, AutomationName)
+                    // to avoid redundant full sidebar tree refreshes on every tab or git query transition.
+                    if (name == L"SwitchShortcutHintText" ||
+                        name == L"IsGitBranchLoading" ||
+                        name == L"AutomationName" ||
+                        name == L"PinAutomationName" ||
+                        name == L"NotificationAutomationName" ||
+                        name == L"SurfaceCountText" ||
+                        name == L"HasMultipleSurfaces")
+                    {
+                        return;
+                    }
+                    if (name == L"IsSelected" || name == L"IsPinned" || name == L"SourceTab")
                     {
                         self->ScheduleRefreshTree();
+                    }
+                    else
+                    {
+                        self->_ScheduleRefreshTreeThrottled();
                     }
                 }
             });
@@ -450,16 +504,24 @@ namespace winrt::TerminalApp::implementation
                         const auto name = args.PropertyName();
                         if (name == L"Title" || name == L"ReadOnly" || name == L"WorkingDirectory")
                         {
-                            self->ScheduleRefreshTree();
+                            self->_ScheduleRefreshTreeThrottled();
                         }
                     }
                 });
                 if (const auto status = surface.TabStatus())
                 {
-                    sfSub.StatusChanged = status.PropertyChanged(winrt::auto_revoke, [weakThis](auto&&, auto&&) {
+                    sfSub.StatusChanged = status.PropertyChanged(winrt::auto_revoke, [weakThis](auto&&, const auto& args) {
                         if (const auto self = weakThis.get())
                         {
-                            self->ScheduleRefreshTree();
+                            const auto name = args.PropertyName();
+                            if (name == L"IsProgressRingActive" ||
+                                name == L"IsProgressRingIndeterminate" ||
+                                name == L"UnreadNotificationCount" ||
+                                name == L"NotificationText" ||
+                                name == L"BellIndicator")
+                            {
+                                self->_ScheduleRefreshTreeThrottled();
+                            }
                         }
                     });
                 }
@@ -481,6 +543,11 @@ namespace winrt::TerminalApp::implementation
 
     void WorkspaceSidebar::RefreshTree()
     {
+        if (_refreshThrottlePending && _refreshThrottleTimer)
+        {
+            _refreshThrottleTimer.Stop();
+            _refreshThrottlePending = false;
+        }
         if (!_workspaces)
         {
             _treeRows.Clear();
@@ -603,73 +670,73 @@ namespace winrt::TerminalApp::implementation
         _treeModel.PruneCollapsed(activeWorkspaceIds);
         const auto projection = _treeModel.Project(inputs);
 
-        std::vector<winrt::com_ptr<WorkspaceSidebarRow>> nextRows;
+        std::vector<WorkspaceSidebarRowData> nextRows;
         nextRows.reserve(projection.Nodes.size());
 
         for (const auto& node : projection.Nodes)
         {
             const auto ws = _workspaces.GetAt(gsl::narrow_cast<uint32_t>(node.WorkspaceInputIndex));
             const auto& wsInput = inputs[node.WorkspaceInputIndex];
-            auto rowImpl = winrt::make_self<WorkspaceSidebarRow>();
-            rowImpl->_workspace = ws;
-            rowImpl->_hasAttention = node.Status == SidebarStatusKind::Attention;
-            rowImpl->_isRunning = node.Status == SidebarStatusKind::Running;
-            rowImpl->_isTerminalIcon = node.Icon == SidebarIconKind::Terminal;
-            rowImpl->_isClaudeIcon = node.Icon == SidebarIconKind::Claude;
-            rowImpl->_isCodexIcon = node.Icon == SidebarIconKind::Codex;
-            rowImpl->_isAgyIcon = node.Icon == SidebarIconKind::Agy;
+            WorkspaceSidebarRowData rowData{};
+            rowData.Workspace = ws;
+            rowData.HasAttention = node.Status == SidebarStatusKind::Attention;
+            rowData.IsRunning = node.Status == SidebarStatusKind::Running;
+            rowData.IsTerminalIcon = node.Icon == SidebarIconKind::Terminal;
+            rowData.IsClaudeIcon = node.Icon == SidebarIconKind::Claude;
+            rowData.IsCodexIcon = node.Icon == SidebarIconKind::Codex;
+            rowData.IsAgyIcon = node.Icon == SidebarIconKind::Agy;
 
             if (node.Kind == SidebarNodeKind::Workspace)
             {
-                rowImpl->_kind = TerminalApp::WorkspaceSidebarRowKind::Workspace;
-                rowImpl->_title = ws.Title();
-                rowImpl->_directoryDisplay = ws.WorkingDirectoryDisplay();
-                rowImpl->_workingDirectory = ws.WorkingDirectory();
-                rowImpl->_gitBranch = ws.GitBranch();
-                rowImpl->_gitRepositoryRoot = ws.GitRepositoryRoot();
-                rowImpl->_listeningPortsDisplay = ws.ListeningPortsDisplay();
-                rowImpl->_listeningPortsTooltip = ws.ListeningPortsTooltip();
-                rowImpl->_statusText = ws.StatusText();
-                rowImpl->_unreadBadgeText = ws.UnreadBadgeText();
-                rowImpl->_latestNotification = ws.LatestNotification();
-                rowImpl->_surfaceCountText = winrt::to_hstring(ws.SurfaceCount());
-                rowImpl->_switchShortcutHintText = _showWorkspaceSwitchHints ? ws.SwitchShortcutHintText() : winrt::hstring{};
-                rowImpl->_chevronGlyph = node.IsCollapsed ? L"\uE76C" : L"\uE70D";
-                rowImpl->_pinIconGlyph = ws.PinIconGlyph();
-                rowImpl->_pinActionText = ws.PinActionText();
-                rowImpl->_pinAutomationName = ws.PinAutomationName();
-                rowImpl->_notificationAutomationName = ws.NotificationAutomationName();
-                rowImpl->_notificationHistoryCountText = ws.NotificationHistoryCountText();
-                rowImpl->_automationName = ws.AutomationName();
-                rowImpl->_isPinned = ws.IsPinned();
-                rowImpl->_isSelected = ws.IsSelected();
-                rowImpl->_isActive = ws.IsSelected();
-                rowImpl->_isCollapsed = node.IsCollapsed;
-                rowImpl->_showCollapsedUnread = node.ShowCollapsedUnread && !ws.UnreadBadgeText().empty();
-                rowImpl->_hasAgentResume = ws.HasAgentResume();
+                rowData.Kind = TerminalApp::WorkspaceSidebarRowKind::Workspace;
+                rowData.Title = ws.Title();
+                rowData.DirectoryDisplay = ws.WorkingDirectoryDisplay();
+                rowData.WorkingDirectory = ws.WorkingDirectory();
+                rowData.GitBranch = ws.GitBranch();
+                rowData.GitRepositoryRoot = ws.GitRepositoryRoot();
+                rowData.ListeningPortsDisplay = ws.ListeningPortsDisplay();
+                rowData.ListeningPortsTooltip = ws.ListeningPortsTooltip();
+                rowData.StatusText = ws.StatusText();
+                rowData.UnreadBadgeText = ws.UnreadBadgeText();
+                rowData.LatestNotification = ws.LatestNotification();
+                rowData.SurfaceCountText = winrt::to_hstring(ws.SurfaceCount());
+                rowData.SwitchShortcutHintText = _showWorkspaceSwitchHints ? ws.SwitchShortcutHintText() : winrt::hstring{};
+                rowData.ChevronGlyph = node.IsCollapsed ? L"\uE76C" : L"\uE70D";
+                rowData.PinIconGlyph = ws.PinIconGlyph();
+                rowData.PinActionText = ws.PinActionText();
+                rowData.PinAutomationName = ws.PinAutomationName();
+                rowData.NotificationAutomationName = ws.NotificationAutomationName();
+                rowData.NotificationHistoryCountText = ws.NotificationHistoryCountText();
+                rowData.AutomationName = ws.AutomationName();
+                rowData.IsPinned = ws.IsPinned();
+                rowData.IsSelected = ws.IsSelected();
+                rowData.IsActive = ws.IsSelected();
+                rowData.IsCollapsed = node.IsCollapsed;
+                rowData.ShowCollapsedUnread = node.ShowCollapsedUnread && !ws.UnreadBadgeText().empty();
+                rowData.HasAgentResume = ws.HasAgentResume();
             }
             else if (node.Kind == SidebarNodeKind::Surface)
             {
                 const auto surface = ws.Surfaces().GetAt(gsl::narrow_cast<uint32_t>(node.SurfaceInputIndex));
                 const auto& sfInput = wsInput.Surfaces[node.SurfaceInputIndex];
 
-                rowImpl->_kind = TerminalApp::WorkspaceSidebarRowKind::Surface;
-                rowImpl->_surface = surface;
-                rowImpl->_title = surface.Title();
-                rowImpl->_subtitle = winrt::hstring{ sfInput.Subtitle };
-                rowImpl->_unreadBadgeText = sfInput.UnreadCount == 0 ? winrt::hstring{} :
-                                            sfInput.UnreadCount > 99 ? winrt::hstring{ L"99+" } :
-                                                                       winrt::to_hstring(sfInput.UnreadCount);
-                rowImpl->_paneCountBadgeText = sfInput.Panes.size() > 1 ?
-                                                   winrt::hstring{ RS_fmt(L"WorkspaceSidebar_PaneCountBadge", sfInput.Panes.size()) } :
-                                                   winrt::hstring{};
-                rowImpl->_switchShortcutHintText = (_showSurfaceSwitchHints && ws.IsSelected()) ?
-                                                       winrt::to_hstring(node.SurfaceOrdinal) :
-                                                       winrt::hstring{};
-                rowImpl->_isActive = sfInput.IsActive;
-                rowImpl->_isSelected = sfInput.IsActive;
-                rowImpl->_isVimActive = sfInput.IsVimActive;
-                rowImpl->_automationName = surface.Title();
+                rowData.Kind = TerminalApp::WorkspaceSidebarRowKind::Surface;
+                rowData.Surface = surface;
+                rowData.Title = surface.Title();
+                rowData.Subtitle = winrt::hstring{ sfInput.Subtitle };
+                rowData.UnreadBadgeText = sfInput.UnreadCount == 0 ? winrt::hstring{} :
+                                          sfInput.UnreadCount > 99 ? winrt::hstring{ L"99+" } :
+                                                                     winrt::to_hstring(sfInput.UnreadCount);
+                rowData.PaneCountBadgeText = sfInput.Panes.size() > 1 ?
+                                                 winrt::hstring{ RS_fmt(L"WorkspaceSidebar_PaneCountBadge", sfInput.Panes.size()) } :
+                                                 winrt::hstring{};
+                rowData.SwitchShortcutHintText = (_showSurfaceSwitchHints && ws.IsSelected()) ?
+                                                     winrt::to_hstring(node.SurfaceOrdinal) :
+                                                     winrt::hstring{};
+                rowData.IsActive = sfInput.IsActive;
+                rowData.IsSelected = sfInput.IsActive;
+                rowData.IsVimActive = sfInput.IsVimActive;
+                rowData.AutomationName = surface.Title();
             }
             else
             {
@@ -677,24 +744,24 @@ namespace winrt::TerminalApp::implementation
                 const auto& sfInput = wsInput.Surfaces[node.SurfaceInputIndex];
                 const auto& paneInput = sfInput.Panes[node.PaneInputIndex];
 
-                rowImpl->_kind = TerminalApp::WorkspaceSidebarRowKind::Pane;
-                rowImpl->_surface = surface;
-                rowImpl->_paneId = paneInput.PaneId;
-                rowImpl->_title = winrt::hstring{ paneInput.Title };
-                rowImpl->_treeBranchGlyph = node.IsLastChild ? L"\u2514" : L"\u251C";
-                rowImpl->_isActive = sfInput.IsActive && paneInput.IsActive;
-                rowImpl->_isSelected = rowImpl->_isActive;
-                rowImpl->_automationName = rowImpl->_title;
+                rowData.Kind = TerminalApp::WorkspaceSidebarRowKind::Pane;
+                rowData.Surface = surface;
+                rowData.PaneId = paneInput.PaneId;
+                rowData.Title = winrt::hstring{ paneInput.Title };
+                rowData.TreeBranchGlyph = node.IsLastChild ? L"\u2514" : L"\u251C";
+                rowData.IsActive = sfInput.IsActive && paneInput.IsActive;
+                rowData.IsSelected = rowData.IsActive;
+                rowData.AutomationName = rowData.Title;
             }
 
-            nextRows.emplace_back(std::move(rowImpl));
+            nextRows.emplace_back(std::move(rowData));
         }
 
         const auto wasSyncing = std::exchange(_syncingSelection, true);
         auto restoreSyncing = wil::scope_exit([&]() noexcept { _syncingSelection = wasSyncing; });
 
         // Incremental reconciliation: preserve existing WorkspaceSidebarRow instances and
-        // ListViewItem containers across refreshes so scroll position and hover states never flicker.
+        // ListViewItem containers across refreshes with zero COM allocations on the same-shape fast path.
         const auto existingSize = _treeRows.Size();
         const auto nextSize = gsl::narrow_cast<uint32_t>(nextRows.size());
         bool sameShape = existingSize == nextSize;
@@ -703,7 +770,7 @@ namespace winrt::TerminalApp::implementation
             for (uint32_t i = 0; i < nextSize; ++i)
             {
                 const auto existingImpl = winrt::get_self<WorkspaceSidebarRow>(_treeRows.GetAt(i));
-                if (!existingImpl || !existingImpl->HasSameIdentityAs(*nextRows[i]))
+                if (!existingImpl || !existingImpl->HasSameIdentityAs(nextRows[i]))
                 {
                     sameShape = false;
                     break;
@@ -715,7 +782,7 @@ namespace winrt::TerminalApp::implementation
         {
             for (uint32_t i = 0; i < nextSize; ++i)
             {
-                winrt::get_self<WorkspaceSidebarRow>(_treeRows.GetAt(i))->UpdateFrom(*nextRows[i]);
+                winrt::get_self<WorkspaceSidebarRow>(_treeRows.GetAt(i))->UpdateFrom(nextRows[i]);
             }
         }
         else if (nextRows.empty())
@@ -736,7 +803,7 @@ namespace winrt::TerminalApp::implementation
                 {
                     for (const auto& nextRow : nextRows)
                     {
-                        if (existingImpl->HasSameIdentityAs(*nextRow))
+                        if (existingImpl->HasSameIdentityAs(nextRow))
                         {
                             stillPresent = true;
                             break;
@@ -752,7 +819,7 @@ namespace winrt::TerminalApp::implementation
             // Pass 2: align surviving rows in-place and insert newly visible rows.
             for (uint32_t targetIdx = 0; targetIdx < nextSize; ++targetIdx)
             {
-                const auto& desired = *nextRows[targetIdx];
+                auto& desired = nextRows[targetIdx];
                 if (targetIdx < _treeRows.Size())
                 {
                     const auto currentImpl = winrt::get_self<WorkspaceSidebarRow>(_treeRows.GetAt(targetIdx));
@@ -783,7 +850,9 @@ namespace winrt::TerminalApp::implementation
                 }
                 else
                 {
-                    _treeRows.InsertAt(targetIdx, *nextRows[targetIdx]);
+                    auto rowImpl = winrt::make_self<WorkspaceSidebarRow>();
+                    rowImpl->ApplyInitialData(std::move(desired));
+                    _treeRows.InsertAt(targetIdx, *rowImpl);
                 }
             }
 
@@ -904,17 +973,15 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void WorkspaceSidebar::RefreshNotifications()
+    void WorkspaceSidebar::_SyncNotificationHistoryList()
     {
         std::vector<TerminalApp::WorkspaceNotification> history;
-        uint32_t unreadCount = 0;
 
         auto collectFromIterable = [&](const Windows::Foundation::Collections::IIterable<IInspectable>& workspaces) {
             for (const auto& value : workspaces)
             {
                 if (const auto item = value.try_as<TerminalApp::WorkspaceItemViewModel>())
                 {
-                    unreadCount += item.UnreadCount();
                     for (const auto& notification : item.Notifications())
                     {
                         history.emplace_back(notification);
@@ -923,8 +990,6 @@ namespace winrt::TerminalApp::implementation
             }
         };
 
-        // Preserve compatibility with tests that bind WorkspaceItemViewModels directly
-        // to WorkspaceList().ItemsSource(), while preferring _workspaces in normal operation.
         bool collectedFromListSource = false;
         if (const auto listSource = WorkspaceList().ItemsSource().try_as<Windows::Foundation::Collections::IIterable<IInspectable>>())
         {
@@ -948,7 +1013,6 @@ namespace winrt::TerminalApp::implementation
             {
                 if (item)
                 {
-                    unreadCount += item.UnreadCount();
                     for (const auto& notification : item.Notifications())
                     {
                         history.emplace_back(notification);
@@ -966,8 +1030,67 @@ namespace winrt::TerminalApp::implementation
         }
 
         _notificationHistory.ReplaceAll({ history.data(), gsl::narrow_cast<uint32_t>(history.size()) });
+        _notificationHistoryDirty = false;
+    }
 
-        const auto hasHistory = !history.empty();
+    void WorkspaceSidebar::RefreshNotifications()
+    {
+        uint32_t unreadCount = 0;
+        bool hasHistory = false;
+
+        bool countedFromListSource = false;
+        if (const auto listSource = WorkspaceList().ItemsSource().try_as<Windows::Foundation::Collections::IIterable<IInspectable>>())
+        {
+            for (const auto& value : listSource)
+            {
+                if (const auto item = value.try_as<TerminalApp::WorkspaceItemViewModel>())
+                {
+                    countedFromListSource = true;
+                    unreadCount += item.UnreadCount();
+                    if (!hasHistory && item.Notifications().Size() > 0)
+                    {
+                        hasHistory = true;
+                    }
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
+        if (!countedFromListSource && _workspaces)
+        {
+            for (const auto& item : _workspaces)
+            {
+                if (item)
+                {
+                    unreadCount += item.UnreadCount();
+                    if (!hasHistory && item.Notifications().Size() > 0)
+                    {
+                        hasHistory = true;
+                    }
+                }
+            }
+        }
+
+        _notificationHistoryDirty = true;
+        if (_notificationCenterOpen)
+        {
+            _SyncNotificationHistoryList();
+        }
+
+        const bool summaryChanged = !_lastUnreadNotificationCount.has_value() ||
+                                    *_lastUnreadNotificationCount != unreadCount ||
+                                    !_lastHasNotificationHistory.has_value() ||
+                                    *_lastHasNotificationHistory != hasHistory;
+        if (!summaryChanged)
+        {
+            return;
+        }
+        _lastUnreadNotificationCount = unreadCount;
+        _lastHasNotificationHistory = hasHistory;
+
         NotificationCenterBadgeText().Text(unreadCount == 0 ? winrt::hstring{} : winrt::to_hstring(unreadCount));
         NotificationCenterBadge().Visibility(unreadCount == 0 ? Visibility::Collapsed : Visibility::Visible);
         NotificationHistoryList().Visibility(hasHistory ? Visibility::Visible : Visibility::Collapsed);
@@ -982,13 +1105,18 @@ namespace winrt::TerminalApp::implementation
 
         if (_workspaces)
         {
-            ScheduleRefreshTree();
+            _ScheduleRefreshTreeThrottled();
         }
     }
 
     void WorkspaceSidebar::OpenNotificationCenter(const FrameworkElement& target)
     {
+        _notificationCenterOpen = true;
         RefreshNotifications();
+        if (_notificationHistoryDirty)
+        {
+            _SyncNotificationHistoryList();
+        }
         NotificationCenterFlyout().ShowAt(target);
     }
 
@@ -1071,37 +1199,44 @@ namespace winrt::TerminalApp::implementation
         ResizeHandle().Visibility(expanded ? Visibility::Visible : Visibility::Collapsed);
         _SetExpandedContentVisibility(expanded ? Visibility::Visible : Visibility::Collapsed);
 
-        if (_layoutAnimationsEnabled)
+        if (_layoutStoryboard)
         {
-            const auto startWidth = ActualWidth();
-            const auto startOpacity = SidebarChrome().Opacity();
-            if (_layoutStoryboard)
+            _layoutStoryboard.Stop();
+            _layoutStoryboard = nullptr;
+        }
+
+        // Apply layout width once immediately so terminal panes only resize once instead of
+        // re-measuring ConPTY/AtlasEngine on every frame of a dependent Width animation.
+        Width(targetWidth);
+        SidebarChrome().Opacity(targetOpacity);
+
+        if (_layoutAnimationsEnabled && expanded)
+        {
+            if (!_chromeSlideTransform)
             {
-                _layoutStoryboard.Stop();
+                _chromeSlideTransform = TranslateTransform{};
+                SidebarChrome().RenderTransform(_chromeSlideTransform);
             }
+            _chromeSlideTransform.X(0.0);
 
-            Width(targetWidth);
-            SidebarChrome().Opacity(targetOpacity);
-
-            const auto duration = DurationHelper::FromTimeSpan(Windows::Foundation::TimeSpan{ std::chrono::milliseconds{ 150 } });
+            const auto duration = DurationHelper::FromTimeSpan(Windows::Foundation::TimeSpan{ std::chrono::milliseconds{ 120 } });
             _layoutStoryboard = Storyboard{};
             _layoutStoryboard.Duration(duration);
 
-            DoubleAnimation widthAnimation{};
-            widthAnimation.Duration(duration);
-            widthAnimation.From(startWidth);
-            widthAnimation.To(targetWidth);
-            widthAnimation.EasingFunction(QuadraticEase{});
-            widthAnimation.EnableDependentAnimation(true);
-            widthAnimation.FillBehavior(FillBehavior::Stop);
-            _layoutStoryboard.Children().Append(widthAnimation);
-            _layoutStoryboard.SetTarget(widthAnimation, *this);
-            _layoutStoryboard.SetTargetProperty(widthAnimation, L"Width");
+            DoubleAnimation slideAnimation{};
+            slideAnimation.Duration(duration);
+            slideAnimation.From(-18.0);
+            slideAnimation.To(0.0);
+            slideAnimation.EasingFunction(QuadraticEase{});
+            slideAnimation.FillBehavior(FillBehavior::Stop);
+            _layoutStoryboard.Children().Append(slideAnimation);
+            _layoutStoryboard.SetTarget(slideAnimation, _chromeSlideTransform);
+            _layoutStoryboard.SetTargetProperty(slideAnimation, L"X");
 
             DoubleAnimation opacityAnimation{};
-            opacityAnimation.Duration(DurationHelper::FromTimeSpan(Windows::Foundation::TimeSpan{ std::chrono::milliseconds{ 90 } }));
-            opacityAnimation.From(startOpacity);
-            opacityAnimation.To(targetOpacity);
+            opacityAnimation.Duration(DurationHelper::FromTimeSpan(Windows::Foundation::TimeSpan{ std::chrono::milliseconds{ 100 } }));
+            opacityAnimation.From(0.0);
+            opacityAnimation.To(1.0);
             opacityAnimation.FillBehavior(FillBehavior::Stop);
             _layoutStoryboard.Children().Append(opacityAnimation);
             _layoutStoryboard.SetTarget(opacityAnimation, SidebarChrome());
@@ -1109,11 +1244,9 @@ namespace winrt::TerminalApp::implementation
 
             _layoutStoryboard.Begin();
         }
-        else
+        else if (_chromeSlideTransform)
         {
-            Width(targetWidth);
-            SidebarChrome().Opacity(targetOpacity);
-            _SetExpandedContentVisibility(expanded ? Visibility::Visible : Visibility::Collapsed);
+            _chromeSlideTransform.X(0.0);
         }
 
         ToggleButton().Content(box_value(expanded ? L"\uE76B" : L"\uE76C"));
@@ -1708,7 +1841,12 @@ namespace winrt::TerminalApp::implementation
 
     void WorkspaceSidebar::_NotificationCenter_Opening(const IInspectable&, const IInspectable&)
     {
+        _notificationCenterOpen = true;
         RefreshNotifications();
+        if (_notificationHistoryDirty)
+        {
+            _SyncNotificationHistoryList();
+        }
     }
 
     void WorkspaceSidebar::_NotificationHistory_ItemClick(const IInspectable&, const ItemClickEventArgs& args)

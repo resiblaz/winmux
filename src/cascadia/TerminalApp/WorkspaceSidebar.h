@@ -160,9 +160,16 @@ namespace winrt::TerminalApp::implementation
         bool _showWorkspaceSwitchHints{ false };
         bool _showSurfaceSwitchHints{ false };
         bool _refreshScheduled{ false };
+        bool _refreshThrottlePending{ false };
         bool _syncingSelection{ false };
+        bool _notificationCenterOpen{ false };
+        bool _notificationHistoryDirty{ true };
+        std::optional<uint32_t> _lastUnreadNotificationCount;
+        std::optional<bool> _lastHasNotificationHistory;
         double _expandedWidth{ DefaultExpandedWidth };
+        Windows::UI::Xaml::DispatcherTimer _refreshThrottleTimer{ nullptr };
         Windows::UI::Xaml::Media::Animation::Storyboard _layoutStoryboard{ nullptr };
+        Windows::UI::Xaml::Media::TranslateTransform _chromeSlideTransform{ nullptr };
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> _notificationHistory;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel> _workspaces{ nullptr };
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel>::VectorChanged_revoker _workspacesChangedRevoker;
@@ -208,6 +215,8 @@ namespace winrt::TerminalApp::implementation
         TerminalApp::WorkspaceItemViewModel _ItemFromSender(const Windows::Foundation::IInspectable& sender) const;
         TerminalApp::Tab _SurfaceFromSender(const Windows::Foundation::IInspectable& sender) const;
         void _RebindWorkspaceSubscriptions();
+        void _ScheduleRefreshTreeThrottled();
+        void _SyncNotificationHistoryList();
         void _UpdateFilterHeader(const SidebarProjection& projection);
         void _SyncListSelection();
         void _SelectRelativeRow(int32_t delta);

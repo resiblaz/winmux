@@ -16,6 +16,118 @@ namespace winrt::TerminalApp::implementation
                _paneId == other._paneId;
     }
 
+    bool WorkspaceSidebarRow::HasSameIdentityAs(const WorkspaceSidebarRowData& other) const noexcept
+    {
+        return _kind == other.Kind &&
+               _workspace == other.Workspace &&
+               _surface == other.Surface &&
+               _paneId == other.PaneId;
+    }
+
+    void WorkspaceSidebarRow::ApplyInitialData(WorkspaceSidebarRowData&& next) noexcept
+    {
+        _kind = next.Kind;
+        _workspace = std::move(next.Workspace);
+        _surface = std::move(next.Surface);
+        _paneId = next.PaneId;
+
+        _title = std::move(next.Title);
+        _subtitle = std::move(next.Subtitle);
+        _directoryDisplay = std::move(next.DirectoryDisplay);
+        _workingDirectory = std::move(next.WorkingDirectory);
+        _gitBranch = std::move(next.GitBranch);
+        _gitRepositoryRoot = std::move(next.GitRepositoryRoot);
+        _listeningPortsDisplay = std::move(next.ListeningPortsDisplay);
+        _listeningPortsTooltip = std::move(next.ListeningPortsTooltip);
+        _statusText = std::move(next.StatusText);
+        _unreadBadgeText = std::move(next.UnreadBadgeText);
+        _latestNotification = std::move(next.LatestNotification);
+        _surfaceCountText = std::move(next.SurfaceCountText);
+        _paneCountBadgeText = std::move(next.PaneCountBadgeText);
+        _switchShortcutHintText = std::move(next.SwitchShortcutHintText);
+        _treeBranchGlyph = std::move(next.TreeBranchGlyph);
+        _chevronGlyph = std::move(next.ChevronGlyph);
+        _pinIconGlyph = std::move(next.PinIconGlyph);
+        _pinActionText = std::move(next.PinActionText);
+        _pinAutomationName = std::move(next.PinAutomationName);
+        _notificationAutomationName = std::move(next.NotificationAutomationName);
+        _notificationHistoryCountText = std::move(next.NotificationHistoryCountText);
+        _automationName = std::move(next.AutomationName);
+
+        _isPinned = next.IsPinned;
+        _isSelected = next.IsSelected;
+        _isActive = next.IsActive;
+        _isCollapsed = next.IsCollapsed;
+        _isRunning = next.IsRunning;
+        _hasAttention = next.HasAttention;
+        _showCollapsedUnread = next.ShowCollapsedUnread;
+        _hasAgentResume = next.HasAgentResume;
+        _isVimActive = next.IsVimActive;
+        _isTerminalIcon = next.IsTerminalIcon;
+        _isClaudeIcon = next.IsClaudeIcon;
+        _isCodexIcon = next.IsCodexIcon;
+        _isAgyIcon = next.IsAgyIcon;
+    }
+
+    bool WorkspaceSidebarRow::UpdateFrom(const WorkspaceSidebarRowData& next)
+    {
+        bool anyChanged = false;
+        const auto updateField = [&](auto& field, const auto& nextValue, const std::wstring_view propertyName) {
+            if (field != nextValue)
+            {
+                field = nextValue;
+                anyChanged = true;
+                PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ propertyName });
+            }
+        };
+
+        const bool wasIdle = IsIdle();
+
+        updateField(_title, next.Title, L"Title");
+        updateField(_subtitle, next.Subtitle, L"Subtitle");
+        updateField(_directoryDisplay, next.DirectoryDisplay, L"DirectoryDisplay");
+        updateField(_workingDirectory, next.WorkingDirectory, L"WorkingDirectory");
+        updateField(_gitBranch, next.GitBranch, L"GitBranch");
+        updateField(_gitRepositoryRoot, next.GitRepositoryRoot, L"GitRepositoryRoot");
+        updateField(_listeningPortsDisplay, next.ListeningPortsDisplay, L"ListeningPortsDisplay");
+        updateField(_listeningPortsTooltip, next.ListeningPortsTooltip, L"ListeningPortsTooltip");
+        updateField(_statusText, next.StatusText, L"StatusText");
+        updateField(_unreadBadgeText, next.UnreadBadgeText, L"UnreadBadgeText");
+        updateField(_latestNotification, next.LatestNotification, L"LatestNotification");
+        updateField(_surfaceCountText, next.SurfaceCountText, L"SurfaceCountText");
+        updateField(_paneCountBadgeText, next.PaneCountBadgeText, L"PaneCountBadgeText");
+        updateField(_switchShortcutHintText, next.SwitchShortcutHintText, L"SwitchShortcutHintText");
+        updateField(_treeBranchGlyph, next.TreeBranchGlyph, L"TreeBranchGlyph");
+        updateField(_chevronGlyph, next.ChevronGlyph, L"ChevronGlyph");
+        updateField(_pinIconGlyph, next.PinIconGlyph, L"PinIconGlyph");
+        updateField(_pinActionText, next.PinActionText, L"PinActionText");
+        updateField(_pinAutomationName, next.PinAutomationName, L"PinAutomationName");
+        updateField(_notificationAutomationName, next.NotificationAutomationName, L"NotificationAutomationName");
+        updateField(_notificationHistoryCountText, next.NotificationHistoryCountText, L"NotificationHistoryCountText");
+        updateField(_automationName, next.AutomationName, L"AutomationName");
+
+        updateField(_isPinned, next.IsPinned, L"IsPinned");
+        updateField(_isSelected, next.IsSelected, L"IsSelected");
+        updateField(_isActive, next.IsActive, L"IsActive");
+        updateField(_isCollapsed, next.IsCollapsed, L"IsCollapsed");
+        updateField(_isRunning, next.IsRunning, L"IsRunning");
+        updateField(_hasAttention, next.HasAttention, L"HasAttention");
+        if (IsIdle() != wasIdle)
+        {
+            anyChanged = true;
+            PropertyChanged.raise(*this, Windows::UI::Xaml::Data::PropertyChangedEventArgs{ L"IsIdle" });
+        }
+        updateField(_showCollapsedUnread, next.ShowCollapsedUnread, L"ShowCollapsedUnread");
+        updateField(_hasAgentResume, next.HasAgentResume, L"HasAgentResume");
+        updateField(_isVimActive, next.IsVimActive, L"IsVimActive");
+        updateField(_isTerminalIcon, next.IsTerminalIcon, L"IsTerminalIcon");
+        updateField(_isClaudeIcon, next.IsClaudeIcon, L"IsClaudeIcon");
+        updateField(_isCodexIcon, next.IsCodexIcon, L"IsCodexIcon");
+        updateField(_isAgyIcon, next.IsAgyIcon, L"IsAgyIcon");
+
+        return anyChanged;
+    }
+
     bool WorkspaceSidebarRow::UpdateFrom(const WorkspaceSidebarRow& next)
     {
         bool anyChanged = false;

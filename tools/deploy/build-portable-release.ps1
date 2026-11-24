@@ -7,6 +7,9 @@ param(
 
     [switch]$NoLaunch,
 
+    # Bundle the standalone Node.js SEA winmux-bridge.exe so portable users do not need Node.js installed.
+    [switch]$IncludeBridgeExe,
+
     [string]$OutputDirectory,
 
     # Release preparation supplies the exact MSIX from its successful gate.
@@ -237,6 +240,22 @@ try
             {
                 Copy-Item -LiteralPath $sourceItem -Destination $bridgeDestination -Recurse -Force
             }
+        }
+
+        if ($IncludeBridgeExe)
+        {
+            $bridgeExe = Join-Path $bridgeSource 'dist\winmux-bridge.exe'
+            if (-not (Test-Path -LiteralPath $bridgeExe -PathType Leaf))
+            {
+                $buildSeaScript = Join-Path $bridgeSource 'build-sea.mjs'
+                Write-Host 'Building standalone zero-dependency winmux-bridge.exe (Node SEA)...' -ForegroundColor Cyan
+                & node $buildSeaScript --out $bridgeExe
+                if ($LASTEXITCODE -ne 0)
+                {
+                    throw "Building winmux-bridge.exe failed with exit code $LASTEXITCODE."
+                }
+            }
+            Copy-Item -LiteralPath $bridgeExe -Destination (Join-Path $bridgeDestination 'winmux-bridge.exe') -Force
         }
     }
 

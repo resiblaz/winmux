@@ -391,7 +391,11 @@ export const PWA_INDEX_HTML = `<!doctype html>
           if (msg.workspaceId === state.activeTerm.workspaceId &&
               msg.surfaceId === state.activeTerm.surfaceId &&
               msg.paneId === state.activeTerm.paneId) {
-            state.termText = msg.text || '';
+            if (msg.mode === 'append') {
+              state.termText = (state.termText + (msg.delta || '')).slice(-16384);
+            } else {
+              state.termText = msg.text || '';
+            }
             updateTermScreen();
           }
         }
@@ -419,6 +423,7 @@ export const PWA_INDEX_HTML = `<!doctype html>
       surfaceId: state.activeTerm.surfaceId,
       paneId: state.activeTerm.paneId,
       maxLines: 150,
+      supportsDelta: true,
     }));
   }
 

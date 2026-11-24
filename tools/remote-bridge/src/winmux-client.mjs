@@ -43,22 +43,209 @@ export class WinmuxClient {
     this.registryPath = options.registryPath || resolveEndpointsRegistryPath();
     this.pipeOverride = options.pipe || process.env.WINMUX_PIPE || '';
     this.requestTimeoutMs = options.requestTimeoutMs || 6000;
+    this.idleCloseMs = options.idleCloseMs ?? 8000;
+    this._cachedPipe = '';
+    this._cachedPipeAt = 0;
+    this._cachedRegistryMtimeMs = 0;
+    this._socket = null;
+    this._socketPipe = '';
+    this._socketBuffer = '';
+    this._idleTimer = null;
+    this._queue = [];
+    this._activeRequest = null;
   }
 
-  resolvePipe() {
+  resolvePipe(forceRefresh = false) {
     if (this.pipeOverride) return this.pipeOverride;
+    const now = Date.now();
+    if (!forceRefresh && this._cachedPipe && now - this._cachedPipeAt < 3000) {
+      return this._cachedPipe;
+    }
+    try {
+      const stat = fs.statSync(this.registryPath);
+      if (!forceRefresh && this._cachedPipe && stat.mtimeMs === this._cachedRegistryMtimeMs) {
+        this._cachedPipeAt = now;
+        return this._cachedPipe;
+      }
+      this._cachedRegistryMtimeMs = stat.mtimeMs;
+    } catch {
+      this._cachedPipe = '';
+      this._cachedRegistryMtimeMs = 0;
+      return null;
+    }
     const endpoints = discoverWinmuxPipes(this.registryPath);
-    return endpoints[0]?.pipe || null;
+    this._cachedPipe = endpoints[0]?.pipe || '';
+    this._cachedPipeAt = now;
+    return this._cachedPipe || null;
   }
 
-  async call(method, params = {}) {
-    const pipeName = this.resolvePipe();
+  close() {
+    this._clearIdleTimer();
+    this._dropSocket(new Error('Winmux client closed'));
+  }
+
+  _clearIdleTimer() {
+    if (this._idleTimer) {
+      clearTimeout(this._idleTimer);
+      this._idleTimer = null;
+    }
+  }
+
+  _scheduleIdleClose() {
+    this._clearIdleTimer();
+    if (!this._socket || this._activeRequest || this._queue.length > 0 || this.idleCloseMs <= 0) {
+      return;
+    }
+    this._idleTimer = setTimeout(() => {
+      this._idleTimer = null;
+      if (!this._activeRequest && this._queue.length === 0) {
+        this._dropSocket();
+      }
+    }, this.idleCloseMs);
+    this._idleTimer.unref?.();
+  }
+
+  _dropSocket(errorForPending = null) {
+    this._clearIdleTimer();
+    const sock = this._socket;
+    this._socket = null;
+    this._socketPipe = '';
+    this._socketBuffer = '';
+    if (sock) {
+      sock.removeAllListeners();
+      try {
+        sock.destroy();
+      } catch {
+        // Ignore already-closed pipe handle.
+      }
+    }
+    if (errorForPending && this._activeRequest) {
+      const active = this._activeRequest;
+      this._activeRequest = null;
+      clearTimeout(active.timer);
+      active.onFailure(errorForPending);
+    }
+  }
+
+  _ensureSocket(pipeName) {
+    if (this._socket && !this._socket.destroyed && this._socketPipe === pipeName) {
+      return { socket: this._socket, reused: true };
+    }
+    this._dropSocket();
+    const socket = net.createConnection(pipeName);
+    this._socket = socket;
+    this._socketPipe = pipeName;
+    this._socketBuffer = '';
+
+    socket.on('data', (chunk) => {
+      if (this._socket !== socket) return;
+      this._socketBuffer += chunk.toString('utf8');
+      this._drainBuffer();
+    });
+
+    socket.on('error', (err) => {
+      if (this._socket !== socket) return;
+      const wrapped = new Error(`Failed to connect to Winmux pipe (${pipeName}): ${err.message}`);
+      wrapped.code = 'pipe_connect_failed';
+      this._cachedPipe = '';
+      this._dropSocket(wrapped);
+      this._pumpQueue();
+    });
+
+    socket.on('close', () => {
+      if (this._socket !== socket) return;
+      const err = new Error('Winmux closed the pipe before sending a response');
+      err.code = 'pipe_closed';
+      this._dropSocket(err);
+      this._pumpQueue();
+    });
+
+    return { socket, reused: false };
+  }
+
+  _drainBuffer() {
+    while (this._activeRequest) {
+      const newlineIndex = this._socketBuffer.indexOf('\n');
+      if (newlineIndex < 0) return;
+      const line = this._socketBuffer.slice(0, newlineIndex).trim();
+      this._socketBuffer = this._socketBuffer.slice(newlineIndex + 1);
+      const active = this._activeRequest;
+      this._activeRequest = null;
+      clearTimeout(active.timer);
+      try {
+        const parsed = JSON.parse(line);
+        if (parsed.error) {
+          const err = new Error(parsed.error.message || parsed.error.code || 'Winmux error');
+          err.code = parsed.error.code || 'winmux_error';
+          active.reject(err);
+        } else {
+          active.resolve(parsed.result ?? {});
+        }
+      } catch (parseErr) {
+        active.reject(parseErr);
+      }
+      this._pumpQueue();
+    }
+  }
+
+  _pumpQueue() {
+    if (this._activeRequest) return;
+    if (this._queue.length === 0) {
+      this._scheduleIdleClose();
+      return;
+    }
+
+    this._clearIdleTimer();
+    const job = this._queue.shift();
+    const pipeName = this.resolvePipe(job.attempt > 0);
     if (!pipeName) {
       const err = new Error('No running Winmux window with workspace automation enabled was found.');
       err.code = 'winmux_not_running';
-      throw err;
+      job.reject(err);
+      this._pumpQueue();
+      return;
     }
 
+    const { socket, reused } = this._ensureSocket(pipeName);
+    const active = {
+      resolve: job.resolve,
+      reject: job.reject,
+      timer: null,
+      onFailure: (err) => {
+        // Transparently retry once on a fresh pipe if a reused persistent connection was closed
+        // (e.g. older single-request Winmux build or restarted Winmux window).
+        if (reused && job.attempt === 0 && (err.code === 'pipe_closed' || err.code === 'pipe_connect_failed')) {
+          job.attempt += 1;
+          this._queue.unshift(job);
+          this._pumpQueue();
+          return;
+        }
+        job.reject(err);
+      },
+    };
+
+    active.timer = setTimeout(() => {
+      if (this._activeRequest === active) {
+        const err = new Error(`Winmux IPC timed out for ${job.method}`);
+        err.code = 'ipc_timeout';
+        this._dropSocket(err);
+        this._pumpQueue();
+      }
+    }, this.requestTimeoutMs);
+    active.timer.unref?.();
+
+    this._activeRequest = active;
+    try {
+      socket.write(job.payload, 'utf8');
+    } catch (writeErr) {
+      const err = new Error(`Failed to write to Winmux pipe (${pipeName}): ${writeErr.message}`);
+      err.code = 'pipe_connect_failed';
+      this._dropSocket(err);
+      this._pumpQueue();
+    }
+  }
+
+  async call(method, params = {}) {
     const requestId = crypto.randomUUID();
     const payload = JSON.stringify({
       version: 1,
@@ -68,64 +255,8 @@ export class WinmuxClient {
     }) + '\n';
 
     return new Promise((resolve, reject) => {
-      let settled = false;
-      let buffer = '';
-      const socket = net.createConnection(pipeName);
-
-      const timer = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          socket.destroy();
-          const err = new Error(`Winmux IPC timed out for ${method}`);
-          err.code = 'ipc_timeout';
-          reject(err);
-        }
-      }, this.requestTimeoutMs);
-
-      const finish = (fn, value) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        socket.end();
-        fn(value);
-      };
-
-      socket.once('connect', () => {
-        socket.write(payload, 'utf8');
-      });
-
-      socket.on('data', (chunk) => {
-        buffer += chunk.toString('utf8');
-        const newlineIndex = buffer.indexOf('\n');
-        if (newlineIndex < 0) return;
-        const line = buffer.slice(0, newlineIndex).trim();
-        try {
-          const parsed = JSON.parse(line);
-          if (parsed.error) {
-            const err = new Error(parsed.error.message || parsed.error.code || 'Winmux error');
-            err.code = parsed.error.code || 'winmux_error';
-            finish(reject, err);
-          } else {
-            finish(resolve, parsed.result ?? {});
-          }
-        } catch (parseErr) {
-          finish(reject, parseErr);
-        }
-      });
-
-      socket.once('error', (err) => {
-        const wrapped = new Error(`Failed to connect to Winmux pipe (${pipeName}): ${err.message}`);
-        wrapped.code = 'pipe_connect_failed';
-        finish(reject, wrapped);
-      });
-
-      socket.once('end', () => {
-        if (!settled) {
-          const err = new Error('Winmux closed the pipe before sending a response');
-          err.code = 'pipe_closed';
-          finish(reject, err);
-        }
-      });
+      this._queue.push({ method, payload, attempt: 0, resolve, reject });
+      this._pumpQueue();
     });
   }
 

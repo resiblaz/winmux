@@ -248,7 +248,7 @@ const seaConfig = {
   main: bundlePath,
   output: outputExe,
   disableExperimentalSEAWarning: true,
-  useCodeCache: false,
+  useCodeCache: true,
 };
 fs.writeFileSync(seaConfigPath, JSON.stringify(seaConfig, null, 2), 'utf8');
 

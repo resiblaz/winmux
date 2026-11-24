@@ -148,7 +148,8 @@ export class WinmuxBridgeServer {
     this._pollPromise = null;
     this._terminalStreamTimer = null;
     this._terminalStreamIntervalMs = options.terminalStreamIntervalMs ?? 750;
-    this._terminalSubscriptions = new Map(); // WebSocketClient -> { workspaceId, surfaceId, paneId, maxLines, lastText }
+    this._terminalStreamIdleTicks = 0;
+    this._terminalSubscriptions = new Map(); // WebSocketClient -> { workspaceId, surfaceId, paneId, maxLines, supportsDelta, lastText }
     this._terminalPollInFlight = false;
     this._terminalPollPending = false;
     this._terminalPollPendingKey = '';
@@ -161,9 +162,13 @@ export class WinmuxBridgeServer {
     this._globalPairCooldownUntil = 0;
     this._httpServer = null;
 
+    this.wsHub.on('connection', () => {
+      this._syncPollTimer();
+    });
     this.wsHub.on('disconnection', (client) => {
       this._terminalSubscriptions.delete(client);
       this._syncTerminalStreamTimer();
+      this._syncPollTimer();
     });
 
     this.decisions.on('created', (item) => {
@@ -228,6 +233,10 @@ export class WinmuxBridgeServer {
         notifications: this.notifications.slice(0, 30),
       });
 
+      if (Date.now() - (this._lastSnapshot?.updatedAt || 0) >= Math.max(this.pollIntervalMs, 1000)) {
+        this.pollOnce().catch(() => {});
+      }
+
       client.on('message', (raw) => {
         this._handleWsMessage(client, raw).catch(() => {});
       });
@@ -242,14 +251,22 @@ export class WinmuxBridgeServer {
     });
 
     await this.pollOnce();
-    if (this.pollIntervalMs > 0) {
+    this._syncPollTimer();
+
+    return this.getPairingInfo();
+  }
+
+  _syncPollTimer() {
+    const shouldPoll = this.pollIntervalMs > 0 && this._httpServer && this.wsHub.clients.size > 0;
+    if (shouldPoll && !this._pollTimer) {
       this._pollTimer = setInterval(() => {
         this.pollOnce().catch(() => {});
       }, this.pollIntervalMs);
       this._pollTimer.unref?.();
+    } else if (!shouldPoll && this._pollTimer) {
+      clearInterval(this._pollTimer);
+      this._pollTimer = null;
     }
-
-    return this.getPairingInfo();
   }
 
   async stop() {
@@ -258,12 +275,13 @@ export class WinmuxBridgeServer {
       this._pollTimer = null;
     }
     if (this._terminalStreamTimer) {
-      clearInterval(this._terminalStreamTimer);
+      clearTimeout(this._terminalStreamTimer);
       this._terminalStreamTimer = null;
     }
     this._terminalSubscriptions.clear();
     this.wsHub.closeAll();
     this.tunnel.stop();
+    this.winmux.close?.();
     if (this._httpServer) {
       const server = this._httpServer;
       this._httpServer = null;
@@ -348,15 +366,45 @@ export class WinmuxBridgeServer {
   }
 
   _syncTerminalStreamTimer() {
-    if (this._terminalSubscriptions.size > 0 && !this._terminalStreamTimer && this._terminalStreamIntervalMs > 0) {
-      this._terminalStreamTimer = setInterval(() => {
-        this._pollSubscribedTerminals().catch(() => {});
-      }, this._terminalStreamIntervalMs);
-      this._terminalStreamTimer.unref?.();
-    } else if (this._terminalSubscriptions.size === 0 && this._terminalStreamTimer) {
-      clearInterval(this._terminalStreamTimer);
+    if (this._terminalSubscriptions.size === 0) {
+      if (this._terminalStreamTimer) {
+        clearTimeout(this._terminalStreamTimer);
+        this._terminalStreamTimer = null;
+      }
+      this._terminalStreamIdleTicks = 0;
+      return;
+    }
+    if (!this._terminalStreamTimer && this._terminalStreamIntervalMs > 0) {
+      this._scheduleNextTerminalPoll();
+    }
+  }
+
+  _scheduleNextTerminalPoll() {
+    if (this._terminalStreamTimer) {
+      clearTimeout(this._terminalStreamTimer);
       this._terminalStreamTimer = null;
     }
+    if (this._terminalSubscriptions.size === 0 || this._terminalStreamIntervalMs <= 0) {
+      return;
+    }
+    // Adaptive terminal streaming: fast 350ms cadence while actively outputting, backing off to 1500ms when idle.
+    const activeDelay = Math.min(this._terminalStreamIntervalMs, 350);
+    const delayMs = this._terminalStreamIdleTicks === 0
+      ? activeDelay
+      : this._terminalStreamIdleTicks < 3
+        ? this._terminalStreamIntervalMs
+        : Math.max(this._terminalStreamIntervalMs, 1500);
+    this._terminalStreamTimer = setTimeout(() => {
+      this._terminalStreamTimer = null;
+      this._pollSubscribedTerminals()
+        .catch(() => {})
+        .finally(() => {
+          if (this._terminalSubscriptions.size > 0) {
+            this._scheduleNextTerminalPoll();
+          }
+        });
+    }, delayMs);
+    this._terminalStreamTimer.unref?.();
   }
 
   async _pollSubscribedTerminals(forceTargetKey = '') {
@@ -403,23 +451,47 @@ export class WinmuxBridgeServer {
       groups.get(key).clients.push({ client, sub });
     }
 
+    let anyChanged = false;
     for (const { sub, clients } of groups.values()) {
       try {
         const res = await this.winmux.readTerminalContent(sub.workspaceId, sub.surfaceId, sub.paneId, sub.maxLines, 8192);
         const text = String(res.text || '');
         const updatedAt = Date.now();
         for (const item of clients) {
-          if (item.sub.lastText !== text || Boolean(forceTargetKey)) {
+          const prevText = item.sub.lastText;
+          const changed = prevText !== text;
+          if (changed) anyChanged = true;
+          if (changed || Boolean(forceTargetKey)) {
             item.sub.lastText = text;
-            item.client.sendJson({
-              type: 'terminal.output',
-              workspaceId: sub.workspaceId,
-              surfaceId: sub.surfaceId,
-              paneId: sub.paneId,
-              text,
-              truncated: Boolean(res.truncated),
-              updatedAt,
-            });
+            const canAppend =
+              item.sub.supportsDelta &&
+              typeof prevText === 'string' &&
+              prevText.length > 0 &&
+              text.length > prevText.length &&
+              text.startsWith(prevText);
+            if (canAppend) {
+              item.client.sendJson({
+                type: 'terminal.output',
+                mode: 'append',
+                workspaceId: sub.workspaceId,
+                surfaceId: sub.surfaceId,
+                paneId: sub.paneId,
+                delta: text.slice(prevText.length),
+                truncated: Boolean(res.truncated),
+                updatedAt,
+              });
+            } else {
+              item.client.sendJson({
+                type: 'terminal.output',
+                mode: 'full',
+                workspaceId: sub.workspaceId,
+                surfaceId: sub.surfaceId,
+                paneId: sub.paneId,
+                text,
+                truncated: Boolean(res.truncated),
+                updatedAt,
+              });
+            }
           }
         }
       } catch (err) {
@@ -437,6 +509,11 @@ export class WinmuxBridgeServer {
           }
         }
       }
+    }
+    if (anyChanged) {
+      this._terminalStreamIdleTicks = 0;
+    } else if (!forceTargetKey) {
+      this._terminalStreamIdleTicks = Math.min(this._terminalStreamIdleTicks + 1, 10);
     }
   }
 
@@ -463,9 +540,11 @@ export class WinmuxBridgeServer {
         surfaceId,
         paneId,
         maxLines,
+        supportsDelta: Boolean(msg.supportsDelta),
         lastText: null,
         lastError: null,
       });
+      this._terminalStreamIdleTicks = 0;
       this._syncTerminalStreamTimer();
       await this._pollSubscribedTerminals(`${workspaceId}:${surfaceId}:${paneId}`);
     } else if (msg.type === 'terminal.unsubscribe') {
@@ -713,6 +792,7 @@ export class WinmuxBridgeServer {
       }
       const result = await this.winmux.sendTerminalInput(body.workspaceId, body.surfaceId, Number(body.paneId), body.text);
       const targetKey = `${body.workspaceId}:${body.surfaceId}:${Number(body.paneId)}`;
+      this._terminalStreamIdleTicks = 0;
       setTimeout(() => {
         this._pollSubscribedTerminals(targetKey).catch(() => {});
       }, 220).unref?.();

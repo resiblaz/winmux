@@ -15,6 +15,7 @@ import { PWA_INDEX_HTML } from '../src/web-ui.mjs';
 function startMockWinmuxPipe() {
   const pipeName = `\\\\.\\pipe\\winmux-bridge-test-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
   const state = {
+    connections: 0,
     sentInputs: [],
     focused: [],
     createdWorkspaces: 0,
@@ -57,12 +58,16 @@ function startMockWinmuxPipe() {
   };
 
   const server = net.createServer((socket) => {
+    state.connections++;
     let buf = '';
     socket.on('data', (chunk) => {
       buf += chunk.toString('utf8');
-      const idx = buf.indexOf('\n');
-      if (idx < 0) return;
-      const req = JSON.parse(buf.slice(0, idx));
+      for (;;) {
+        const idx = buf.indexOf('\n');
+        if (idx < 0) return;
+        const rawLine = buf.slice(0, idx);
+        buf = buf.slice(idx + 1);
+        const req = JSON.parse(rawLine);
       let result = {};
       if (req.method === 'workspace.snapshot') {
         state.snapshotCalls++;
@@ -133,6 +138,7 @@ function startMockWinmuxPipe() {
         result = { workspace: ws };
       }
       socket.write(JSON.stringify({ version: 1, id: req.id, result }) + '\n');
+      }
     });
   });
 
@@ -978,4 +984,81 @@ test('Web PWA uses delegated data-action handlers without inline onclick/XSS, pr
   const resolveCall = fetchCalls.find((c) => c.url === '/api/decisions/dec-q1/resolve');
   assert.ok(resolveCall, 'Submitting question decision must call /api/decisions/:id/resolve');
   assert.deepEqual(resolveCall.body, { decision: '方案B', answers: ['方案B'] });
+});
+
+test('performance: persistent Named Pipe reuse, adaptive idle polling, and terminal delta append streaming', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'winmux-perf-test-'));
+  const mockPipe = await startMockWinmuxPipe();
+  const bridge = new WinmuxBridgeServer({
+    host: '127.0.0.1',
+    port: 0,
+    tls: false,
+    pollIntervalMs: 1000,
+    terminalStreamIntervalMs: 80,
+    stateDir: tempDir,
+    winmuxOptions: { pipe: mockPipe.pipeName },
+  });
+
+  try {
+    const pairing = await bridge.start();
+    const baseUrl = `http://127.0.0.1:${bridge.actualPort}`;
+
+    // 1. Adaptive idle polling: with 0 WS clients connected, background poll timer must stay stopped!
+    assert.equal(bridge._pollTimer, null, 'Poll timer must stay stopped when no WS clients are connected');
+
+    const pairBody = await (await fetch(`${baseUrl}/api/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: pairing.code, deviceName: 'PerfPhone' }),
+    })).json();
+
+    // 2. Connect WS -> poll timer activates automatically
+    const wsEvents = [];
+    const ws = new WebSocket(`ws://127.0.0.1:${bridge.actualPort}/ws?token=${encodeURIComponent(pairBody.token)}`);
+    await new Promise((resolve, reject) => {
+      ws.addEventListener('open', resolve, { once: true });
+      ws.addEventListener('error', reject, { once: true });
+    });
+    ws.addEventListener('message', (ev) => wsEvents.push(JSON.parse(String(ev.data))));
+    assert.ok(bridge._pollTimer !== null, 'Poll timer must start once a WS client connects');
+
+    // 3. Subscribe with supportsDelta: true -> initial full frame, then append-only delta frame!
+    ws.send(JSON.stringify({
+      type: 'terminal.subscribe',
+      workspaceId: '11111111-2222-4333-8444-555555555555',
+      surfaceId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+      paneId: 0,
+      maxLines: 80,
+      supportsDelta: true,
+    }));
+    for (let i = 0; i < 40 && !wsEvents.some((e) => e.type === 'terminal.output' && e.mode === 'full'); i++) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    const fullFrame = wsEvents.find((e) => e.type === 'terminal.output' && e.mode === 'full');
+    assert.ok(fullFrame, 'Initial terminal.output should be mode=full');
+
+    // Append a new line to mock terminal output -> next WS event must be mode=append with ONLY the suffix!
+    mockPipe.state.content += '\nBuilding step 2...';
+    for (let i = 0; i < 40 && !wsEvents.some((e) => e.type === 'terminal.output' && e.mode === 'append'); i++) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    const deltaFrame = wsEvents.find((e) => e.type === 'terminal.output' && e.mode === 'append');
+    assert.ok(deltaFrame, 'Incremental terminal output should use mode=append');
+    assert.equal(deltaFrame.delta, '\nBuilding step 2...');
+    assert.equal(deltaFrame.text, undefined);
+
+    // 4. Persistent Named Pipe reuse: multiple IPC calls (snapshot + multiple terminal reads) reused 1 pipe connection!
+    assert.equal(mockPipe.state.connections, 1, `Expected 1 persistent pipe connection, got ${mockPipe.state.connections}`);
+
+    // 5. Disconnect WS -> poll timer stops cleanly again
+    ws.close();
+    for (let i = 0; i < 40 && bridge._pollTimer !== null; i++) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    assert.equal(bridge._pollTimer, null, 'Poll timer must stop when last WS client disconnects');
+  } finally {
+    await bridge.stop();
+    await new Promise((resolve) => mockPipe.server.close(resolve));
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 });

@@ -8,8 +8,13 @@
 #include "TerminalPage.h"
 #include "WorkspaceAutomation.h"
 #include "WorkspaceFeatureSet.h"
+#include "WorkspaceSidebar.h"
 
 #include "../../types/inc/utils.hpp"
+
+#include <filesystem>
+#include <fstream>
+#include <shlobj_core.h>
 
 using namespace winrt;
 using namespace winrt::Microsoft::Terminal;
@@ -70,17 +75,128 @@ namespace winrt::TerminalApp::implementation
         {
             _server.reset();
         }
+        else
+        {
+            _registeredPipeName = std::wstring{ _server->PipeName() };
+            _PublishEndpointRegistry(_registeredPipeName, true);
+        }
     }
 
     void WorkspaceAutomationController::Stop() noexcept
     {
         _enabled = false;
+        if (!_registeredPipeName.empty())
+        {
+            _PublishEndpointRegistry(_registeredPipeName, false);
+            _registeredPipeName.clear();
+        }
         if (_server)
         {
             _server->Stop();
             _server.reset();
         }
         _notificationTimes.clear();
+    }
+
+    void WorkspaceAutomationController::_PublishEndpointRegistry(const std::wstring_view pipeName, const bool registerEntry) noexcept
+    try
+    {
+        if (pipeName.empty())
+        {
+            return;
+        }
+
+        wil::unique_cotaskmem_string localAppData;
+        if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_CREATE, nullptr, &localAppData)) || !localAppData)
+        {
+            return;
+        }
+
+        const auto directory = std::filesystem::path{ localAppData.get() } / L"Winmux";
+        std::error_code ec;
+        std::filesystem::create_directories(directory, ec);
+        if (ec)
+        {
+            return;
+        }
+
+        const auto registryPath = directory / L"automation-endpoints.json";
+        JsonArray entries;
+        if (std::filesystem::exists(registryPath, ec) && !ec)
+        {
+            std::ifstream input{ registryPath, std::ios::binary };
+            std::string existing((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+            JsonObject parsed{ nullptr };
+            if (!existing.empty() && JsonObject::TryParse(winrt::to_hstring(existing), parsed) && parsed)
+            {
+                if (parsed.HasKey(L"endpoints") && parsed.GetNamedValue(L"endpoints").ValueType() == JsonValueType::Array)
+                {
+                    const auto currentEntries = parsed.GetNamedArray(L"endpoints");
+                    for (uint32_t i = 0; i < currentEntries.Size(); ++i)
+                    {
+                        if (currentEntries.GetAt(i).ValueType() != JsonValueType::Object)
+                        {
+                            continue;
+                        }
+                        const auto obj = currentEntries.GetAt(i).GetObject();
+                        if (!obj.HasKey(L"pipe") || !obj.HasKey(L"pid"))
+                        {
+                            continue;
+                        }
+                        const auto entryPipe = obj.GetNamedString(L"pipe");
+                        if (entryPipe == pipeName)
+                        {
+                            continue;
+                        }
+                        const auto entryPid = static_cast<DWORD>(obj.GetNamedNumber(L"pid", 0));
+                        if (entryPid == 0)
+                        {
+                            continue;
+                        }
+                        wil::unique_handle proc{ OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entryPid) };
+                        DWORD exitCode = 0;
+                        if (proc && GetExitCodeProcess(proc.get(), &exitCode) && exitCode == STILL_ACTIVE)
+                        {
+                            entries.Append(obj);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (registerEntry)
+        {
+            const auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                   std::chrono::system_clock::now().time_since_epoch())
+                                   .count();
+            JsonObject current;
+            current.Insert(L"pid", JsonValue::CreateNumberValue(static_cast<double>(GetCurrentProcessId())));
+            current.Insert(L"windowId", JsonValue::CreateStringValue(winrt::to_hstring(_page._WindowProperties.WindowId())));
+            current.Insert(L"pipe", JsonValue::CreateStringValue(pipeName));
+            current.Insert(L"updatedAtMs", JsonValue::CreateNumberValue(static_cast<double>(nowMs)));
+            entries.Append(current);
+        }
+
+        JsonObject root;
+        root.Insert(L"version", JsonValue::CreateNumberValue(1));
+        root.Insert(L"endpoints", entries);
+        const auto payload = winrt::to_string(root.Stringify());
+
+        const auto tempPath = directory / fmt::format(FMT_COMPILE(L"automation-endpoints.{}.{}.tmp"),
+                                                      GetCurrentProcessId(),
+                                                      _page._WindowProperties.WindowId());
+        {
+            std::ofstream output{ tempPath, std::ios::binary | std::ios::trunc };
+            output.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+            output.flush();
+        }
+        if (!MoveFileExW(tempPath.c_str(), registryPath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+        {
+            std::filesystem::remove(tempPath, ec);
+        }
+    }
+    catch (...)
+    {
     }
 
     std::wstring_view WorkspaceAutomationController::PipeName() const noexcept
@@ -123,6 +239,7 @@ namespace winrt::TerminalApp::implementation
             workspace.Insert(L"selected", JsonValue::CreateBooleanValue(item.IsSelected()));
             workspace.Insert(L"pinned", JsonValue::CreateBooleanValue(item.IsPinned()));
             workspace.Insert(L"surfaceCount", JsonValue::CreateNumberValue(item.SurfaceCount()));
+            workspace.Insert(L"unreadCount", JsonValue::CreateNumberValue(item.UnreadCount()));
             workspace.Insert(L"workingDirectory", JsonValue::CreateStringValue(item.WorkingDirectory()));
             workspace.Insert(L"gitBranch", JsonValue::CreateStringValue(item.GitBranch()));
             JsonArray listeningPorts;
@@ -169,26 +286,87 @@ namespace winrt::TerminalApp::implementation
             // another surface. Never fall back to the selected terminal.
             return winrt::get_self<WorkspaceItemViewModel>(item)->TabForSurfaceId(request.SurfaceId.value());
         };
-        const auto paneJson = [](const std::shared_ptr<Pane>& pane, const winrt::guid& surfaceId, const bool active) {
+        const auto iconKindName = [](const SidebarIconKind icon) -> std::wstring_view {
+            switch (icon)
+            {
+            case SidebarIconKind::Claude:
+                return L"claude";
+            case SidebarIconKind::Codex:
+                return L"codex";
+            case SidebarIconKind::Agy:
+                return L"agy";
+            case SidebarIconKind::Terminal:
+            default:
+                return L"terminal";
+            }
+        };
+        const auto sidebarImpl = _page._workspaceSidebar ? winrt::get_self<implementation::WorkspaceSidebar>(_page._workspaceSidebar) : nullptr;
+        const auto paneJson = [&](const std::shared_ptr<Pane>& pane, const winrt::guid& surfaceId, const bool active) {
             JsonObject value;
             value.Insert(L"id", JsonValue::CreateNumberValue(pane->Id().value()));
             value.Insert(L"surfaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(surfaceId)));
             value.Insert(L"active", JsonValue::CreateBooleanValue(active));
             value.Insert(L"connectionClosed", JsonValue::CreateBooleanValue(pane->IsConnectionClosed()));
+            value.Insert(L"hasAttention", JsonValue::CreateBooleanValue(pane->HasAttention()));
 
+            winrt::hstring paneTitle;
             if (const auto content = pane->GetContent())
             {
-                value.Insert(L"title", JsonValue::CreateStringValue(content.Title()));
+                paneTitle = content.Title();
+                value.Insert(L"title", JsonValue::CreateStringValue(paneTitle));
                 value.Insert(L"readOnly", JsonValue::CreateBooleanValue(content.ReadOnly()));
             }
             if (const auto profile = pane->GetProfile())
             {
                 value.Insert(L"profile", JsonValue::CreateStringValue(profile.Name()));
             }
+
+            uint32_t rootPid = 0;
             if (const auto control = pane->GetTerminalControl())
             {
                 value.Insert(L"workingDirectory", JsonValue::CreateStringValue(control.WorkingDirectory()));
+                if (const auto connection = control.Connection())
+                {
+                    if (const auto conpty = connection.try_as<TerminalConnection::ConptyConnection>())
+                    {
+                        if (const auto handle = reinterpret_cast<HANDLE>(conpty.RootProcessHandle()))
+                        {
+                            rootPid = GetProcessId(handle);
+                        }
+                    }
+                }
             }
+            if (rootPid != 0)
+            {
+                value.Insert(L"rootProcessId", JsonValue::CreateNumberValue(rootPid));
+            }
+
+            bool hasActiveChild = false;
+            std::wstring activeProcessName;
+            auto agentIcon = SidebarIconKind::Terminal;
+            bool allowTitleFallback = true;
+            if (sidebarImpl && rootPid != 0)
+            {
+                const auto& processStates = sidebarImpl->ProcessStates();
+                if (const auto it = processStates.find(rootPid); it != processStates.end())
+                {
+                    hasActiveChild = it->second.HasActiveChild;
+                    activeProcessName = it->second.ActiveProcessName;
+                    agentIcon = it->second.Icon;
+                    if (agentIcon != SidebarIconKind::Terminal || (!hasActiveChild && !it->second.AllowsTitleFallbackWhenIdle))
+                    {
+                        allowTitleFallback = false;
+                    }
+                }
+            }
+            if (allowTitleFallback && agentIcon == SidebarIconKind::Terminal)
+            {
+                agentIcon = WorkspaceSidebarTreeModel::DetectIconKind(paneTitle);
+            }
+
+            value.Insert(L"hasActiveChild", JsonValue::CreateBooleanValue(hasActiveChild));
+            value.Insert(L"activeProcessName", JsonValue::CreateStringValue(activeProcessName));
+            value.Insert(L"agentKind", JsonValue::CreateStringValue(iconKindName(agentIcon)));
             return value;
         };
         const auto progressStateName = [](const uint64_t state) -> winrt::hstring {

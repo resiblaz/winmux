@@ -39,6 +39,7 @@ namespace winrt::TerminalApp::implementation
         void SetWorkspaces(const Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel>& workspaces);
         void SetActiveSelection(const TerminalApp::Tab& activeTab, std::optional<uint32_t> activePaneId);
         void UpdateProcessStates(std::unordered_map<uint32_t, SidebarProcessState> processStates);
+        const std::unordered_map<uint32_t, SidebarProcessState>& ProcessStates() const noexcept { return _processStates; }
         void RefreshTree();
         void ScheduleRefreshTree();
         void SetSearchQueryForTests(winrt::hstring query);

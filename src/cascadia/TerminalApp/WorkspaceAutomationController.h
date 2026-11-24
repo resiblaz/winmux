@@ -39,9 +39,11 @@ namespace winrt::TerminalApp::implementation
         friend class ::TerminalAppLocalTests::TabTests;
 
         std::string _HandleRequest(std::string_view request);
+        void _PublishEndpointRegistry(std::wstring_view pipeName, bool registerEntry) noexcept;
 
         TerminalPage& _page;
         std::unique_ptr<WorkspaceAutomationServer> _server;
+        std::wstring _registeredPipeName;
         std::deque<std::chrono::steady_clock::time_point> _notificationTimes;
         bool _enabled{};
     };

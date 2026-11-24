@@ -225,6 +225,21 @@ try
     $defaultSettings = New-PortableDefaultSettings
     [System.IO.File]::WriteAllText($settingsPath, $defaultSettings + "`r`n", [System.Text.UTF8Encoding]::new($false))
 
+    $bridgeSource = Join-Path $repoRoot 'tools\remote-bridge'
+    if (Test-Path -LiteralPath (Join-Path $bridgeSource 'package.json') -PathType Leaf)
+    {
+        $bridgeDestination = Join-Path $terminalRoot.FullName 'bridge'
+        New-Item -ItemType Directory -Path $bridgeDestination -Force | Out-Null
+        foreach ($item in @('package.json', 'README.md', 'Start-WinmuxBridge.ps1', 'bin', 'src', 'hooks'))
+        {
+            $sourceItem = Join-Path $bridgeSource $item
+            if (Test-Path -LiteralPath $sourceItem)
+            {
+                Copy-Item -LiteralPath $sourceItem -Destination $bridgeDestination -Recurse -Force
+            }
+        }
+    }
+
     $configuredZipName = "winmux_${version}_windows_${Platform}.zip"
     $configuredZip = Join-Path $outputRoot $configuredZipName
     $temporaryZip = Join-Path $outputRoot ('.{0}.{1}.tmp.zip' -f [System.IO.Path]::GetFileNameWithoutExtension($configuredZipName), [guid]::NewGuid().ToString('N'))

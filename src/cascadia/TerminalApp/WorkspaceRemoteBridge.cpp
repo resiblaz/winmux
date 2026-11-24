@@ -18,6 +18,27 @@ namespace winrt::TerminalApp::implementation
     {
         using unique_winhttp = wil::unique_any<HINTERNET, decltype(&WinHttpCloseHandle), WinHttpCloseHandle>;
 
+        // Reuse a shared WinHTTP session handle across loopback management requests to keep
+        // TLS session tickets and HTTP/1.1 Keep-Alive connections warm instead of recreating
+        // a brand-new WinHTTP session on every flyout refresh or startup poll.
+        HINTERNET _sharedWinHttpSession() noexcept
+        {
+            static std::mutex sessionMutex;
+            static unique_winhttp sharedSession;
+            std::scoped_lock lock{ sessionMutex };
+            if (!sharedSession)
+            {
+                sharedSession.reset(WinHttpOpen(L"WinmuxDesktop/1.0",
+                                                WINHTTP_ACCESS_TYPE_NO_PROXY,
+                                                WINHTTP_NO_PROXY_NAME,
+                                                WINHTTP_NO_PROXY_BYPASS,
+                                                0));
+            }
+            return sharedSession.get();
+        }
+
+        std::atomic_bool _preferLocalhostTls{ true };
+
         std::wstring _quoteCommandArg(const std::wstring_view arg)
         {
             std::wstring out;
@@ -44,26 +65,24 @@ namespace winrt::TerminalApp::implementation
                                  const wchar_t* path,
                                  std::string& responseBodyOut,
                                  DWORD& statusCodeOut,
+                                 DWORD& winHttpErrorOut,
                                  const DWORD receiveTimeoutMs = 1500)
         {
             responseBodyOut.clear();
             statusCodeOut = 0;
+            winHttpErrorOut = ERROR_SUCCESS;
 
-            unique_winhttp session{ WinHttpOpen(L"WinmuxDesktop/1.0",
-                                                WINHTTP_ACCESS_TYPE_NO_PROXY,
-                                                WINHTTP_NO_PROXY_NAME,
-                                                WINHTTP_NO_PROXY_BYPASS,
-                                                0) };
+            const auto session = _sharedWinHttpSession();
             if (!session)
             {
+                winHttpErrorOut = GetLastError();
                 return false;
             }
 
-            WinHttpSetTimeouts(session.get(), 800, 1000, 1500, receiveTimeoutMs);
-
-            unique_winhttp connection{ WinHttpConnect(session.get(), L"127.0.0.1", port, 0) };
+            unique_winhttp connection{ WinHttpConnect(session, L"127.0.0.1", port, 0) };
             if (!connection)
             {
+                winHttpErrorOut = GetLastError();
                 return false;
             }
 
@@ -77,8 +96,11 @@ namespace winrt::TerminalApp::implementation
                                                        flags) };
             if (!request)
             {
+                winHttpErrorOut = GetLastError();
                 return false;
             }
+
+            WinHttpSetTimeouts(request.get(), 800, 1000, 1500, receiveTimeoutMs);
 
             if (useTls)
             {
@@ -98,11 +120,13 @@ namespace winrt::TerminalApp::implementation
                                     0,
                                     0))
             {
+                winHttpErrorOut = GetLastError();
                 return false;
             }
 
             if (!WinHttpReceiveResponse(request.get(), nullptr))
             {
+                winHttpErrorOut = GetLastError();
                 return false;
             }
 
@@ -115,6 +139,7 @@ namespace winrt::TerminalApp::implementation
                                      &statusSize,
                                      WINHTTP_NO_HEADER_INDEX))
             {
+                winHttpErrorOut = GetLastError();
                 return false;
             }
             statusCodeOut = statusCode;
@@ -152,10 +177,19 @@ namespace winrt::TerminalApp::implementation
         {
             std::string body;
             DWORD httpStatus = 0;
-            bool ok = _httpQueryLocalhost(port, true, verb, path, body, httpStatus, receiveTimeoutMs);
-            if (!ok && httpStatus == 0)
+            DWORD winHttpError = ERROR_SUCCESS;
+            const bool firstTryTls = _preferLocalhostTls.load(std::memory_order_relaxed);
+            bool ok = _httpQueryLocalhost(port, firstTryTls, verb, path, body, httpStatus, winHttpError, receiveTimeoutMs);
+
+            // Only fall back to the alternate scheme when TCP connected (i.e. not connection refused / timeout).
+            const bool portUnreachable = (winHttpError == ERROR_WINHTTP_CANNOT_CONNECT || winHttpError == ERROR_WINHTTP_TIMEOUT);
+            if (!ok && httpStatus == 0 && !portUnreachable)
             {
-                ok = _httpQueryLocalhost(port, false, verb, path, body, httpStatus, receiveTimeoutMs);
+                ok = _httpQueryLocalhost(port, !firstTryTls, verb, path, body, httpStatus, winHttpError, receiveTimeoutMs);
+                if (ok)
+                {
+                    _preferLocalhostTls.store(!firstTryTls, std::memory_order_relaxed);
+                }
             }
             if (body.empty())
             {

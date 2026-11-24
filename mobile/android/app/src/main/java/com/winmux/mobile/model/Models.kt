@@ -206,6 +206,13 @@ data class ActiveTerminalTarget(
     val agentKind: String,
 )
 
+data class PairedDeviceInfo(
+    val id: String,
+    val name: String,
+    val createdAt: Long,
+    val lastSeenAt: Long,
+)
+
 object ModelParsers {
     fun parseSnapshot(obj: JSONObject?): BridgeSnapshot {
         if (obj == null) return BridgeSnapshot()
@@ -474,6 +481,23 @@ object ModelParsers {
         return buildList {
             for (i in 0 until arr.length()) {
                 arr.optJSONObject(i)?.let { add(parseNotification(it)) }
+            }
+        }
+    }
+
+    fun parseDevices(arr: JSONArray?): List<PairedDeviceInfo> {
+        if (arr == null) return emptyList()
+        return buildList {
+            for (i in 0 until arr.length()) {
+                val d = arr.optJSONObject(i) ?: continue
+                add(
+                    PairedDeviceInfo(
+                        id = d.optString("id"),
+                        name = d.optString("name", "Android"),
+                        createdAt = d.optLong("createdAt", 0L),
+                        lastSeenAt = d.optLong("lastSeenAt", 0L),
+                    )
+                )
             }
         }
     }

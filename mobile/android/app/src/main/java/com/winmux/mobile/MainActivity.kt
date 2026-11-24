@@ -103,10 +103,16 @@ class MainActivity : ComponentActivity() {
                 val pendingDecisionCount = decisions.count { it.status == "pending" }
 
                 if (activeTerminal != null) {
+                    val siblingPanes = snapshot.workspaces
+                        .firstOrNull { it.id == activeTerminal!!.workspaceId }
+                        ?.panes
+                        .orEmpty()
                     TerminalScreen(
                         target = activeTerminal!!,
+                        siblingPanes = siblingPanes,
                         permissions = snapshot.permissions,
                         models = models,
+                        onSwitchTarget = { activeTerminal = it },
                         onBack = { activeTerminal = null },
                     )
                 } else {

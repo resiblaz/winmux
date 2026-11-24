@@ -7,6 +7,7 @@ import com.winmux.mobile.model.BridgeNotification
 import com.winmux.mobile.model.BridgeSnapshot
 import com.winmux.mobile.model.DecisionCard
 import com.winmux.mobile.model.ModelParsers
+import com.winmux.mobile.model.PairedDeviceInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -238,6 +239,43 @@ class WinmuxApiClient {
             executeAuthed(config, "POST", "/api/terminal/focus", body)
         }
 
+    suspend fun splitPane(
+        config: BridgeConfig,
+        workspaceId: String,
+        surfaceId: String,
+        paneId: Int,
+        direction: String = "right",
+        size: Double = 0.5,
+    ): JSONObject = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+            .put("workspaceId", workspaceId)
+            .put("surfaceId", surfaceId)
+            .put("paneId", paneId)
+            .put("direction", direction)
+            .put("size", size)
+        JSONObject(executeAuthed(config, "POST", "/api/terminal/split", body))
+    }
+
+    suspend fun selectWorkspace(config: BridgeConfig, workspaceId: String) = withContext(Dispatchers.IO) {
+        val body = JSONObject().put("workspaceId", workspaceId)
+        executeAuthed(config, "POST", "/api/workspaces/select", body)
+    }
+
+    suspend fun closeWorkspace(config: BridgeConfig, workspaceId: String) = withContext(Dispatchers.IO) {
+        val body = JSONObject().put("workspaceId", workspaceId)
+        executeAuthed(config, "POST", "/api/workspaces/close", body)
+    }
+
+    suspend fun fetchDevices(config: BridgeConfig): List<PairedDeviceInfo> = withContext(Dispatchers.IO) {
+        val raw = executeAuthed(config, "GET", "/api/devices")
+        ModelParsers.parseDevices(JSONObject(raw).optJSONArray("devices"))
+    }
+
+    suspend fun revokeDevice(config: BridgeConfig, deviceId: String): Boolean = withContext(Dispatchers.IO) {
+        val raw = executeAuthed(config, "DELETE", "/api/devices/${enc(deviceId)}")
+        JSONObject(raw).optBoolean("ok", false)
+    }
+
     suspend fun launchTask(
         config: BridgeConfig,
         workspaceId: String,
@@ -354,10 +392,10 @@ class WinmuxApiClient {
                 val builder = Request.Builder()
                     .url("${endpoint.baseUrl}$path")
                     .header("Authorization", "Bearer ${config.token}")
-                if (method == "POST") {
-                    builder.post((body?.toString() ?: "{}").toRequestBody(jsonMediaType))
-                } else {
-                    builder.get()
+                when (method) {
+                    "POST" -> builder.post((body?.toString() ?: "{}").toRequestBody(jsonMediaType))
+                    "DELETE" -> builder.delete()
+                    else -> builder.get()
                 }
                 client.newCall(builder.build()).execute().use { res ->
                     val raw = res.body?.string().orEmpty()

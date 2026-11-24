@@ -7,8 +7,10 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import vm from 'node:vm';
 
 import { WinmuxBridgeServer } from '../src/server.mjs';
+import { PWA_INDEX_HTML } from '../src/web-ui.mjs';
 
 function startMockWinmuxPipe() {
   const pipeName = `\\\\.\\pipe\\winmux-bridge-test-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
@@ -848,4 +850,132 @@ test('security hardening: tunnel proxy bypass blocked, pair rate limit, no pair 
     await bridge.stop();
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
+});
+
+test('Web PWA uses delegated data-action handlers without inline onclick/XSS, preserves search focus, and supports question decisions', async () => {
+  // 1. No inline HTML event handlers anywhere in PWA_INDEX_HTML (prevents broken quotes & XSS)
+  assert.equal(/\son(click|input|change|submit)\s*=/i.test(PWA_INDEX_HTML), false, 'PWA HTML must not contain inline event handler attributes');
+
+  // 2. Extract and parse inline <script> cleanly with Node vm.Script
+  const scriptMatch = PWA_INDEX_HTML.match(/<script>([\s\S]*?)<\/script>/);
+  assert.ok(scriptMatch, 'PWA HTML must contain a script block');
+  const script = new vm.Script(scriptMatch[1]);
+
+  // 3. Execute script in a minimal DOM sandbox and verify XSS escaping, search patching, and delegated clicks!
+  const elements = new Map();
+  const makeEl = (id) => {
+    const listeners = {};
+    const classes = new Set();
+    const el = {
+      id,
+      innerHTML: '',
+      textContent: '',
+      value: '',
+      dataset: {},
+      className: '',
+      classList: {
+        add: (c) => classes.add(c),
+        remove: (c) => classes.delete(c),
+        toggle: (c, force) => (force === undefined ? (classes.has(c) ? classes.delete(c) : classes.add(c)) : (force ? classes.add(c) : classes.delete(c))),
+        contains: (c) => classes.has(c),
+      },
+      addEventListener: (type, fn) => { (listeners[type] ||= []).push(fn); },
+      dispatch: async (type, ev) => {
+        for (const fn of listeners[type] || []) {
+          await fn(ev);
+        }
+      },
+    };
+    elements.set(id, el);
+    return el;
+  };
+  for (const id of ['connDot', 'connSub', 'tabBar', 'btnNewTask', 'btnRefresh', 'decBadge', 'mainView', 'newTaskModal', 'ntWorkspace', 'ntDir', 'ntErr', 'ntAgent', 'ntModel', 'ntPrompt', 'ntClose', 'ntSubmit', 'wsSysBar', 'wsList']) {
+    makeEl(id);
+  }
+  const fetchCalls = [];
+  const storage = new Map([['winmux_web_token', 'tok-123']]);
+  const sandbox = {
+    window: {},
+    location: { host: '127.0.0.1:47710', origin: 'https://127.0.0.1:47710', protocol: 'https:' },
+    navigator: { platform: 'TestOS' },
+    localStorage: {
+      getItem: (k) => storage.get(k) ?? null,
+      setItem: (k, v) => storage.set(k, String(v)),
+      removeItem: (k) => storage.delete(k),
+    },
+    document: {
+      activeElement: null,
+      getElementById: (id) => elements.get(id) || null,
+      querySelectorAll: () => [],
+    },
+    fetch: async (url, opts = {}) => {
+      fetchCalls.push({ url, method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : undefined });
+      if (url === '/api/snapshot') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            snapshot: {
+              connected: true,
+              workspaces: [
+                {
+                  id: 'ws-1',
+                  title: 'Evil" <script>alert(1)</script>',
+                  workingDirectory: 'C:\\repo',
+                  gitBranch: 'main',
+                  panes: [{ id: 0, surfaceId: 'sf-1', title: 'Claude "Pane"', agentKind: 'claude', active: true }],
+                },
+              ],
+              systemStatus: { cpuPercent: 10, memoryUsedMb: 4096, memoryTotalMb: 16384, workingPanes: 1, pendingDecisions: 1 },
+            },
+            decisions: [
+              {
+                id: 'dec-q1',
+                kind: 'question',
+                status: 'pending',
+                title: 'AI 在提问',
+                agent: 'claude',
+                questions: [{ header: '方案', prompt: '选哪个？', multiSelect: false, options: [{ label: '方案A' }, { label: '方案B' }] }],
+                options: [],
+              },
+            ],
+          }),
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({ ok: true, text: 'hello' }) };
+    },
+    URL,
+    URLSearchParams,
+    setTimeout,
+    clearTimeout,
+    confirm: () => true,
+  };
+  sandbox.window = sandbox;
+  script.runInNewContext(sandbox);
+  await new Promise((r) => setTimeout(r, 20));
+
+  const mainHtml = elements.get('mainView').innerHTML;
+  assert.equal(mainHtml.includes('<script>alert(1)</script>'), false, 'Workspace title must be HTML-escaped');
+  assert.match(mainHtml, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(mainHtml, /data-action="open-term"/);
+
+  // Typing in search updates #wsList without replacing #mainView
+  const prevMainHtml = elements.get('mainView').innerHTML;
+  await elements.get('mainView').dispatch('input', { target: { dataset: { action: 'ws-search' }, value: 'no-such-ws' } });
+  assert.equal(elements.get('mainView').innerHTML, prevMainHtml, 'Search input must NOT rewrite #mainView (preserves focus)');
+  assert.match(elements.get('wsList').innerHTML, /当前筛选下暂无工作区/);
+
+  // Switch to decisions tab, select question option, and submit
+  sandbox.window.winmux.state.tab = 'decisions';
+  sandbox.window.winmux.render();
+  assert.match(elements.get('mainView').innerHTML, /data-action="toggle-q-opt"/);
+  await elements.get('mainView').dispatch('click', {
+    target: { closest: () => ({ dataset: { action: 'toggle-q-opt', id: 'dec-q1', qi: '0', multi: '0', label: '方案B' } }) },
+  });
+  await elements.get('mainView').dispatch('click', {
+    target: { closest: () => ({ dataset: { action: 'submit-question', id: 'dec-q1' } }) },
+  });
+  const resolveCall = fetchCalls.find((c) => c.url === '/api/decisions/dec-q1/resolve');
+  assert.ok(resolveCall, 'Submitting question decision must call /api/decisions/:id/resolve');
+  assert.deepEqual(resolveCall.body, { decision: '方案B', answers: ['方案B'] });
 });

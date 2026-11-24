@@ -117,8 +117,9 @@ export const PWA_INDEX_HTML = `<!doctype html>
     .term-input { display: flex; gap: 8px; align-items: center; padding-top: 4px; }
     .code-box { background: #0a0c10; border: 1px solid var(--border); border-radius: 8px; padding: 9px; font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; }
     .sys-bar { display: flex; justify-content: space-between; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 11px; margin-bottom: 10px; font-size: 11.5px; }
-    .progress { height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden; margin-top: 4px; }
-    .progress > div { height: 100%; background: var(--accent); }
+    .q-block { margin-top: 8px; padding: 8px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); }
+    .q-opt { display: inline-flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 6px 10px; border-radius: 8px; background: var(--elev); border: 1px solid var(--border); cursor: pointer; font-size: 12px; }
+    .q-opt.selected { border-color: var(--accent); background: rgba(79,140,255,.2); color: var(--text); }
     .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
     .modal { width: 100%; max-width: 560px; background: var(--surface); border-top-left-radius: 16px; border-top-right-radius: 16px; border: 1px solid var(--border); padding: 16px; max-height: 85dvh; overflow-y: auto; }
     .hidden { display: none !important; }
@@ -132,17 +133,17 @@ export const PWA_INDEX_HTML = `<!doctype html>
       <h1><span id="connDot" class="dot"></span> Winmux Remote</h1>
       <div id="connSub" class="sub">等待连接...</div>
     </div>
-    <button id="btnNewTask" class="btn sm hidden">+ 新任务</button>
-    <button id="btnRefresh" class="btn ghost sm">刷新</button>
+    <button id="btnNewTask" class="btn sm hidden" type="button">+ 新任务</button>
+    <button id="btnRefresh" class="btn ghost sm" type="button">刷新</button>
   </header>
 
   <main id="mainView"></main>
 
   <nav id="tabBar" class="tabs hidden">
-    <button data-tab="workspaces" class="active">工作区</button>
-    <button data-tab="decisions">审批<span id="decBadge" class="badge hidden">0</span></button>
-    <button data-tab="status">状态与模型</button>
-    <button data-tab="settings">连接</button>
+    <button data-tab="workspaces" class="active" type="button">工作区</button>
+    <button data-tab="decisions" type="button">审批<span id="decBadge" class="badge hidden">0</span></button>
+    <button data-tab="status" type="button">状态与模型</button>
+    <button data-tab="settings" type="button">连接</button>
   </nav>
 </div>
 
@@ -150,7 +151,7 @@ export const PWA_INDEX_HTML = `<!doctype html>
   <div class="modal">
     <div class="row between" style="margin-bottom:10px">
       <strong>新建 Agent 任务</strong>
-      <button class="btn ghost sm" onclick="closeNewTask()">关闭</button>
+      <button id="ntClose" class="btn ghost sm" type="button">关闭</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px">
       <div>
@@ -179,20 +180,34 @@ export const PWA_INDEX_HTML = `<!doctype html>
         <textarea id="ntPrompt" rows="3" placeholder="输入要 Agent 执行的指令..."></textarea>
       </div>
       <div id="ntErr" style="color:var(--red);font-size:12px"></div>
-      <button id="ntSubmit" class="btn" onclick="submitNewTask()">在 Winmux 中创建并启动</button>
+      <button id="ntSubmit" class="btn" type="button">在 Winmux 中创建并启动</button>
     </div>
   </div>
 </div>
 
 <script>
 (() => {
-  if ('serviceWorker' in navigator) {
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
 
   const STORAGE_TOKEN = 'winmux_web_token';
   const STORAGE_HOST = 'winmux_web_host';
   const STORAGE_DEVICE = 'winmux_web_device';
+
+  const QUICK_KEYS = [
+    { id: 'ctrlc', label: 'Ctrl+C', seq: '\\u0003', danger: true },
+    { id: 'esc', label: 'Esc', seq: '\\u001b', danger: false },
+    { id: 'stab', label: 'Shift+Tab', seq: '\\u001b[Z', danger: false },
+    { id: 'tab', label: 'Tab', seq: '\\t', danger: false },
+    { id: 'enter', label: '⏎', seq: '\\r', danger: false },
+    { id: 'yes', label: 'y⏎', seq: 'y\\r', danger: false },
+    { id: 'no', label: 'n⏎', seq: 'n\\r', danger: false },
+    { id: 'up', label: '↑', seq: '\\u001b[A', danger: false },
+    { id: 'down', label: '↓', seq: '\\u001b[B', danger: false },
+    { id: 'ctrll', label: 'Ctrl+L', seq: '\\u000c', danger: false },
+  ];
+  const QUICK_KEY_MAP = Object.fromEntries(QUICK_KEYS.map((k) => [k.id, k.seq]));
 
   const state = {
     token: localStorage.getItem(STORAGE_TOKEN) || '',
@@ -206,6 +221,8 @@ export const PWA_INDEX_HTML = `<!doctype html>
     decFilter: 'all',
     snapshot: { connected: false, workspaces: [], permissions: {}, systemStatus: {} },
     decisions: [],
+    questionSelections: {}, // decisionId -> { [qIndex]: string[] }
+    questionCustom: {},     // decisionId -> string
     usage: null,
     models: null,
     devices: [],
@@ -219,7 +236,12 @@ export const PWA_INDEX_HTML = `<!doctype html>
   const READ_ONLY_RE = /^\\s*(git\\s+(status|diff|log|branch)|ls|dir|cat|rg|get-childitem|get-content)\\b/i;
 
   function esc(s) {
-    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   const ANSI_COLORS = ['#3b4252','#ef4444','#22c55e','#eab308','#60a5fa','#c084fc','#22d3ee','#e5e9f0'];
@@ -277,9 +299,10 @@ export const PWA_INDEX_HTML = `<!doctype html>
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      if (res.status === 401) {
+      if (res.status === 401 && path !== '/api/pair') {
         state.token = '';
         localStorage.removeItem(STORAGE_TOKEN);
+        if (state.ws) { try { state.ws.close(); } catch {} state.ws = null; }
         render();
       }
       throw new Error(data.message || data.error || ('HTTP ' + res.status));
@@ -323,17 +346,19 @@ export const PWA_INDEX_HTML = `<!doctype html>
   }
 
   function connectWs() {
-    if (!state.token) return;
+    if (!state.token || typeof WebSocket === 'undefined') return;
     if (state.ws) { try { state.ws.close(); } catch {} }
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(proto + '//' + location.host + '/ws?token=' + encodeURIComponent(state.token));
     state.ws = ws;
     ws.onopen = () => {
+      if (state.ws !== ws) return;
       state.wsConnected = true;
       updateHeader();
       if (state.activeTerm) subscribeActiveTerm();
     };
     ws.onmessage = (ev) => {
+      if (state.ws !== ws) return;
       try {
         const msg = JSON.parse(ev.data);
         if (msg.type === 'hello') {
@@ -342,14 +367,22 @@ export const PWA_INDEX_HTML = `<!doctype html>
           render();
         } else if (msg.type === 'snapshot') {
           state.snapshot = msg.snapshot || state.snapshot;
-          if (!state.activeTerm) render();
-          else updateHeader();
+          if (!state.activeTerm) {
+            if (state.tab === 'workspaces' && document.activeElement?.id === 'wsSearchInput') {
+              patchWorkspaceListOnly();
+              updateHeader();
+            } else {
+              render();
+            }
+          } else {
+            updateHeader();
+          }
         } else if (msg.type === 'decision.created' || msg.type === 'decision.resolved') {
           const d = msg.decision;
           const idx = state.decisions.findIndex((x) => x.id === d.id);
           if (idx >= 0) state.decisions[idx] = d;
           else state.decisions.unshift(d);
-          if (msg.type === 'decision.created' && d.status === 'pending' && 'Notification' in window && Notification.permission === 'granted') {
+          if (msg.type === 'decision.created' && d.status === 'pending' && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             new Notification('Winmux 审批请求', { body: d.title + (d.summary ? ': ' + d.summary : '') });
           }
           if (!state.activeTerm) render();
@@ -364,8 +397,15 @@ export const PWA_INDEX_HTML = `<!doctype html>
         }
       } catch {}
     };
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
+      if (state.ws !== ws) return;
       state.wsConnected = false;
+      if (ev && ev.code === 4001) {
+        state.token = '';
+        localStorage.removeItem(STORAGE_TOKEN);
+        render();
+        return;
+      }
       updateHeader();
       if (state.token) setTimeout(connectWs, 2500);
     };
@@ -398,7 +438,8 @@ export const PWA_INDEX_HTML = `<!doctype html>
       }
       render();
     } catch (e) {
-      document.getElementById('connSub').textContent = e.message;
+      const sub = document.getElementById('connSub');
+      if (sub) sub.textContent = e.message;
     }
   }
 
@@ -409,14 +450,27 @@ export const PWA_INDEX_HTML = `<!doctype html>
     if (state.autoScroll) el.scrollTop = el.scrollHeight;
   }
 
-  async function openTerminal(wsId, wsTitle, surfaceId, paneId, paneTitle, agentKind) {
-    state.activeTerm = { workspaceId: wsId, workspaceTitle: wsTitle, surfaceId, paneId, paneTitle, agentKind };
+  function findPaneContext(wsId, sfId, paneId) {
+    const ws = (state.snapshot.workspaces || []).find((w) => w.id === wsId);
+    const pane = (ws?.panes || []).find((p) => p.surfaceId === sfId && Number(p.id) === Number(paneId));
+    return {
+      workspaceId: wsId,
+      workspaceTitle: ws?.title || wsId,
+      surfaceId: sfId,
+      paneId: Number(paneId),
+      paneTitle: pane?.title || ('Pane ' + paneId),
+      agentKind: pane?.agentKind || 'terminal',
+    };
+  }
+
+  async function openTerminal(wsId, sfId, paneId) {
+    state.activeTerm = findPaneContext(wsId, sfId, paneId);
     state.termText = '正在读取终端输出...';
     state.autoScroll = true;
     render();
     subscribeActiveTerm();
     try {
-      const q = new URLSearchParams({ workspaceId: wsId, surfaceId, paneId: String(paneId), maxLines: '150' });
+      const q = new URLSearchParams({ workspaceId: wsId, surfaceId: sfId, paneId: String(paneId), maxLines: '150' });
       const res = await api('GET', '/api/terminal/content?' + q.toString());
       state.termText = res.text || '';
       updateTermScreen();
@@ -437,90 +491,7 @@ export const PWA_INDEX_HTML = `<!doctype html>
     });
   }
 
-  window.winmux = {
-    openTerminal,
-    closeTerminal() {
-      if (state.ws && state.ws.readyState === 1) {
-        state.ws.send(JSON.stringify({ type: 'terminal.unsubscribe' }));
-      }
-      state.activeTerm = null;
-      render();
-    },
-    sendTerm,
-    async sendInputForm(e) {
-      e.preventDefault();
-      const inp = document.getElementById('termInp');
-      const v = inp.value;
-      if (!v.trim()) return;
-      inp.value = '';
-      await sendTerm(v + '\\r');
-    },
-    async splitPane(wsId, sfId, paneId, dir) {
-      await api('POST', '/api/terminal/split', { workspaceId: wsId, surfaceId: sfId, paneId, direction: dir });
-      await refreshAll();
-    },
-    async closeWorkspace(wsId, title) {
-      if (!confirm('确定关闭工作区「' + title + '」？')) return;
-      await api('POST', '/api/workspaces/close', { workspaceId: wsId });
-      await refreshAll();
-    },
-    async resolveDecision(id, choice) {
-      await api('POST', '/api/decisions/' + encodeURIComponent(id) + '/resolve', { decision: choice, answers: [] });
-      await refreshAll();
-    },
-    async switchDefaultModel(agent, model) {
-      if (!model) return;
-      await api('POST', '/api/agents/models', { agent, model });
-      await refreshAll();
-    },
-    async revokeDevice(id, name) {
-      if (!confirm('吊销设备「' + name + '」的授权？')) return;
-      await api('DELETE', '/api/devices/' + encodeURIComponent(id));
-      await refreshAll();
-    },
-    unpair() {
-      state.token = '';
-      localStorage.removeItem(STORAGE_TOKEN);
-      if (state.ws) try { state.ws.close(); } catch {}
-      render();
-    },
-    setWsFilter(f) { state.wsFilter = f; render(); },
-    setDecFilter(f) { state.decFilter = f; render(); },
-    setWsSearch(v) { state.wsSearch = v; render(); },
-    cycleFont() { state.termFontSize = state.termFontSize >= 14 ? 11 : state.termFontSize + 1.5; render(); },
-    async pairSubmit(e) {
-      e.preventDefault();
-      const code = document.getElementById('pairCode').value.trim();
-      const dev = document.getElementById('pairDev').value.trim() || state.deviceName;
-      const errEl = document.getElementById('pairErr');
-      errEl.textContent = '';
-      try {
-        const res = await api('POST', '/api/pair', { code, deviceName: dev });
-        state.token = res.token;
-        state.hostname = res.pairing?.hostname || location.host;
-        state.deviceName = dev;
-        localStorage.setItem(STORAGE_TOKEN, res.token);
-        localStorage.setItem(STORAGE_HOST, state.hostname);
-        localStorage.setItem(STORAGE_DEVICE, dev);
-        if ('Notification' in window && Notification.permission === 'default') {
-          Notification.requestPermission().catch(() => {});
-        }
-        connectWs();
-        await refreshAll();
-      } catch (err) {
-        errEl.textContent = err.message;
-      }
-    },
-    parsePairUriInput(raw) {
-      try {
-        const u = new URL(raw.trim());
-        const c = u.searchParams.get('code');
-        if (c) document.getElementById('pairCode').value = c;
-      } catch {}
-    }
-  };
-
-  window.openNewTask = (preWsId = 'new') => {
+  function openNewTask(preWsId = 'new') {
     const sel = document.getElementById('ntWorkspace');
     sel.innerHTML = '<option value="new">新建工作区</option>' +
       (state.snapshot.workspaces || []).map((w) => '<option value="' + esc(w.id) + '"' + (w.id === preWsId ? ' selected' : '') + '>' + esc(w.title) + '</option>').join('');
@@ -528,12 +499,17 @@ export const PWA_INDEX_HTML = `<!doctype html>
     document.getElementById('ntDir').value = ws?.workingDirectory || '';
     document.getElementById('ntErr').textContent = '';
     document.getElementById('newTaskModal').classList.remove('hidden');
-  };
-  window.closeNewTask = () => document.getElementById('newTaskModal').classList.add('hidden');
-  window.submitNewTask = async () => {
+  }
+
+  function closeNewTask() {
+    document.getElementById('newTaskModal').classList.add('hidden');
+  }
+
+  async function submitNewTask() {
     const btn = document.getElementById('ntSubmit');
     const errEl = document.getElementById('ntErr');
-    btn.disabled = true; errEl.textContent = '';
+    btn.disabled = true;
+    errEl.textContent = '';
     try {
       await api('POST', '/api/tasks/launch', {
         workspaceId: document.getElementById('ntWorkspace').value,
@@ -550,14 +526,14 @@ export const PWA_INDEX_HTML = `<!doctype html>
     } finally {
       btn.disabled = false;
     }
-  };
+  }
 
   function renderPairing() {
     return '<div class="card" style="max-width:440px;margin:28px auto">' +
       '<h2 style="margin:0 0 6px;font-size:18px">配对 Winmux 桌面端</h2>' +
       '<p class="muted" style="margin:0 0 14px">打开电脑 Winmux 左侧栏「远程控制」查看 6 位配对码，或粘贴 winmux://pair 链接。支持 iOS / iPad / 任意浏览器添加到主屏幕使用。</p>' +
-      '<form onsubmit="winmux.pairSubmit(event)" style="display:flex;flex-direction:column;gap:10px">' +
-      '<input placeholder="可选：粘贴 winmux://pair?... 自动填配对码" oninput="winmux.parsePairUriInput(this.value)" />' +
+      '<form data-action="pair-form" style="display:flex;flex-direction:column;gap:10px">' +
+      '<input data-action="pair-uri-input" placeholder="可选：粘贴 winmux://pair?... 自动填配对码" />' +
       '<input id="pairCode" inputmode="numeric" maxlength="6" placeholder="6 位配对码" required />' +
       '<input id="pairDev" value="' + esc(state.deviceName) + '" placeholder="设备名称（如 iPad / Mac Chrome）" />' +
       '<div id="pairErr" style="color:var(--red);font-size:12px"></div>' +
@@ -570,42 +546,39 @@ export const PWA_INDEX_HTML = `<!doctype html>
     const ws = (state.snapshot.workspaces || []).find((w) => w.id === t.workspaceId);
     const siblings = ws?.panes || [];
     const sibHtml = siblings.length > 1 ? '<div class="term-keys" style="padding-top:0">' + siblings.map((p) => {
-      const cur = p.surfaceId === t.surfaceId && p.id === t.paneId;
-      return '<button class="' + (cur ? 'pill active' : 'pill') + '" onclick="winmux.openTerminal(' +
-        JSON.stringify(t.workspaceId) + ',' + JSON.stringify(t.workspaceTitle) + ',' +
-        JSON.stringify(p.surfaceId) + ',' + p.id + ',' + JSON.stringify(p.title) + ',' + JSON.stringify(p.agentKind) + ')">' +
-        esc(p.title.slice(0, 18)) + '</button>';
+      const cur = p.surfaceId === t.surfaceId && Number(p.id) === Number(t.paneId);
+      return '<button type="button" class="' + (cur ? 'pill active' : 'pill') + '" data-action="open-term" data-ws="' +
+        esc(t.workspaceId) + '" data-sf="' + esc(p.surfaceId) + '" data-pane="' + esc(p.id) + '">' +
+        esc(String(p.title || '').slice(0, 18)) + '</button>';
     }).join('') + '</div>' : '';
 
-    const keys = [
-      ['Ctrl+C', '\\u0003', true], ['Esc', '\\u001b', false], ['Shift+Tab', '\\u001b[Z', false],
-      ['Tab', '\\t', false], ['⏎', '\\r', false], ['y⏎', 'y\\r', false], ['n⏎', 'n\\r', false],
-      ['↑', '\\u001b[A', false], ['↓', '\\u001b[B', false], ['Ctrl+L', '\\u000c', false],
-    ];
     return '<div class="term-wrap">' +
       '<div class="row between" style="margin-bottom:8px">' +
-      '<div class="row grow"><button class="btn ghost sm" onclick="winmux.closeTerminal()">← 返回</button>' +
+      '<div class="row grow"><button type="button" class="btn ghost sm" data-action="close-term">← 返回</button>' +
       '<div class="grow"><div style="font-weight:600;font-size:14px">' + esc(t.paneTitle) + '</div><div class="muted">' + esc(t.workspaceTitle) + '</div></div></div>' +
       '<div class="row">' +
-      '<button class="btn ghost sm" onclick="winmux.cycleFont()">' + state.termFontSize + 'px</button>' +
-      '<button class="btn ghost sm" onclick="winmux.splitPane(' + JSON.stringify(t.workspaceId) + ',' + JSON.stringify(t.surfaceId) + ',' + t.paneId + ',\\'right\\')">右分屏</button>' +
+      '<button type="button" class="btn ghost sm" data-action="cycle-font">' + esc(state.termFontSize) + 'px</button>' +
+      '<button type="button" class="btn ghost sm" data-action="split-pane" data-ws="' + esc(t.workspaceId) + '" data-sf="' + esc(t.surfaceId) + '" data-pane="' + esc(t.paneId) + '" data-dir="right">右分屏</button>' +
       '</div></div>' +
       sibHtml +
-      '<div id="termScreen" class="term-screen" style="font-size:' + state.termFontSize + 'px">' + renderTerminalHtml(state.termText) + '</div>' +
-      '<div class="term-keys">' + keys.map(([lbl, seq, danger]) =>
-        '<button class="' + (danger ? 'danger' : '') + '" onclick="winmux.sendTerm(' + JSON.stringify(seq) + ')">' + esc(lbl) + '</button>'
+      '<div id="termScreen" class="term-screen" style="font-size:' + esc(state.termFontSize) + 'px">' + renderTerminalHtml(state.termText) + '</div>' +
+      '<div class="term-keys">' + QUICK_KEYS.map((k) =>
+        '<button type="button" class="' + (k.danger ? 'danger' : '') + '" data-action="send-key" data-key="' + esc(k.id) + '">' + esc(k.label) + '</button>'
       ).join('') + '</div>' +
-      '<form class="term-input" onsubmit="winmux.sendInputForm(event)">' +
+      '<form class="term-input" data-action="term-input-form">' +
       '<input id="termInp" placeholder="发指令或 Prompt 给终端..." autocomplete="off" />' +
       '<button class="btn" type="submit">发送</button></form></div>';
   }
 
-  function renderWorkspaces() {
+  function renderSysBarHtml() {
     const sys = state.snapshot.systemStatus || {};
-    const sysHtml = sys.memoryTotalMb ? '<div class="sys-bar mono"><span>CPU ' + Math.round(sys.cpuPercent || 0) + '% · RAM ' +
+    if (!sys.memoryTotalMb) return '';
+    return '<div class="sys-bar mono"><span>CPU ' + Math.round(sys.cpuPercent || 0) + '% · RAM ' +
       ((sys.memoryUsedMb || 0) / 1024).toFixed(1) + '/' + Math.round((sys.memoryTotalMb || 0) / 1024) + 'G</span>' +
-      '<span style="color:' + (sys.pendingDecisions ? 'var(--amber)' : 'var(--green)') + '">运行 ' + (sys.workingPanes || 0) + ' · 待审 ' + (sys.pendingDecisions || 0) + '</span></div>' : '';
+      '<span style="color:' + (sys.pendingDecisions ? 'var(--amber)' : 'var(--green)') + '">运行 ' + (sys.workingPanes || 0) + ' · 待审 ' + (sys.pendingDecisions || 0) + '</span></div>';
+  }
 
+  function renderWorkspaceCardsHtml() {
     const q = state.wsSearch.trim().toLowerCase();
     const list = (state.snapshot.workspaces || []).filter((w) => {
       const running = (w.listeningPorts?.length > 0) || (w.panes || []).some((p) => p.hasActiveChild);
@@ -616,24 +589,16 @@ export const PWA_INDEX_HTML = `<!doctype html>
       return true;
     });
 
-    const filterHtml = '<div class="row wrap" style="margin-bottom:10px">' +
-      '<span class="pill ' + (state.wsFilter === 'all' ? 'active' : '') + '" onclick="winmux.setWsFilter(\\'all\\')">全部</span>' +
-      '<span class="pill ' + (state.wsFilter === 'running' ? 'active' : '') + '" onclick="winmux.setWsFilter(\\'running\\')">运行中</span>' +
-      '<span class="pill ' + (state.wsFilter === 'attention' ? 'active' : '') + '" onclick="winmux.setWsFilter(\\'attention\\')">待处理</span>' +
-      '<input style="flex:1;min-width:140px;padding:5px 9px;font-size:12px" placeholder="搜索工作区/分支/Agent..." value="' + esc(state.wsSearch) + '" oninput="winmux.setWsSearch(this.value)" />' +
-      '</div>';
-
     if (!list.length) {
-      return sysHtml + filterHtml + '<div class="card muted" style="text-align:center;padding:28px">' +
+      return '<div class="card muted" style="text-align:center;padding:28px">' +
         (state.snapshot.connected ? '当前筛选下暂无工作区' : '电脑端 Winmux 未启动或未开启侧边栏') + '</div>';
     }
 
-    return sysHtml + filterHtml + list.map((w) => {
+    return list.map((w) => {
       const folder = (w.workingDirectory || '').split(/[\\\\/]/).filter(Boolean).pop() || '';
       const meta = [folder, w.gitBranch ? '⎇ ' + w.gitBranch : '', ...(w.listeningPorts || []).map((p) => ':' + p)].filter(Boolean).join('  ');
       const panesHtml = (w.panes || []).map((p) =>
-        '<div class="pane-row" onclick="winmux.openTerminal(' + JSON.stringify(w.id) + ',' + JSON.stringify(w.title) + ',' +
-          JSON.stringify(p.surfaceId) + ',' + p.id + ',' + JSON.stringify(p.title) + ',' + JSON.stringify(p.agentKind) + ')">' +
+        '<div class="pane-row" data-action="open-term" data-ws="' + esc(w.id) + '" data-sf="' + esc(p.surfaceId) + '" data-pane="' + esc(p.id) + '">' +
           '<span class="agent-tag agent-' + esc(p.agentKind || 'terminal') + '">' + esc(p.agentKind || 'term') + '</span>' +
           '<div class="grow"><div style="font-size:13px;font-weight:' + (p.active ? '600' : '400') + '">' + esc(p.title) + '</div>' +
           (p.hasActiveChild && p.activeProcessName ? '<div style="font-size:11px;color:var(--green)">运行中 · ' + esc(p.activeProcessName) + '</div>' : '') +
@@ -643,13 +608,57 @@ export const PWA_INDEX_HTML = `<!doctype html>
       ).join('');
       return '<div class="card ' + (w.selected ? 'selected' : '') + '">' +
         '<div class="row between" style="margin-bottom:6px"><div class="grow">' +
-        '<div style="font-weight:600;font-size:14px">' + esc(w.title) + (w.unreadCount ? ' <span class="badge">' + w.unreadCount + '</span>' : '') + '</div>' +
+        '<div style="font-weight:600;font-size:14px">' + esc(w.title) + (w.unreadCount ? ' <span class="badge">' + esc(w.unreadCount) + '</span>' : '') + '</div>' +
         (meta ? '<div class="muted mono" style="font-size:11px">' + esc(meta) + '</div>' : '') +
         '</div><div class="row">' +
-        '<button class="btn ghost sm" onclick="openNewTask(' + JSON.stringify(w.id) + ')">+ 任务</button>' +
-        '<button class="btn danger sm" onclick="winmux.closeWorkspace(' + JSON.stringify(w.id) + ',' + JSON.stringify(w.title) + ')">关闭</button>' +
+        '<button type="button" class="btn ghost sm" data-action="open-new-task" data-ws="' + esc(w.id) + '">+ 任务</button>' +
+        '<button type="button" class="btn danger sm" data-action="close-ws" data-ws="' + esc(w.id) + '" data-title="' + esc(w.title) + '">关闭</button>' +
         '</div></div>' + panesHtml + '</div>';
     }).join('');
+  }
+
+  function patchWorkspaceListOnly() {
+    const sysEl = document.getElementById('wsSysBar');
+    if (sysEl) sysEl.innerHTML = renderSysBarHtml();
+    const listEl = document.getElementById('wsList');
+    if (listEl) listEl.innerHTML = renderWorkspaceCardsHtml();
+  }
+
+  function renderWorkspaces() {
+    const filterHtml = '<div class="row wrap" style="margin-bottom:10px">' +
+      '<button type="button" class="pill ' + (state.wsFilter === 'all' ? 'active' : '') + '" data-action="ws-filter" data-filter="all">全部</button>' +
+      '<button type="button" class="pill ' + (state.wsFilter === 'running' ? 'active' : '') + '" data-action="ws-filter" data-filter="running">运行中</button>' +
+      '<button type="button" class="pill ' + (state.wsFilter === 'attention' ? 'active' : '') + '" data-action="ws-filter" data-filter="attention">待处理</button>' +
+      '<input id="wsSearchInput" data-action="ws-search" style="flex:1;min-width:140px;padding:5px 9px;font-size:12px" placeholder="搜索工作区/分支/Agent..." value="' + esc(state.wsSearch) + '" />' +
+      '</div>';
+    return '<div id="wsSysBar">' + renderSysBarHtml() + '</div>' + filterHtml + '<div id="wsList">' + renderWorkspaceCardsHtml() + '</div>';
+  }
+
+  function renderQuestionBlock(d) {
+    const selMap = state.questionSelections[d.id] || {};
+    const customText = state.questionCustom[d.id] || '';
+    const qs = Array.isArray(d.questions) ? d.questions : [];
+    const blocks = qs.map((q, qi) => {
+      const chosen = selMap[qi] || [];
+      const opts = (q.options || []).map((opt) => {
+        const label = typeof opt === 'string' ? opt : (opt.label || '');
+        const desc = typeof opt === 'object' && opt.description ? opt.description : '';
+        const isSel = chosen.includes(label);
+        return '<button type="button" class="q-opt ' + (isSel ? 'selected' : '') + '" data-action="toggle-q-opt" data-id="' + esc(d.id) + '" data-qi="' + qi + '" data-multi="' + (q.multiSelect ? '1' : '0') + '" data-label="' + esc(label) + '">' +
+          '<span>' + esc(label) + '</span>' +
+          (desc ? '<span class="muted" style="font-size:11px">' + esc(desc) + '</span>' : '') +
+          '</button>';
+      }).join('');
+      return '<div class="q-block">' +
+        (q.header ? '<div class="muted" style="font-weight:600;margin-bottom:3px">' + esc(q.header) + (q.multiSelect ? '（可多选）' : '') + '</div>' : '') +
+        '<div style="font-size:13px;margin-bottom:6px">' + esc(q.prompt || q.question || '') + '</div>' +
+        '<div class="row wrap">' + opts + '</div></div>';
+    }).join('');
+    return blocks +
+      '<div class="row" style="margin-top:8px">' +
+      '<input data-action="q-custom" data-id="' + esc(d.id) + '" value="' + esc(customText) + '" placeholder="可选：输入补充或自定义回答..." />' +
+      '<button type="button" class="btn sm" data-action="submit-question" data-id="' + esc(d.id) + '">提交</button>' +
+      '</div>';
   }
 
   function renderDecisions() {
@@ -657,9 +666,9 @@ export const PWA_INDEX_HTML = `<!doctype html>
       state.decFilter === 'all' ? true : state.decFilter === 'pending' ? d.status === 'pending' : d.status !== 'pending'
     );
     const bar = '<div class="row" style="margin-bottom:10px">' +
-      '<span class="pill ' + (state.decFilter === 'all' ? 'active' : '') + '" onclick="winmux.setDecFilter(\\'all\\')">全部 ' + state.decisions.length + '</span>' +
-      '<span class="pill ' + (state.decFilter === 'pending' ? 'active' : '') + '" onclick="winmux.setDecFilter(\\'pending\\')">待审批 ' + state.decisions.filter((d) => d.status === 'pending').length + '</span>' +
-      '<span class="pill ' + (state.decFilter === 'history' ? 'active' : '') + '" onclick="winmux.setDecFilter(\\'history\\')">已处理</span></div>';
+      '<button type="button" class="pill ' + (state.decFilter === 'all' ? 'active' : '') + '" data-action="dec-filter" data-filter="all">全部 ' + state.decisions.length + '</button>' +
+      '<button type="button" class="pill ' + (state.decFilter === 'pending' ? 'active' : '') + '" data-action="dec-filter" data-filter="pending">待审批 ' + state.decisions.filter((d) => d.status === 'pending').length + '</button>' +
+      '<button type="button" class="pill ' + (state.decFilter === 'history' ? 'active' : '') + '" data-action="dec-filter" data-filter="history">已处理</button></div>';
     if (!list.length) {
       return bar + '<div class="card muted" style="text-align:center;padding:28px">暂无审批卡片</div>';
     }
@@ -669,11 +678,18 @@ export const PWA_INDEX_HTML = `<!doctype html>
       const isLow = !isHigh && (['read','glob','grep'].includes((d.toolName || '').toLowerCase()) || READ_ONLY_RE.test(d.toolInput || ''));
       const riskPill = isHigh ? '<span class="pill red">高危操作</span>' : isLow ? '<span class="pill green">只读操作</span>' : '<span class="pill amber">写/执行</span>';
       const code = d.toolInput || d.planText || '';
-      const actions = d.status === 'pending' && d.options?.length
-        ? '<div class="row wrap" style="margin-top:8px">' + d.options.map((o) =>
-            '<button class="btn ' + (o.style === 'danger' ? 'danger' : o.style === 'primary' ? '' : 'ghost') + ' sm" onclick="winmux.resolveDecision(' + JSON.stringify(d.id) + ',' + JSON.stringify(o.id) + ')">' + esc(o.label) + '</button>'
-          ).join('') + '</div>'
-        : (d.resolution ? '<div class="muted" style="margin-top:8px;color:var(--green)">' + esc(d.resolution.label) + '</div>' : '');
+      let actions = '';
+      if (d.status === 'pending') {
+        if (d.kind === 'question') {
+          actions = renderQuestionBlock(d);
+        } else if (d.options?.length) {
+          actions = '<div class="row wrap" style="margin-top:8px">' + d.options.map((o) =>
+            '<button type="button" class="btn ' + (o.style === 'danger' ? 'danger' : o.style === 'primary' ? '' : 'ghost') + ' sm" data-action="resolve-decision" data-id="' + esc(d.id) + '" data-choice="' + esc(o.id) + '">' + esc(o.label) + '</button>'
+          ).join('') + '</div>';
+        }
+      } else if (d.resolution) {
+        actions = '<div class="muted" style="margin-top:8px;color:var(--green)">' + esc(d.resolution.label) + '</div>';
+      }
       return '<div class="card ' + (isHigh && d.status === 'pending' ? 'high' : '') + '">' +
         '<div class="row between"><div><strong>' + esc(d.title) + '</strong><div class="muted">' + esc(d.workspaceTitle || d.agent) + '</div></div>' +
         '<div class="row">' + riskPill + '<span class="pill">' + (d.status === 'pending' ? '待处理' : '已处理') + '</span></div></div>' +
@@ -699,7 +715,7 @@ export const PWA_INDEX_HTML = `<!doctype html>
         '<span class="mono muted">' + esc(mc.currentModel || info.currentModel || '默认') + '</span></div>' +
         '<div class="row between muted"><span>今日 Token: <strong style="color:var(--text)">' + fmtTok(info.today?.totalTokens) + '</strong></span>' +
         '<span>本周: <strong style="color:var(--text)">' + fmtTok(info.week?.totalTokens) + '</strong></span></div>' +
-        (opts ? '<div class="row" style="margin-top:10px"><select onchange="winmux.switchDefaultModel(\\'' + k + '\\', this.value)">' + opts + '</select></div>' : '') +
+        (opts ? '<div class="row" style="margin-top:10px"><select data-action="switch-model" data-agent="' + k + '">' + opts + '</select></div>' : '') +
         '</div>';
     }).join('');
   }
@@ -707,14 +723,14 @@ export const PWA_INDEX_HTML = `<!doctype html>
   function renderSettings() {
     const devs = state.devices.map((d) =>
       '<div class="row between" style="padding:7px 0;border-top:1px solid var(--border)">' +
-      '<div><div>' + esc(d.name) + '</div><div class="muted mono">' + esc(d.id.slice(0, 8)) + '</div></div>' +
-      '<button class="btn danger sm" onclick="winmux.revokeDevice(' + JSON.stringify(d.id) + ',' + JSON.stringify(d.name) + ')">吊销</button></div>'
+      '<div><div>' + esc(d.name) + '</div><div class="muted mono">' + esc(String(d.id || '').slice(0, 8)) + '</div></div>' +
+      '<button type="button" class="btn danger sm" data-action="revoke-device" data-id="' + esc(d.id) + '" data-name="' + esc(d.name) + '">吊销</button></div>'
     ).join('');
     return '<div class="card">' +
       '<div style="font-weight:600;margin-bottom:6px">当前连接</div>' +
       '<div class="muted mono">主机：' + esc(state.hostname) + '</div>' +
       '<div class="muted mono">地址：' + esc(location.origin) + '</div>' +
-      '<div style="margin-top:10px"><button class="btn danger sm" onclick="winmux.unpair()">退出并解除本浏览器授权</button></div></div>' +
+      '<div style="margin-top:10px"><button type="button" class="btn danger sm" data-action="unpair">退出并解除本浏览器授权</button></div></div>' +
       '<div class="card"><div style="font-weight:600;margin-bottom:6px">已授权设备 (' + state.devices.length + ')</div>' +
       (devs || '<div class="muted">暂无设备记录</div>') + '</div>';
   }
@@ -743,16 +759,186 @@ export const PWA_INDEX_HTML = `<!doctype html>
     else main.innerHTML = renderSettings();
   }
 
-  document.getElementById('btnRefresh').onclick = () => refreshAll();
-  document.getElementById('btnNewTask').onclick = () => openNewTask('new');
+  const mainEl = document.getElementById('mainView');
+
+  mainEl.addEventListener('click', async (ev) => {
+    const target = ev.target && typeof ev.target.closest === 'function' ? ev.target.closest('[data-action]') : null;
+    if (!target) return;
+    const action = target.dataset.action;
+    try {
+      if (action === 'open-term') {
+        await openTerminal(target.dataset.ws, target.dataset.sf, Number(target.dataset.pane));
+      } else if (action === 'close-term') {
+        if (state.ws && state.ws.readyState === 1) {
+          state.ws.send(JSON.stringify({ type: 'terminal.unsubscribe' }));
+        }
+        state.activeTerm = null;
+        render();
+      } else if (action === 'cycle-font') {
+        state.termFontSize = state.termFontSize >= 14 ? 11 : state.termFontSize + 1.5;
+        render();
+      } else if (action === 'split-pane') {
+        await api('POST', '/api/terminal/split', {
+          workspaceId: target.dataset.ws,
+          surfaceId: target.dataset.sf,
+          paneId: Number(target.dataset.pane),
+          direction: target.dataset.dir || 'right',
+        });
+        await refreshAll();
+      } else if (action === 'send-key') {
+        const seq = QUICK_KEY_MAP[target.dataset.key];
+        if (seq) await sendTerm(seq);
+      } else if (action === 'ws-filter') {
+        state.wsFilter = target.dataset.filter || 'all';
+        render();
+      } else if (action === 'dec-filter') {
+        state.decFilter = target.dataset.filter || 'all';
+        render();
+      } else if (action === 'open-new-task') {
+        openNewTask(target.dataset.ws || 'new');
+      } else if (action === 'close-ws') {
+        const title = target.dataset.title || '';
+        if (typeof confirm === 'function' && !confirm('确定关闭工作区「' + title + '」？')) return;
+        await api('POST', '/api/workspaces/close', { workspaceId: target.dataset.ws });
+        await refreshAll();
+      } else if (action === 'resolve-decision') {
+        await api('POST', '/api/decisions/' + encodeURIComponent(target.dataset.id) + '/resolve', {
+          decision: target.dataset.choice,
+          answers: [],
+        });
+        await refreshAll();
+      } else if (action === 'toggle-q-opt') {
+        const id = target.dataset.id;
+        const qi = Number(target.dataset.qi);
+        const multi = target.dataset.multi === '1';
+        const label = target.dataset.label || '';
+        const map = state.questionSelections[id] || (state.questionSelections[id] = {});
+        const cur = Array.isArray(map[qi]) ? map[qi].slice() : [];
+        if (multi) {
+          const idx = cur.indexOf(label);
+          if (idx >= 0) cur.splice(idx, 1);
+          else cur.push(label);
+          map[qi] = cur;
+        } else {
+          map[qi] = cur[0] === label ? [] : [label];
+        }
+        render();
+      } else if (action === 'submit-question') {
+        const id = target.dataset.id;
+        const selMap = state.questionSelections[id] || {};
+        const answers = Object.keys(selMap)
+          .sort((a, b) => Number(a) - Number(b))
+          .flatMap((k) => selMap[k] || []);
+        const custom = (state.questionCustom[id] || '').trim();
+        if (custom) answers.push(custom);
+        if (!answers.length) return;
+        await api('POST', '/api/decisions/' + encodeURIComponent(id) + '/resolve', {
+          decision: answers[0],
+          answers,
+        });
+        delete state.questionSelections[id];
+        delete state.questionCustom[id];
+        await refreshAll();
+      } else if (action === 'revoke-device') {
+        const name = target.dataset.name || '';
+        if (typeof confirm === 'function' && !confirm('吊销设备「' + name + '」的授权？')) return;
+        await api('DELETE', '/api/devices/' + encodeURIComponent(target.dataset.id));
+        await refreshAll();
+      } else if (action === 'unpair') {
+        state.token = '';
+        localStorage.removeItem(STORAGE_TOKEN);
+        if (state.ws) { try { state.ws.close(); } catch {} state.ws = null; }
+        render();
+      }
+    } catch (err) {
+      const sub = document.getElementById('connSub');
+      if (sub) sub.textContent = err.message;
+    }
+  });
+
+  mainEl.addEventListener('input', (ev) => {
+    const target = ev.target;
+    if (!target || !target.dataset) return;
+    const action = target.dataset.action;
+    if (action === 'ws-search') {
+      state.wsSearch = target.value || '';
+      patchWorkspaceListOnly();
+    } else if (action === 'q-custom') {
+      state.questionCustom[target.dataset.id] = target.value || '';
+    } else if (action === 'pair-uri-input') {
+      try {
+        const u = new URL((target.value || '').trim());
+        const c = u.searchParams.get('code');
+        const codeEl = document.getElementById('pairCode');
+        if (c && codeEl) codeEl.value = c;
+      } catch {}
+    }
+  });
+
+  mainEl.addEventListener('change', async (ev) => {
+    const target = ev.target;
+    if (!target || !target.dataset) return;
+    if (target.dataset.action === 'switch-model' && target.value) {
+      try {
+        await api('POST', '/api/agents/models', { agent: target.dataset.agent, model: target.value });
+        await refreshAll();
+      } catch (err) {
+        const sub = document.getElementById('connSub');
+        if (sub) sub.textContent = err.message;
+      }
+    }
+  });
+
+  mainEl.addEventListener('submit', async (ev) => {
+    const form = ev.target;
+    if (!form || !form.dataset) return;
+    const action = form.dataset.action;
+    if (action === 'pair-form') {
+      ev.preventDefault();
+      const code = document.getElementById('pairCode').value.trim();
+      const dev = document.getElementById('pairDev').value.trim() || state.deviceName;
+      const errEl = document.getElementById('pairErr');
+      errEl.textContent = '';
+      try {
+        const res = await api('POST', '/api/pair', { code, deviceName: dev });
+        state.token = res.token;
+        state.hostname = res.pairing?.hostname || location.host;
+        state.deviceName = dev;
+        localStorage.setItem(STORAGE_TOKEN, res.token);
+        localStorage.setItem(STORAGE_HOST, state.hostname);
+        localStorage.setItem(STORAGE_DEVICE, dev);
+        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+          Notification.requestPermission().catch(() => {});
+        }
+        connectWs();
+        await refreshAll();
+      } catch (err) {
+        errEl.textContent = err.message;
+      }
+    } else if (action === 'term-input-form') {
+      ev.preventDefault();
+      const inp = document.getElementById('termInp');
+      const v = inp.value;
+      if (!v.trim()) return;
+      inp.value = '';
+      await sendTerm(v + '\\r');
+    }
+  });
+
+  document.getElementById('btnRefresh').addEventListener('click', () => refreshAll());
+  document.getElementById('btnNewTask').addEventListener('click', () => openNewTask('new'));
+  document.getElementById('ntClose').addEventListener('click', () => closeNewTask());
+  document.getElementById('ntSubmit').addEventListener('click', () => submitNewTask());
   document.querySelectorAll('nav.tabs button').forEach((btn) => {
-    btn.onclick = () => {
+    btn.addEventListener('click', () => {
       state.tab = btn.dataset.tab;
       document.querySelectorAll('nav.tabs button').forEach((b) => b.classList.toggle('active', b === btn));
       refreshAll();
       render();
-    };
+    });
   });
+
+  window.winmux = { state, render, openTerminal, sendTerm, refreshAll };
 
   render();
   if (state.token) {

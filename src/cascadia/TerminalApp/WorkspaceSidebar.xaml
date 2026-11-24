@@ -14,13 +14,35 @@
 
     <ContentPresenter.Resources>
         <SolidColorBrush x:Key="WorkspaceSelectionIndicatorBrush"
-                         Color="#E6FFFFFF" />
+                         Color="#7AA2F7" />
         <SolidColorBrush x:Key="WorkspaceTreeGuideBrush"
-                         Color="#22FFFFFF" />
+                         Color="#16FFFFFF" />
         <SolidColorBrush x:Key="WorkspaceStatusRunningBrush"
                          Color="#3DDC97" />
         <SolidColorBrush x:Key="WorkspaceStatusIdleBrush"
                          Color="#5C6473" />
+        <SolidColorBrush x:Key="WorkspacePortBadgeBgBrush"
+                         Color="#1C3DDC97" />
+        <SolidColorBrush x:Key="WorkspacePortBadgeBorderBrush"
+                         Color="#2E3DDC97" />
+        <SolidColorBrush x:Key="WorkspacePortBadgeForegroundBrush"
+                         Color="#4ADE80" />
+        <SolidColorBrush x:Key="WorkspaceFilterTrackBgBrush"
+                         Color="#47000000" />
+        <SolidColorBrush x:Key="WorkspaceFilterTrackBorderBrush"
+                         Color="#0DFFFFFF" />
+        <SolidColorBrush x:Key="WorkspaceSearchBgBrush"
+                         Color="#0AFFFFFF" />
+        <SolidColorBrush x:Key="WorkspaceSearchBorderBrush"
+                         Color="#12FFFFFF" />
+        <SolidColorBrush x:Key="WorkspaceFooterRemoteBgBrush"
+                         Color="#1A3DDC97" />
+        <SolidColorBrush x:Key="WorkspaceFooterRemoteFgBrush"
+                         Color="#6EE7B7" />
+        <SolidColorBrush x:Key="WorkspaceFooterTunnelBgBrush"
+                         Color="#1A7AA2F7" />
+        <SolidColorBrush x:Key="WorkspaceFooterTunnelFgBrush"
+                         Color="#93B4FA" />
         <SolidColorBrush x:Key="WorkspaceVimTagBackgroundBrush"
                          Color="#2BB794F6" />
         <SolidColorBrush x:Key="WorkspaceVimTagForegroundBrush"
@@ -30,7 +52,7 @@
         <SolidColorBrush x:Key="WorkspaceIconClaudeBrush"
                          Color="#D97757" />
         <SolidColorBrush x:Key="WorkspaceIconClaudeEyeBrush"
-                         Color="#16181C" />
+                         Color="#111318" />
         <SolidColorBrush x:Key="WorkspaceIconCodexBrush"
                          Color="#EEF2F6" />
         <SolidColorBrush x:Key="WorkspaceIconAgyBrush"
@@ -40,19 +62,19 @@
         <SolidColorBrush x:Key="WorkspacePinFillBrush"
                          Color="#2693B4FA" />
         <SolidColorBrush x:Key="WorkspaceShortcutBadgeBgBrush"
-                         Color="#CC16181C" />
+                         Color="#CC111318" />
         <SolidColorBrush x:Key="WorkspaceShortcutBadgeBorderBrush"
-                         Color="#66FFFFFF" />
+                         Color="#4DFFFFFF" />
 
         <Style x:Key="SidebarHeaderIconButtonStyle"
                TargetType="Button">
-            <Setter Property="Width" Value="24" />
-            <Setter Property="Height" Value="24" />
-            <Setter Property="MinWidth" Value="24" />
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="MinWidth" Value="26" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="CornerRadius" Value="6" />
             <Setter Property="Foreground" Value="{ThemeResource WorkspaceChromeTextSecondaryBrush}" />
             <Setter Property="FontFamily" Value="{ThemeResource SymbolThemeFontFamily}" />
             <Setter Property="FontSize" Value="11" />
@@ -60,7 +82,7 @@
 
         <Style x:Key="SidebarFilterPillStyle"
                TargetType="Button">
-            <Setter Property="Height" Value="24" />
+            <Setter Property="Height" Value="23" />
             <Setter Property="MinWidth" Value="0" />
             <Setter Property="Padding" Value="6,0" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -68,25 +90,26 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="CornerRadius" Value="6" />
             <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="Foreground" Value="{ThemeResource WorkspaceChromeTextSecondaryBrush}" />
         </Style>
 
         <Style x:Key="ExpandedWorkspaceItemContainerStyle"
                TargetType="ListViewItem">
             <Setter Property="MinHeight" Value="24" />
-            <Setter Property="Margin" Value="4,1" />
+            <Setter Property="Margin" Value="6,1.5" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="CornerRadius" Value="8" />
         </Style>
 
         <!-- Level 0: Workspace Group Row -->
         <DataTemplate x:Key="WorkspaceRowTemplate"
                       x:DataType="local:WorkspaceSidebarRow">
-            <Grid MinHeight="36"
-                  Padding="2,4,4,4"
+            <Grid MinHeight="40"
+                  Padding="3,5,6,5"
                   AllowDrop="True"
                   AutomationProperties.HelpText="{x:Bind StatusText, Mode=OneWay}"
                   AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
@@ -97,7 +120,7 @@
                   PointerExited="_WorkspaceItem_PointerExited"
                   Tag="{Binding}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3" />
+                    <ColumnDefinition Width="4" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -107,16 +130,17 @@
                         Grid.ColumnSpan="3"
                         Margin="2,0"
                         Background="{ThemeResource AttentionPaneBorderColor}"
-                        CornerRadius="6"
+                        CornerRadius="8"
                         IsHitTestVisible="False"
                         Opacity="0.1"
                         Visibility="{x:Bind mtu:Converters.BooleanToVisibility(ShowCollapsedUnread), Mode=OneWay}" />
-                <Border Width="2"
-                        Height="24"
+                <Border Width="2.5"
+                        Height="22"
+                        Margin="1,0,0,0"
                         HorizontalAlignment="Left"
                         VerticalAlignment="Center"
                         Background="{StaticResource WorkspaceSelectionIndicatorBrush}"
-                        CornerRadius="1"
+                        CornerRadius="1.5"
                         IsHitTestVisible="False"
                         Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsSelected), Mode=OneWay}" />
 
@@ -140,14 +164,14 @@
                 <StackPanel Grid.Column="2"
                             Margin="4,0,4,0"
                             VerticalAlignment="Center"
-                            Spacing="1">
+                            Spacing="2">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock FontSize="12.5"
+                        <TextBlock FontSize="13"
                                    FontWeight="SemiBold"
                                    Text="{x:Bind Title, Mode=OneWay}"
                                    TextTrimming="CharacterEllipsis"
@@ -207,35 +231,52 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock FontFamily="Consolas"
-                                   FontSize="10"
-                                   Opacity="0.64"
+                        <TextBlock VerticalAlignment="Center"
+                                   FontFamily="Consolas"
+                                   FontSize="10.5"
+                                   Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
                                    Text="{x:Bind DirectoryDisplay, Mode=OneWay}"
                                    TextTrimming="CharacterEllipsis"
                                    ToolTipService.ToolTip="{x:Bind WorkingDirectory, Mode=OneWay}"
                                    Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(DirectoryDisplay), Mode=OneWay}" />
                         <TextBlock Grid.Column="1"
-                                   MaxWidth="64"
+                                   MaxWidth="66"
                                    Margin="6,0,0,0"
+                                   VerticalAlignment="Center"
                                    FontFamily="Consolas"
-                                   FontSize="10"
-                                   Opacity="0.72"
+                                   FontSize="10.5"
+                                   Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}"
+                                   Opacity="0.82"
                                    Text="{x:Bind GitBranch, Mode=OneWay}"
                                    TextTrimming="CharacterEllipsis"
                                    ToolTipService.ToolTip="{x:Bind GitRepositoryRoot, Mode=OneWay}"
                                    Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(GitBranch), Mode=OneWay}" />
-                        <TextBlock Grid.Column="2"
-                                   MaxWidth="56"
-                                   Margin="6,0,0,0"
-                                   VerticalAlignment="Center"
-                                   FontFamily="Consolas"
-                                   FontSize="10"
-                                   Foreground="{StaticResource WorkspaceStatusRunningBrush}"
-                                   Opacity="0.92"
-                                   Text="{x:Bind ListeningPortsDisplay, Mode=OneWay}"
-                                   TextTrimming="CharacterEllipsis"
-                                   ToolTipService.ToolTip="{x:Bind ListeningPortsTooltip, Mode=OneWay}"
-                                   Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(ListeningPortsDisplay), Mode=OneWay}" />
+                        <Border Grid.Column="2"
+                                Margin="6,0,0,0"
+                                Padding="6,1"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource WorkspacePortBadgeBgBrush}"
+                                BorderBrush="{StaticResource WorkspacePortBadgeBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="9"
+                                ToolTipService.ToolTip="{x:Bind ListeningPortsTooltip, Mode=OneWay}"
+                                Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(ListeningPortsDisplay), Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="4">
+                                <Ellipse Width="4.5"
+                                         Height="4.5"
+                                         VerticalAlignment="Center"
+                                         Fill="{StaticResource WorkspaceStatusRunningBrush}" />
+                                <TextBlock MaxWidth="48"
+                                           VerticalAlignment="Center"
+                                           FontFamily="Consolas"
+                                           FontSize="9.5"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource WorkspacePortBadgeForegroundBrush}"
+                                           Text="{x:Bind ListeningPortsDisplay, Mode=OneWay}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </StackPanel>
 
@@ -409,8 +450,8 @@
         <!-- Level 1: Surface (Terminal Tab) Row -->
         <DataTemplate x:Key="SurfaceRowTemplate"
                       x:DataType="local:WorkspaceSidebarRow">
-            <Grid MinHeight="29"
-                  Padding="0,3,4,3"
+            <Grid MinHeight="30"
+                  Padding="0,4,6,4"
                   AllowDrop="True"
                   AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
                   Background="Transparent"
@@ -515,17 +556,21 @@
                               Stretch="Uniform" />
                     </Viewbox>
                     <!-- Live status overlay dot (only for attention/running) -->
-                    <Ellipse Width="5"
-                             Height="5"
+                    <Ellipse Width="6.5"
+                             Height="6.5"
                              HorizontalAlignment="Right"
                              VerticalAlignment="Bottom"
                              Fill="{ThemeResource AttentionPaneBorderColor}"
+                             Stroke="{ThemeResource WorkspaceChromeSurfaceBrush}"
+                             StrokeThickness="1.2"
                              Visibility="{x:Bind mtu:Converters.BooleanToVisibility(HasAttention), Mode=OneWay}" />
-                    <Ellipse Width="5"
-                             Height="5"
+                    <Ellipse Width="6.5"
+                             Height="6.5"
                              HorizontalAlignment="Right"
                              VerticalAlignment="Bottom"
                              Fill="{StaticResource WorkspaceStatusRunningBrush}"
+                             Stroke="{ThemeResource WorkspaceChromeSurfaceBrush}"
+                             StrokeThickness="1.2"
                              Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsRunning), Mode=OneWay}" />
                 </Grid>
 
@@ -777,16 +822,17 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!-- Orca-style Sidebar Header: Title + Actions + Search + Status Filters -->
+            <!-- Linear-inspired Sidebar Header: Title + Actions + Search + Segmented Filters -->
             <Border x:Name="SidebarHeader"
                     Grid.Row="0"
                     Grid.Column="0"
-                    Padding="8,8,6,6"
+                    Padding="10,10,8,10"
                     BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
                     BorderThickness="0,0,0,1">
-                <StackPanel Spacing="6">
+                <StackPanel Spacing="8">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -799,11 +845,12 @@
                         <TextBlock x:Name="SidebarTitle"
                                    x:Uid="WorkspaceSidebarTitle"
                                    Grid.Column="0"
-                                   Margin="4,0,4,0"
+                                   Margin="2,0,4,0"
                                    VerticalAlignment="Center"
-                                   FontSize="11"
+                                   CharacterSpacing="55"
+                                   FontSize="10.5"
                                    FontWeight="SemiBold"
-                                   Opacity="0.72"
+                                   Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
                                    TextTrimming="CharacterEllipsis" />
                         <Button x:Name="RemoteBridgeButton"
                                 x:Uid="WorkspaceSidebarRemoteBridgeButton"
@@ -891,11 +938,11 @@
                                                                Opacity="0.7" />
                                                 </StackPanel>
 
-                                                <Border Padding="10,8"
+                                                <Border Padding="11,9"
                                                         Background="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}"
                                                         BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
                                                         BorderThickness="1"
-                                                        CornerRadius="6">
+                                                        CornerRadius="10">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
@@ -959,11 +1006,11 @@
                                                 </StackPanel>
 
                                                 <!-- One-click Agent Hook Installer (Claude / Codex) -->
-                                                <Border Padding="8,6"
+                                                <Border Padding="10,8"
                                                         Background="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}"
                                                         BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
                                                         BorderThickness="1"
-                                                        CornerRadius="6">
+                                                        CornerRadius="10">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
@@ -988,11 +1035,11 @@
                                                 </Border>
 
                                                 <!-- Optional Public Quick Tunnel (Cloudflare cloudflared) -->
-                                                <Border Padding="8,6"
+                                                <Border Padding="10,8"
                                                         Background="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}"
                                                         BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
                                                         BorderThickness="1"
-                                                        CornerRadius="6">
+                                                        CornerRadius="10">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
@@ -1219,16 +1266,16 @@
                     <Grid>
                         <TextBox x:Name="SidebarSearchBox"
                                  x:Uid="WorkspaceSidebarSearchBox"
-                                 Height="28"
-                                 MinHeight="28"
-                                 Padding="24,4,24,4"
-                                 Background="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}"
-                                 BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
-                                 CornerRadius="5"
-                                 FontSize="11.5"
+                                 Height="30"
+                                 MinHeight="30"
+                                 Padding="28,5,26,5"
+                                 Background="{StaticResource WorkspaceSearchBgBrush}"
+                                 BorderBrush="{StaticResource WorkspaceSearchBorderBrush}"
+                                 CornerRadius="8"
+                                 FontSize="12"
                                  Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
                                  TextChanged="_SearchBox_TextChanged" />
-                        <FontIcon Margin="7,0,0,0"
+                        <FontIcon Margin="9,0,0,0"
                                   HorizontalAlignment="Left"
                                   VerticalAlignment="Center"
                                   FontFamily="{ThemeResource SymbolThemeFontFamily}"
@@ -1255,27 +1302,33 @@
                                 Visibility="Collapsed" />
                     </Grid>
 
-                    <!-- Status filter pills -->
-                    <Grid x:Name="SidebarFilterBar"
-                          ColumnSpacing="3">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Button x:Name="FilterAllButton"
-                                Grid.Column="0"
-                                Click="_FilterAll_Click"
-                                Style="{StaticResource SidebarFilterPillStyle}" />
-                        <Button x:Name="FilterAttentionButton"
-                                Grid.Column="1"
-                                Click="_FilterAttention_Click"
-                                Style="{StaticResource SidebarFilterPillStyle}" />
-                        <Button x:Name="FilterRunningButton"
-                                Grid.Column="2"
-                                Click="_FilterRunning_Click"
-                                Style="{StaticResource SidebarFilterPillStyle}" />
-                    </Grid>
+                    <!-- Status filter segmented control -->
+                    <Border Padding="2.5"
+                            Background="{StaticResource WorkspaceFilterTrackBgBrush}"
+                            BorderBrush="{StaticResource WorkspaceFilterTrackBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                        <Grid x:Name="SidebarFilterBar"
+                              ColumnSpacing="3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="FilterAllButton"
+                                    Grid.Column="0"
+                                    Click="_FilterAll_Click"
+                                    Style="{StaticResource SidebarFilterPillStyle}" />
+                            <Button x:Name="FilterAttentionButton"
+                                    Grid.Column="1"
+                                    Click="_FilterAttention_Click"
+                                    Style="{StaticResource SidebarFilterPillStyle}" />
+                            <Button x:Name="FilterRunningButton"
+                                    Grid.Column="2"
+                                    Click="_FilterRunning_Click"
+                                    Style="{StaticResource SidebarFilterPillStyle}" />
+                        </Grid>
+                    </Border>
                 </StackPanel>
             </Border>
 
@@ -1326,11 +1379,11 @@
                                     <StaticResource x:Key="ListViewItemBackgroundPressed"
                                                     ResourceKey="WorkspaceChromeButtonPressedBrush" />
                                     <StaticResource x:Key="ListViewItemBackgroundSelected"
-                                                    ResourceKey="WorkspaceChromeAccentBrush" />
+                                                    ResourceKey="WorkspaceChromeSelectionBrush" />
                                     <StaticResource x:Key="ListViewItemBackgroundSelectedPointerOver"
-                                                    ResourceKey="WorkspaceChromeAccentHoverBrush" />
+                                                    ResourceKey="WorkspaceChromeSelectionHoverBrush" />
                                     <StaticResource x:Key="ListViewItemBackgroundSelectedPressed"
-                                                    ResourceKey="WorkspaceChromeAccentPressedBrush" />
+                                                    ResourceKey="WorkspaceChromeSelectionPressedBrush" />
                                     <StaticResource x:Key="ListViewItemForegroundPointerOver"
                                                     ResourceKey="WorkspaceChromeTextPrimaryBrush" />
                                     <StaticResource x:Key="ListViewItemForegroundSelected"
@@ -1371,9 +1424,68 @@
                            Visibility="Collapsed" />
             </Grid>
 
+            <Border x:Name="SidebarFooter"
+                    Grid.Row="2"
+                    Grid.Column="0"
+                    Padding="10,7,8,7"
+                    BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
+                    BorderThickness="0,1,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="SidebarFooterRemoteButton"
+                            Grid.Column="0"
+                            Padding="0"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="_SidebarFooterRemote_Click"
+                            CornerRadius="10"
+                            IsTabStop="False">
+                        <Border x:Name="SidebarFooterRemotePill"
+                                Padding="7,3"
+                                CornerRadius="10">
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="6">
+                                <Ellipse x:Name="SidebarFooterRemoteDot"
+                                         Width="6"
+                                         Height="6"
+                                         VerticalAlignment="Center"
+                                         Fill="{StaticResource WorkspaceStatusRunningBrush}"
+                                         Opacity="0.35" />
+                                <TextBlock x:Name="SidebarFooterRemoteText"
+                                           VerticalAlignment="Center"
+                                           FontSize="10.5"
+                                           FontWeight="Medium"
+                                           Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                                           Text="Remote Off" />
+                            </StackPanel>
+                        </Border>
+                    </Button>
+                    <Border x:Name="SidebarFooterTunnelBadge"
+                            Grid.Column="1"
+                            Margin="6,0,0,0"
+                            Padding="6,2"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource WorkspaceFooterTunnelBgBrush}"
+                            CornerRadius="9"
+                            Visibility="Collapsed">
+                        <TextBlock VerticalAlignment="Center"
+                                   FontFamily="Consolas"
+                                   FontSize="9.5"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource WorkspaceFooterTunnelFgBrush}"
+                                   Text="Tunnel" />
+                    </Border>
+                </Grid>
+            </Border>
+
             <Thumb x:Name="ResizeHandle"
                    x:Uid="WorkspaceSidebarResizeHandle"
-                   Grid.RowSpan="2"
+                   Grid.RowSpan="3"
                    Grid.Column="1"
                    MinWidth="0"
                    AutomationProperties.AutomationId="WorkspaceSidebarResizeHandle"

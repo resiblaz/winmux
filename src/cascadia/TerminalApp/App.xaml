@@ -175,31 +175,37 @@
                                 without coupling them to the terminal color scheme.
                             -->
                             <SolidColorBrush x:Key="WorkspaceChromeSurfaceBrush"
-                                             Color="#16181C" />
+                                             Color="#111318" />
                             <SolidColorBrush x:Key="WorkspaceChromeSurfaceRaisedBrush"
-                                             Color="#1C1F24" />
+                                             Color="#181B22" />
                             <SolidColorBrush x:Key="WorkspaceChromeDividerBrush"
-                                             Color="#30343B" />
+                                             Color="#14FFFFFF" />
                             <SolidColorBrush x:Key="WorkspaceChromeButtonHoverBrush"
-                                             Color="#18FFFFFF" />
+                                             Color="#0DFFFFFF" />
                             <SolidColorBrush x:Key="WorkspaceChromeButtonPressedBrush"
-                                             Color="#28FFFFFF" />
+                                             Color="#18FFFFFF" />
                             <SolidColorBrush x:Key="WorkspaceChromeTextPrimaryBrush"
-                                             Color="#F4F6F8" />
+                                             Color="#EDF1F7" />
                             <SolidColorBrush x:Key="WorkspaceChromeTextSecondaryBrush"
-                                             Color="#A9B0BA" />
+                                             Color="#96A0B2" />
                             <SolidColorBrush x:Key="WorkspaceChromeTextTertiaryBrush"
-                                             Color="#747C88" />
+                                             Color="#6B7486" />
                             <SolidColorBrush x:Key="WorkspaceChromeAccentBrush"
-                                             Color="#0091FF" />
+                                             Color="#638EF2" />
                             <SolidColorBrush x:Key="WorkspaceChromeAccentHoverBrush"
-                                             Color="#168BE8" />
+                                             Color="#7AA2F7" />
                             <SolidColorBrush x:Key="WorkspaceChromeAccentPressedBrush"
-                                             Color="#0879C9" />
+                                             Color="#4F7AE0" />
+                            <SolidColorBrush x:Key="WorkspaceChromeSelectionBrush"
+                                             Color="#1F7AA2F7" />
+                            <SolidColorBrush x:Key="WorkspaceChromeSelectionHoverBrush"
+                                             Color="#2B7AA2F7" />
+                            <SolidColorBrush x:Key="WorkspaceChromeSelectionPressedBrush"
+                                             Color="#367AA2F7" />
                             <SolidColorBrush x:Key="WorkspaceChromeSelectedForegroundBrush"
                                              Color="#FFFFFF" />
                             <SolidColorBrush x:Key="WorkspaceChromeStatusFillBrush"
-                                             Color="#24FFFFFF" />
+                                             Color="#14FFFFFF" />
 
                             <!--
                                 Originally, we were using the raw value of
@@ -245,31 +251,37 @@
                                 being initialized.
                             -->
                             <SolidColorBrush x:Key="WorkspaceChromeSurfaceBrush"
-                                             Color="#16181C" />
+                                             Color="#111318" />
                             <SolidColorBrush x:Key="WorkspaceChromeSurfaceRaisedBrush"
-                                             Color="#1C1F24" />
+                                             Color="#181B22" />
                             <SolidColorBrush x:Key="WorkspaceChromeDividerBrush"
-                                             Color="#30343B" />
+                                             Color="#14FFFFFF" />
                             <SolidColorBrush x:Key="WorkspaceChromeButtonHoverBrush"
-                                             Color="#18FFFFFF" />
+                                             Color="#0DFFFFFF" />
                             <SolidColorBrush x:Key="WorkspaceChromeButtonPressedBrush"
-                                             Color="#28FFFFFF" />
+                                             Color="#18FFFFFF" />
                             <SolidColorBrush x:Key="WorkspaceChromeTextPrimaryBrush"
-                                             Color="#F4F6F8" />
+                                             Color="#EDF1F7" />
                             <SolidColorBrush x:Key="WorkspaceChromeTextSecondaryBrush"
-                                             Color="#A9B0BA" />
+                                             Color="#96A0B2" />
                             <SolidColorBrush x:Key="WorkspaceChromeTextTertiaryBrush"
-                                             Color="#747C88" />
+                                             Color="#6B7486" />
                             <SolidColorBrush x:Key="WorkspaceChromeAccentBrush"
-                                             Color="#0091FF" />
+                                             Color="#638EF2" />
                             <SolidColorBrush x:Key="WorkspaceChromeAccentHoverBrush"
-                                             Color="#168BE8" />
+                                             Color="#7AA2F7" />
                             <SolidColorBrush x:Key="WorkspaceChromeAccentPressedBrush"
-                                             Color="#0879C9" />
+                                             Color="#4F7AE0" />
+                            <SolidColorBrush x:Key="WorkspaceChromeSelectionBrush"
+                                             Color="#1F7AA2F7" />
+                            <SolidColorBrush x:Key="WorkspaceChromeSelectionHoverBrush"
+                                             Color="#2B7AA2F7" />
+                            <SolidColorBrush x:Key="WorkspaceChromeSelectionPressedBrush"
+                                             Color="#367AA2F7" />
                             <SolidColorBrush x:Key="WorkspaceChromeSelectedForegroundBrush"
                                              Color="#FFFFFF" />
                             <SolidColorBrush x:Key="WorkspaceChromeStatusFillBrush"
-                                             Color="#24FFFFFF" />
+                                             Color="#14FFFFFF" />
 
                             <!--
                                 GH #12398 has more history on this value, as well as GH #12400
@@ -316,6 +328,12 @@
                             <StaticResource x:Key="WorkspaceChromeAccentHoverBrush"
                                             ResourceKey="SystemColorHighlightColorBrush" />
                             <StaticResource x:Key="WorkspaceChromeAccentPressedBrush"
+                                            ResourceKey="SystemColorHighlightColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeSelectionBrush"
+                                            ResourceKey="SystemColorHighlightColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeSelectionHoverBrush"
+                                            ResourceKey="SystemColorHighlightColorBrush" />
+                            <StaticResource x:Key="WorkspaceChromeSelectionPressedBrush"
                                             ResourceKey="SystemColorHighlightColorBrush" />
                             <StaticResource x:Key="WorkspaceChromeSelectedForegroundBrush"
                                             ResourceKey="SystemColorHighlightTextColorBrush" />

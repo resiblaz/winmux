@@ -1182,6 +1182,7 @@ namespace winrt::TerminalApp::implementation
         SidebarHeader().Visibility(visibility);
         SidebarTitle().Visibility(visibility);
         WorkspaceList().Visibility(visibility);
+        SidebarFooter().Visibility(visibility);
     }
 
     void WorkspaceSidebar::_ApplyLayout()
@@ -1901,6 +1902,15 @@ namespace winrt::TerminalApp::implementation
         _RefreshRemoteBridgeAsync(false);
     }
 
+    void WorkspaceSidebar::_SidebarFooterRemote_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        if (!_layoutElementsReady)
+        {
+            return;
+        }
+        RemoteBridgeFlyout().ShowAt(SidebarFooterRemoteButton());
+    }
+
     void WorkspaceSidebar::_RemoteBridgeToggle_Click(const IInspectable&, const RoutedEventArgs&)
     {
         _ToggleRemoteBridgeAsync();
@@ -2275,6 +2285,34 @@ namespace winrt::TerminalApp::implementation
         }
 
         RemoteBridgeRunningDot().Visibility(status.Running ? Visibility::Visible : Visibility::Collapsed);
+        SidebarFooterRemoteDot().Opacity(status.Running ? 1.0 : 0.35);
+        if (const auto bg = status.Running ?
+                                Resources().TryLookup(box_value(L"WorkspaceFooterRemoteBgBrush")).try_as<Brush>() :
+                                Brush{ SolidColorBrush{ Windows::UI::Colors::Transparent() } })
+        {
+            SidebarFooterRemotePill().Background(bg);
+        }
+        if (const auto fg = status.Running ?
+                                Resources().TryLookup(box_value(L"WorkspaceFooterRemoteFgBrush")).try_as<Brush>() :
+                                Application::Current().Resources().TryLookup(box_value(L"WorkspaceChromeTextTertiaryBrush")).try_as<Brush>())
+        {
+            SidebarFooterRemoteText().Foreground(fg);
+        }
+        if (status.Running)
+        {
+            SidebarFooterRemoteText().Text(
+                status.PairedDeviceCount > 0 ?
+                    winrt::hstring{ L"Remote \u00B7 " + std::to_wstring(status.PairedDeviceCount) } :
+                    winrt::hstring{ L"Remote" });
+        }
+        else
+        {
+            SidebarFooterRemoteText().Text(L"Remote Off");
+        }
+        SidebarFooterTunnelBadge().Visibility(
+            status.Running && status.TunnelRunning && !status.TunnelPublicUrl.empty() ?
+                Visibility::Visible :
+                Visibility::Collapsed);
         RemoteBridgeToggleButton().IsEnabled(!busy);
         RemoteBridgeRefreshButton().IsEnabled(!busy && status.Running);
 

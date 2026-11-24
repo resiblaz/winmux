@@ -128,6 +128,7 @@ namespace winrt::TerminalApp::implementation
         void _RemoteBridgeHooks_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _RemoteBridgeTunnel_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _RemoteBridgeRevokeDevice_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _SidebarFooterRemote_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
 
     private:
         static constexpr double MinimumExpandedWidth{ 152.0 };

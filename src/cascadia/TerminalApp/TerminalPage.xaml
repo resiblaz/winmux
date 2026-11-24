@@ -103,11 +103,11 @@
                     <StaticResource x:Key="ListViewItemBackgroundPressed"
                                     ResourceKey="WorkspaceChromeButtonPressedBrush" />
                     <StaticResource x:Key="ListViewItemBackgroundSelected"
-                                    ResourceKey="WorkspaceChromeAccentBrush" />
+                                    ResourceKey="WorkspaceChromeSelectionBrush" />
                     <StaticResource x:Key="ListViewItemBackgroundSelectedPointerOver"
-                                    ResourceKey="WorkspaceChromeAccentHoverBrush" />
+                                    ResourceKey="WorkspaceChromeSelectionHoverBrush" />
                     <StaticResource x:Key="ListViewItemBackgroundSelectedPressed"
-                                    ResourceKey="WorkspaceChromeAccentPressedBrush" />
+                                    ResourceKey="WorkspaceChromeSelectionPressedBrush" />
                     <StaticResource x:Key="ListViewItemForegroundSelected"
                                     ResourceKey="WorkspaceChromeSelectedForegroundBrush" />
                 </Border.Resources>

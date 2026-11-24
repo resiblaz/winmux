@@ -222,6 +222,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(ConclusionMarkdownRendersGfmExtensions);
         TEST_METHOD(ConclusionMarkdownRestrictsExternalContent);
         TEST_METHOD(WorkspaceSidebarAdaptsToWindowModes);
+        TEST_METHOD(WorkspaceSidebarThreeLevelTreeAndCrossWorkspaceMove);
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
         TEST_METHOD(WorkspaceGroupsMultipleTerminalSurfaces);
         TEST_METHOD(WorkspaceSurfaceShortcutActions);
@@ -609,6 +610,116 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSurfaceTabBar.Visibility());
             page->SetFullscreen(false);
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_workspaceSidebar.Visibility());
+        });
+    }
+
+    void TabTests::WorkspaceSidebarThreeLevelTreeAndCrossWorkspaceMove()
+    {
+        static constexpr std::wstring_view settingsJson{ LR"(
+        {
+            "defaultProfile": "{6239a42c-1111-49a3-80bd-e8fdd045185c}",
+            "tabLayout": "workspaceSidebar",
+            "showTabsInTitlebar": false,
+            "profiles": [
+                {
+                    "name": "profile0",
+                    "guid": "{6239a42c-1111-49a3-80bd-e8fdd045185c}",
+                    "closeOnExit": "never"
+                }
+            ]
+        })" };
+
+        CascadiaSettings settings{ settingsJson, {} };
+        VERIFY_IS_NOT_NULL(settings);
+
+        winrt::com_ptr<winrt::TerminalApp::implementation::TerminalPage> page{ nullptr };
+        _initializeTerminalPage(page, settings);
+
+        TestOnUIThread([&]() {
+            const auto sidebar = winrt::get_self<winrt::TerminalApp::implementation::WorkspaceSidebar>(page->_workspaceSidebar);
+
+            // Start with 1 Workspace and 1 Surface -> 2 rows (Workspace + Surface).
+            sidebar->RefreshTree();
+            VERIFY_ARE_EQUAL(2u, sidebar->TreeRows().Size());
+            VERIFY_ARE_EQUAL(winrt::TerminalApp::WorkspaceSidebarRowKind::Workspace, sidebar->TreeRows().GetAt(0).Kind());
+            VERIFY_ARE_EQUAL(winrt::TerminalApp::WorkspaceSidebarRowKind::Surface, sidebar->TreeRows().GetAt(1).Kind());
+
+            // Split the active Surface -> 3rd-level Pane leaf rows appear (Workspace + Surface + Pane0 + Pane1).
+            const auto firstTab = page->_GetFocusedTabImpl();
+            VERIFY_IS_NOT_NULL(firstTab);
+            const auto initialPaneId = firstTab->GetActivePane()->Id().value();
+            VERIFY_IS_TRUE(page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SplitPane, SplitPaneArgs{ SplitType::Duplicate } }));
+            const auto secondPaneId = firstTab->GetActivePane()->Id().value();
+            VERIFY_ARE_NOT_EQUAL(initialPaneId, secondPaneId);
+
+            sidebar->RefreshTree();
+            VERIFY_ARE_EQUAL(4u, sidebar->TreeRows().Size());
+            VERIFY_ARE_EQUAL(winrt::TerminalApp::WorkspaceSidebarRowKind::Pane, sidebar->TreeRows().GetAt(2).Kind());
+            VERIFY_ARE_EQUAL(winrt::TerminalApp::WorkspaceSidebarRowKind::Pane, sidebar->TreeRows().GetAt(3).Kind());
+
+            // Activating the first Pane row jumps directly back to initialPaneId.
+            page->_WorkspaceActivateRowRequested(page->_workspaceSidebar, sidebar->TreeRows().GetAt(2));
+            VERIFY_ARE_EQUAL(initialPaneId, firstTab->GetActivePane()->Id().value());
+
+            // Add a second surface in Workspace 1 and create Workspace 2.
+            const auto ws1 = page->_WorkspaceItems().GetAt(0);
+            page->_OpenNewWorkspaceSurface(ws1);
+            VERIFY_ARE_EQUAL(2u, ws1.SurfaceCount());
+            const auto movedSurface = ws1.Surfaces().GetAt(1);
+            page->_OpenNewWorkspace();
+            VERIFY_ARE_EQUAL(2u, page->_WorkspaceItems().Size());
+            const auto ws2 = page->_WorkspaceItems().GetAt(1);
+
+            // Auto-accordion: ws2 is now selected and expanded; ws1 (unselected) is collapsed.
+            sidebar->RefreshTree();
+            VERIFY_IS_TRUE(sidebar->IsWorkspaceCollapsed(ws1.WorkspaceId()));
+            VERIFY_IS_FALSE(sidebar->IsWorkspaceCollapsed(ws2.WorkspaceId()));
+            uint32_t ws1ChildrenWhileCollapsed = 0;
+            for (const auto& row : sidebar->TreeRows())
+            {
+                if (row.Workspace() == ws1 && row.Kind() != winrt::TerminalApp::WorkspaceSidebarRowKind::Workspace)
+                {
+                    ++ws1ChildrenWhileCollapsed;
+                }
+            }
+            VERIFY_ARE_EQUAL(0u, ws1ChildrenWhileCollapsed);
+
+            // Move surface from Workspace 1 into Workspace 2 and verify invariants.
+            page->_WorkspaceMoveSurfaceRequested(movedSurface, ws2, std::nullopt);
+            VERIFY_ARE_EQUAL(1u, ws1.SurfaceCount());
+            VERIFY_ARE_EQUAL(2u, ws2.SurfaceCount());
+            page->_workspaceFeatures->Workspaces().AssertInvariants(page->_tabs);
+
+            // Ctrl+2 (holding Ctrl) then j/k navigates terminals in ws2 (Vim logic),
+            // while releasing Ctrl disarms j/k so plain Ctrl+j is not intercepted.
+            const auto bindings = CascadiaSettings::LoadDefaults().ActionMap().KeyBindings();
+            for (const auto& binding : bindings)
+            {
+                page->_settings.ActionMap().AddAction(binding.Value(), binding.Key());
+            }
+            const auto ctrl = Microsoft::Terminal::Core::ControlKeyStates::LeftCtrlPressed;
+            VERIFY_IS_TRUE(page->_TryHandleWorkspaceNumberKey('2', 3, true, ctrl));
+            VERIFY_IS_TRUE(page->_TryHandleWorkspaceNumberKey('2', 3, false, ctrl));
+            const auto surfaceBeforeJ = page->_GetFocusedTab();
+            VERIFY_IS_TRUE(page->_TryHandleWorkspaceNumberKey('J', 36, true, ctrl));
+            VERIFY_IS_TRUE(page->_TryHandleWorkspaceNumberKey('J', 36, false, ctrl));
+            VERIFY_ARE_NOT_EQUAL(surfaceBeforeJ, page->_GetFocusedTab());
+            VERIFY_IS_TRUE(page->_TryHandleWorkspaceNumberKey('K', 37, true, ctrl));
+            VERIFY_IS_TRUE(page->_TryHandleWorkspaceNumberKey('K', 37, false, ctrl));
+            VERIFY_ARE_EQUAL(surfaceBeforeJ, page->_GetFocusedTab());
+
+            // Releasing Ctrl disarms Ctrl+j/k terminal navigation.
+            VERIFY_IS_FALSE(page->_TryHandleWorkspaceNumberKey(VK_CONTROL, 29, false, {}));
+            VERIFY_IS_FALSE(page->_TryHandleWorkspaceNumberKey('J', 36, true, ctrl));
+
+            // Search filter temporarily expands unselected ws1; clearing restores accordion collapse state.
+            winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(ws1)->CustomName(L"AlphaOps");
+            sidebar->SetSearchQueryForTests(L"alphaops");
+            VERIFY_IS_TRUE(sidebar->TreeRows().Size() >= 2u);
+            VERIFY_ARE_EQUAL(ws1.WorkspaceId(), sidebar->TreeRows().GetAt(0).Workspace().WorkspaceId());
+            sidebar->SetSearchQueryForTests(L"");
+            VERIFY_IS_TRUE(sidebar->IsWorkspaceCollapsed(ws1.WorkspaceId()));
+            VERIFY_IS_FALSE(sidebar->IsWorkspaceCollapsed(ws2.WorkspaceId()));
         });
     }
 

@@ -128,6 +128,7 @@ namespace winrt::TerminalApp::implementation
         til::typed_event<TerminalApp::TerminalPaneContent> RestartTerminalRequested;
 
         til::typed_event<TerminalApp::Tab, IInspectable> ActivePaneChanged;
+        til::typed_event<TerminalApp::Tab, IInspectable> PaneTreeChanged;
         til::event<winrt::delegate<>> TabRaiseVisualBell;
         til::event<winrt::delegate<winrt::TerminalApp::IPaneContent>> TabBellNotificationRequested;
         til::event<winrt::delegate<winrt::hstring /*title*/, winrt::hstring /*body*/, winrt::TerminalApp::IPaneContent /*content*/>> TabToastNotificationRequested;

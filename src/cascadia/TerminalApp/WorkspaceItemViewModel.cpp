@@ -111,7 +111,13 @@ namespace winrt::TerminalApp::implementation
 
     winrt::guid WorkspaceItemViewModel::AddSurface(const TerminalApp::Tab& tab, const std::optional<winrt::guid> surfaceId)
     {
+        return InsertSurface(_surfaces.Size(), tab, surfaceId);
+    }
+
+    winrt::guid WorkspaceItemViewModel::InsertSurface(const uint32_t index, const TerminalApp::Tab& tab, const std::optional<winrt::guid> surfaceId)
+    {
         THROW_HR_IF(E_INVALIDARG, !tab);
+        THROW_HR_IF(E_BOUNDS, index > _surfaces.Size());
         if (const auto existing = SurfaceIdForTab(tab); existing != winrt::guid{})
         {
             return existing;
@@ -127,8 +133,8 @@ namespace winrt::TerminalApp::implementation
         THROW_HR_IF(E_INVALIDARG, TabForSurfaceId(id));
 
         const auto pinned = IsPinned();
-        _surfaceEntries.emplace_back(SurfaceEntry{ id, tab });
-        _surfaces.Append(tab);
+        _surfaceEntries.insert(_surfaceEntries.begin() + index, SurfaceEntry{ id, tab });
+        _surfaces.InsertAt(index, tab);
         if (!_tab)
         {
             _AttachActiveTab(tab);

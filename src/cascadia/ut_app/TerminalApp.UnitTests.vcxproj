@@ -26,6 +26,7 @@
     <ClCompile Include="FzfTests.cpp" />
     <ClCompile Include="WorkspaceGitBranchTests.cpp" />
     <ClCompile Include="WorkspaceListeningPortsTests.cpp" />
+    <ClCompile Include="WorkspaceSidebarTreeModelTests.cpp" />
     <ClCompile Include="WorkspaceAutomationTests.cpp" />
     <ClCompile Include="precomp.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>

@@ -45,6 +45,7 @@ namespace winrt::TerminalApp::implementation
         Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> Notifications() const noexcept;
         void RestoreWorkspaceId(const winrt::guid& workspaceId) noexcept;
         winrt::guid AddSurface(const TerminalApp::Tab& tab, std::optional<winrt::guid> surfaceId = std::nullopt);
+        winrt::guid InsertSurface(uint32_t index, const TerminalApp::Tab& tab, std::optional<winrt::guid> surfaceId = std::nullopt);
         bool RemoveSurface(const TerminalApp::Tab& tab);
         bool MoveSurface(const TerminalApp::Tab& tab, uint32_t targetIndex);
         bool ContainsTab(const TerminalApp::Tab& tab) const noexcept;

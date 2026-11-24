@@ -1,8 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
+import "Tab.idl";
 import "WorkspaceItemViewModel.idl";
 import "WorkspaceNotification.idl";
+import "WorkspaceSidebarRow.idl";
 
 namespace TerminalApp
 {
@@ -16,6 +18,13 @@ namespace TerminalApp
         Boolean IsExpanded { get; set; };
         Double ExpandedWidth { get; set; };
         void RefreshNotifications();
+
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, Object> NewWorkspaceRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> NewSurfaceRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceSidebarRow> ActivateRowRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, Tab> CloseSurfaceRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, Tab> RenameSurfaceRequested;
+        event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, Tab> SplitSurfaceRequested;
 
         event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> PinRequested;
         event Windows.Foundation.TypedEventHandler<WorkspaceSidebar, WorkspaceItemViewModel> CloseRequested;

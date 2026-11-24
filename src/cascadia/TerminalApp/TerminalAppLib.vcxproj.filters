@@ -47,6 +47,9 @@
     <ClCompile Include="WorkspaceSidebar.cpp">
       <Filter>controls</Filter>
     </ClCompile>
+    <ClCompile Include="WorkspaceSidebarRow.cpp">
+      <Filter>controls</Filter>
+    </ClCompile>
     <ClCompile Include="ConclusionSidebar.cpp">
       <Filter>controls</Filter>
     </ClCompile>
@@ -126,6 +129,12 @@
     <ClInclude Include="TerminalSettingsCache.h" />
     <ClInclude Include="WorkspaceSidebar.h">
       <Filter>controls</Filter>
+    </ClInclude>
+    <ClInclude Include="WorkspaceSidebarRow.h">
+      <Filter>controls</Filter>
+    </ClInclude>
+    <ClInclude Include="WorkspaceSidebarTreeModel.h">
+      <Filter>workspace</Filter>
     </ClInclude>
     <ClInclude Include="ConclusionSidebar.h">
       <Filter>controls</Filter>
@@ -212,6 +221,9 @@
     <Midl Include="Remoting.idl" />
     <Midl Include="HighlightedTextControl.idl" />
     <Midl Include="WorkspaceSidebar.idl">
+      <Filter>controls</Filter>
+    </Midl>
+    <Midl Include="WorkspaceSidebarRow.idl">
       <Filter>controls</Filter>
     </Midl>
     <Midl Include="ConclusionSidebar.idl">

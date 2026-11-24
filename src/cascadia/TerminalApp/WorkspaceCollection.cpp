@@ -233,6 +233,62 @@ namespace winrt::TerminalApp::implementation
         return item && winrt::get_self<WorkspaceItemViewModel>(item)->MoveSurface(tab, targetIndex);
     }
 
+    bool WorkspaceCollection::MoveSurfaceToWorkspace(const TerminalApp::Tab& tab,
+                                                     const winrt::guid& targetWorkspaceId,
+                                                     const std::optional<uint32_t> targetIndex)
+    {
+        if (!tab || targetWorkspaceId == winrt::guid{})
+        {
+            return false;
+        }
+
+        const auto sourceWorkspaceIndex = IndexOfTab(tab);
+        const auto targetWorkspaceIndex = IndexOf(targetWorkspaceId);
+        if (!sourceWorkspaceIndex || !targetWorkspaceIndex)
+        {
+            return false;
+        }
+
+        const auto sourceWorkspace = _items.GetAt(sourceWorkspaceIndex.value());
+        const auto targetWorkspace = _items.GetAt(targetWorkspaceIndex.value());
+        const auto sourceImpl = winrt::get_self<WorkspaceItemViewModel>(sourceWorkspace);
+        const auto targetImpl = winrt::get_self<WorkspaceItemViewModel>(targetWorkspace);
+
+        if (sourceWorkspace == targetWorkspace)
+        {
+            if (targetWorkspace.SurfaceCount() <= 1)
+            {
+                return false;
+            }
+            const auto clampedTarget = targetIndex ?
+                                           std::min(targetIndex.value(), targetWorkspace.SurfaceCount() - 1) :
+                                           targetWorkspace.SurfaceCount() - 1;
+            return targetImpl->MoveSurface(tab, clampedTarget);
+        }
+
+        const auto surfaceId = sourceImpl->SurfaceIdForTab(tab);
+        if (surfaceId == winrt::guid{})
+        {
+            return false;
+        }
+
+        THROW_HR_IF(E_UNEXPECTED, !sourceImpl->RemoveSurface(tab));
+        const auto insertAt = targetIndex ?
+                                  std::min(targetIndex.value(), targetWorkspace.SurfaceCount()) :
+                                  targetWorkspace.SurfaceCount();
+        targetImpl->InsertSurface(insertAt, tab, surfaceId);
+        targetImpl->SetActiveTab(tab);
+
+        if (sourceWorkspace.SurfaceCount() == 0)
+        {
+            if (const auto updatedSourceIndex = IndexOf(sourceWorkspace.WorkspaceId()))
+            {
+                _items.RemoveAt(updatedSourceIndex.value());
+            }
+        }
+        return true;
+    }
+
     void WorkspaceCollection::SetActiveTab(const TerminalApp::Tab& tab)
     {
         const auto item = ItemForTab(tab);

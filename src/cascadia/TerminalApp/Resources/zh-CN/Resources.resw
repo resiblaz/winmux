@@ -1252,6 +1252,72 @@
   <data name="WorkspaceSidebarSaveSnapshotMenuItem.Text" xml:space="preserve">
     <value>保存工作区</value>
   </data>
+  <data name="WorkspaceSidebarCollapseAllButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>折叠或展开全部工作区</value>
+  </data>
+  <data name="WorkspaceSidebarCreateWorkspaceButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>新建工作区</value>
+  </data>
+  <data name="WorkspaceSidebarCreateWorkspaceButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>新建工作区</value>
+  </data>
+  <data name="WorkspaceSidebarSearchBox.PlaceholderText" xml:space="preserve">
+    <value>筛选工作区、终端或分支…</value>
+  </data>
+  <data name="WorkspaceSidebarSearchBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>筛选工作区和终端</value>
+  </data>
+  <data name="WorkspaceSidebarSearchClearButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>清除筛选</value>
+  </data>
+  <data name="WorkspaceSidebarFilterEmptyState.Text" xml:space="preserve">
+    <value>没有匹配的工作区或终端</value>
+  </data>
+  <data name="WorkspaceSidebarAddSurfaceButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>在此工作区中新建终端</value>
+  </data>
+  <data name="WorkspaceSidebarAddSurfaceButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>在此工作区中新建终端</value>
+  </data>
+  <data name="WorkspaceSidebarNewSurfaceMenuItem.Text" xml:space="preserve">
+    <value>新建终端</value>
+  </data>
+  <data name="WorkspaceSidebarSplitSurfaceMenuItem.Text" xml:space="preserve">
+    <value>拆分窗格</value>
+  </data>
+  <data name="WorkspaceSidebarRenameSurfaceMenuItem.Text" xml:space="preserve">
+    <value>重命名终端</value>
+  </data>
+  <data name="WorkspaceSidebarCloseSurfaceMenuItem.Text" xml:space="preserve">
+    <value>关闭终端</value>
+  </data>
+  <data name="WorkspaceSidebar_CollapseAllTooltip" xml:space="preserve">
+    <value>折叠全部工作区</value>
+  </data>
+  <data name="WorkspaceSidebar_ExpandAllTooltip" xml:space="preserve">
+    <value>展开全部工作区</value>
+  </data>
+  <data name="WorkspaceSidebar_FilterAll" xml:space="preserve">
+    <value>全部 ({0})</value>
+  </data>
+  <data name="WorkspaceSidebar_FilterAttention" xml:space="preserve">
+    <value>待关注 ({0})</value>
+  </data>
+  <data name="WorkspaceSidebar_FilterRunning" xml:space="preserve">
+    <value>运行中 ({0})</value>
+  </data>
+  <data name="WorkspaceSidebar_PaneCountBadge" xml:space="preserve">
+    <value>{0}屏</value>
+  </data>
+  <data name="WorkspaceSidebar_PaneFallbackTitle" xml:space="preserve">
+    <value>窗格 {0}</value>
+  </data>
+  <data name="WorkspaceSidebar_RenameSurfaceDialogTitle" xml:space="preserve">
+    <value>重命名终端</value>
+  </data>
+  <data name="WorkspaceSidebar_RenameSurfaceDialogPlaceholder" xml:space="preserve">
+    <value>终端名称</value>
+  </data>
   <data name="SavedWorkspaceSnapshotsMenuItem" xml:space="preserve">
     <value>已保存的工作区</value>
   </data>

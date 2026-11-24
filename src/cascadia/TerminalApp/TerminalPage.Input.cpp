@@ -262,6 +262,8 @@ namespace winrt::TerminalApp::implementation
         }
 
         _SidebarController().NumberInput.Reset();
+        _SidebarController().CtrlNavActive = false;
+        _SidebarController().CtrlNavHeldKey = 0;
         if (_workspaceSidebar)
         {
             winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar)->ShowSwitchHints(false);
@@ -375,6 +377,10 @@ namespace winrt::TerminalApp::implementation
                     if (selection->Number <= _WorkspaceItems().Size())
                     {
                         dispatched = _actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToTab, SwitchToTabArgs{ selection->Number - 1 } });
+                        if (dispatched && modifiers.IsCtrlPressed())
+                        {
+                            sidebar.CtrlNavActive = true;
+                        }
                     }
                 }
                 else if (const auto item = _WorkspaceItemForTab(_GetFocusedTab());
@@ -401,13 +407,32 @@ namespace winrt::TerminalApp::implementation
         {
             return true;
         }
-        if (vkey == VK_ESCAPE && input.Escape(down))
+        if ((vkey == 'J' || vkey == 'K') && !down && sidebar.CtrlNavHeldKey == vkey)
         {
+            sidebar.CtrlNavHeldKey = 0;
             return true;
+        }
+        if (vkey == VK_ESCAPE)
+        {
+            if (sidebar.CtrlNavActive)
+            {
+                sidebar.CtrlNavActive = false;
+                sidebar.CtrlNavHeldKey = 0;
+                if (down)
+                {
+                    return true;
+                }
+            }
+            if (input.Escape(down))
+            {
+                return true;
+            }
         }
         if (!sidebar.Enabled)
         {
             input.Reset();
+            sidebar.CtrlNavActive = false;
+            sidebar.CtrlNavHeldKey = 0;
             return false;
         }
 
@@ -415,9 +440,17 @@ namespace winrt::TerminalApp::implementation
         const auto altKey = vkey == VK_MENU || vkey == VK_LMENU || vkey == VK_RMENU;
         if (ctrlKey || altKey)
         {
-            if (ctrlKey && _workspaceSidebar)
+            if (_workspaceSidebar)
             {
-                winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar)->ShowSwitchHints(down || modifiers.IsCtrlPressed());
+                const auto sidebarImpl = winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar);
+                if (ctrlKey)
+                {
+                    sidebarImpl->ShowSwitchHints(down || modifiers.IsCtrlPressed(), false);
+                }
+                else
+                {
+                    sidebarImpl->ShowSwitchHints(down || modifiers.IsAltPressed(), true);
+                }
             }
 
             const auto target = ctrlKey ? Target::Workspace : Target::Surface;
@@ -428,6 +461,11 @@ namespace winrt::TerminalApp::implementation
             if (!down && !(ctrlKey ? modifiers.IsCtrlPressed() : modifiers.IsAltPressed()))
             {
                 finishNumber(target);
+                if (ctrlKey)
+                {
+                    sidebar.CtrlNavActive = false;
+                    sidebar.CtrlNavHeldKey = 0;
+                }
             }
             // Preserve the normal modifier release path for terminal input.
             return false;
@@ -437,11 +475,29 @@ namespace winrt::TerminalApp::implementation
         {
             return false;
         }
+        const auto ctrlOnly = modifiers.IsCtrlPressed() && !modifiers.IsAltPressed() &&
+                              !modifiers.IsShiftPressed() && !modifiers.IsWinPressed();
+        if (ctrlOnly && (vkey == 'J' || vkey == 'K'))
+        {
+            if (input.PendingTarget() == Target::Workspace)
+            {
+                finishNumber(Target::Workspace);
+            }
+            if (sidebar.CtrlNavActive)
+            {
+                sidebar.CtrlNavHeldKey = vkey;
+                _ClearKeyboardState(gsl::narrow_cast<WORD>(vkey), scanCode);
+                _StepActiveWorkspaceTerminal(vkey == 'J' ? 1 : -1);
+                return true;
+            }
+        }
         const auto numberModifier = modifiers.IsCtrlPressed() != modifiers.IsAltPressed() &&
                                     !modifiers.IsShiftPressed() && !modifiers.IsWinPressed();
         if (!numberModifier || vkey < '0' || vkey > '9')
         {
             input.Cancel();
+            sidebar.CtrlNavActive = false;
+            sidebar.CtrlNavHeldKey = 0;
             return false;
         }
 

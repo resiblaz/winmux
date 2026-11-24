@@ -1252,6 +1252,72 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebarSaveSnapshotMenuItem.Text" xml:space="preserve">
     <value>Save workspace</value>
   </data>
+  <data name="WorkspaceSidebarCollapseAllButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Collapse or expand all workspaces</value>
+  </data>
+  <data name="WorkspaceSidebarCreateWorkspaceButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>New workspace</value>
+  </data>
+  <data name="WorkspaceSidebarCreateWorkspaceButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>New workspace</value>
+  </data>
+  <data name="WorkspaceSidebarSearchBox.PlaceholderText" xml:space="preserve">
+    <value>Filter workspaces, terminals, branches…</value>
+  </data>
+  <data name="WorkspaceSidebarSearchBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Filter workspaces and terminals</value>
+  </data>
+  <data name="WorkspaceSidebarSearchClearButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Clear filter</value>
+  </data>
+  <data name="WorkspaceSidebarFilterEmptyState.Text" xml:space="preserve">
+    <value>No matching workspaces or terminals</value>
+  </data>
+  <data name="WorkspaceSidebarAddSurfaceButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>New terminal in this workspace</value>
+  </data>
+  <data name="WorkspaceSidebarAddSurfaceButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>New terminal in this workspace</value>
+  </data>
+  <data name="WorkspaceSidebarNewSurfaceMenuItem.Text" xml:space="preserve">
+    <value>New terminal</value>
+  </data>
+  <data name="WorkspaceSidebarSplitSurfaceMenuItem.Text" xml:space="preserve">
+    <value>Split pane</value>
+  </data>
+  <data name="WorkspaceSidebarRenameSurfaceMenuItem.Text" xml:space="preserve">
+    <value>Rename terminal</value>
+  </data>
+  <data name="WorkspaceSidebarCloseSurfaceMenuItem.Text" xml:space="preserve">
+    <value>Close terminal</value>
+  </data>
+  <data name="WorkspaceSidebar_CollapseAllTooltip" xml:space="preserve">
+    <value>Collapse all workspaces</value>
+  </data>
+  <data name="WorkspaceSidebar_ExpandAllTooltip" xml:space="preserve">
+    <value>Expand all workspaces</value>
+  </data>
+  <data name="WorkspaceSidebar_FilterAll" xml:space="preserve">
+    <value>All ({0})</value>
+  </data>
+  <data name="WorkspaceSidebar_FilterAttention" xml:space="preserve">
+    <value>Alerts ({0})</value>
+  </data>
+  <data name="WorkspaceSidebar_FilterRunning" xml:space="preserve">
+    <value>Active ({0})</value>
+  </data>
+  <data name="WorkspaceSidebar_PaneCountBadge" xml:space="preserve">
+    <value>{0}p</value>
+  </data>
+  <data name="WorkspaceSidebar_PaneFallbackTitle" xml:space="preserve">
+    <value>Pane {0}</value>
+  </data>
+  <data name="WorkspaceSidebar_RenameSurfaceDialogTitle" xml:space="preserve">
+    <value>Rename terminal</value>
+  </data>
+  <data name="WorkspaceSidebar_RenameSurfaceDialogPlaceholder" xml:space="preserve">
+    <value>Terminal name</value>
+  </data>
   <data name="SavedWorkspaceSnapshotsMenuItem" xml:space="preserve">
     <value>Saved workspaces</value>
   </data>

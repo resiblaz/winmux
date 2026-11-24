@@ -129,6 +129,10 @@
     <ClInclude Include="WorkspaceSidebar.h">
       <DependentUpon>WorkspaceSidebar.xaml</DependentUpon>
     </ClInclude>
+    <ClInclude Include="WorkspaceSidebarRow.h">
+      <DependentUpon>WorkspaceSidebarRow.idl</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="WorkspaceSidebarTreeModel.h" />
     <ClInclude Include="ConclusionSidebar.h">
       <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
     </ClInclude>
@@ -320,6 +324,9 @@
     <ClCompile Include="WorkspaceSidebar.cpp">
       <DependentUpon>WorkspaceSidebar.xaml</DependentUpon>
     </ClCompile>
+    <ClCompile Include="WorkspaceSidebarRow.cpp">
+      <DependentUpon>WorkspaceSidebarRow.idl</DependentUpon>
+    </ClCompile>
     <ClCompile Include="ConclusionSidebar.cpp">
       <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
     </ClCompile>
@@ -455,6 +462,9 @@
     </Midl>
     <Midl Include="WorkspaceSidebar.idl">
       <DependentUpon>WorkspaceSidebar.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="WorkspaceSidebarRow.idl">
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="ConclusionSidebar.idl">

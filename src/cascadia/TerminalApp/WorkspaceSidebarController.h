@@ -17,6 +17,8 @@ namespace winrt::TerminalApp::implementation
         {
             ListeningPortsTimer.Stop();
             NumberInput.Reset();
+            CtrlNavActive = false;
+            CtrlNavHeldKey = 0;
             ListeningPortsRefreshInFlight = false;
             ListeningPortsRefreshPending = false;
             ++ListeningPortsGeneration;
@@ -31,6 +33,8 @@ namespace winrt::TerminalApp::implementation
         bool Enabled{};
         WorkspaceNumberInput NumberInput;
         winrt::guid NumberInputWorkspaceId{};
+        bool CtrlNavActive{};
+        uint32_t CtrlNavHeldKey{};
         bool LayoutInitialized{};
         SafeDispatcherTimer ListeningPortsTimer;
         bool ListeningPortsRefreshInFlight{};

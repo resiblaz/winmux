@@ -20,6 +20,7 @@ namespace TerminalAppUnitTests
         END_TEST_CLASS()
 
         TEST_METHOD(MapsListenersToNearestRoot);
+        TEST_METHOD(MapsProcessNamesToNearestRoot);
         TEST_METHOD(QueriesLiveTcpListener);
     };
 
@@ -66,6 +67,25 @@ namespace TerminalAppUnitTests
         VERIFY_IS_TRUE(root200 != mapped.end());
         VERIFY_ARE_EQUAL(static_cast<size_t>(1), root200->second.size());
         VERIFY_ARE_EQUAL(static_cast<uint16_t>(9229), root200->second.at(0));
+    }
+
+    void WorkspaceListeningPortsTests::MapsProcessNamesToNearestRoot()
+    {
+        using Ports = winrt::TerminalApp::implementation::WorkspaceListeningPorts;
+
+        const std::vector<uint32_t> roots{ 100, 200 };
+        const std::vector<Ports::ProcessRecord> processes{
+            { 100, 1, L"pwsh.exe" },
+            { 101, 100, L"codex.exe" },
+            { 200, 1, L"pwsh.exe" },
+            { 201, 200, L"agy.exe" },
+        };
+
+        const auto mapped = Ports::MapProcessNamesToRoots(roots, processes);
+        VERIFY_ARE_EQUAL(static_cast<size_t>(2), mapped.size());
+        VERIFY_ARE_EQUAL(static_cast<size_t>(2), mapped.at(100).size());
+        VERIFY_ARE_EQUAL(std::wstring{ L"codex.exe" }, mapped.at(100).at(1));
+        VERIFY_ARE_EQUAL(std::wstring{ L"agy.exe" }, mapped.at(200).at(1));
     }
 
     void WorkspaceListeningPortsTests::QueriesLiveTcpListener()

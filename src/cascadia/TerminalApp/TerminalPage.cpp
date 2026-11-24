@@ -236,7 +236,8 @@ namespace winrt::TerminalApp::implementation
         _workspaceSurfaceTabs = this->WorkspaceSurfaceTabs();
         _workspaceSurfaceNewTabButton = this->WorkspaceSurfaceNewTabButton();
         _workspaceToolTabs = this->WorkspaceToolTabs();
-        _workspaceList.ItemsSource(_WorkspaceItems());
+        const auto workspaceSidebarImpl = winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar);
+        workspaceSidebarImpl->SetWorkspaces(_WorkspaceItems());
         _workspaceItemsChangedRevoker = _WorkspaceItems().VectorChanged(winrt::auto_revoke, [weakThis{ get_weak() }](auto&&, auto&&) {
             if (const auto page = weakThis.get())
             {
@@ -247,7 +248,7 @@ namespace winrt::TerminalApp::implementation
         });
         _RefreshWorkspaceNotifications();
         _workspaceFeatures->Snapshots().RefreshCache();
-        _SidebarController().ListeningPortsTimer.Interval(5s);
+        _SidebarController().ListeningPortsTimer.Interval(3s);
         _SidebarController().ListeningPortsTimer.Tick([weakThis{ get_weak() }](const auto&, const auto&) {
             if (const auto page = weakThis.get())
             {
@@ -263,10 +264,44 @@ namespace winrt::TerminalApp::implementation
 
         _tabView.CanReorderTabs(canDragDrop);
         _tabView.CanDragTabs(canDragDrop);
-        _workspaceList.CanReorderItems(canDragDrop);
+        _workspaceList.CanReorderItems(false);
         _workspaceList.CanDragItems(canDragDrop);
         _tabView.TabDragStarting({ get_weak(), &TerminalPage::_TabDragStarted });
         _tabView.TabDragCompleted({ get_weak(), &TerminalPage::_TabDragCompleted });
+
+        _workspaceSidebar.NewWorkspaceRequested([weakThis{ get_weak() }](const auto&, const auto&) {
+            if (const auto page = weakThis.get())
+            {
+                page->_OpenNewWorkspace();
+            }
+        });
+        _workspaceSidebar.NewSurfaceRequested([weakThis{ get_weak() }](const auto&, const auto& item) {
+            if (const auto page = weakThis.get())
+            {
+                page->_OpenNewWorkspaceSurface(item);
+            }
+        });
+        _workspaceSidebar.ActivateRowRequested({ get_weak(), &TerminalPage::_WorkspaceActivateRowRequested });
+        _workspaceSidebar.CloseSurfaceRequested([weakThis{ get_weak() }](const auto&, const auto& surface) {
+            if (const auto page = weakThis.get(); page && surface)
+            {
+                page->_HandleCloseTabRequested(surface);
+            }
+        });
+        _workspaceSidebar.RenameSurfaceRequested({ get_weak(), &TerminalPage::_WorkspaceRenameSurfaceRequested });
+        _workspaceSidebar.SplitSurfaceRequested({ get_weak(), &TerminalPage::_WorkspaceSplitSurfaceRequested });
+        workspaceSidebarImpl->ReorderWorkspaceRequested([weakThis{ get_weak() }](const auto& item, const uint32_t targetIndex) {
+            if (const auto page = weakThis.get())
+            {
+                page->_WorkspaceReorderRequested(item, targetIndex);
+            }
+        });
+        workspaceSidebarImpl->MoveSurfaceRequested([weakThis{ get_weak() }](const auto& surface, const auto& targetWorkspace, const std::optional<uint32_t> targetIndex) {
+            if (const auto page = weakThis.get())
+            {
+                page->_WorkspaceMoveSurfaceRequested(surface, targetWorkspace, targetIndex);
+            }
+        });
 
         _workspaceSidebar.PinRequested({ get_weak(), &TerminalPage::_WorkspacePinRequested });
         _workspaceSidebar.CloseRequested({ get_weak(), &TerminalPage::_WorkspaceCloseRequested });
@@ -288,8 +323,6 @@ namespace winrt::TerminalApp::implementation
         _workspaceSidebar.MarkAllNotificationsReadRequested({ get_weak(), &TerminalPage::_WorkspaceMarkAllNotificationsReadRequested });
         _workspaceSidebar.ClearAllNotificationHistoryRequested({ get_weak(), &TerminalPage::_WorkspaceClearAllNotificationHistoryRequested });
         _workspaceList.SelectionChanged({ get_weak(), &TerminalPage::_WorkspaceList_SelectionChanged });
-        _workspaceList.DragItemsStarting({ get_weak(), &TerminalPage::_WorkspaceList_DragItemsStarting });
-        _workspaceList.DragItemsCompleted({ get_weak(), &TerminalPage::_WorkspaceList_DragItemsCompleted });
 
         auto tabRowImpl = winrt::get_self<implementation::TabRowControl>(_tabRow);
         _newTabButton = tabRowImpl->NewTabButton();

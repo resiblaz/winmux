@@ -40,7 +40,7 @@ namespace winrt::TerminalApp::implementation
 
             do
             {
-                processes.emplace_back(entry.th32ProcessID, entry.th32ParentProcessID);
+                processes.emplace_back(entry.th32ProcessID, entry.th32ParentProcessID, std::wstring{ entry.szExeFile });
             } while (Process32NextW(snapshot.get(), &entry));
 
             return GetLastError() == ERROR_NO_MORE_FILES;
@@ -169,12 +169,64 @@ namespace winrt::TerminalApp::implementation
         return result;
     }
 
+    WorkspaceListeningPorts::ProcessNamesByRoot WorkspaceListeningPorts::MapProcessNamesToRoots(
+        const std::span<const uint32_t> rootProcessIds,
+        const std::span<const ProcessRecord> processes)
+    {
+        std::unordered_set<uint32_t> roots;
+        roots.reserve(rootProcessIds.size());
+        for (const auto processId : rootProcessIds)
+        {
+            if (processId != 0)
+            {
+                roots.emplace(processId);
+            }
+        }
+
+        std::unordered_map<uint32_t, uint32_t> parents;
+        parents.reserve(processes.size());
+        for (const auto& process : processes)
+        {
+            if (process.ProcessId != 0)
+            {
+                parents.insert_or_assign(process.ProcessId, process.ParentProcessId);
+            }
+        }
+
+        ProcessNamesByRoot result;
+        for (const auto& process : processes)
+        {
+            if (process.ProcessId == 0 || process.ExecutableName.empty())
+            {
+                continue;
+            }
+
+            auto processId = process.ProcessId;
+            for (size_t depth = 0; processId != 0 && depth < MaximumProcessTreeDepth; ++depth)
+            {
+                if (roots.contains(processId))
+                {
+                    result[processId].emplace_back(process.ExecutableName);
+                    break;
+                }
+
+                const auto parent = parents.find(processId);
+                if (parent == parents.end() || parent->second == processId)
+                {
+                    break;
+                }
+                processId = parent->second;
+            }
+        }
+        return result;
+    }
+
     WorkspaceListeningPorts::Snapshot WorkspaceListeningPorts::Query(const std::span<const uint32_t> rootProcessIds) noexcept
     try
     {
         if (rootProcessIds.empty())
         {
-            return { true, {} };
+            return { true, {}, {} };
         }
 
         std::vector<ProcessRecord> processes;
@@ -189,7 +241,7 @@ namespace winrt::TerminalApp::implementation
             return {};
         }
 
-        return { true, MapListenersToRoots(rootProcessIds, processes, listeners) };
+        return { true, MapListenersToRoots(rootProcessIds, processes, listeners), MapProcessNamesToRoots(rootProcessIds, processes) };
     }
     catch (...)
     {

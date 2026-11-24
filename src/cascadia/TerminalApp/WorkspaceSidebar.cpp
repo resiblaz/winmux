@@ -4,13 +4,17 @@
 #include "pch.h"
 #include "WorkspaceSidebar.h"
 #include "WorkspaceItemViewModel.h"
+#include "Tab.h"
+#include "Pane.h"
 
 #include "WorkspaceSidebar.g.cpp"
 
 using namespace winrt;
 using namespace winrt::Microsoft::Terminal::Settings::Model;
+using namespace winrt::Windows::ApplicationModel::DataTransfer;
 using namespace winrt::Windows::UI::Xaml;
 using namespace winrt::Windows::UI::Xaml::Controls;
+using namespace winrt::Windows::UI::Xaml::Media;
 using namespace winrt::Windows::UI::Xaml::Media::Animation;
 
 namespace winrt::TerminalApp::implementation
@@ -18,16 +22,119 @@ namespace winrt::TerminalApp::implementation
     namespace
     {
         constexpr uint32_t MaximumNotificationHistory{ 1000 };
+
+        bool _isTabRunning(const TerminalApp::Tab& tab)
+        {
+            if (!tab)
+            {
+                return false;
+            }
+            if (const auto status = tab.TabStatus())
+            {
+                if (status.IsProgressRingActive() || status.IsProgressRingIndeterminate())
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool _isTabVimActive(const winrt::com_ptr<Tab>& /*tabImpl*/)
+        {
+            return false;
+        }
+
+        uint32_t _rootProcessIdForPane(const std::shared_ptr<Pane>& pane) noexcept
+        {
+            if (!pane)
+            {
+                return 0;
+            }
+            try
+            {
+                if (const auto control = pane->GetTerminalControl())
+                {
+                    if (const auto connection = control.Connection())
+                    {
+                        if (const auto conpty = connection.try_as<Microsoft::Terminal::TerminalConnection::ConptyConnection>())
+                        {
+                            if (const auto handle = reinterpret_cast<HANDLE>(conpty.RootProcessHandle()))
+                            {
+                                return GetProcessId(handle);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (...)
+            {
+            }
+            return 0;
+        }
+
+        std::vector<SidebarPaneInput> _collectLeafPanes(const winrt::com_ptr<Tab>& tabImpl,
+                                                        const std::optional<uint32_t> activePaneId,
+                                                        const std::unordered_map<uint32_t, SidebarIconKind>& processIcons)
+        {
+            std::vector<SidebarPaneInput> panes;
+            if (!tabImpl || !tabImpl->GetRootPane())
+            {
+                return panes;
+            }
+
+            const auto focusedPane = tabImpl->GetActivePane();
+            const auto focusedId = activePaneId.has_value() ? activePaneId : (focusedPane ? focusedPane->Id() : std::nullopt);
+
+            tabImpl->GetRootPane()->WalkTree([&](const auto& pane) {
+                if (!pane || !pane->Id().has_value())
+                {
+                    return;
+                }
+                const auto content = pane->GetContent();
+                if (!content)
+                {
+                    return;
+                }
+
+                SidebarPaneInput entry{};
+                entry.PaneId = pane->Id().value();
+                const auto title = content.Title();
+                entry.Title = title.empty() ?
+                                  std::wstring{ RS_fmt(L"WorkspaceSidebar_PaneFallbackTitle", entry.PaneId + 1) } :
+                                  std::wstring{ title };
+                entry.IsActive = focusedId.has_value() && focusedId.value() == entry.PaneId;
+                entry.HasAttention = pane->HasAttention();
+                const auto state = content.TaskbarState();
+                entry.IsRunning = state == 1 || state == 3;
+                if (const auto rootPid = _rootProcessIdForPane(pane); rootPid != 0)
+                {
+                    if (const auto it = processIcons.find(rootPid); it != processIcons.end())
+                    {
+                        entry.Icon = it->second;
+                    }
+                }
+                if (entry.Icon == SidebarIconKind::Terminal)
+                {
+                    entry.Icon = WorkspaceSidebarTreeModel::DetectIconKind(entry.Title);
+                }
+                panes.emplace_back(std::move(entry));
+            });
+
+            return panes;
+        }
     }
 
     WorkspaceSidebar::WorkspaceSidebar() :
-        _notificationHistory{ winrt::single_threaded_observable_vector<TerminalApp::WorkspaceNotification>() }
+        _notificationHistory{ winrt::single_threaded_observable_vector<TerminalApp::WorkspaceNotification>() },
+        _treeRows{ winrt::single_threaded_observable_vector<TerminalApp::WorkspaceSidebarRow>() }
     {
         InitializeComponent();
 
         const auto state = ApplicationState::SharedInstance();
         const auto savedWidth = state.WorkspaceSidebarWidth();
-        const auto usesPreviousDefault = savedWidth == PreviousDefaultExpandedWidth || savedWidth == LegacyDefaultExpandedWidth;
+        const auto usesPreviousDefault = savedWidth == PreviousDefaultExpandedWidth ||
+                                         savedWidth == LegacyDefaultExpandedWidth ||
+                                         savedWidth == CompactLegacyDefaultExpandedWidth;
         _expandedWidth = NormalizeExpandedWidth(savedWidth);
         if (usesPreviousDefault)
         {
@@ -42,6 +149,7 @@ namespace winrt::TerminalApp::implementation
                 self->_layoutElementsReady = true;
                 self->_ApplyLayout();
                 self->_layoutAnimationsEnabled = true;
+                self->RefreshTree();
             }
         });
     }
@@ -107,7 +215,9 @@ namespace winrt::TerminalApp::implementation
 
     double WorkspaceSidebar::NormalizeExpandedWidth(const double value) noexcept
     {
-        const auto usesPreviousDefault = value == PreviousDefaultExpandedWidth || value == LegacyDefaultExpandedWidth;
+        const auto usesPreviousDefault = value == PreviousDefaultExpandedWidth ||
+                                         value == LegacyDefaultExpandedWidth ||
+                                         value == CompactLegacyDefaultExpandedWidth;
         return std::clamp(usesPreviousDefault ? DefaultExpandedWidth : value,
                           MinimumExpandedWidth,
                           MaximumExpandedWidth);
@@ -118,16 +228,526 @@ namespace winrt::TerminalApp::implementation
         return _notificationHistory;
     }
 
+    Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceSidebarRow> WorkspaceSidebar::TreeRows() const noexcept
+    {
+        return _treeRows;
+    }
+
+    void WorkspaceSidebar::SetWorkspaces(const Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel>& workspaces)
+    {
+        _workspacesChangedRevoker.revoke();
+        _subscriptions.clear();
+        _workspaces = workspaces;
+
+        if (_workspaces)
+        {
+            _workspacesChangedRevoker = _workspaces.VectorChanged(winrt::auto_revoke, [weakThis{ get_weak() }](auto&&, auto&&) {
+                if (const auto self = weakThis.get())
+                {
+                    self->_RebindWorkspaceSubscriptions();
+                    self->ScheduleRefreshTree();
+                }
+            });
+            _RebindWorkspaceSubscriptions();
+        }
+
+        WorkspaceList().ItemsSource(_treeRows);
+        RefreshTree();
+    }
+
+    void WorkspaceSidebar::SetActiveSelection(const TerminalApp::Tab& activeTab, const std::optional<uint32_t> activePaneId)
+    {
+        _activeTab = activeTab ? winrt::make_weak(activeTab) : winrt::weak_ref<TerminalApp::Tab>{ nullptr };
+        _activePaneId = activePaneId;
+        if (_workspaces)
+        {
+            for (const auto& ws : _workspaces)
+            {
+                if (ws && ws.IsSelected())
+                {
+                    _treeModel.SetSelectedWorkspace(ws.WorkspaceId());
+                    break;
+                }
+            }
+        }
+        RefreshTree();
+    }
+
+    void WorkspaceSidebar::UpdateProcessIcons(std::unordered_map<uint32_t, SidebarIconKind> processIcons)
+    {
+        if (_processIcons == processIcons)
+        {
+            return;
+        }
+        _processIcons = std::move(processIcons);
+        ScheduleRefreshTree();
+    }
+
+    void WorkspaceSidebar::SetSearchQueryForTests(winrt::hstring query)
+    {
+        _treeModel.SetSearchQuery(std::wstring{ query });
+        if (_layoutElementsReady && SidebarSearchBox().Text() != query)
+        {
+            SidebarSearchBox().Text(query);
+        }
+        RefreshTree();
+    }
+
+    void WorkspaceSidebar::SetFilterModeForTests(const SidebarFilterMode mode)
+    {
+        _treeModel.SetFilterMode(mode);
+        RefreshTree();
+    }
+
+    bool WorkspaceSidebar::ToggleWorkspaceCollapsed(const winrt::guid& workspaceId)
+    {
+        const auto collapsed = _treeModel.ToggleWorkspaceCollapsed(workspaceId);
+        RefreshTree();
+        return collapsed;
+    }
+
+    bool WorkspaceSidebar::IsWorkspaceCollapsed(const winrt::guid& workspaceId) const noexcept
+    {
+        return _treeModel.IsWorkspaceCollapsed(workspaceId);
+    }
+
+    void WorkspaceSidebar::ScheduleRefreshTree()
+    {
+        if (_refreshScheduled)
+        {
+            return;
+        }
+        _refreshScheduled = true;
+        const auto weakThis = get_weak();
+        if (const auto dispatcher = Dispatcher())
+        {
+            dispatcher.RunAsync(Windows::UI::Core::CoreDispatcherPriority::Normal, [weakThis]() {
+                if (const auto self = weakThis.get())
+                {
+                    self->_refreshScheduled = false;
+                    self->RefreshTree();
+                }
+            });
+        }
+        else
+        {
+            _refreshScheduled = false;
+            RefreshTree();
+        }
+    }
+
+    void WorkspaceSidebar::_RebindWorkspaceSubscriptions()
+    {
+        for (auto& wsSub : _subscriptions)
+        {
+            for (auto& sfSub : wsSub.Surfaces)
+            {
+                if (const auto tab = sfSub.WeakTab.get())
+                {
+                    if (const auto tabImpl = winrt::get_self<Tab>(tab); tabImpl && sfSub.PaneTreeChangedToken)
+                    {
+                        tabImpl->PaneTreeChanged(sfSub.PaneTreeChangedToken);
+                    }
+                }
+            }
+        }
+        _subscriptions.clear();
+
+        if (!_workspaces)
+        {
+            return;
+        }
+
+        const auto weakThis = get_weak();
+        _subscriptions.reserve(_workspaces.Size());
+        for (const auto& ws : _workspaces)
+        {
+            if (!ws)
+            {
+                continue;
+            }
+            WorkspaceSubscriptions wsSub{};
+            wsSub.WorkspaceChanged = ws.PropertyChanged(winrt::auto_revoke, [weakThis](auto&&, const auto& args) {
+                if (const auto self = weakThis.get())
+                {
+                    if (args.PropertyName() != L"SwitchShortcutHintText")
+                    {
+                        self->ScheduleRefreshTree();
+                    }
+                }
+            });
+            wsSub.SurfacesChanged = ws.Surfaces().VectorChanged(winrt::auto_revoke, [weakThis](auto&&, auto&&) {
+                if (const auto self = weakThis.get())
+                {
+                    self->_RebindWorkspaceSubscriptions();
+                    self->ScheduleRefreshTree();
+                }
+            });
+
+            for (const auto& surface : ws.Surfaces())
+            {
+                if (!surface)
+                {
+                    continue;
+                }
+                SurfaceSubscriptions sfSub{};
+                sfSub.WeakTab = winrt::make_weak(surface);
+                sfSub.TabChanged = surface.PropertyChanged(winrt::auto_revoke, [weakThis](auto&&, const auto& args) {
+                    if (const auto self = weakThis.get())
+                    {
+                        const auto name = args.PropertyName();
+                        if (name == L"Title" || name == L"ReadOnly" || name == L"WorkingDirectory")
+                        {
+                            self->ScheduleRefreshTree();
+                        }
+                    }
+                });
+                if (const auto status = surface.TabStatus())
+                {
+                    sfSub.StatusChanged = status.PropertyChanged(winrt::auto_revoke, [weakThis](auto&&, auto&&) {
+                        if (const auto self = weakThis.get())
+                        {
+                            self->ScheduleRefreshTree();
+                        }
+                    });
+                }
+                if (const auto tabImpl = winrt::get_self<Tab>(surface))
+                {
+                    sfSub.PaneTreeChangedToken = tabImpl->PaneTreeChanged([weakThis](auto&&, auto&&) {
+                        if (const auto self = weakThis.get())
+                        {
+                            self->ScheduleRefreshTree();
+                        }
+                    });
+                }
+                wsSub.Surfaces.emplace_back(std::move(sfSub));
+            }
+
+            _subscriptions.emplace_back(std::move(wsSub));
+        }
+    }
+
+    void WorkspaceSidebar::RefreshTree()
+    {
+        if (!_workspaces)
+        {
+            _treeRows.Clear();
+            return;
+        }
+
+        const auto activeTab = _activeTab.get();
+        std::vector<winrt::guid> activeWorkspaceIds;
+        std::vector<SidebarWorkspaceInput> inputs;
+        activeWorkspaceIds.reserve(_workspaces.Size());
+        inputs.reserve(_workspaces.Size());
+
+        for (const auto& ws : _workspaces)
+        {
+            if (!ws)
+            {
+                continue;
+            }
+            const auto wsImpl = winrt::get_self<WorkspaceItemViewModel>(ws);
+            activeWorkspaceIds.push_back(ws.WorkspaceId());
+
+            if (ws.IsSelected())
+            {
+                _treeModel.SetSelectedWorkspace(ws.WorkspaceId());
+            }
+
+            SidebarWorkspaceInput wsInput{};
+            wsInput.WorkspaceId = ws.WorkspaceId();
+            wsInput.Title = std::wstring{ ws.Title() };
+            wsInput.Directory = std::wstring{ ws.WorkingDirectory() };
+            wsInput.GitBranch = std::wstring{ ws.GitBranch() };
+            wsInput.ListeningPorts = std::wstring{ ws.ListeningPortsDisplay() };
+            wsInput.UnreadCount = ws.UnreadCount();
+            wsInput.IsPinned = ws.IsPinned();
+            wsInput.IsSelected = ws.IsSelected();
+            wsInput.IsRunning = !ws.ListeningPortsDisplay().empty() ||
+                                (wsImpl && wsImpl->AutomationProgressState() != 0);
+            wsInput.HasAttention = ws.UnreadCount() > 0;
+
+            for (const auto& surface : ws.Surfaces())
+            {
+                if (!surface)
+                {
+                    continue;
+                }
+                const auto tabImpl = winrt::get_self<Tab>(surface)->get_strong();
+                const auto isCurrentSurface = activeTab && surface == activeTab;
+
+                SidebarSurfaceInput sfInput{};
+                sfInput.SurfaceId = wsImpl ? wsImpl->SurfaceIdForTab(surface) : winrt::guid{};
+                sfInput.Title = std::wstring{ surface.Title() };
+                if (const auto status = surface.TabStatus())
+                {
+                    sfInput.UnreadCount = status.UnreadNotificationCount();
+                    sfInput.Subtitle = std::wstring{ status.NotificationText() };
+                    sfInput.HasAttention = sfInput.UnreadCount > 0 || status.BellIndicator();
+                }
+                sfInput.IsActive = isCurrentSurface;
+                sfInput.IsRunning = _isTabRunning(surface);
+                sfInput.IsVimActive = _isTabVimActive(tabImpl);
+                sfInput.Panes = _collectLeafPanes(tabImpl, isCurrentSurface ? _activePaneId : std::nullopt, _processIcons);
+                for (const auto& pane : sfInput.Panes)
+                {
+                    if (pane.HasAttention)
+                    {
+                        sfInput.HasAttention = true;
+                    }
+                    if (pane.IsRunning)
+                    {
+                        sfInput.IsRunning = true;
+                    }
+                    if (sfInput.Icon == SidebarIconKind::Terminal && pane.Icon != SidebarIconKind::Terminal)
+                    {
+                        sfInput.Icon = pane.Icon;
+                    }
+                }
+                if (sfInput.Icon == SidebarIconKind::Terminal)
+                {
+                    sfInput.Icon = WorkspaceSidebarTreeModel::DetectIconKind(sfInput.Title);
+                }
+                wsInput.Surfaces.emplace_back(std::move(sfInput));
+            }
+            inputs.emplace_back(std::move(wsInput));
+        }
+
+        _treeModel.PruneCollapsed(activeWorkspaceIds);
+        const auto projection = _treeModel.Project(inputs);
+
+        std::vector<TerminalApp::WorkspaceSidebarRow> rows;
+        rows.reserve(projection.Nodes.size());
+
+        for (const auto& node : projection.Nodes)
+        {
+            const auto ws = _workspaces.GetAt(gsl::narrow_cast<uint32_t>(node.WorkspaceInputIndex));
+            const auto& wsInput = inputs[node.WorkspaceInputIndex];
+            auto rowImpl = winrt::make_self<WorkspaceSidebarRow>();
+            rowImpl->_workspace = ws;
+            rowImpl->_hasAttention = node.Status == SidebarStatusKind::Attention;
+            rowImpl->_isRunning = node.Status == SidebarStatusKind::Running;
+            rowImpl->_isTerminalIcon = node.Icon == SidebarIconKind::Terminal;
+            rowImpl->_isClaudeIcon = node.Icon == SidebarIconKind::Claude;
+            rowImpl->_isCodexIcon = node.Icon == SidebarIconKind::Codex;
+            rowImpl->_isAgyIcon = node.Icon == SidebarIconKind::Agy;
+
+            if (node.Kind == SidebarNodeKind::Workspace)
+            {
+                rowImpl->_kind = TerminalApp::WorkspaceSidebarRowKind::Workspace;
+                rowImpl->_title = ws.Title();
+                rowImpl->_directoryDisplay = ws.WorkingDirectoryDisplay();
+                rowImpl->_workingDirectory = ws.WorkingDirectory();
+                rowImpl->_gitBranch = ws.GitBranch();
+                rowImpl->_gitRepositoryRoot = ws.GitRepositoryRoot();
+                rowImpl->_listeningPortsDisplay = ws.ListeningPortsDisplay();
+                rowImpl->_listeningPortsTooltip = ws.ListeningPortsTooltip();
+                rowImpl->_statusText = ws.StatusText();
+                rowImpl->_unreadBadgeText = ws.UnreadBadgeText();
+                rowImpl->_latestNotification = ws.LatestNotification();
+                rowImpl->_surfaceCountText = winrt::to_hstring(ws.SurfaceCount());
+                rowImpl->_switchShortcutHintText = _showWorkspaceSwitchHints ? ws.SwitchShortcutHintText() : winrt::hstring{};
+                rowImpl->_chevronGlyph = node.IsCollapsed ? L"\uE76C" : L"\uE70D";
+                rowImpl->_pinIconGlyph = ws.PinIconGlyph();
+                rowImpl->_pinActionText = ws.PinActionText();
+                rowImpl->_pinAutomationName = ws.PinAutomationName();
+                rowImpl->_notificationAutomationName = ws.NotificationAutomationName();
+                rowImpl->_notificationHistoryCountText = ws.NotificationHistoryCountText();
+                rowImpl->_automationName = ws.AutomationName();
+                rowImpl->_isPinned = ws.IsPinned();
+                rowImpl->_isSelected = ws.IsSelected();
+                rowImpl->_isActive = ws.IsSelected();
+                rowImpl->_isCollapsed = node.IsCollapsed;
+                rowImpl->_showCollapsedUnread = node.ShowCollapsedUnread && !ws.UnreadBadgeText().empty();
+                rowImpl->_hasAgentResume = ws.HasAgentResume();
+            }
+            else if (node.Kind == SidebarNodeKind::Surface)
+            {
+                const auto surface = ws.Surfaces().GetAt(gsl::narrow_cast<uint32_t>(node.SurfaceInputIndex));
+                const auto& sfInput = wsInput.Surfaces[node.SurfaceInputIndex];
+
+                rowImpl->_kind = TerminalApp::WorkspaceSidebarRowKind::Surface;
+                rowImpl->_surface = surface;
+                rowImpl->_title = surface.Title();
+                rowImpl->_subtitle = winrt::hstring{ sfInput.Subtitle };
+                rowImpl->_unreadBadgeText = sfInput.UnreadCount == 0 ? winrt::hstring{} :
+                                            sfInput.UnreadCount > 99 ? winrt::hstring{ L"99+" } :
+                                                                       winrt::to_hstring(sfInput.UnreadCount);
+                rowImpl->_paneCountBadgeText = sfInput.Panes.size() > 1 ?
+                                                   winrt::hstring{ RS_fmt(L"WorkspaceSidebar_PaneCountBadge", sfInput.Panes.size()) } :
+                                                   winrt::hstring{};
+                rowImpl->_switchShortcutHintText = (_showSurfaceSwitchHints && ws.IsSelected()) ?
+                                                       winrt::to_hstring(node.SurfaceOrdinal) :
+                                                       winrt::hstring{};
+                rowImpl->_isActive = sfInput.IsActive;
+                rowImpl->_isSelected = sfInput.IsActive;
+                rowImpl->_isVimActive = sfInput.IsVimActive;
+                rowImpl->_automationName = surface.Title();
+            }
+            else
+            {
+                const auto surface = ws.Surfaces().GetAt(gsl::narrow_cast<uint32_t>(node.SurfaceInputIndex));
+                const auto& sfInput = wsInput.Surfaces[node.SurfaceInputIndex];
+                const auto& paneInput = sfInput.Panes[node.PaneInputIndex];
+
+                rowImpl->_kind = TerminalApp::WorkspaceSidebarRowKind::Pane;
+                rowImpl->_surface = surface;
+                rowImpl->_paneId = paneInput.PaneId;
+                rowImpl->_title = winrt::hstring{ paneInput.Title };
+                rowImpl->_treeBranchGlyph = node.IsLastChild ? L"\u2514" : L"\u251C";
+                rowImpl->_isActive = sfInput.IsActive && paneInput.IsActive;
+                rowImpl->_isSelected = rowImpl->_isActive;
+                rowImpl->_automationName = rowImpl->_title;
+            }
+
+            rows.emplace_back(*rowImpl);
+        }
+
+        const auto wasSyncing = std::exchange(_syncingSelection, true);
+        auto restoreSyncing = wil::scope_exit([&]() noexcept { _syncingSelection = wasSyncing; });
+        _treeRows.ReplaceAll({ rows.data(), gsl::narrow_cast<uint32_t>(rows.size()) });
+
+        _UpdateFilterHeader(projection);
+        _SyncListSelection();
+    }
+
+    void WorkspaceSidebar::_UpdateFilterHeader(const SidebarProjection& projection)
+    {
+        if (!_layoutElementsReady)
+        {
+            return;
+        }
+
+        FilterAllButton().Content(box_value(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_FilterAll", projection.TotalSurfaceCount) }));
+        FilterAttentionButton().Content(box_value(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_FilterAttention", projection.AttentionSurfaceCount) }));
+        FilterRunningButton().Content(box_value(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_FilterRunning", projection.RunningSurfaceCount) }));
+
+        const auto activeBg = Application::Current().Resources().TryLookup(box_value(L"WorkspaceChromeButtonPressedBrush")).try_as<Brush>();
+        const auto activeBorder = Application::Current().Resources().TryLookup(box_value(L"WorkspaceChromeDividerBrush")).try_as<Brush>();
+        const auto activeFg = Application::Current().Resources().TryLookup(box_value(L"WorkspaceChromeTextPrimaryBrush")).try_as<Brush>();
+        const auto inactiveFg = Application::Current().Resources().TryLookup(box_value(L"WorkspaceChromeTextSecondaryBrush")).try_as<Brush>();
+        const auto transparent = SolidColorBrush{ Windows::UI::Colors::Transparent() };
+
+        const auto applyPillState = [&](const Button& button, const bool active) {
+            button.Background(active && activeBg ? activeBg : transparent);
+            button.BorderBrush(active && activeBorder ? activeBorder : transparent);
+            if (active && activeFg)
+            {
+                button.Foreground(activeFg);
+            }
+            else if (!active && inactiveFg)
+            {
+                button.Foreground(inactiveFg);
+            }
+        };
+
+        const auto mode = _treeModel.FilterMode();
+        applyPillState(FilterAllButton(), mode == SidebarFilterMode::All);
+        applyPillState(FilterAttentionButton(), mode == SidebarFilterMode::Attention);
+        applyPillState(FilterRunningButton(), mode == SidebarFilterMode::Running);
+
+        CollapseAllButton().Content(box_value(projection.AnyWorkspaceExpanded ? L"\uE73F" : L"\uE740"));
+        const auto collapseTooltip = projection.AnyWorkspaceExpanded ?
+                                         RS_(L"WorkspaceSidebar_CollapseAllTooltip") :
+                                         RS_(L"WorkspaceSidebar_ExpandAllTooltip");
+        ToolTipService::SetToolTip(CollapseAllButton(), box_value(collapseTooltip));
+        Automation::AutomationProperties::SetName(CollapseAllButton(), collapseTooltip);
+
+        SidebarFilterEmptyState().Visibility(projection.IsFiltered && projection.Nodes.empty() ?
+                                                 Visibility::Visible :
+                                                 Visibility::Collapsed);
+    }
+
+    void WorkspaceSidebar::_SyncListSelection()
+    {
+        if (!_layoutElementsReady)
+        {
+            return;
+        }
+
+        // Only update selection if WorkspaceList is currently bound to _treeRows.
+        if (WorkspaceList().ItemsSource().try_as<Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceSidebarRow>>() != _treeRows)
+        {
+            return;
+        }
+
+        int32_t targetIndex = -1;
+        int32_t fallbackSurfaceIndex = -1;
+        int32_t fallbackWorkspaceIndex = -1;
+        for (uint32_t i = 0; i < _treeRows.Size(); ++i)
+        {
+            const auto row = _treeRows.GetAt(i);
+            if (row.Kind() == TerminalApp::WorkspaceSidebarRowKind::Pane && row.IsActive())
+            {
+                targetIndex = gsl::narrow_cast<int32_t>(i);
+                break;
+            }
+            if (row.Kind() == TerminalApp::WorkspaceSidebarRowKind::Surface && row.IsActive())
+            {
+                fallbackSurfaceIndex = gsl::narrow_cast<int32_t>(i);
+            }
+            if (row.Kind() == TerminalApp::WorkspaceSidebarRowKind::Workspace && row.IsSelected())
+            {
+                fallbackWorkspaceIndex = gsl::narrow_cast<int32_t>(i);
+            }
+        }
+        if (targetIndex < 0)
+        {
+            targetIndex = fallbackSurfaceIndex >= 0 ? fallbackSurfaceIndex : fallbackWorkspaceIndex;
+        }
+
+        const auto wasSyncing = std::exchange(_syncingSelection, true);
+        auto restoreSyncing = wil::scope_exit([&]() noexcept { _syncingSelection = wasSyncing; });
+        if (WorkspaceList().SelectedIndex() != targetIndex)
+        {
+            WorkspaceList().SelectedIndex(targetIndex);
+        }
+    }
+
     void WorkspaceSidebar::RefreshNotifications()
     {
         std::vector<TerminalApp::WorkspaceNotification> history;
         uint32_t unreadCount = 0;
 
-        if (const auto workspaces = WorkspaceList().ItemsSource().try_as<Windows::Foundation::Collections::IIterable<IInspectable>>())
-        {
+        auto collectFromIterable = [&](const Windows::Foundation::Collections::IIterable<IInspectable>& workspaces) {
             for (const auto& value : workspaces)
             {
                 if (const auto item = value.try_as<TerminalApp::WorkspaceItemViewModel>())
+                {
+                    unreadCount += item.UnreadCount();
+                    for (const auto& notification : item.Notifications())
+                    {
+                        history.emplace_back(notification);
+                    }
+                }
+            }
+        };
+
+        // Preserve compatibility with tests that bind WorkspaceItemViewModels directly
+        // to WorkspaceList().ItemsSource(), while preferring _workspaces in normal operation.
+        bool collectedFromListSource = false;
+        if (const auto listSource = WorkspaceList().ItemsSource().try_as<Windows::Foundation::Collections::IIterable<IInspectable>>())
+        {
+            for (const auto& value : listSource)
+            {
+                if (value.try_as<TerminalApp::WorkspaceItemViewModel>())
+                {
+                    collectedFromListSource = true;
+                }
+                break;
+            }
+            if (collectedFromListSource)
+            {
+                collectFromIterable(listSource);
+            }
+        }
+
+        if (!collectedFromListSource && _workspaces)
+        {
+            for (const auto& item : _workspaces)
+            {
+                if (item)
                 {
                     unreadCount += item.UnreadCount();
                     for (const auto& notification : item.Notifications())
@@ -160,6 +780,11 @@ namespace winrt::TerminalApp::implementation
                                         RS_(L"WorkspaceSidebar_NotificationCenterAutomationName") :
                                         winrt::hstring{ RS_fmt(L"WorkspaceSidebar_NotificationCenterUnreadAutomationName", unreadCount) };
         Automation::AutomationProperties::SetName(NotificationCenterButton(), automationName);
+
+        if (_workspaces)
+        {
+            ScheduleRefreshTree();
+        }
     }
 
     void WorkspaceSidebar::OpenNotificationCenter(const FrameworkElement& target)
@@ -168,24 +793,67 @@ namespace winrt::TerminalApp::implementation
         NotificationCenterFlyout().ShowAt(target);
     }
 
-    void WorkspaceSidebar::ShowSwitchHints(const bool value)
+    void WorkspaceSidebar::ShowSwitchHints(const bool value, const bool surfaceHints)
     {
-        if (const auto workspaces = WorkspaceList().ItemsSource().try_as<Windows::Foundation::Collections::IIterable<IInspectable>>())
+        if (surfaceHints)
+        {
+            _showSurfaceSwitchHints = value;
+        }
+        else
+        {
+            _showWorkspaceSwitchHints = value;
+            if (!value)
+            {
+                _showSurfaceSwitchHints = false;
+            }
+        }
+
+        if (_workspaces)
+        {
+            for (const auto& item : _workspaces)
+            {
+                if (item)
+                {
+                    winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item)->ShowSwitchShortcutHint(_showWorkspaceSwitchHints);
+                }
+            }
+        }
+        else if (const auto workspaces = WorkspaceList().ItemsSource().try_as<Windows::Foundation::Collections::IIterable<IInspectable>>())
         {
             for (const auto& workspace : workspaces)
             {
                 if (const auto item = workspace.try_as<TerminalApp::WorkspaceItemViewModel>())
                 {
-                    winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item)->ShowSwitchShortcutHint(value);
+                    winrt::get_self<winrt::TerminalApp::implementation::WorkspaceItemViewModel>(item)->ShowSwitchShortcutHint(_showWorkspaceSwitchHints);
                 }
+            }
+        }
+
+        uint32_t activeSurfaceOrdinal = 0;
+        for (const auto& row : _treeRows)
+        {
+            const auto rowImpl = winrt::get_self<WorkspaceSidebarRow>(row);
+            if (row.Kind() == TerminalApp::WorkspaceSidebarRowKind::Workspace)
+            {
+                activeSurfaceOrdinal = 0;
+                rowImpl->SetSwitchShortcutHintText(_showWorkspaceSwitchHints && row.Workspace() ?
+                                                       row.Workspace().SwitchShortcutHintText() :
+                                                       winrt::hstring{});
+            }
+            else if (row.Kind() == TerminalApp::WorkspaceSidebarRowKind::Surface)
+            {
+                ++activeSurfaceOrdinal;
+                rowImpl->SetSwitchShortcutHintText(_showSurfaceSwitchHints && row.Workspace() && row.Workspace().IsSelected() ?
+                                                       winrt::to_hstring(activeSurfaceOrdinal) :
+                                                       winrt::hstring{});
             }
         }
     }
 
     void WorkspaceSidebar::_SetExpandedContentVisibility(const Windows::UI::Xaml::Visibility visibility)
     {
+        SidebarHeader().Visibility(visibility);
         SidebarTitle().Visibility(visibility);
-        NotificationCenterButton().Visibility(visibility);
         WorkspaceList().Visibility(visibility);
     }
 
@@ -195,9 +863,6 @@ namespace winrt::TerminalApp::implementation
         const auto targetWidth = expanded ? _expandedWidth : CollapsedWidth;
         const auto targetOpacity = expanded ? 1.0 : 0.0;
 
-        // When this control is created from another XAML file, its constructor can
-        // run before the named child elements have been connected. The outer width
-        // is safe to initialize immediately; child state is applied once Loaded.
         if (!_layoutElementsReady)
         {
             Width(targetWidth);
@@ -255,17 +920,27 @@ namespace winrt::TerminalApp::implementation
         ToggleButton().Content(box_value(expanded ? L"\uE76B" : L"\uE76C"));
         ToggleButton().IsEnabled(!_isWindowNarrow);
         Automation::AutomationProperties::SetName(ToggleButton(),
-                                                   _isWindowNarrow ? RS_(L"WorkspaceSidebar_NarrowAutomationName") :
-                                                                     expanded ? RS_(L"WorkspaceSidebar_CollapseAutomationName") :
-                                                                                RS_(L"WorkspaceSidebar_ExpandAutomationName"));
+                                                  _isWindowNarrow ? RS_(L"WorkspaceSidebar_NarrowAutomationName") :
+                                                  expanded        ? RS_(L"WorkspaceSidebar_CollapseAutomationName") :
+                                                                    RS_(L"WorkspaceSidebar_ExpandAutomationName"));
         Automation::AutomationProperties::SetHelpText(ToggleButton(), _isWindowNarrow ? RS_(L"WorkspaceSidebar_NarrowHelpText") : winrt::hstring{});
+    }
 
-        WorkspaceList().ItemTemplate(Resources().Lookup(box_value(L"ExpandedWorkspaceTemplate")).as<DataTemplate>());
-        WorkspaceList().ItemContainerStyle(Resources().Lookup(box_value(L"ExpandedWorkspaceItemContainerStyle")).as<Windows::UI::Xaml::Style>());
+    TerminalApp::WorkspaceSidebarRow WorkspaceSidebar::_RowFromSender(const IInspectable& sender) const
+    {
+        if (const auto element = sender.try_as<FrameworkElement>())
+        {
+            return element.Tag().try_as<TerminalApp::WorkspaceSidebarRow>();
+        }
+        return nullptr;
     }
 
     TerminalApp::WorkspaceItemViewModel WorkspaceSidebar::_ItemFromSender(const IInspectable& sender) const
     {
+        if (const auto row = _RowFromSender(sender))
+        {
+            return row.Workspace();
+        }
         if (const auto element = sender.try_as<FrameworkElement>())
         {
             return element.Tag().try_as<TerminalApp::WorkspaceItemViewModel>();
@@ -273,9 +948,77 @@ namespace winrt::TerminalApp::implementation
         return nullptr;
     }
 
+    TerminalApp::Tab WorkspaceSidebar::_SurfaceFromSender(const IInspectable& sender) const
+    {
+        if (const auto row = _RowFromSender(sender))
+        {
+            return row.Surface();
+        }
+        if (const auto element = sender.try_as<FrameworkElement>())
+        {
+            return element.Tag().try_as<TerminalApp::Tab>();
+        }
+        return nullptr;
+    }
+
     void WorkspaceSidebar::_Toggle_Click(const IInspectable&, const RoutedEventArgs&)
     {
         IsExpanded(!_isExpanded);
+    }
+
+    void WorkspaceSidebar::_CollapseAll_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        if (!_workspaces)
+        {
+            return;
+        }
+        std::vector<winrt::guid> ids;
+        ids.reserve(_workspaces.Size());
+        for (const auto& ws : _workspaces)
+        {
+            if (ws)
+            {
+                ids.push_back(ws.WorkspaceId());
+            }
+        }
+        _treeModel.ToggleCollapseAll(ids);
+        RefreshTree();
+    }
+
+    void WorkspaceSidebar::_CreateWorkspace_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        NewWorkspaceRequested.raise(*this, nullptr);
+    }
+
+    void WorkspaceSidebar::_SearchBox_TextChanged(const IInspectable&, const TextChangedEventArgs&)
+    {
+        const auto query = SidebarSearchBox().Text();
+        SidebarSearchClearButton().Visibility(query.empty() ? Visibility::Collapsed : Visibility::Visible);
+        _treeModel.SetSearchQuery(std::wstring{ query });
+        RefreshTree();
+    }
+
+    void WorkspaceSidebar::_SearchClear_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        SidebarSearchBox().Text(L"");
+    }
+
+    void WorkspaceSidebar::_FilterAll_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        _treeModel.SetFilterMode(SidebarFilterMode::All);
+        RefreshTree();
+    }
+
+    void WorkspaceSidebar::_FilterAttention_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        _treeModel.SetFilterMode(SidebarFilterMode::Attention);
+        RefreshTree();
+    }
+
+    void WorkspaceSidebar::_FilterRunning_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        _treeModel.SetFilterMode(SidebarFilterMode::Running);
+        RefreshTree();
     }
 
     void WorkspaceSidebar::_Resize_DragDelta(const IInspectable&, const Controls::Primitives::DragDeltaEventArgs& args)
@@ -308,21 +1051,106 @@ namespace winrt::TerminalApp::implementation
         args.Handled(true);
     }
 
+    void WorkspaceSidebar::_SelectRelativeRow(const int32_t delta)
+    {
+        const auto count = gsl::narrow_cast<int32_t>(_treeRows.Size());
+        if (count == 0)
+        {
+            return;
+        }
+        auto current = WorkspaceList().SelectedIndex();
+        if (current < 0)
+        {
+            current = 0;
+        }
+        const auto next = (current + delta + count) % count;
+        const auto row = _treeRows.GetAt(gsl::narrow_cast<uint32_t>(next));
+        WorkspaceList().SelectedIndex(next);
+        if (const auto container = WorkspaceList().ContainerFromIndex(next).try_as<FrameworkElement>())
+        {
+            container.StartBringIntoView();
+        }
+        ActivateRowRequested.raise(*this, row);
+    }
+
     void WorkspaceSidebar::_WorkspaceList_KeyDown(const IInspectable&, const Input::KeyRoutedEventArgs& args)
     {
-        const auto item = WorkspaceList().SelectedItem().try_as<TerminalApp::WorkspaceItemViewModel>();
-        if (!item)
+        const auto row = WorkspaceList().SelectedItem().try_as<TerminalApp::WorkspaceSidebarRow>();
+        if (!row)
         {
             return;
         }
 
         switch (args.OriginalKey())
         {
+        case Windows::System::VirtualKey::J:
+            _SelectRelativeRow(1);
+            break;
+        case Windows::System::VirtualKey::K:
+            _SelectRelativeRow(-1);
+            break;
+        case Windows::System::VirtualKey::Left:
+            if (row.Workspace())
+            {
+                const auto wsId = row.Workspace().WorkspaceId();
+                if (row.Kind() == TerminalApp::WorkspaceSidebarRowKind::Workspace && !row.IsCollapsed())
+                {
+                    _treeModel.SetWorkspaceCollapsed(wsId, true);
+                    RefreshTree();
+                }
+                else if (row.Kind() != TerminalApp::WorkspaceSidebarRowKind::Workspace)
+                {
+                    for (uint32_t i = 0; i < _treeRows.Size(); ++i)
+                    {
+                        const auto candidate = _treeRows.GetAt(i);
+                        if (candidate.Kind() == TerminalApp::WorkspaceSidebarRowKind::Workspace &&
+                            candidate.Workspace() &&
+                            candidate.Workspace().WorkspaceId() == wsId)
+                        {
+                            WorkspaceList().SelectedIndex(gsl::narrow_cast<int32_t>(i));
+                            break;
+                        }
+                    }
+                }
+            }
+            break;
+        case Windows::System::VirtualKey::Right:
+            if (row.Kind() == TerminalApp::WorkspaceSidebarRowKind::Workspace && row.Workspace())
+            {
+                const auto wsId = row.Workspace().WorkspaceId();
+                if (row.IsCollapsed())
+                {
+                    _treeModel.SetWorkspaceCollapsed(wsId, false);
+                    RefreshTree();
+                }
+                else
+                {
+                    _SelectRelativeRow(1);
+                }
+            }
+            break;
+        case Windows::System::VirtualKey::Enter:
+            ActivateRowRequested.raise(*this, row);
+            break;
         case Windows::System::VirtualKey::F2:
-            RenameRequested.raise(*this, item);
+            if (row.Kind() == TerminalApp::WorkspaceSidebarRowKind::Surface && row.Surface())
+            {
+                RenameSurfaceRequested.raise(*this, row.Surface());
+            }
+            else if (row.Workspace())
+            {
+                RenameRequested.raise(*this, row.Workspace());
+            }
             break;
         case Windows::System::VirtualKey::Delete:
-            CloseRequested.raise(*this, item);
+            if (row.Kind() == TerminalApp::WorkspaceSidebarRowKind::Surface && row.Surface())
+            {
+                CloseSurfaceRequested.raise(*this, row.Surface());
+            }
+            else if (row.Workspace())
+            {
+                CloseRequested.raise(*this, row.Workspace());
+            }
             break;
         default:
             return;
@@ -330,51 +1158,237 @@ namespace winrt::TerminalApp::implementation
         args.Handled(true);
     }
 
-    void WorkspaceSidebar::_SetWorkspaceItemCloseButtonVisibility(const IInspectable& sender, const Windows::UI::Xaml::Visibility visibility) const
+    void WorkspaceSidebar::_WorkspaceList_ItemClick(const IInspectable&, const ItemClickEventArgs& args)
+    {
+        if (const auto row = args.ClickedItem().try_as<TerminalApp::WorkspaceSidebarRow>())
+        {
+            if (row.Kind() == TerminalApp::WorkspaceSidebarRowKind::Workspace &&
+                row.Workspace() &&
+                row.Workspace().IsSelected())
+            {
+                ToggleWorkspaceCollapsed(row.Workspace().WorkspaceId());
+                return;
+            }
+            ActivateRowRequested.raise(*this, row);
+        }
+    }
+
+    void WorkspaceSidebar::_WorkspaceList_DragItemsStarting(const IInspectable&, const DragItemsStartingEventArgs& args)
+    {
+        _dragRow = nullptr;
+        if (args.Items().Size() != 1)
+        {
+            args.Cancel(true);
+            return;
+        }
+
+        const auto row = args.Items().GetAt(0).try_as<TerminalApp::WorkspaceSidebarRow>();
+        if (!row || row.Kind() == TerminalApp::WorkspaceSidebarRowKind::Pane)
+        {
+            args.Cancel(true);
+            return;
+        }
+
+        _dragRow = row;
+        args.Data().RequestedOperation(DataPackageOperation::Move);
+    }
+
+    void WorkspaceSidebar::_WorkspaceList_DragItemsCompleted(const IInspectable&, const DragItemsCompletedEventArgs&)
+    {
+        _dragRow = nullptr;
+    }
+
+    void WorkspaceSidebar::_TreeRow_DragOver(const IInspectable& sender, const DragEventArgs& args)
+    {
+        if (!_dragRow)
+        {
+            return;
+        }
+        const auto targetRow = _RowFromSender(sender);
+        if (!targetRow || !targetRow.Workspace())
+        {
+            return;
+        }
+
+        if (_dragRow.Kind() == TerminalApp::WorkspaceSidebarRowKind::Workspace)
+        {
+            if (_dragRow.Workspace() && _dragRow.Workspace() != targetRow.Workspace())
+            {
+                args.AcceptedOperation(DataPackageOperation::Move);
+                args.Handled(true);
+            }
+        }
+        else if (_dragRow.Kind() == TerminalApp::WorkspaceSidebarRowKind::Surface)
+        {
+            if (_dragRow.Surface() && _dragRow.Surface() != targetRow.Surface())
+            {
+                args.AcceptedOperation(DataPackageOperation::Move);
+                args.Handled(true);
+            }
+        }
+    }
+
+    void WorkspaceSidebar::_TreeRow_Drop(const IInspectable& sender, const DragEventArgs& args)
+    {
+        const auto dragRow = std::exchange(_dragRow, nullptr);
+        if (!dragRow || !_workspaces)
+        {
+            return;
+        }
+        const auto targetRow = _RowFromSender(sender);
+        if (!targetRow || !targetRow.Workspace())
+        {
+            return;
+        }
+
+        if (dragRow.Kind() == TerminalApp::WorkspaceSidebarRowKind::Workspace && dragRow.Workspace())
+        {
+            uint32_t targetIndex{};
+            if (_workspaces.IndexOf(targetRow.Workspace(), targetIndex))
+            {
+                ReorderWorkspaceRequested.raise(dragRow.Workspace(), targetIndex);
+                args.Handled(true);
+            }
+        }
+        else if (dragRow.Kind() == TerminalApp::WorkspaceSidebarRowKind::Surface && dragRow.Surface())
+        {
+            std::optional<uint32_t> targetSurfaceIndex;
+            if (targetRow.Surface())
+            {
+                uint32_t idx{};
+                if (targetRow.Workspace().Surfaces().IndexOf(targetRow.Surface(), idx))
+                {
+                    targetSurfaceIndex = idx;
+                }
+            }
+            _treeModel.SetWorkspaceCollapsed(targetRow.Workspace().WorkspaceId(), false);
+            MoveSurfaceRequested.raise(dragRow.Surface(), targetRow.Workspace(), targetSurfaceIndex);
+            args.Handled(true);
+        }
+    }
+
+    void WorkspaceSidebar::_SetWorkspaceItemHoverVisibility(const IInspectable& sender, const Windows::UI::Xaml::Visibility visibility) const
     {
         if (const auto itemRoot = sender.try_as<FrameworkElement>())
         {
-            if (const auto closeButton = itemRoot.FindName(L"WorkspaceItemCloseButton").try_as<Button>())
+            if (const auto actions = itemRoot.FindName(L"WorkspaceRowHoverActions").try_as<UIElement>())
             {
-                closeButton.Visibility(visibility);
+                actions.Visibility(visibility);
+            }
+            if (const auto countBadge = itemRoot.FindName(L"WorkspaceRowCountBadge").try_as<UIElement>())
+            {
+                countBadge.Visibility(visibility == Windows::UI::Xaml::Visibility::Visible ? Windows::UI::Xaml::Visibility::Collapsed : Windows::UI::Xaml::Visibility::Visible);
+            }
+        }
+    }
+
+    void WorkspaceSidebar::_SetSurfaceItemHoverVisibility(const IInspectable& sender, const Windows::UI::Xaml::Visibility visibility) const
+    {
+        if (const auto itemRoot = sender.try_as<FrameworkElement>())
+        {
+            if (const auto closeBtn = itemRoot.FindName(L"SurfaceRowCloseButton").try_as<UIElement>())
+            {
+                closeBtn.Visibility(visibility);
             }
         }
     }
 
     void WorkspaceSidebar::_WorkspaceItem_PointerEntered(const IInspectable& sender, const Input::PointerRoutedEventArgs&)
     {
-        _SetWorkspaceItemCloseButtonVisibility(sender, Visibility::Visible);
+        _SetWorkspaceItemHoverVisibility(sender, Visibility::Visible);
     }
 
     void WorkspaceSidebar::_WorkspaceItem_PointerExited(const IInspectable& sender, const Input::PointerRoutedEventArgs& args)
     {
         if (const auto itemRoot = sender.try_as<FrameworkElement>())
         {
-            // PointerExited can also be raised while hit testing moves from the
-            // data-template root to the close button that just became visible.
-            // Only hide the button once the pointer has actually left the row.
             const auto position = args.GetCurrentPoint(itemRoot).Position();
             if (position.X < 0.0 || position.Y < 0.0 ||
                 position.X > itemRoot.ActualWidth() || position.Y > itemRoot.ActualHeight())
             {
-                _SetWorkspaceItemCloseButtonVisibility(sender, Visibility::Collapsed);
+                _SetWorkspaceItemHoverVisibility(sender, Visibility::Collapsed);
             }
         }
     }
 
     void WorkspaceSidebar::_WorkspaceItemCloseButton_PointerExited(const IInspectable& sender, const Input::PointerRoutedEventArgs& args)
     {
-        if (const auto closeButton = sender.try_as<Button>())
+        if (const auto button = sender.try_as<FrameworkElement>())
         {
-            if (const auto itemRoot = closeButton.Parent().try_as<FrameworkElement>())
+            if (const auto stack = button.Parent().try_as<FrameworkElement>())
             {
-                const auto position = args.GetCurrentPoint(itemRoot).Position();
-                if (position.X < 0.0 || position.Y < 0.0 ||
-                    position.X > itemRoot.ActualWidth() || position.Y > itemRoot.ActualHeight())
+                if (const auto grid = stack.Parent().try_as<FrameworkElement>())
                 {
-                    closeButton.Visibility(Visibility::Collapsed);
+                    if (const auto itemRoot = grid.Parent().try_as<FrameworkElement>())
+                    {
+                        const auto position = args.GetCurrentPoint(itemRoot).Position();
+                        if (position.X < 0.0 || position.Y < 0.0 ||
+                            position.X > itemRoot.ActualWidth() || position.Y > itemRoot.ActualHeight())
+                        {
+                            _SetWorkspaceItemHoverVisibility(itemRoot, Visibility::Collapsed);
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    void WorkspaceSidebar::_SurfaceItem_PointerEntered(const IInspectable& sender, const Input::PointerRoutedEventArgs&)
+    {
+        _SetSurfaceItemHoverVisibility(sender, Visibility::Visible);
+    }
+
+    void WorkspaceSidebar::_SurfaceItem_PointerExited(const IInspectable& sender, const Input::PointerRoutedEventArgs& args)
+    {
+        if (const auto itemRoot = sender.try_as<FrameworkElement>())
+        {
+            const auto position = args.GetCurrentPoint(itemRoot).Position();
+            if (position.X < 0.0 || position.Y < 0.0 ||
+                position.X > itemRoot.ActualWidth() || position.Y > itemRoot.ActualHeight())
+            {
+                _SetSurfaceItemHoverVisibility(sender, Visibility::Collapsed);
+            }
+        }
+    }
+
+    void WorkspaceSidebar::_Chevron_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            ToggleWorkspaceCollapsed(item.WorkspaceId());
+        }
+    }
+
+    void WorkspaceSidebar::_AddSurface_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            _treeModel.SetWorkspaceCollapsed(item.WorkspaceId(), false);
+            NewSurfaceRequested.raise(*this, item);
+        }
+    }
+
+    void WorkspaceSidebar::_CloseSurface_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto surface = _SurfaceFromSender(sender))
+        {
+            CloseSurfaceRequested.raise(*this, surface);
+        }
+    }
+
+    void WorkspaceSidebar::_RenameSurface_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto surface = _SurfaceFromSender(sender))
+        {
+            RenameSurfaceRequested.raise(*this, surface);
+        }
+    }
+
+    void WorkspaceSidebar::_SplitSurface_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto surface = _SurfaceFromSender(sender))
+        {
+            SplitSurfaceRequested.raise(*this, surface);
         }
     }
 

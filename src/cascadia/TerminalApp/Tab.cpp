@@ -990,6 +990,10 @@ namespace winrt::TerminalApp::implementation
             _changingActivePane = true;
             const auto res = _rootPane->SwapPanes(_activePane, neighbor);
             _changingActivePane = false;
+            if (res)
+            {
+                PaneTreeChanged.raise(*this, nullptr);
+            }
             return res;
         }
 
@@ -1132,6 +1136,7 @@ namespace winrt::TerminalApp::implementation
                 if (const auto tab = weakThis.get())
                 {
                     tab->UpdateTitle();
+                    tab->PaneTreeChanged.raise(*tab, nullptr);
                 }
             });
 
@@ -1449,6 +1454,7 @@ namespace winrt::TerminalApp::implementation
 
         // Raise our own ActivePaneChanged event.
         ActivePaneChanged.raise(*this, nullptr);
+        PaneTreeChanged.raise(*this, nullptr);
 
         // If the new active pane is a terminal, tell other interested panes
         // what the new active pane is.
@@ -1573,6 +1579,7 @@ namespace winrt::TerminalApp::implementation
                             break;
                         }
                     }
+                    tab->PaneTreeChanged.raise(*tab, nullptr);
                 }
             }
         });
@@ -1603,6 +1610,7 @@ namespace winrt::TerminalApp::implementation
                             break;
                         }
                     }
+                    tab->PaneTreeChanged.raise(*tab, nullptr);
                 }
             }
         });

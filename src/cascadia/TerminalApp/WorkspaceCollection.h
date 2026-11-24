@@ -41,6 +41,9 @@ namespace winrt::TerminalApp::implementation
                               std::optional<winrt::guid> surfaceId = std::nullopt);
         bool RemoveSurface(const TerminalApp::Tab& tab);
         bool MoveSurface(const TerminalApp::Tab& tab, uint32_t targetIndex);
+        bool MoveSurfaceToWorkspace(const TerminalApp::Tab& tab,
+                                    const winrt::guid& targetWorkspaceId,
+                                    std::optional<uint32_t> targetIndex = std::nullopt);
         void SetActiveTab(const TerminalApp::Tab& tab);
         void AssertInvariants(const Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab>& tabs) const;
 

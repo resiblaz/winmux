@@ -259,6 +259,29 @@ namespace winrt::TerminalApp::implementation
                         }
                     }
                 }
+
+                if (page->_workspaceSidebar)
+                {
+                    std::unordered_map<uint32_t, SidebarIconKind> processIcons;
+                    for (const auto& [rootPid, exeNames] : snapshot.ProcessNames)
+                    {
+                        auto detected = SidebarIconKind::Terminal;
+                        for (const auto& exeName : exeNames)
+                        {
+                            const auto candidate = WorkspaceSidebarTreeModel::DetectIconKind(exeName);
+                            if (candidate != SidebarIconKind::Terminal)
+                            {
+                                detected = candidate;
+                                break;
+                            }
+                        }
+                        if (detected != SidebarIconKind::Terminal)
+                        {
+                            processIcons.emplace(rootPid, detected);
+                        }
+                    }
+                    winrt::get_self<implementation::WorkspaceSidebar>(page->_workspaceSidebar)->UpdateProcessIcons(std::move(processIcons));
+                }
             }
 
             if (refreshPending)
@@ -304,13 +327,8 @@ namespace winrt::TerminalApp::implementation
             _WorkspaceItems().GetAt(index).IsSelected(index == workspaceIndex.value());
         }
 
-        const auto selectedIndex = gsl::narrow_cast<int32_t>(workspaceIndex.value());
         const auto wasSyncingSelection = std::exchange(_SidebarController().SyncingSelection, true);
         auto restoreSyncingSelection = wil::scope_exit([&]() noexcept { _SidebarController().SyncingSelection = wasSyncingSelection; });
-        if (_workspaceList.SelectedIndex() != selectedIndex)
-        {
-            _workspaceList.SelectedIndex(selectedIndex);
-        }
 
         const auto item = _WorkspaceItems().GetAt(workspaceIndex.value());
         if (_workspaceSurfaceTabs.ItemsSource().try_as<Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab>>() != item.Surfaces())
@@ -321,9 +339,16 @@ namespace winrt::TerminalApp::implementation
         {
             _workspaceSurfaceTabs.SelectedItem(tab);
         }
-        if (const auto container = _workspaceList.ContainerFromItem(item).try_as<FrameworkElement>())
+
+        const auto tabImpl = _GetTabImpl(tab);
+        const auto activePane = tabImpl ? tabImpl->GetActivePane() : nullptr;
+        winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar)->SetActiveSelection(tab, activePane ? activePane->Id() : std::nullopt);
+        if (const auto selectedRow = _workspaceList.SelectedItem())
         {
-            container.StartBringIntoView();
+            if (const auto container = _workspaceList.ContainerFromItem(selectedRow).try_as<FrameworkElement>())
+            {
+                container.StartBringIntoView();
+            }
         }
     }
 
@@ -406,6 +431,88 @@ namespace winrt::TerminalApp::implementation
             return _SelectTab(tabIndex.value());
         }
         return false;
+    }
+
+    bool TerminalPage::_StepActiveWorkspaceTerminal(const int32_t delta)
+    {
+        if (delta == 0)
+        {
+            return false;
+        }
+
+        const auto focusedTab = _GetFocusedTab();
+        const auto item = _WorkspaceItemForTab(focusedTab);
+        if (!item)
+        {
+            return false;
+        }
+
+        struct TerminalTarget
+        {
+            TerminalApp::Tab Surface{ nullptr };
+            std::optional<uint32_t> PaneId;
+        };
+
+        std::vector<TerminalTarget> targets;
+        for (const auto& surface : item.Surfaces())
+        {
+            const auto tabImpl = _GetTabImpl(surface);
+            if (tabImpl && tabImpl->GetRootPane() && tabImpl->GetLeafPaneCount() > 1)
+            {
+                tabImpl->GetRootPane()->WalkTree([&](const auto& pane) {
+                    if (pane && pane->Id().has_value() && pane->GetContent())
+                    {
+                        targets.push_back(TerminalTarget{ surface, pane->Id() });
+                    }
+                });
+            }
+            else if (surface)
+            {
+                targets.push_back(TerminalTarget{ surface, std::nullopt });
+            }
+        }
+
+        if (targets.size() <= 1)
+        {
+            return false;
+        }
+
+        const auto focusedTabImpl = _GetTabImpl(focusedTab);
+        const auto focusedPane = focusedTabImpl ? focusedTabImpl->GetActivePane() : nullptr;
+        const auto focusedPaneId = focusedPane ? focusedPane->Id() : std::nullopt;
+
+        int32_t currentIndex = 0;
+        for (size_t i = 0; i < targets.size(); ++i)
+        {
+            if (targets[i].Surface == focusedTab &&
+                (!targets[i].PaneId.has_value() || targets[i].PaneId == focusedPaneId))
+            {
+                currentIndex = gsl::narrow_cast<int32_t>(i);
+                break;
+            }
+        }
+
+        const auto count = gsl::narrow_cast<int32_t>(targets.size());
+        const auto nextIndex = ((currentIndex + delta) % count + count) % count;
+        const auto& target = targets[gsl::narrow_cast<size_t>(nextIndex)];
+
+        _SetWorkspaceToolTabSelected(false);
+        if (const auto tabIndex = _GetTabIndex(target.Surface))
+        {
+            _SelectTab(tabIndex.value());
+        }
+        if (target.PaneId.has_value())
+        {
+            if (const auto targetImpl = _GetTabImpl(target.Surface))
+            {
+                if (targetImpl->FocusPane(target.PaneId.value()))
+                {
+                    _MarkWorkspaceNotificationsReadForActivePane(targetImpl);
+                }
+            }
+        }
+        _SyncWorkspaceSelection(target.Surface);
+        return true;
     }
 
     void TerminalPage::_SynchronizeFlatTabOrder()
@@ -629,6 +736,176 @@ namespace winrt::TerminalApp::implementation
         if (item)
         {
             _RenameWorkspace(item);
+        }
+    }
+
+    void TerminalPage::_WorkspaceActivateRowRequested(const TerminalApp::WorkspaceSidebar&, const TerminalApp::WorkspaceSidebarRow& row)
+    {
+        if (!row)
+        {
+            return;
+        }
+
+        _SetWorkspaceToolTabSelected(false);
+        switch (row.Kind())
+        {
+        case TerminalApp::WorkspaceSidebarRowKind::Workspace:
+            if (const auto item = row.Workspace())
+            {
+                _SelectWorkspace(item);
+            }
+            break;
+        case TerminalApp::WorkspaceSidebarRowKind::Surface:
+            if (const auto surface = row.Surface())
+            {
+                if (const auto tabIndex = _GetTabIndex(surface))
+                {
+                    _SelectTab(tabIndex.value());
+                }
+            }
+            break;
+        case TerminalApp::WorkspaceSidebarRowKind::Pane:
+            if (const auto surface = row.Surface())
+            {
+                if (const auto tabIndex = _GetTabIndex(surface))
+                {
+                    _SelectTab(tabIndex.value());
+                }
+                if (const auto tabImpl = _GetTabImpl(surface))
+                {
+                    if (tabImpl->FocusPane(row.PaneId()))
+                    {
+                        _MarkWorkspaceNotificationsReadForActivePane(tabImpl);
+                    }
+                    _SyncWorkspaceSelection(surface);
+                }
+            }
+            break;
+        }
+    }
+
+    safe_void_coroutine TerminalPage::_WorkspaceRenameSurfaceRequested(const TerminalApp::WorkspaceSidebar&, const TerminalApp::Tab& surface)
+    {
+        if (!surface)
+        {
+            co_return;
+        }
+        const auto surfaceCopy = surface;
+        const auto weakThis = get_weak();
+        ContentDialog dialog{};
+        dialog.Title(box_value(RS_(L"WorkspaceSidebar_RenameSurfaceDialogTitle")));
+        dialog.PrimaryButtonText(RS_(L"WorkspaceSidebar_RenameDialogSave"));
+        dialog.CloseButtonText(RS_(L"WorkspaceSidebar_RenameDialogCancel"));
+        dialog.DefaultButton(ContentDialogButton::Primary);
+
+        TextBox textBox{};
+        textBox.Text(surfaceCopy.Title());
+        textBox.PlaceholderText(RS_(L"WorkspaceSidebar_RenameSurfaceDialogPlaceholder"));
+        Automation::AutomationProperties::SetName(textBox, RS_(L"WorkspaceSidebar_RenameSurfaceDialogPlaceholder"));
+        textBox.Loaded([weakTextBox{ winrt::make_weak(textBox) }](const auto&, const auto&) {
+            if (const auto box = weakTextBox.get())
+            {
+                box.SelectAll();
+                box.Focus(FocusState::Programmatic);
+            }
+        });
+        dialog.Content(textBox);
+
+        if (const auto presenter = _dialogPresenter.get())
+        {
+            const auto result = co_await presenter.ShowDialog(dialog);
+            if (result == ContentDialogResult::Primary)
+            {
+                if (const auto page = weakThis.get())
+                {
+                    if (page->_GetTabIndex(surfaceCopy))
+                    {
+                        if (const auto tabImpl = page->_GetTabImpl(surfaceCopy))
+                        {
+                            const auto newTitle = textBox.Text();
+                            if (newTitle.empty())
+                            {
+                                tabImpl->ResetTabText();
+                            }
+                            else
+                            {
+                                tabImpl->SetTabText(newTitle);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void TerminalPage::_WorkspaceSplitSurfaceRequested(const TerminalApp::WorkspaceSidebar&, const TerminalApp::Tab& surface)
+    {
+        if (!surface)
+        {
+            return;
+        }
+        if (const auto tabIndex = _GetTabIndex(surface))
+        {
+            _SelectTab(tabIndex.value());
+            _actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SplitPane, SplitPaneArgs{ SplitType::Duplicate } });
+        }
+    }
+
+    void TerminalPage::_WorkspaceReorderRequested(const TerminalApp::WorkspaceItemViewModel& item, const uint32_t targetIndex)
+    {
+        if (!item)
+        {
+            return;
+        }
+
+        auto& workspaces = _workspaceFeatures->Workspaces();
+        const auto currentIndex = workspaces.IndexOf(item.WorkspaceId());
+        if (!currentIndex || targetIndex >= _WorkspaceItems().Size())
+        {
+            return;
+        }
+
+        uint32_t pinnedWorkspaceCount{};
+        for (const auto& workspace : _WorkspaceItems())
+        {
+            pinnedWorkspaceCount += workspace.IsPinned() ? 1u : 0u;
+        }
+        const auto maximumPinnedIndex = pinnedWorkspaceCount == 0 ? 0u : pinnedWorkspaceCount - 1;
+        const auto clampedIndex = item.IsPinned() ?
+                                      std::min(targetIndex, maximumPinnedIndex) :
+                                      std::max(targetIndex, pinnedWorkspaceCount);
+        if (currentIndex.value() == clampedIndex)
+        {
+            return;
+        }
+
+        const auto wasReordering = std::exchange(_SidebarController().Reordering, true);
+        auto restoreReordering = wil::scope_exit([&]() noexcept { _SidebarController().Reordering = wasReordering; });
+        workspaces.Move(currentIndex.value(), clampedIndex);
+        _SynchronizeFlatTabOrder();
+    }
+
+    void TerminalPage::_WorkspaceMoveSurfaceRequested(const TerminalApp::Tab& surface,
+                                                      const TerminalApp::WorkspaceItemViewModel& targetWorkspace,
+                                                      const std::optional<uint32_t> targetIndex)
+    {
+        if (!surface || !targetWorkspace)
+        {
+            return;
+        }
+
+        const auto wasReordering = std::exchange(_SidebarController().Reordering, true);
+        auto restoreReordering = wil::scope_exit([&]() noexcept { _SidebarController().Reordering = wasReordering; });
+
+        if (_workspaceFeatures->Workspaces().MoveSurfaceToWorkspace(surface, targetWorkspace.WorkspaceId(), targetIndex))
+        {
+            _SynchronizeFlatTabOrder();
+            if (const auto tabIndex = _GetTabIndex(surface))
+            {
+                _SelectTab(tabIndex.value());
+            }
+            _RefreshWorkspaceNotifications();
+            _RefreshWorkspaceListeningPorts();
         }
     }
 

@@ -1,0 +1,70 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+import "Tab.idl";
+import "WorkspaceItemViewModel.idl";
+
+namespace TerminalApp
+{
+    enum WorkspaceSidebarRowKind
+    {
+        Workspace = 0,
+        Surface = 1,
+        Pane = 2,
+    };
+
+    runtimeclass WorkspaceSidebarRow : Windows.UI.Xaml.Data.INotifyPropertyChanged
+    {
+        WorkspaceSidebarRowKind Kind { get; };
+        WorkspaceItemViewModel Workspace { get; };
+        Tab Surface { get; };
+        UInt32 PaneId { get; };
+
+        String Title { get; };
+        String Subtitle { get; };
+        String DirectoryDisplay { get; };
+        String WorkingDirectory { get; };
+        String GitBranch { get; };
+        String GitRepositoryRoot { get; };
+        String ListeningPortsDisplay { get; };
+        String ListeningPortsTooltip { get; };
+        String StatusText { get; };
+        String UnreadBadgeText { get; };
+        String LatestNotification { get; };
+        String SurfaceCountText { get; };
+        String PaneCountBadgeText { get; };
+        String SwitchShortcutHintText { get; };
+        String TreeBranchGlyph { get; };
+        String ChevronGlyph { get; };
+        String PinIconGlyph { get; };
+        String PinActionText { get; };
+        String PinAutomationName { get; };
+        String NotificationAutomationName { get; };
+        String NotificationHistoryCountText { get; };
+        String AutomationName { get; };
+
+        Boolean IsPinned { get; };
+        Boolean IsSelected { get; };
+        Boolean IsActive { get; };
+        Boolean IsCollapsed { get; };
+        Boolean IsRunning { get; };
+        Boolean HasAttention { get; };
+        Boolean IsIdle { get; };
+        Boolean ShowCollapsedUnread { get; };
+        Boolean HasAgentResume { get; };
+        Boolean IsVimActive { get; };
+        Boolean IsTerminalIcon { get; };
+        Boolean IsClaudeIcon { get; };
+        Boolean IsCodexIcon { get; };
+        Boolean IsAgyIcon { get; };
+    }
+
+    [default_interface] runtimeclass WorkspaceSidebarRowTemplateSelector : Windows.UI.Xaml.Controls.DataTemplateSelector
+    {
+        WorkspaceSidebarRowTemplateSelector();
+
+        Windows.UI.Xaml.DataTemplate WorkspaceTemplate;
+        Windows.UI.Xaml.DataTemplate SurfaceTemplate;
+        Windows.UI.Xaml.DataTemplate PaneTemplate;
+    }
+}

@@ -272,7 +272,7 @@ try
                     '*AgentHistoryStoreTests*',
                     '*CodexAppServerTests*',
                     '*WorkspaceGitMetadataTests*',
-                    '*WorkspaceSidebarAdaptsToWindowModes*',
+                    '*WorkspaceSidebar*',
                     '*WorkspaceSurfaceShortcutActions*',
                     '*WorkspaceSwitchShortcutActions*',
                     '*WorkspaceSwitchStartupActions*',

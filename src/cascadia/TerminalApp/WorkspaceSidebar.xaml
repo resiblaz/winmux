@@ -15,82 +15,132 @@
     <ContentPresenter.Resources>
         <SolidColorBrush x:Key="WorkspaceSelectionIndicatorBrush"
                          Color="#E6FFFFFF" />
+        <SolidColorBrush x:Key="WorkspaceTreeGuideBrush"
+                         Color="#22FFFFFF" />
+        <SolidColorBrush x:Key="WorkspaceStatusRunningBrush"
+                         Color="#3DDC97" />
+        <SolidColorBrush x:Key="WorkspaceStatusIdleBrush"
+                         Color="#5C6473" />
+        <SolidColorBrush x:Key="WorkspaceVimTagBackgroundBrush"
+                         Color="#2BB794F6" />
+        <SolidColorBrush x:Key="WorkspaceVimTagForegroundBrush"
+                         Color="#C9AEFF" />
+        <SolidColorBrush x:Key="WorkspaceIconTerminalBrush"
+                         Color="#C4CCD8" />
+        <SolidColorBrush x:Key="WorkspaceIconClaudeBrush"
+                         Color="#D97757" />
+        <SolidColorBrush x:Key="WorkspaceIconClaudeEyeBrush"
+                         Color="#16181C" />
+        <SolidColorBrush x:Key="WorkspaceIconCodexBrush"
+                         Color="#EEF2F6" />
+        <SolidColorBrush x:Key="WorkspaceIconAgyBrush"
+                         Color="#7AA2F7" />
+        <SolidColorBrush x:Key="WorkspaceShortcutBadgeBgBrush"
+                         Color="#CC16181C" />
+        <SolidColorBrush x:Key="WorkspaceShortcutBadgeBorderBrush"
+                         Color="#66FFFFFF" />
+
+        <Style x:Key="SidebarHeaderIconButtonStyle"
+               TargetType="Button">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="MinWidth" Value="24" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Foreground" Value="{ThemeResource WorkspaceChromeTextSecondaryBrush}" />
+            <Setter Property="FontFamily" Value="{ThemeResource SymbolThemeFontFamily}" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <Style x:Key="SidebarFilterPillStyle"
+               TargetType="Button">
+            <Setter Property="Height" Value="24" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{ThemeResource WorkspaceChromeTextSecondaryBrush}" />
+        </Style>
 
         <Style x:Key="ExpandedWorkspaceItemContainerStyle"
                TargetType="ListViewItem">
-            <Setter Property="MinHeight" Value="36" />
-            <Setter Property="Margin" Value="4,2" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Margin" Value="4,1" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="CornerRadius" Value="6" />
         </Style>
 
-        <DataTemplate x:Key="ExpandedWorkspaceTemplate"
-                      x:DataType="local:WorkspaceItemViewModel">
-            <StackPanel>
-                <Grid MinHeight="36"
-                      Padding="4,4,4,4"
-                      AutomationProperties.HelpText="{x:Bind StatusText, Mode=OneWay}"
-                      AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
-                      Background="Transparent"
-                      PointerEntered="_WorkspaceItem_PointerEntered"
-                      PointerExited="_WorkspaceItem_PointerExited">
+        <!-- Level 0: Workspace Group Row -->
+        <DataTemplate x:Key="WorkspaceRowTemplate"
+                      x:DataType="local:WorkspaceSidebarRow">
+            <Grid MinHeight="36"
+                  Padding="2,4,4,4"
+                  AllowDrop="True"
+                  AutomationProperties.HelpText="{x:Bind StatusText, Mode=OneWay}"
+                  AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
+                  Background="Transparent"
+                  DragOver="_TreeRow_DragOver"
+                  Drop="_TreeRow_Drop"
+                  PointerEntered="_WorkspaceItem_PointerEntered"
+                  PointerExited="_WorkspaceItem_PointerExited"
+                  Tag="{Binding}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="3" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="28" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="1"
-                        Grid.ColumnSpan="3"
+                        Grid.ColumnSpan="4"
                         Margin="2,0"
                         Background="{ThemeResource AttentionPaneBorderColor}"
                         CornerRadius="6"
                         IsHitTestVisible="False"
                         Opacity="0.1"
-                        Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(UnreadBadgeText), Mode=OneWay}" />
+                        Visibility="{x:Bind mtu:Converters.BooleanToVisibility(ShowCollapsedUnread), Mode=OneWay}" />
                 <Border Width="2"
-                        Height="28"
+                        Height="24"
                         HorizontalAlignment="Left"
                         VerticalAlignment="Center"
                         Background="{StaticResource WorkspaceSelectionIndicatorBrush}"
                         CornerRadius="1"
                         IsHitTestVisible="False"
                         Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsSelected), Mode=OneWay}" />
-                <StackPanel Grid.Column="1"
+
+                <Button Grid.Column="1"
+                        Width="20"
+                        Height="22"
+                        MinWidth="20"
+                        Margin="2,0,0,0"
+                        Padding="0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="_Chevron_Click"
+                        Content="{x:Bind ChevronGlyph, Mode=OneWay}"
+                        CornerRadius="4"
+                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                        FontSize="9"
+                        Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                        IsTabStop="False"
+                        Tag="{Binding}" />
+
+                <StackPanel Grid.Column="2"
                             VerticalAlignment="Center"
                             Orientation="Horizontal">
-                    <Button Height="22"
-                            MinWidth="22"
-                            Margin="6,0,0,0"
-                            Padding="0"
-                            AutomationProperties.Name="{x:Bind NotificationAutomationName, Mode=OneWay}"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Click="_Notification_Click"
-                            CornerRadius="11"
-                            IsTabStop="False"
-                            Tag="{Binding}"
-                            ToolTipService.ToolTip="{x:Bind LatestNotification, Mode=OneWay}"
-                            Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(UnreadBadgeText), Mode=OneWay}">
-                        <Border Height="22"
-                                MinWidth="22"
-                                Padding="5,0"
-                                Background="{ThemeResource AttentionPaneBorderColor}"
-                                CornerRadius="11">
-                            <TextBlock HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       FontSize="10"
-                                       FontWeight="SemiBold"
-                                       Foreground="{ThemeResource AttentionPaneForegroundBrush}"
-                                       Text="{x:Bind UnreadBadgeText, Mode=OneWay}" />
-                        </Border>
-                    </Button>
-                    <Button Width="22"
-                            Height="22"
-                            MinWidth="22"
-                            Margin="6,0,0,0"
+                    <Button Width="18"
+                            Height="20"
+                            MinWidth="18"
+                            Margin="2,0,0,0"
                             Padding="0"
                             AutomationProperties.Name="{x:Bind PinAutomationName, Mode=OneWay}"
                             Background="Transparent"
@@ -98,14 +148,15 @@
                             Click="_Pin_Click"
                             Content="{x:Bind PinIconGlyph, Mode=OneWay}"
                             FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                            FontSize="10"
+                            FontSize="9"
                             IsTabStop="False"
                             Opacity="0.76"
                             Tag="{Binding}"
                             Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsPinned), Mode=OneWay}" />
                 </StackPanel>
-                <StackPanel Grid.Column="2"
-                            Margin="6,0,4,0"
+
+                <StackPanel Grid.Column="3"
+                            Margin="4,0,4,0"
                             VerticalAlignment="Center"
                             Spacing="1">
                     <Grid>
@@ -113,22 +164,22 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock FontSize="13"
+                        <TextBlock FontSize="12.5"
                                    FontWeight="SemiBold"
                                    Text="{x:Bind Title, Mode=OneWay}"
                                    TextTrimming="CharacterEllipsis"
                                    ToolTipService.ToolTip="{x:Bind Title, Mode=OneWay}" />
                         <Border Grid.Column="1"
                                 MaxWidth="54"
-                                Margin="6,0,0,0"
+                                Margin="4,0,0,0"
                                 Padding="4,0"
                                 VerticalAlignment="Center"
                                 Background="{ThemeResource WorkspaceChromeStatusFillBrush}"
-                                CornerRadius="5"
+                                CornerRadius="4"
                                 ToolTipService.ToolTip="{x:Bind StatusText, Mode=OneWay}"
                                 Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(StatusText), Mode=OneWay}">
                             <TextBlock FontSize="9"
-                                       Opacity="0.8"
+                                       Opacity="0.82"
                                        Text="{x:Bind StatusText, Mode=OneWay}"
                                        TextTrimming="CharacterEllipsis" />
                         </Border>
@@ -141,71 +192,149 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock FontFamily="Consolas"
                                    FontSize="10"
-                                   Opacity="0.66"
-                                   Text="{x:Bind WorkingDirectoryDisplay, Mode=OneWay}"
+                                   Opacity="0.64"
+                                   Text="{x:Bind DirectoryDisplay, Mode=OneWay}"
                                    TextTrimming="CharacterEllipsis"
                                    ToolTipService.ToolTip="{x:Bind WorkingDirectory, Mode=OneWay}"
-                                   Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(WorkingDirectoryDisplay), Mode=OneWay}" />
+                                   Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(DirectoryDisplay), Mode=OneWay}" />
                         <TextBlock Grid.Column="1"
-                                   MaxWidth="54"
+                                   MaxWidth="64"
                                    Margin="6,0,0,0"
                                    FontFamily="Consolas"
                                    FontSize="10"
-                                   Opacity="0.66"
+                                   Opacity="0.72"
                                    Text="{x:Bind GitBranch, Mode=OneWay}"
                                    TextTrimming="CharacterEllipsis"
                                    ToolTipService.ToolTip="{x:Bind GitRepositoryRoot, Mode=OneWay}"
                                    Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(GitBranch), Mode=OneWay}" />
-                        <FontIcon Grid.Column="2"
-                                  Margin="6,0,0,0"
-                                  VerticalAlignment="Center"
-                                  FontSize="9"
-                                  Glyph="&#xE774;"
-                                  Opacity="0.66"
-                                  ToolTipService.ToolTip="{x:Bind ListeningPortsTooltip, Mode=OneWay}"
-                                  Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(ListeningPortsDisplay), Mode=OneWay}" />
+                        <TextBlock Grid.Column="2"
+                                   MaxWidth="56"
+                                   Margin="6,0,0,0"
+                                   VerticalAlignment="Center"
+                                   FontFamily="Consolas"
+                                   FontSize="10"
+                                   Foreground="{StaticResource WorkspaceStatusRunningBrush}"
+                                   Opacity="0.92"
+                                   Text="{x:Bind ListeningPortsDisplay, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTipService.ToolTip="{x:Bind ListeningPortsTooltip, Mode=OneWay}"
+                                   Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(ListeningPortsDisplay), Mode=OneWay}" />
                     </Grid>
                 </StackPanel>
-                <Border Grid.Column="2"
-                        Grid.ColumnSpan="2"
-                        MinWidth="24"
-                        Height="24"
-                        Margin="0,0,4,0"
-                        Padding="6,0"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
-                        Background="{ThemeResource WorkspaceChromeAccentBrush}"
-                        Canvas.ZIndex="10"
-                        CornerRadius="12"
-                        IsHitTestVisible="False"
-                        Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(SwitchShortcutHintText), Mode=OneWay}">
-                    <TextBlock HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               FontFamily="Consolas"
-                               FontSize="11"
-                               FontWeight="SemiBold"
-                               Foreground="{ThemeResource WorkspaceChromeSelectedForegroundBrush}"
-                               Text="{x:Bind SwitchShortcutHintText, Mode=OneWay}" />
-                </Border>
-                <Button x:Name="WorkspaceItemCloseButton"
-                        x:Uid="WorkspaceSidebarCloseButton"
-                        Grid.Column="3"
-                        Width="24"
-                        Height="24"
-                        Padding="0"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Click="_Close_Click"
-                        Content="&#xE711;"
-                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                        FontSize="10"
-                        IsTabStop="False"
-                        PointerExited="_WorkspaceItemCloseButton_PointerExited"
-                        Tag="{Binding}"
-                        Visibility="Collapsed" />
 
-                    <Grid.ContextFlyout>
-                        <MenuFlyout>
+                <Grid Grid.Column="4"
+                      VerticalAlignment="Center">
+                    <StackPanel x:Name="WorkspaceRowCountBadge"
+                                Margin="0,0,2,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal"
+                                Spacing="4">
+                        <Button Height="20"
+                                MinWidth="20"
+                                Padding="0"
+                                AutomationProperties.Name="{x:Bind NotificationAutomationName, Mode=OneWay}"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="_Notification_Click"
+                                CornerRadius="10"
+                                IsTabStop="False"
+                                Tag="{Binding}"
+                                ToolTipService.ToolTip="{x:Bind LatestNotification, Mode=OneWay}"
+                                Visibility="{x:Bind mtu:Converters.BooleanToVisibility(ShowCollapsedUnread), Mode=OneWay}">
+                            <Border Height="18"
+                                    MinWidth="18"
+                                    Padding="5,0"
+                                    Background="{ThemeResource AttentionPaneBorderColor}"
+                                    CornerRadius="9">
+                                <TextBlock HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           Foreground="{ThemeResource AttentionPaneForegroundBrush}"
+                                           Text="{x:Bind UnreadBadgeText, Mode=OneWay}" />
+                            </Border>
+                        </Button>
+                        <Border Height="18"
+                                MinWidth="18"
+                                Padding="5,0"
+                                VerticalAlignment="Center"
+                                Background="{ThemeResource WorkspaceChromeStatusFillBrush}"
+                                CornerRadius="9"
+                                IsHitTestVisible="False"
+                                Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(SurfaceCountText), Mode=OneWay}">
+                            <TextBlock HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Consolas"
+                                       FontSize="10"
+                                       Opacity="0.76"
+                                       Text="{x:Bind SurfaceCountText, Mode=OneWay}" />
+                        </Border>
+                    </StackPanel>
+                    <Border MinWidth="22"
+                            Height="20"
+                            Margin="0,0,2,0"
+                            Padding="5,0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource WorkspaceShortcutBadgeBgBrush}"
+                            BorderBrush="{StaticResource WorkspaceShortcutBadgeBorderBrush}"
+                            BorderThickness="1"
+                            Canvas.ZIndex="10"
+                            CornerRadius="10"
+                            IsHitTestVisible="False"
+                            Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(SwitchShortcutHintText), Mode=OneWay}">
+                        <TextBlock HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontFamily="Consolas"
+                                   FontSize="10.5"
+                                   FontWeight="SemiBold"
+                                   Foreground="{ThemeResource WorkspaceChromeSelectedForegroundBrush}"
+                                   Text="{x:Bind SwitchShortcutHintText, Mode=OneWay}" />
+                    </Border>
+                    <StackPanel x:Name="WorkspaceRowHoverActions"
+                                Orientation="Horizontal"
+                                Spacing="1"
+                                Visibility="Collapsed">
+                        <Button x:Name="WorkspaceItemAddSurfaceButton"
+                                x:Uid="WorkspaceSidebarAddSurfaceButton"
+                                Width="22"
+                                Height="22"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="_AddSurface_Click"
+                                Content="&#xE710;"
+                                CornerRadius="4"
+                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                FontSize="10"
+                                IsTabStop="False"
+                                PointerExited="_WorkspaceItemCloseButton_PointerExited"
+                                Tag="{Binding}" />
+                        <Button x:Name="WorkspaceItemCloseButton"
+                                x:Uid="WorkspaceSidebarCloseButton"
+                                Width="22"
+                                Height="22"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="_Close_Click"
+                                Content="&#xE711;"
+                                CornerRadius="4"
+                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                FontSize="9"
+                                IsTabStop="False"
+                                PointerExited="_WorkspaceItemCloseButton_PointerExited"
+                                Tag="{Binding}" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarNewSurfaceMenuItem"
+                                        Click="_AddSurface_Click"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutSeparator />
                         <MenuFlyoutItem x:Uid="WorkspaceSidebarOpenNotificationMenuItem"
                                         Click="_Notification_Click"
                                         IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(UnreadBadgeText), Mode=OneWay}"
@@ -247,12 +376,369 @@
                         <MenuFlyoutItem x:Uid="WorkspaceSidebarCloseOthersMenuItem"
                                         Click="_CloseOthers_Click"
                                         Tag="{Binding}" />
-                        </MenuFlyout>
-                    </Grid.ContextFlyout>
+                    </MenuFlyout>
+                </Grid.ContextFlyout>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Level 1: Surface (Terminal Tab) Row -->
+        <DataTemplate x:Key="SurfaceRowTemplate"
+                      x:DataType="local:WorkspaceSidebarRow">
+            <Grid MinHeight="29"
+                  Padding="0,3,4,3"
+                  AllowDrop="True"
+                  AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
+                  Background="Transparent"
+                  DragOver="_TreeRow_DragOver"
+                  Drop="_TreeRow_Drop"
+                  PointerEntered="_SurfaceItem_PointerEntered"
+                  PointerExited="_SurfaceItem_PointerExited"
+                  Tag="{Binding}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="1"
+                        Grid.ColumnSpan="3"
+                        Margin="0,0,2,0"
+                        Background="{ThemeResource AttentionPaneBorderColor}"
+                        CornerRadius="5"
+                        IsHitTestVisible="False"
+                        Opacity="0.1"
+                        Visibility="{x:Bind mtu:Converters.BooleanToVisibility(HasAttention), Mode=OneWay}" />
+
+                <!-- Vertical tree guide line -->
+                <Border Width="1"
+                        Margin="11,0,0,0"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Stretch"
+                        Background="{StaticResource WorkspaceTreeGuideBrush}"
+                        IsHitTestVisible="False" />
+
+                <!-- Active indicator bar on surface -->
+                <Border Grid.Column="1"
+                        Width="2"
+                        Height="18"
+                        Margin="0,0,6,0"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Background="{ThemeResource WorkspaceChromeAccentBrush}"
+                        CornerRadius="1"
+                        IsHitTestVisible="False"
+                        Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsActive), Mode=OneWay}" />
+
+                <Grid Grid.Column="1"
+                      Width="16"
+                      Height="16"
+                      Margin="4,0,5,0"
+                      VerticalAlignment="Center">
+                    <!-- Terminal icon (PowerShell / Shell) -->
+                    <FontIcon HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                              FontSize="12"
+                              Foreground="{StaticResource WorkspaceIconTerminalBrush}"
+                              Glyph="&#xE756;"
+                              Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsTerminalIcon), Mode=OneWay}" />
+                    <!-- Claude pixel mascot (Clawd) icon -->
+                    <Viewbox Width="14"
+                             Height="11"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center"
+                             Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsClaudeIcon), Mode=OneWay}">
+                        <Canvas Width="11"
+                                Height="8">
+                            <Path Data="M 1,0 H 10 V 2 H 11 V 4 H 10 V 8 H 9 V 6 H 8 V 8 H 7 V 6 H 4 V 8 H 3 V 6 H 2 V 8 H 1 V 4 H 0 V 2 H 1 Z"
+                                  Fill="{StaticResource WorkspaceIconClaudeBrush}" />
+                            <Rectangle Canvas.Left="2"
+                                       Canvas.Top="2"
+                                       Width="1.2"
+                                       Height="1.4"
+                                       Fill="{StaticResource WorkspaceIconClaudeEyeBrush}" />
+                            <Rectangle Canvas.Left="7.8"
+                                       Canvas.Top="2"
+                                       Width="1.2"
+                                       Height="1.4"
+                                       Fill="{StaticResource WorkspaceIconClaudeEyeBrush}" />
+                        </Canvas>
+                    </Viewbox>
+                    <!-- Codex (OpenAI 6-petal blossom) icon -->
+                    <Viewbox Width="14"
+                             Height="14"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center"
+                             Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsCodexIcon), Mode=OneWay}">
+                        <Path Width="24"
+                              Height="24"
+                              Data="M 22.2819,9.8211 a 5.9847,5.9847 0 0 0 -0.5157,-4.9108 a 6.0462,6.0462 0 0 0 -6.5098,-2.9 a 6.0651,6.0651 0 0 0 -10.2757,2.1715 a 5.9847,5.9847 0 0 0 -3.9977,2.9 a 6.0462,6.0462 0 0 0 0.7427,7.0966 a 5.98,5.98 0 0 0 0.511,4.9107 a 6.051,6.051 0 0 0 6.5146,2.9001 a 5.9847,5.9847 0 0 0 4.5086,2.0108 a 6.0557,6.0557 0 0 0 5.7718,-4.2058 a 5.9894,5.9894 0 0 0 3.9977,-2.9001 a 6.0557,6.0557 0 0 0 -0.7475,-7.0729 z m -9.022,12.6081 a 4.4755,4.4755 0 0 1 -2.8764,-1.0408 l 0.1419,-0.0804 l 4.7783,-2.7582 a 0.7948,0.7948 0 0 0 0.3927,-0.6813 v -6.7369 l 2.02,1.1686 a 0.071,0.071 0 0 1 0.038,0.052 v 5.5826 a 4.504,4.504 0 0 1 -4.4945,4.4944 z m -9.6607,-4.1254 a 4.4708,4.4708 0 0 1 -0.5346,-3.0137 l 0.142,0.0852 l 4.783,2.7582 a 0.7712,0.7712 0 0 0 0.7806,0 l 5.8428,-3.3685 v 2.3324 a 0.0804,0.0804 0 0 1 -0.0332,0.0615 L 9.74,19.9502 a 4.4992,4.4992 0 0 1 -6.1408,-1.6464 z M 2.3408,7.8956 a 4.485,4.485 0 0 1 2.3655,-1.9728 V 11.6 a 0.7664,0.7664 0 0 0 0.3879,0.6765 l 5.8144,3.3543 l -2.0201,1.1685 a 0.0757,0.0757 0 0 1 -0.071,0 l -4.8303,-2.7865 A 4.504,4.504 0 0 1 2.3408,7.872 z m 16.5963,3.8558 L 13.1038,8.364 L 15.1192,7.2 a 0.0757,0.0757 0 0 1 0.071,0 l 4.8303,2.7913 a 4.4944,4.4944 0 0 1 -0.6765,8.1042 v -5.6772 a 0.79,0.79 0 0 0 -0.407,-0.667 z m 2.0107,-3.0231 l -0.142,-0.0852 l -4.7735,-2.7818 a 0.7759,0.7759 0 0 0 -0.7854,0 L 9.409,9.2297 V 6.8974 a 0.0662,0.0662 0 0 1 0.0284,-0.0615 l 4.8303,-2.7866 a 4.4992,4.4992 0 0 1 6.6802,4.66 z M 8.3065,12.863 l -2.02,-1.1638 a 0.0804,0.0804 0 0 1 -0.038,-0.0567 V 6.0742 a 4.4992,4.4992 0 0 1 7.3757,-3.4537 l -0.142,0.0805 L 8.704,5.459 a 0.7948,0.7948 0 0 0 -0.3927,0.6813 z m 1.0976,-2.3654 l 2.602,-1.4998 l 2.6069,1.4998 v 2.9994 l -2.5974,1.4997 l -2.6067,-1.4997 Z"
+                              Fill="{StaticResource WorkspaceIconCodexBrush}"
+                              Stretch="Uniform" />
+                    </Viewbox>
+                    <!-- AGY (Antigravity rising arch) icon -->
+                    <Viewbox Width="13"
+                             Height="13"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center"
+                             Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsAgyIcon), Mode=OneWay}">
+                        <Path Width="24"
+                              Height="24"
+                              Data="M12 2 L21 20 H16.8 L12 10.2 L7.2 20 H3 L12 2 Z M12 13.8 L14.4 18.8 H9.6 Z"
+                              Fill="{StaticResource WorkspaceIconAgyBrush}"
+                              Stretch="Uniform" />
+                    </Viewbox>
+                    <!-- Live status overlay dot (only for attention/running) -->
+                    <Ellipse Width="5"
+                             Height="5"
+                             HorizontalAlignment="Right"
+                             VerticalAlignment="Bottom"
+                             Fill="{ThemeResource AttentionPaneBorderColor}"
+                             Visibility="{x:Bind mtu:Converters.BooleanToVisibility(HasAttention), Mode=OneWay}" />
+                    <Ellipse Width="5"
+                             Height="5"
+                             HorizontalAlignment="Right"
+                             VerticalAlignment="Bottom"
+                             Fill="{StaticResource WorkspaceStatusRunningBrush}"
+                             Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsRunning), Mode=OneWay}" />
                 </Grid>
 
-            </StackPanel>
+                <StackPanel Grid.Column="2"
+                            Margin="2,0,4,0"
+                            VerticalAlignment="Center"
+                            Spacing="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock FontSize="12"
+                                   Text="{x:Bind Title, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTipService.ToolTip="{x:Bind Title, Mode=OneWay}" />
+                        <Border Grid.Column="1"
+                                Margin="4,0,0,0"
+                                Padding="4,0"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource WorkspaceVimTagBackgroundBrush}"
+                                CornerRadius="3"
+                                Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsVimActive), Mode=OneWay}">
+                            <TextBlock FontFamily="Consolas"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource WorkspaceVimTagForegroundBrush}"
+                                       Text="VIM" />
+                        </Border>
+                        <Border Grid.Column="2"
+                                Margin="4,0,0,0"
+                                Padding="4,0"
+                                VerticalAlignment="Center"
+                                Background="{ThemeResource WorkspaceChromeStatusFillBrush}"
+                                CornerRadius="3"
+                                Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(PaneCountBadgeText), Mode=OneWay}">
+                            <TextBlock FontFamily="Consolas"
+                                       FontSize="9"
+                                       Opacity="0.78"
+                                       Text="{x:Bind PaneCountBadgeText, Mode=OneWay}" />
+                        </Border>
+                    </Grid>
+                    <TextBlock FontSize="10"
+                               Opacity="0.68"
+                               Text="{x:Bind Subtitle, Mode=OneWay}"
+                               TextTrimming="CharacterEllipsis"
+                               Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(Subtitle), Mode=OneWay}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="3"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="2">
+                    <Border Height="17"
+                            MinWidth="17"
+                            Padding="4,0"
+                            VerticalAlignment="Center"
+                            Background="{ThemeResource AttentionPaneBorderColor}"
+                            CornerRadius="8.5"
+                            IsHitTestVisible="False"
+                            Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(UnreadBadgeText), Mode=OneWay}">
+                        <TextBlock HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontSize="9.5"
+                                   FontWeight="SemiBold"
+                                   Foreground="{ThemeResource AttentionPaneForegroundBrush}"
+                                   Text="{x:Bind UnreadBadgeText, Mode=OneWay}" />
+                    </Border>
+                    <Border MinWidth="20"
+                            Height="18"
+                            Padding="4,0"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource WorkspaceShortcutBadgeBgBrush}"
+                            BorderBrush="{StaticResource WorkspaceShortcutBadgeBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="9"
+                            IsHitTestVisible="False"
+                            Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(SwitchShortcutHintText), Mode=OneWay}">
+                        <TextBlock HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontFamily="Consolas"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"
+                                   Foreground="{ThemeResource WorkspaceChromeSelectedForegroundBrush}"
+                                   Text="{x:Bind SwitchShortcutHintText, Mode=OneWay}" />
+                    </Border>
+                    <Button x:Name="SurfaceRowCloseButton"
+                            x:Uid="WorkspaceSurfaceTabCloseButton"
+                            Width="20"
+                            Height="20"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="_CloseSurface_Click"
+                            Content="&#xE711;"
+                            CornerRadius="4"
+                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                            FontSize="9"
+                            IsTabStop="False"
+                            Tag="{Binding}"
+                            Visibility="Collapsed" />
+                </StackPanel>
+
+                <Grid.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarSplitSurfaceMenuItem"
+                                        Click="_SplitSurface_Click"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarRenameSurfaceMenuItem"
+                                        Click="_RenameSurface_Click"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarCloseSurfaceMenuItem"
+                                        Click="_CloseSurface_Click"
+                                        Tag="{Binding}" />
+                    </MenuFlyout>
+                </Grid.ContextFlyout>
+            </Grid>
         </DataTemplate>
+
+        <!-- Level 2: Split Pane Leaf Row -->
+        <DataTemplate x:Key="PaneRowTemplate"
+                      x:DataType="local:WorkspaceSidebarRow">
+            <Grid Height="24"
+                  Padding="0,0,6,0"
+                  AllowDrop="True"
+                  AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
+                  Background="Transparent"
+                  DragOver="_TreeRow_DragOver"
+                  Drop="_TreeRow_Drop"
+                  Tag="{Binding}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="28" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Width="1"
+                        Margin="11,0,0,0"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Stretch"
+                        Background="{StaticResource WorkspaceTreeGuideBrush}"
+                        IsHitTestVisible="False" />
+
+                <TextBlock Grid.Column="1"
+                           Margin="0,0,5,0"
+                           VerticalAlignment="Center"
+                           FontFamily="Consolas"
+                           FontSize="10.5"
+                           Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                           Text="{x:Bind TreeBranchGlyph, Mode=OneWay}" />
+
+                <Grid Grid.Column="2"
+                      Width="13"
+                      Height="13"
+                      Margin="0,0,5,0"
+                      VerticalAlignment="Center">
+                    <FontIcon HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                              FontSize="10"
+                              Foreground="{StaticResource WorkspaceIconTerminalBrush}"
+                              Glyph="&#xE756;"
+                              Opacity="0.82"
+                              Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsTerminalIcon), Mode=OneWay}" />
+                    <Viewbox Width="11"
+                             Height="8.5"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center"
+                             Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsClaudeIcon), Mode=OneWay}">
+                        <Canvas Width="11"
+                                Height="8">
+                            <Path Data="M 1,0 H 10 V 2 H 11 V 4 H 10 V 8 H 9 V 6 H 8 V 8 H 7 V 6 H 4 V 8 H 3 V 6 H 2 V 8 H 1 V 4 H 0 V 2 H 1 Z"
+                                  Fill="{StaticResource WorkspaceIconClaudeBrush}" />
+                            <Rectangle Canvas.Left="2"
+                                       Canvas.Top="2"
+                                       Width="1.2"
+                                       Height="1.4"
+                                       Fill="{StaticResource WorkspaceIconClaudeEyeBrush}" />
+                            <Rectangle Canvas.Left="7.8"
+                                       Canvas.Top="2"
+                                       Width="1.2"
+                                       Height="1.4"
+                                       Fill="{StaticResource WorkspaceIconClaudeEyeBrush}" />
+                        </Canvas>
+                    </Viewbox>
+                    <Viewbox Width="11"
+                             Height="11"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center"
+                             Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsCodexIcon), Mode=OneWay}">
+                        <Path Width="24"
+                              Height="24"
+                              Data="M 22.2819,9.8211 a 5.9847,5.9847 0 0 0 -0.5157,-4.9108 a 6.0462,6.0462 0 0 0 -6.5098,-2.9 a 6.0651,6.0651 0 0 0 -10.2757,2.1715 a 5.9847,5.9847 0 0 0 -3.9977,2.9 a 6.0462,6.0462 0 0 0 0.7427,7.0966 a 5.98,5.98 0 0 0 0.511,4.9107 a 6.051,6.051 0 0 0 6.5146,2.9001 a 5.9847,5.9847 0 0 0 4.5086,2.0108 a 6.0557,6.0557 0 0 0 5.7718,-4.2058 a 5.9894,5.9894 0 0 0 3.9977,-2.9001 a 6.0557,6.0557 0 0 0 -0.7475,-7.0729 z m -9.022,12.6081 a 4.4755,4.4755 0 0 1 -2.8764,-1.0408 l 0.1419,-0.0804 l 4.7783,-2.7582 a 0.7948,0.7948 0 0 0 0.3927,-0.6813 v -6.7369 l 2.02,1.1686 a 0.071,0.071 0 0 1 0.038,0.052 v 5.5826 a 4.504,4.504 0 0 1 -4.4945,4.4944 z m -9.6607,-4.1254 a 4.4708,4.4708 0 0 1 -0.5346,-3.0137 l 0.142,0.0852 l 4.783,2.7582 a 0.7712,0.7712 0 0 0 0.7806,0 l 5.8428,-3.3685 v 2.3324 a 0.0804,0.0804 0 0 1 -0.0332,0.0615 L 9.74,19.9502 a 4.4992,4.4992 0 0 1 -6.1408,-1.6464 z M 2.3408,7.8956 a 4.485,4.485 0 0 1 2.3655,-1.9728 V 11.6 a 0.7664,0.7664 0 0 0 0.3879,0.6765 l 5.8144,3.3543 l -2.0201,1.1685 a 0.0757,0.0757 0 0 1 -0.071,0 l -4.8303,-2.7865 A 4.504,4.504 0 0 1 2.3408,7.872 z m 16.5963,3.8558 L 13.1038,8.364 L 15.1192,7.2 a 0.0757,0.0757 0 0 1 0.071,0 l 4.8303,2.7913 a 4.4944,4.4944 0 0 1 -0.6765,8.1042 v -5.6772 a 0.79,0.79 0 0 0 -0.407,-0.667 z m 2.0107,-3.0231 l -0.142,-0.0852 l -4.7735,-2.7818 a 0.7759,0.7759 0 0 0 -0.7854,0 L 9.409,9.2297 V 6.8974 a 0.0662,0.0662 0 0 1 0.0284,-0.0615 l 4.8303,-2.7866 a 4.4992,4.4992 0 0 1 6.6802,4.66 z M 8.3065,12.863 l -2.02,-1.1638 a 0.0804,0.0804 0 0 1 -0.038,-0.0567 V 6.0742 a 4.4992,4.4992 0 0 1 7.3757,-3.4537 l -0.142,0.0805 L 8.704,5.459 a 0.7948,0.7948 0 0 0 -0.3927,0.6813 z m 1.0976,-2.3654 l 2.602,-1.4998 l 2.6069,1.4998 v 2.9994 l -2.5974,1.4997 l -2.6067,-1.4997 Z"
+                              Fill="{StaticResource WorkspaceIconCodexBrush}"
+                              Stretch="Uniform" />
+                    </Viewbox>
+                    <Viewbox Width="10"
+                             Height="10"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center"
+                             Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsAgyIcon), Mode=OneWay}">
+                        <Path Width="24"
+                              Height="24"
+                              Data="M12 2 L21 20 H16.8 L12 10.2 L7.2 20 H3 L12 2 Z M12 13.8 L14.4 18.8 H9.6 Z"
+                              Fill="{StaticResource WorkspaceIconAgyBrush}"
+                              Stretch="Uniform" />
+                    </Viewbox>
+                    <Ellipse Width="4.5"
+                             Height="4.5"
+                             HorizontalAlignment="Right"
+                             VerticalAlignment="Bottom"
+                             Fill="{ThemeResource AttentionPaneBorderColor}"
+                             Visibility="{x:Bind mtu:Converters.BooleanToVisibility(HasAttention), Mode=OneWay}" />
+                    <Ellipse Width="4.5"
+                             Height="4.5"
+                             HorizontalAlignment="Right"
+                             VerticalAlignment="Bottom"
+                             Fill="{StaticResource WorkspaceStatusRunningBrush}"
+                             Visibility="{x:Bind mtu:Converters.BooleanToVisibility(IsRunning), Mode=OneWay}" />
+                </Grid>
+
+                <TextBlock Grid.Column="3"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Opacity="0.86"
+                           Text="{x:Bind Title, Mode=OneWay}"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTipService.ToolTip="{x:Bind Title, Mode=OneWay}" />
+            </Grid>
+        </DataTemplate>
+
+        <local:WorkspaceSidebarRowTemplateSelector x:Key="SidebarRowTemplateSelector"
+                                                   PaneTemplate="{StaticResource PaneRowTemplate}"
+                                                   SurfaceTemplate="{StaticResource SurfaceRowTemplate}"
+                                                   WorkspaceTemplate="{StaticResource WorkspaceRowTemplate}" />
     </ContentPresenter.Resources>
 
     <Border Background="{ThemeResource WorkspaceChromeSurfaceBrush}"
@@ -264,235 +750,336 @@
                 <ColumnDefinition Width="6" />
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
-                <RowDefinition Height="0" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Grid x:Name="SidebarHeader"
-                  Grid.Row="0"
-                  Grid.Column="0"
-                  Visibility="Collapsed">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock x:Name="SidebarTitle"
-                           x:Uid="WorkspaceSidebarTitle"
-                           Grid.Column="0"
-                           Margin="12,0,4,0"
-                           VerticalAlignment="Center"
-                           FontSize="11"
-                           FontWeight="SemiBold"
-                           Opacity="0.72"
-                           TextTrimming="CharacterEllipsis" />
-                <Button x:Name="NotificationCenterButton"
-                        Grid.Column="1"
-                        Width="32"
-                        Height="32"
-                        Margin="0,4"
-                        Padding="0"
-                        Background="Transparent"
-                        BorderThickness="0">
-                    <Grid Width="24"
-                          Height="24">
-                        <FontIcon HorizontalAlignment="Center"
+            <!-- Orca-style Sidebar Header: Title + Actions + Search + Status Filters -->
+            <Border x:Name="SidebarHeader"
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Padding="8,8,6,6"
+                    BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
+                    BorderThickness="0,0,0,1">
+                <StackPanel Spacing="6">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="SidebarTitle"
+                                   x:Uid="WorkspaceSidebarTitle"
+                                   Grid.Column="0"
+                                   Margin="4,0,4,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Opacity="0.72"
+                                   TextTrimming="CharacterEllipsis" />
+                        <Button x:Name="CollapseAllButton"
+                                x:Uid="WorkspaceSidebarCollapseAllButton"
+                                Grid.Column="1"
+                                Margin="0,0,2,0"
+                                Click="_CollapseAll_Click"
+                                Content="&#xE73F;"
+                                Style="{StaticResource SidebarHeaderIconButtonStyle}" />
+                        <Button x:Name="SidebarCreateWorkspaceButton"
+                                x:Uid="WorkspaceSidebarCreateWorkspaceButton"
+                                Grid.Column="2"
+                                Click="_CreateWorkspace_Click"
+                                Content="&#xE710;"
+                                Style="{StaticResource SidebarHeaderIconButtonStyle}" />
+
+                        <!-- Retained for NotificationCenterFlyout hosting and narrow-window ToggleButton compatibility -->
+                        <Button x:Name="NotificationCenterButton"
+                                Grid.Column="3"
+                                Width="0"
+                                Height="0"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Visibility="Collapsed">
+                            <Grid Width="24"
+                                  Height="24">
+                                <FontIcon HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                          FontSize="13"
+                                          Glyph="&#xEA8F;" />
+                                <Border x:Name="NotificationCenterBadge"
+                                        Height="14"
+                                        MinWidth="14"
+                                        Padding="3,0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        Background="{ThemeResource AttentionPaneBorderColor}"
+                                        CornerRadius="7"
+                                        IsHitTestVisible="False"
+                                        Visibility="Collapsed">
+                                    <TextBlock x:Name="NotificationCenterBadgeText"
+                                               VerticalAlignment="Center"
+                                               FontSize="8"
+                                               Foreground="{ThemeResource AttentionPaneForegroundBrush}" />
+                                </Border>
+                            </Grid>
+                            <Button.Flyout>
+                                <Flyout x:Name="NotificationCenterFlyout"
+                                        Opening="_NotificationCenter_Opening"
+                                        Placement="Right">
+                                    <Grid Width="360"
+                                          MinHeight="180"
+                                          MaxHeight="520">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock x:Uid="WorkspaceSidebarNotificationCenterTitle"
+                                                   Margin="4,2,4,10"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold" />
+                                        <ListView x:Name="NotificationHistoryList"
+                                                  Grid.Row="1"
+                                                  MaxHeight="380"
+                                                  IsItemClickEnabled="True"
+                                                  ItemClick="_NotificationHistory_ItemClick"
+                                                  ItemsSource="{x:Bind NotificationHistory, Mode=OneWay}"
+                                                  KeyDown="_NotificationHistory_KeyDown"
+                                                  SelectionMode="None">
+                                            <ListView.ItemTemplate>
+                                                <DataTemplate x:DataType="local:WorkspaceNotification">
+                                                    <Grid Width="320"
+                                                          Padding="8"
+                                                          AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="12" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Ellipse Width="7"
+                                                                 Height="7"
+                                                                 Margin="0,6,0,0"
+                                                                 HorizontalAlignment="Left"
+                                                                 VerticalAlignment="Top"
+                                                                 Fill="{ThemeResource AttentionPaneBorderColor}"
+                                                                 Visibility="{x:Bind mtu:Converters.InvertedBooleanToVisibility(IsRead), Mode=OneWay}" />
+                                                        <StackPanel Grid.Column="1"
+                                                                    Spacing="2">
+                                                            <TextBlock FontSize="11"
+                                                                       Opacity="0.65"
+                                                                       Text="{x:Bind WorkspaceTitle, Mode=OneWay}"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock FontWeight="SemiBold"
+                                                                       Text="{x:Bind Title, Mode=OneWay}"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock MaxLines="2"
+                                                                       Opacity="0.85"
+                                                                       Text="{x:Bind Message, Mode=OneWay}"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="2"
+                                                                   Margin="8,2,0,0"
+                                                                   FontSize="10"
+                                                                   Opacity="0.6"
+                                                                   Text="{x:Bind TimestampText, Mode=OneWay}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListView.ItemTemplate>
+                                        </ListView>
+                                        <TextBlock x:Name="NotificationCenterEmptyState"
+                                                   x:Uid="WorkspaceSidebarNotificationCenterEmptyState"
+                                                   Grid.Row="1"
+                                                   Margin="16,32"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Opacity="0.65" />
+                                        <StackPanel Grid.Row="2"
+                                                    Margin="0,10,0,0"
+                                                    HorizontalAlignment="Right"
+                                                    Orientation="Horizontal"
+                                                    Spacing="8">
+                                            <Button x:Name="MarkAllNotificationsReadButton"
+                                                    x:Uid="WorkspaceSidebarMarkAllNotificationsReadButton"
+                                                    Click="_MarkAllNotificationsRead_Click" />
+                                            <Button x:Name="ClearAllNotificationHistoryButton"
+                                                    x:Uid="WorkspaceSidebarClearAllNotificationHistoryButton"
+                                                    Click="_ClearAllNotificationHistory_Click" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                        <Button x:Name="ToggleButton"
+                                Grid.Column="4"
+                                Width="0"
+                                Height="0"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="_Toggle_Click"
+                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                Visibility="Collapsed" />
+                    </Grid>
+
+                    <!-- Search input -->
+                    <Grid>
+                        <TextBox x:Name="SidebarSearchBox"
+                                 x:Uid="WorkspaceSidebarSearchBox"
+                                 Height="28"
+                                 MinHeight="28"
+                                 Padding="24,4,24,4"
+                                 Background="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}"
+                                 BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
+                                 CornerRadius="5"
+                                 FontSize="11.5"
+                                 Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
+                                 TextChanged="_SearchBox_TextChanged" />
+                        <FontIcon Margin="7,0,0,0"
+                                  HorizontalAlignment="Left"
                                   VerticalAlignment="Center"
                                   FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                  FontSize="13"
-                                  Glyph="&#xEA8F;" />
-                        <Border x:Name="NotificationCenterBadge"
-                                Height="14"
-                                MinWidth="14"
-                                Padding="3,0"
+                                  FontSize="11"
+                                  Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                                  Glyph="&#xE721;"
+                                  IsHitTestVisible="False" />
+                        <Button x:Name="SidebarSearchClearButton"
+                                x:Uid="WorkspaceSidebarSearchClearButton"
+                                Width="22"
+                                Height="22"
+                                Margin="0,0,3,0"
+                                Padding="0"
                                 HorizontalAlignment="Right"
-                                VerticalAlignment="Top"
-                                Background="{ThemeResource AttentionPaneBorderColor}"
-                                CornerRadius="7"
-                                IsHitTestVisible="False"
-                                Visibility="Collapsed">
-                            <TextBlock x:Name="NotificationCenterBadgeText"
-                                       VerticalAlignment="Center"
-                                       FontSize="8"
-                                       Foreground="{ThemeResource AttentionPaneForegroundBrush}" />
-                        </Border>
+                                VerticalAlignment="Center"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="_SearchClear_Click"
+                                Content="&#xE711;"
+                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                FontSize="9"
+                                Foreground="{ThemeResource WorkspaceChromeTextSecondaryBrush}"
+                                IsTabStop="False"
+                                Visibility="Collapsed" />
                     </Grid>
-                    <Button.Flyout>
-                        <Flyout x:Name="NotificationCenterFlyout"
-                                Opening="_NotificationCenter_Opening"
-                                Placement="Right">
-                            <Grid Width="360"
-                                  MinHeight="180"
-                                  MaxHeight="520">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock x:Uid="WorkspaceSidebarNotificationCenterTitle"
-                                           Margin="4,2,4,10"
-                                           FontSize="18"
-                                           FontWeight="SemiBold" />
-                                <ListView x:Name="NotificationHistoryList"
-                                          Grid.Row="1"
-                                          MaxHeight="380"
-                                          IsItemClickEnabled="True"
-                                          ItemClick="_NotificationHistory_ItemClick"
-                                          ItemsSource="{x:Bind NotificationHistory, Mode=OneWay}"
-                                          KeyDown="_NotificationHistory_KeyDown"
-                                          SelectionMode="None">
-                                    <ListView.ItemTemplate>
-                                        <DataTemplate x:DataType="local:WorkspaceNotification">
-                                            <Grid Width="320"
-                                                  Padding="8"
-                                                  AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="12" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <Ellipse Width="7"
-                                                         Height="7"
-                                                         Margin="0,6,0,0"
-                                                         HorizontalAlignment="Left"
-                                                         VerticalAlignment="Top"
-                                                         Fill="{ThemeResource AttentionPaneBorderColor}"
-                                                         Visibility="{x:Bind mtu:Converters.InvertedBooleanToVisibility(IsRead), Mode=OneWay}" />
-                                                <StackPanel Grid.Column="1"
-                                                            Spacing="2">
-                                                    <TextBlock FontSize="11"
-                                                               Opacity="0.65"
-                                                               Text="{x:Bind WorkspaceTitle, Mode=OneWay}"
-                                                               TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock FontWeight="SemiBold"
-                                                               Text="{x:Bind Title, Mode=OneWay}"
-                                                               TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock MaxLines="2"
-                                                               Opacity="0.85"
-                                                               Text="{x:Bind Message, Mode=OneWay}"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               TextWrapping="Wrap" />
-                                                </StackPanel>
-                                                <TextBlock Grid.Column="2"
-                                                           Margin="8,2,0,0"
-                                                           FontSize="10"
-                                                           Opacity="0.6"
-                                                           Text="{x:Bind TimestampText, Mode=OneWay}" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListView.ItemTemplate>
-                                </ListView>
-                                <TextBlock x:Name="NotificationCenterEmptyState"
-                                           x:Uid="WorkspaceSidebarNotificationCenterEmptyState"
-                                           Grid.Row="1"
-                                           Margin="16,32"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           Opacity="0.65" />
-                                <StackPanel Grid.Row="2"
-                                            Margin="0,10,0,0"
-                                            HorizontalAlignment="Right"
-                                            Orientation="Horizontal"
-                                            Spacing="8">
-                                    <Button x:Name="MarkAllNotificationsReadButton"
-                                            x:Uid="WorkspaceSidebarMarkAllNotificationsReadButton"
-                                            Click="_MarkAllNotificationsRead_Click" />
-                                    <Button x:Name="ClearAllNotificationHistoryButton"
-                                            x:Uid="WorkspaceSidebarClearAllNotificationHistoryButton"
-                                            Click="_ClearAllNotificationHistory_Click" />
-                                </StackPanel>
-                            </Grid>
-                        </Flyout>
-                    </Button.Flyout>
-                </Button>
-                <Button x:Name="ToggleButton"
-                        Grid.Column="2"
-                        Width="32"
-                        Height="32"
-                        Margin="4"
-                        Padding="0"
-                        HorizontalAlignment="Right"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Click="_Toggle_Click"
-                        FontFamily="{ThemeResource SymbolThemeFontFamily}" />
-            </Grid>
 
-            <ListView x:Name="WorkspaceList"
-                      x:Uid="WorkspaceSidebarList"
-                      Grid.Row="1"
-                      Grid.Column="0"
-                      AllowDrop="True"
-                      Background="Transparent"
-                      BorderThickness="0"
-                      CanDragItems="True"
-                      CanReorderItems="True"
-                      IsSwipeEnabled="False"
-                      ItemContainerStyle="{StaticResource ExpandedWorkspaceItemContainerStyle}"
-                      ItemTemplate="{StaticResource ExpandedWorkspaceTemplate}"
-                      KeyDown="_WorkspaceList_KeyDown"
-                      Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
-                      Padding="0,4,0,4"
-                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                      SelectionMode="Single">
-                <ListView.Resources>
-                    <ResourceDictionary>
-                        <ResourceDictionary.ThemeDictionaries>
-                            <ResourceDictionary x:Key="Light">
-                                <SolidColorBrush x:Key="ListViewItemBackgroundSelected"
-                                                 Color="{ThemeResource SystemAccentColor}"
-                                                 Opacity="0.1" />
-                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver"
-                                                 Color="{ThemeResource SystemAccentColor}"
-                                                 Opacity="0.14" />
-                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed"
-                                                 Color="{ThemeResource SystemAccentColor}"
-                                                 Opacity="0.18" />
-                                <StaticResource x:Key="ListViewItemForegroundSelected"
-                                                ResourceKey="TextFillColorPrimaryBrush" />
-                                <StaticResource x:Key="ListViewItemForegroundSelectedPointerOver"
-                                                ResourceKey="TextFillColorPrimaryBrush" />
-                                <StaticResource x:Key="ListViewItemForegroundSelectedPressed"
-                                                ResourceKey="TextFillColorPrimaryBrush" />
-                            </ResourceDictionary>
-                            <ResourceDictionary x:Key="Dark">
-                                <StaticResource x:Key="ListViewItemBackgroundPointerOver"
-                                                ResourceKey="WorkspaceChromeButtonHoverBrush" />
-                                <StaticResource x:Key="ListViewItemBackgroundPressed"
-                                                ResourceKey="WorkspaceChromeButtonPressedBrush" />
-                                <StaticResource x:Key="ListViewItemBackgroundSelected"
-                                                ResourceKey="WorkspaceChromeAccentBrush" />
-                                <StaticResource x:Key="ListViewItemBackgroundSelectedPointerOver"
-                                                ResourceKey="WorkspaceChromeAccentHoverBrush" />
-                                <StaticResource x:Key="ListViewItemBackgroundSelectedPressed"
-                                                ResourceKey="WorkspaceChromeAccentPressedBrush" />
-                                <StaticResource x:Key="ListViewItemForegroundPointerOver"
-                                                ResourceKey="WorkspaceChromeTextPrimaryBrush" />
-                                <StaticResource x:Key="ListViewItemForegroundSelected"
-                                                ResourceKey="WorkspaceChromeSelectedForegroundBrush" />
-                                <StaticResource x:Key="ListViewItemForegroundSelectedPointerOver"
-                                                ResourceKey="WorkspaceChromeSelectedForegroundBrush" />
-                                <StaticResource x:Key="ListViewItemForegroundSelectedPressed"
-                                                ResourceKey="WorkspaceChromeSelectedForegroundBrush" />
-                            </ResourceDictionary>
-                            <ResourceDictionary x:Key="HighContrast">
-                                <SolidColorBrush x:Key="ListViewItemBackgroundSelected"
-                                                 Color="{ThemeResource SystemColorHighlightColor}" />
-                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver"
-                                                 Color="{ThemeResource SystemColorHighlightColor}" />
-                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed"
-                                                 Color="{ThemeResource SystemColorHighlightColor}" />
-                                <SolidColorBrush x:Key="ListViewItemForegroundSelected"
-                                                 Color="{ThemeResource SystemColorHighlightTextColor}" />
-                                <SolidColorBrush x:Key="ListViewItemForegroundSelectedPointerOver"
-                                                 Color="{ThemeResource SystemColorHighlightTextColor}" />
-                                <SolidColorBrush x:Key="ListViewItemForegroundSelectedPressed"
-                                                 Color="{ThemeResource SystemColorHighlightTextColor}" />
-                            </ResourceDictionary>
-                        </ResourceDictionary.ThemeDictionaries>
-                    </ResourceDictionary>
-                </ListView.Resources>
-            </ListView>
+                    <!-- Status filter pills -->
+                    <Grid x:Name="SidebarFilterBar"
+                          ColumnSpacing="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="FilterAllButton"
+                                Grid.Column="0"
+                                Click="_FilterAll_Click"
+                                Style="{StaticResource SidebarFilterPillStyle}" />
+                        <Button x:Name="FilterAttentionButton"
+                                Grid.Column="1"
+                                Click="_FilterAttention_Click"
+                                Style="{StaticResource SidebarFilterPillStyle}" />
+                        <Button x:Name="FilterRunningButton"
+                                Grid.Column="2"
+                                Click="_FilterRunning_Click"
+                                Style="{StaticResource SidebarFilterPillStyle}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Row="1"
+                  Grid.Column="0">
+                <ListView x:Name="WorkspaceList"
+                          x:Uid="WorkspaceSidebarList"
+                          AllowDrop="True"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          CanDragItems="True"
+                          CanReorderItems="False"
+                          DragItemsCompleted="_WorkspaceList_DragItemsCompleted"
+                          DragItemsStarting="_WorkspaceList_DragItemsStarting"
+                          Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
+                          IsItemClickEnabled="True"
+                          IsSwipeEnabled="False"
+                          ItemClick="_WorkspaceList_ItemClick"
+                          ItemContainerStyle="{StaticResource ExpandedWorkspaceItemContainerStyle}"
+                          ItemTemplateSelector="{StaticResource SidebarRowTemplateSelector}"
+                          KeyDown="_WorkspaceList_KeyDown"
+                          Padding="0,4,0,6"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          SelectionMode="Single">
+                    <ListView.Resources>
+                        <ResourceDictionary>
+                            <ResourceDictionary.ThemeDictionaries>
+                                <ResourceDictionary x:Key="Light">
+                                    <SolidColorBrush x:Key="ListViewItemBackgroundSelected"
+                                                     Color="{ThemeResource SystemAccentColor}"
+                                                     Opacity="0.1" />
+                                    <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver"
+                                                     Color="{ThemeResource SystemAccentColor}"
+                                                     Opacity="0.14" />
+                                    <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed"
+                                                     Color="{ThemeResource SystemAccentColor}"
+                                                     Opacity="0.18" />
+                                    <StaticResource x:Key="ListViewItemForegroundSelected"
+                                                    ResourceKey="TextFillColorPrimaryBrush" />
+                                    <StaticResource x:Key="ListViewItemForegroundSelectedPointerOver"
+                                                    ResourceKey="TextFillColorPrimaryBrush" />
+                                    <StaticResource x:Key="ListViewItemForegroundSelectedPressed"
+                                                    ResourceKey="TextFillColorPrimaryBrush" />
+                                </ResourceDictionary>
+                                <ResourceDictionary x:Key="Dark">
+                                    <StaticResource x:Key="ListViewItemBackgroundPointerOver"
+                                                    ResourceKey="WorkspaceChromeButtonHoverBrush" />
+                                    <StaticResource x:Key="ListViewItemBackgroundPressed"
+                                                    ResourceKey="WorkspaceChromeButtonPressedBrush" />
+                                    <StaticResource x:Key="ListViewItemBackgroundSelected"
+                                                    ResourceKey="WorkspaceChromeAccentBrush" />
+                                    <StaticResource x:Key="ListViewItemBackgroundSelectedPointerOver"
+                                                    ResourceKey="WorkspaceChromeAccentHoverBrush" />
+                                    <StaticResource x:Key="ListViewItemBackgroundSelectedPressed"
+                                                    ResourceKey="WorkspaceChromeAccentPressedBrush" />
+                                    <StaticResource x:Key="ListViewItemForegroundPointerOver"
+                                                    ResourceKey="WorkspaceChromeTextPrimaryBrush" />
+                                    <StaticResource x:Key="ListViewItemForegroundSelected"
+                                                    ResourceKey="WorkspaceChromeSelectedForegroundBrush" />
+                                    <StaticResource x:Key="ListViewItemForegroundSelectedPointerOver"
+                                                    ResourceKey="WorkspaceChromeSelectedForegroundBrush" />
+                                    <StaticResource x:Key="ListViewItemForegroundSelectedPressed"
+                                                    ResourceKey="WorkspaceChromeSelectedForegroundBrush" />
+                                </ResourceDictionary>
+                                <ResourceDictionary x:Key="HighContrast">
+                                    <SolidColorBrush x:Key="ListViewItemBackgroundSelected"
+                                                     Color="{ThemeResource SystemColorHighlightColor}" />
+                                    <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver"
+                                                     Color="{ThemeResource SystemColorHighlightColor}" />
+                                    <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed"
+                                                     Color="{ThemeResource SystemColorHighlightColor}" />
+                                    <SolidColorBrush x:Key="ListViewItemForegroundSelected"
+                                                     Color="{ThemeResource SystemColorHighlightTextColor}" />
+                                    <SolidColorBrush x:Key="ListViewItemForegroundSelectedPointerOver"
+                                                     Color="{ThemeResource SystemColorHighlightTextColor}" />
+                                    <SolidColorBrush x:Key="ListViewItemForegroundSelectedPressed"
+                                                     Color="{ThemeResource SystemColorHighlightTextColor}" />
+                                </ResourceDictionary>
+                            </ResourceDictionary.ThemeDictionaries>
+                        </ResourceDictionary>
+                    </ListView.Resources>
+                </ListView>
+
+                <TextBlock x:Name="SidebarFilterEmptyState"
+                           x:Uid="WorkspaceSidebarFilterEmptyState"
+                           Margin="14,24"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Top"
+                           FontSize="12"
+                           Foreground="{ThemeResource WorkspaceChromeTextTertiaryBrush}"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed" />
+            </Grid>
 
             <Thumb x:Name="ResizeHandle"
                    x:Uid="WorkspaceSidebarResizeHandle"

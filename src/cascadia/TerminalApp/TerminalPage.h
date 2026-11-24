@@ -458,6 +458,7 @@ namespace winrt::TerminalApp::implementation
         void _WorkspaceNumberKeyHandler(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::Input::KeyRoutedEventArgs& e);
         void _WorkspaceNumberLostFocusHandler(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& e);
         void _CancelWorkspaceNumberInput();
+        bool _StepActiveWorkspaceTerminal(int32_t delta);
         bool _TryHandleWorkspaceNumberKey(uint32_t vkey, uint8_t scanCode, bool down, ::Microsoft::Terminal::Core::ControlKeyStates modifiers);
         bool _IsWorkspaceNumberPrefix(bool workspace, uint32_t digit, uint8_t scanCode = 0) const;
         static ::Microsoft::Terminal::Core::ControlKeyStates _GetPressedModifierKeys() noexcept;
@@ -498,6 +499,11 @@ namespace winrt::TerminalApp::implementation
         void _WorkspaceCloseRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceCloseOthersRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceRenameRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
+        void _WorkspaceActivateRowRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceSidebarRow& row);
+        safe_void_coroutine _WorkspaceRenameSurfaceRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::Tab& surface);
+        void _WorkspaceSplitSurfaceRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::Tab& surface);
+        void _WorkspaceReorderRequested(const TerminalApp::WorkspaceItemViewModel& item, uint32_t targetIndex);
+        void _WorkspaceMoveSurfaceRequested(const TerminalApp::Tab& surface, const TerminalApp::WorkspaceItemViewModel& targetWorkspace, std::optional<uint32_t> targetIndex);
         void _WorkspaceSurfaceTabs_SelectionChanged(const IInspectable& sender, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs& eventArgs);
         void _WorkspaceSurfaceTabClose_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
         void _WorkspaceSurfaceNewTab_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);

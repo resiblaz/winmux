@@ -8,6 +8,7 @@ import { HookInstaller } from './hook-installer.mjs';
 import { SystemMonitor } from './system-monitor.mjs';
 import { ensureTlsCredentials } from './tls-cert.mjs';
 import { TunnelManager } from './tunnel-manager.mjs';
+import { PWA_ICON_SVG, PWA_INDEX_HTML, PWA_MANIFEST_JSON, PWA_SERVICE_WORKER_JS } from './web-ui.mjs';
 import { WebSocketHub } from './websocket.mjs';
 import { WinmuxClient } from './winmux-client.mjs';
 
@@ -386,6 +387,32 @@ export class WinmuxBridgeServer {
     const pathname = parsedUrl.pathname;
     const method = (req.method || 'GET').toUpperCase();
     const isLocal = isLocalAddress(req.socket.remoteAddress);
+
+    // Built-in zero-dependency Web PWA shell (all /api/* and /ws remain strictly Bearer-authenticated).
+    if (method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
+      const buf = Buffer.from(PWA_INDEX_HTML, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': buf.length, 'Cache-Control': 'no-cache' });
+      res.end(buf);
+      return;
+    }
+    if (method === 'GET' && pathname === '/manifest.webmanifest') {
+      const buf = Buffer.from(PWA_MANIFEST_JSON, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Content-Length': buf.length });
+      res.end(buf);
+      return;
+    }
+    if (method === 'GET' && pathname === '/icon.svg') {
+      const buf = Buffer.from(PWA_ICON_SVG, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Content-Length': buf.length });
+      res.end(buf);
+      return;
+    }
+    if (method === 'GET' && pathname === '/sw.js') {
+      const buf = Buffer.from(PWA_SERVICE_WORKER_JS, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Content-Length': buf.length });
+      res.end(buf);
+      return;
+    }
 
     // Public health probe
     if (method === 'GET' && pathname === '/api/health') {

@@ -642,6 +642,24 @@ test('QR encoder, one-click Claude/Codex hook installer, and localhost device re
     assert.equal(delRes.status, 200);
     const listAfter = await (await fetch(`${baseUrl}/api/local/devices`)).json();
     assert.equal(listAfter.devices.length, 0);
+
+    // 5. Built-in Web PWA shell & manifest endpoints
+    const htmlRes = await fetch(`${baseUrl}/`);
+    assert.equal(htmlRes.status, 200);
+    assert.match(htmlRes.headers.get('content-type') || '', /text\/html/);
+    const htmlText = await htmlRes.text();
+    assert.match(htmlText, /Winmux Remote/);
+    assert.match(htmlText, /\/manifest\.webmanifest/);
+
+    const manifestRes = await fetch(`${baseUrl}/manifest.webmanifest`);
+    assert.equal(manifestRes.status, 200);
+    const manifestJson = await manifestRes.json();
+    assert.equal(manifestJson.display, 'standalone');
+
+    const swRes = await fetch(`${baseUrl}/sw.js`);
+    assert.equal(swRes.status, 200);
+    const iconRes = await fetch(`${baseUrl}/icon.svg`);
+    assert.equal(iconRes.status, 200);
   } finally {
     await bridge.stop();
     fs.rmSync(tempRoot, { recursive: true, force: true });

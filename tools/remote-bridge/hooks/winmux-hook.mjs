@@ -9,8 +9,17 @@
  *   node winmux-hook.mjs question --agent claude --prompt "采用哪种方案？" --option "方案A" --option "方案B" --wait
  */
 
+import fs from 'node:fs';
+import http from 'node:http';
+import https from 'node:https';
+import os from 'node:os';
+import path from 'node:path';
+
 const port = Number(process.env.WINMUX_BRIDGE_PORT || 47710);
-const baseUrl = `http://127.0.0.1:${port}`;
+const stateDir = process.env.WINMUX_BRIDGE_STATE_DIR ||
+  path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'Winmux', 'remote-bridge');
+const certPath = path.join(stateDir, 'tls-cert.pem');
+const useTls = process.env.WINMUX_BRIDGE_TLS !== '0' && fs.existsSync(certPath);
 
 function parseArgs(argv) {
   const cmd = argv[0] || 'notify';
@@ -28,17 +37,43 @@ function parseArgs(argv) {
   return { cmd, flags };
 }
 
-async function postJson(route, payload) {
-  const res = await fetch(`${baseUrl}${route}`, {
+function postJson(route, payload) {
+  const body = JSON.stringify(payload);
+  const transport = useTls ? https : http;
+  const options = {
+    hostname: '127.0.0.1',
+    port,
+    path: route,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(body),
+    },
+    ...(useTls
+      ? {
+          ca: fs.readFileSync(certPath, 'utf8'),
+          checkServerIdentity: () => undefined,
+        }
+      : {}),
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = transport.request(options, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf8');
+        if ((res.statusCode || 500) >= 400) {
+          reject(new Error(`Bridge returned HTTP ${res.statusCode}: ${text}`));
+        } else {
+          resolve(JSON.parse(text));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
   });
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`Bridge returned HTTP ${res.status}: ${text}`);
-  }
-  return JSON.parse(text);
 }
 
 const { cmd, flags } = parseArgs(process.argv.slice(2));

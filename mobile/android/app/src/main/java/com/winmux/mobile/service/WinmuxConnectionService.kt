@@ -88,6 +88,7 @@ class WinmuxConnectionService : Service() {
                     val ws = WinmuxRepository.apiClient.openWebSocket(
                         endpoint = endpoint,
                         token = cfg.token,
+                        certFingerprint = cfg.certFingerprint,
                         listener = object : WebSocketListener() {
                             override fun onOpen(webSocket: WebSocket, response: Response) {
                                 WinmuxRepository.attachWebSocketSender { msg -> webSocket.send(msg) }

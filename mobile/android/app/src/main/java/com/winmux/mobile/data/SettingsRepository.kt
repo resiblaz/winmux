@@ -10,6 +10,7 @@ data class ParsedPairUri(
     val remoteUrl: String,
     val code: String,
     val hostname: String,
+    val certFingerprint: String,
 )
 
 class SettingsRepository(context: Context) {
@@ -20,6 +21,7 @@ class SettingsRepository(context: Context) {
             lanUrl = prefs.getString("lan_url", "") ?: "",
             remoteUrl = prefs.getString("remote_url", "") ?: "",
             token = prefs.getString("token", "") ?: "",
+            certFingerprint = prefs.getString("cert_fingerprint", "") ?: "",
             hostname = prefs.getString("hostname", "") ?: "",
             deviceName = prefs.getString("device_name", Build.MODEL ?: "Android") ?: "Android",
         )
@@ -30,13 +32,14 @@ class SettingsRepository(context: Context) {
             .putString("lan_url", config.lanUrl.trim().trimEnd('/'))
             .putString("remote_url", config.remoteUrl.trim().trimEnd('/'))
             .putString("token", config.token.trim())
+            .putString("cert_fingerprint", config.certFingerprint.trim().lowercase().replace(":", ""))
             .putString("hostname", config.hostname.trim())
             .putString("device_name", config.deviceName.trim())
             .apply()
     }
 
     fun clearPairing() {
-        prefs.edit().remove("token").apply()
+        prefs.edit().remove("token").remove("cert_fingerprint").apply()
     }
 
     companion object {
@@ -49,6 +52,7 @@ class SettingsRepository(context: Context) {
                 remoteUrl = uri.getQueryParameter("remote")?.trim().orEmpty(),
                 code = uri.getQueryParameter("code")?.trim().orEmpty(),
                 hostname = uri.getQueryParameter("host")?.trim().orEmpty(),
+                certFingerprint = uri.getQueryParameter("fp")?.trim()?.lowercase()?.replace(":", "").orEmpty(),
             )
         }
     }

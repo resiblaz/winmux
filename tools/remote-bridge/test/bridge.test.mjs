@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import https from 'node:https';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -127,6 +128,7 @@ test('pairing, Winmux Named Pipe snapshot/control, WebSocket push, and blocking 
   const bridge = new WinmuxBridgeServer({
     host: '127.0.0.1',
     port: 0,
+    tls: false,
     pollIntervalMs: 0,
     stateDir: tempDir,
     winmuxOptions: { pipe: mockPipe.pipeName },
@@ -371,6 +373,7 @@ test('usage inspection and safe default model switching across Claude, Codex, an
   const bridge = new WinmuxBridgeServer({
     host: '127.0.0.1',
     port: 0,
+    tls: false,
     pollIntervalMs: 0,
     stateDir,
     agentInspectorOptions: { claudeDir, codexDir, agyDir },
@@ -439,5 +442,57 @@ test('usage inspection and safe default model switching across Claude, Codex, an
   } finally {
     await bridge.stop();
     fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('self-signed ECDSA TLS server generates valid X.509 cert with deterministic SHA-256 fingerprint pinning', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'winmux-tls-test-'));
+  const bridge = new WinmuxBridgeServer({
+    host: '127.0.0.1',
+    port: 0,
+    tls: true,
+    pollIntervalMs: 0,
+    stateDir: tempDir,
+  });
+
+  try {
+    const pairing = await bridge.start();
+    assert.equal(pairing.tls, true);
+    assert.match(pairing.certFingerprint, /^[0-9a-f]{64}$/);
+    assert.ok(pairing.pairUri.includes(`fp=${pairing.certFingerprint}`));
+    assert.ok(pairing.lanUrl.startsWith('https://'));
+
+    const certPem = fs.readFileSync(path.join(tempDir, 'tls-cert.pem'), 'utf8');
+    const health = await new Promise((resolve, reject) => {
+      const req = https.request(
+        {
+          hostname: '127.0.0.1',
+          port: bridge.actualPort,
+          path: '/api/health',
+          method: 'GET',
+          ca: certPem,
+          agent: false,
+          checkServerIdentity: () => undefined,
+        },
+        (res) => {
+          const peerCert = res.socket.getPeerCertificate(true);
+          const peerFp = peerCert.fingerprint256.replaceAll(':', '').toLowerCase();
+          const chunks = [];
+          res.on('data', (c) => chunks.push(c));
+          res.on('end', () => {
+            resolve({ status: res.statusCode, peerFp, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) });
+          });
+        }
+      );
+      req.on('error', reject);
+      req.end();
+    });
+
+    assert.equal(health.status, 200);
+    assert.equal(health.body.ok, true);
+    assert.equal(health.peerFp, pairing.certFingerprint);
+  } finally {
+    await bridge.stop();
+    fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });

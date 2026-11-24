@@ -1,9 +1,11 @@
 import http from 'node:http';
+import https from 'node:https';
 import { URL } from 'node:url';
 import { AgentInspector } from './agent-inspector.mjs';
 import { AuthStore } from './auth-store.mjs';
 import { DecisionStore } from './decision-store.mjs';
 import { SystemMonitor } from './system-monitor.mjs';
+import { ensureTlsCredentials } from './tls-cert.mjs';
 import { WebSocketHub } from './websocket.mjs';
 import { WinmuxClient } from './winmux-client.mjs';
 
@@ -74,6 +76,8 @@ export class WinmuxBridgeServer {
     // Bind to "::" (dual-stack IPv6 + IPv4 on Windows) so both LAN IPv4 and public IPv6 work directly.
     this.host = options.host || process.env.WINMUX_BRIDGE_HOST || '::';
     this.port = options.port ?? Number(process.env.WINMUX_BRIDGE_PORT || 47710);
+    this.tlsEnabled = options.tls ?? (process.env.WINMUX_BRIDGE_TLS !== '0');
+    this.tlsCredentials = null;
     this.pollIntervalMs = options.pollIntervalMs ?? 2000;
     this.authStore = options.authStore || new AuthStore(options.stateDir);
     this.winmux = options.winmuxClient || new WinmuxClient(options.winmuxOptions);
@@ -116,7 +120,7 @@ export class WinmuxBridgeServer {
   }
 
   async start() {
-    this._httpServer = http.createServer((req, res) => {
+    const requestListener = (req, res) => {
       this._handleHttp(req, res).catch((err) => {
         const status = err.status || (err.code === 'permission_denied' ? 403 : err.code === 'winmux_not_running' ? 503 : 500);
         sendJson(res, status, {
@@ -124,7 +128,17 @@ export class WinmuxBridgeServer {
           message: err.message || 'Internal server error',
         });
       });
-    });
+    };
+
+    if (this.tlsEnabled) {
+      this.tlsCredentials = ensureTlsCredentials(this.authStore.stateDir);
+      this._httpServer = https.createServer(
+        { key: this.tlsCredentials.keyPem, cert: this.tlsCredentials.certPem },
+        requestListener
+      );
+    } else {
+      this._httpServer = http.createServer(requestListener);
+    }
 
     this._httpServer.on('upgrade', (req, socket, head) => {
       const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`);
@@ -190,13 +204,19 @@ export class WinmuxBridgeServer {
     this._terminalSubscriptions.clear();
     this.wsHub.closeAll();
     if (this._httpServer) {
-      await new Promise((resolve) => this._httpServer.close(() => resolve()));
+      const server = this._httpServer;
       this._httpServer = null;
+      const closePromise = new Promise((resolve) => server.close(() => resolve()));
+      server.closeAllConnections?.();
+      await closePromise;
     }
   }
 
   getPairingInfo() {
-    return this.authStore.buildPairingPayload(this.actualPort);
+    return this.authStore.buildPairingPayload(this.actualPort, {
+      tls: this.tlsEnabled,
+      certFingerprint: this.tlsCredentials?.fingerprintSha256 || '',
+    });
   }
 
   async pollOnce() {

@@ -54,8 +54,9 @@ fun PairingScreen(
 ) {
     val scope = rememberCoroutineScope()
     var pairUriInput by remember { mutableStateOf("") }
-    var lanUrl by remember(config.lanUrl) { mutableStateOf(config.lanUrl.ifBlank { "http://192.168.1.100:47710" }) }
+    var lanUrl by remember(config.lanUrl) { mutableStateOf(config.lanUrl.ifBlank { "https://192.168.3.21:47710" }) }
     var remoteUrl by remember(config.remoteUrl) { mutableStateOf(config.remoteUrl) }
+    var certFingerprint by remember(config.certFingerprint) { mutableStateOf(config.certFingerprint) }
     var pairingCode by remember { mutableStateOf("") }
     var deviceName by remember(config.deviceName) { mutableStateOf(config.deviceName.ifBlank { Build.MODEL ?: "Android" }) }
     var busy by remember { mutableStateOf(false) }
@@ -66,9 +67,10 @@ fun PairingScreen(
             SettingsRepository.parsePairUri(incomingPairUri)?.let { parsed ->
                 if (parsed.lanUrl.isNotBlank()) lanUrl = parsed.lanUrl
                 if (parsed.remoteUrl.isNotBlank()) remoteUrl = parsed.remoteUrl
+                if (parsed.certFingerprint.isNotBlank()) certFingerprint = parsed.certFingerprint
                 if (parsed.code.isNotBlank()) pairingCode = parsed.code
                 pairUriInput = incomingPairUri
-                feedback = "已解析配对链接，点击下方「完成配对」即可连接"
+                feedback = "已解析加密配对链接，点击下方「完成配对」即可连接"
             }
             onIncomingPairConsumed()
         }
@@ -111,7 +113,15 @@ fun PairingScreen(
                         Text("局域网：${config.lanUrl}", color = WinmuxColors.TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                     }
                     if (config.remoteUrl.isNotBlank()) {
-                        Text("远程穿透：${config.remoteUrl}", color = WinmuxColors.TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                        Text("远程直连：${config.remoteUrl}", color = WinmuxColors.TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    }
+                    if (config.certFingerprint.length == 64) {
+                        Text(
+                            "TLS 指纹已锁定：${config.certFingerprint.take(16)}…",
+                            color = WinmuxColors.Running,
+                            fontSize = 11.5.sp,
+                            fontFamily = FontFamily.Monospace,
+                        )
                     }
                     Spacer(Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -151,11 +161,12 @@ fun PairingScreen(
                         SettingsRepository.parsePairUri(raw)?.let { parsed ->
                             if (parsed.lanUrl.isNotBlank()) lanUrl = parsed.lanUrl
                             if (parsed.remoteUrl.isNotBlank()) remoteUrl = parsed.remoteUrl
+                            if (parsed.certFingerprint.isNotBlank()) certFingerprint = parsed.certFingerprint
                             if (parsed.code.isNotBlank()) pairingCode = parsed.code
-                            feedback = "已自动填充地址与配对码"
+                            feedback = "已自动填充地址、TLS 证书指纹与配对码"
                         }
                     },
-                    label = { Text("一键粘贴 winmux://pair?...（可选）") },
+                    label = { Text("一键粘贴 winmux://pair?...（推荐）") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -164,7 +175,7 @@ fun PairingScreen(
                     value = lanUrl,
                     onValueChange = { lanUrl = it },
                     label = { Text("局域网地址（在家 Wi-Fi 优先）") },
-                    placeholder = { Text("http://192.168.1.100:47710") },
+                    placeholder = { Text("https://192.168.3.21:47710") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -172,8 +183,17 @@ fun PairingScreen(
                 OutlinedTextField(
                     value = remoteUrl,
                     onValueChange = { remoteUrl = it },
-                    label = { Text("远程地址（出门 5G 自动切换，如 Tailscale IP）") },
-                    placeholder = { Text("http://100.x.y.z:47710") },
+                    label = { Text("远程地址（出门 5G 自动切换，如公网 IPv6）") },
+                    placeholder = { Text("https://[240e:...]:47710") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                OutlinedTextField(
+                    value = certFingerprint,
+                    onValueChange = { certFingerprint = it.filter { ch -> ch.isDigit() || ch.lowercaseChar() in 'a'..'f' }.take(64) },
+                    label = { Text("TLS 证书 SHA-256 指纹（HTTPS 时防中间人）") },
+                    placeholder = { Text("粘贴 Pair URI 自动填入 64 位指纹") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -211,12 +231,14 @@ fun PairingScreen(
                                     remoteUrl = remoteUrl.trim(),
                                     code = pairingCode.trim(),
                                     deviceName = deviceName.trim(),
+                                    certFingerprint = certFingerprint.trim(),
                                 )
                                 WinmuxRepository.updateConfig(
                                     BridgeConfig(
                                         lanUrl = res.lanUrl.ifBlank { lanUrl.trim() },
                                         remoteUrl = res.remoteUrl.ifBlank { remoteUrl.trim() },
                                         token = res.token,
+                                        certFingerprint = res.certFingerprint.ifBlank { certFingerprint.trim() },
                                         hostname = res.hostname,
                                         deviceName = deviceName.trim(),
                                     )

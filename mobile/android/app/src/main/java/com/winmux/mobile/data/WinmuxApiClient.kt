@@ -19,7 +19,14 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.net.URLEncoder
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.security.cert.CertificateException
+import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 data class ResolvedEndpoint(
     val baseUrl: String,
@@ -32,6 +39,7 @@ data class PairResponse(
     val lanUrl: String,
     val remoteUrl: String,
     val hostname: String,
+    val certFingerprint: String,
 )
 
 data class SnapshotPayload(
@@ -43,13 +51,13 @@ data class SnapshotPayload(
 class WinmuxApiClient {
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
-    private val probeClient = OkHttpClient.Builder()
+    private val defaultProbeClient = OkHttpClient.Builder()
         .connectTimeout(2500, TimeUnit.MILLISECONDS)
         .readTimeout(2500, TimeUnit.MILLISECONDS)
         .writeTimeout(2500, TimeUnit.MILLISECONDS)
         .build()
 
-    private val apiClient = OkHttpClient.Builder()
+    private val defaultApiClient = OkHttpClient.Builder()
         .connectTimeout(6, TimeUnit.SECONDS)
         .readTimeout(12, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)
@@ -57,7 +65,54 @@ class WinmuxApiClient {
         .build()
 
     @Volatile
+    private var cachedFingerprint: String = ""
+
+    @Volatile
+    private var pinnedProbeClient: OkHttpClient? = null
+
+    @Volatile
+    private var pinnedApiClient: OkHttpClient? = null
+
+    @Volatile
     private var activeEndpoint: ResolvedEndpoint? = null
+
+    private fun clientFor(fingerprint: String, probe: Boolean): OkHttpClient {
+        val clean = fingerprint.trim().lowercase().replace(":", "")
+        if (clean.length != 64) {
+            return if (probe) defaultProbeClient else defaultApiClient
+        }
+        if (clean == cachedFingerprint) {
+            val existing = if (probe) pinnedProbeClient else pinnedApiClient
+            if (existing != null) return existing
+        }
+        val trustManager = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                val leaf = chain?.firstOrNull() ?: throw CertificateException("Empty certificate chain")
+                val digest = MessageDigest.getInstance("SHA-256").digest(leaf.encoded)
+                val actual = digest.joinToString("") { "%02x".format(it) }
+                if (!MessageDigest.isEqual(actual.toByteArray(), clean.toByteArray())) {
+                    throw CertificateException("TLS fingerprint mismatch: expected $clean, got $actual")
+                }
+            }
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+        }
+        val sslContext = SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf<TrustManager>(trustManager), SecureRandom())
+        }
+        val newProbe = defaultProbeClient.newBuilder()
+            .sslSocketFactory(sslContext.socketFactory, trustManager)
+            .hostnameVerifier { _, _ -> true }
+            .build()
+        val newApi = defaultApiClient.newBuilder()
+            .sslSocketFactory(sslContext.socketFactory, trustManager)
+            .hostnameVerifier { _, _ -> true }
+            .build()
+        cachedFingerprint = clean
+        pinnedProbeClient = newProbe
+        pinnedApiClient = newApi
+        return if (probe) newProbe else newApi
+    }
 
     fun currentEndpoint(): ResolvedEndpoint? = activeEndpoint
 
@@ -67,7 +122,7 @@ class WinmuxApiClient {
             list.add(ResolvedEndpoint(config.lanUrl.trimEnd('/'), "局域网"))
         }
         if (config.remoteUrl.isNotBlank() && config.remoteUrl.trimEnd('/') != config.lanUrl.trimEnd('/')) {
-            list.add(ResolvedEndpoint(config.remoteUrl.trimEnd('/'), "远程穿透"))
+            list.add(ResolvedEndpoint(config.remoteUrl.trimEnd('/'), "远程直连"))
         }
         return list
     }
@@ -77,11 +132,12 @@ class WinmuxApiClient {
         if (candidates.isEmpty()) {
             throw IOException("尚未配置电脑端 Bridge 地址")
         }
+        val probe = clientFor(config.certFingerprint, probe = true)
         var lastError: Exception? = null
         for (candidate in candidates) {
             try {
                 val req = Request.Builder().url("${candidate.baseUrl}/api/health").get().build()
-                probeClient.newCall(req).execute().use { res ->
+                probe.newCall(req).execute().use { res ->
                     if (res.isSuccessful) {
                         activeEndpoint = candidate
                         return@withContext candidate
@@ -91,12 +147,23 @@ class WinmuxApiClient {
                 lastError = e
             }
         }
-        throw IOException("无法连接电脑端 Winmux Bridge (${lastError?.message ?: "请检查网络或 Tailscale"})")
+        throw IOException("无法连接电脑端 Winmux Bridge (${lastError?.message ?: "请检查网络或证书指纹"})")
     }
 
-    suspend fun pair(lanUrl: String, remoteUrl: String, code: String, deviceName: String): PairResponse =
+    suspend fun pair(
+        lanUrl: String,
+        remoteUrl: String,
+        code: String,
+        deviceName: String,
+        certFingerprint: String = "",
+    ): PairResponse =
         withContext(Dispatchers.IO) {
-            val tempConfig = BridgeConfig(lanUrl = lanUrl, remoteUrl = remoteUrl, deviceName = deviceName)
+            val tempConfig = BridgeConfig(
+                lanUrl = lanUrl,
+                remoteUrl = remoteUrl,
+                certFingerprint = certFingerprint,
+                deviceName = deviceName,
+            )
             val endpoint = resolveReachableEndpoint(tempConfig)
             val bodyJson = JSONObject()
                 .put("code", code.trim())
@@ -106,7 +173,7 @@ class WinmuxApiClient {
                 .post(bodyJson.toString().toRequestBody(jsonMediaType))
                 .build()
 
-            apiClient.newCall(req).execute().use { res ->
+            clientFor(certFingerprint, probe = false).newCall(req).execute().use { res ->
                 val raw = res.body?.string().orEmpty()
                 if (!res.isSuccessful) {
                     val msg = runCatching { JSONObject(raw).optString("message") }.getOrNull()
@@ -120,6 +187,7 @@ class WinmuxApiClient {
                     lanUrl = lanUrl.ifBlank { pairing?.optString("lanUrl").orEmpty() },
                     remoteUrl = remoteUrl.ifBlank { pairing?.optString("remoteUrl").orEmpty() },
                     hostname = pairing?.optString("hostname").orEmpty(),
+                    certFingerprint = certFingerprint.ifBlank { pairing?.optString("certFingerprint").orEmpty() },
                 )
             }
         }
@@ -249,7 +317,12 @@ class WinmuxApiClient {
         ModelParsers.parseDecision(JSONObject(raw).getJSONObject("decision"))
     }
 
-    fun openWebSocket(endpoint: ResolvedEndpoint, token: String, listener: WebSocketListener): WebSocket {
+    fun openWebSocket(
+        endpoint: ResolvedEndpoint,
+        token: String,
+        certFingerprint: String = "",
+        listener: WebSocketListener,
+    ): WebSocket {
         val wsUrl = endpoint.baseUrl
             .replaceFirst("https://", "wss://")
             .replaceFirst("http://", "ws://") + "/ws?token=${enc(token)}"
@@ -257,7 +330,7 @@ class WinmuxApiClient {
             .url(wsUrl)
             .header("Authorization", "Bearer $token")
             .build()
-        return apiClient.newWebSocket(req, listener)
+        return clientFor(certFingerprint, probe = false).newWebSocket(req, listener)
     }
 
     private fun executeAuthed(
@@ -274,6 +347,7 @@ class WinmuxApiClient {
         }
         if (ordered.isEmpty()) throw IOException("未配置电脑端地址")
 
+        val client = clientFor(config.certFingerprint, probe = false)
         var lastException: Exception? = null
         for (endpoint in ordered) {
             try {
@@ -285,7 +359,7 @@ class WinmuxApiClient {
                 } else {
                     builder.get()
                 }
-                apiClient.newCall(builder.build()).execute().use { res ->
+                client.newCall(builder.build()).execute().use { res ->
                     val raw = res.body?.string().orEmpty()
                     if (res.isSuccessful) {
                         activeEndpoint = endpoint

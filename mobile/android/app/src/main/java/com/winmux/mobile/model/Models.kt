@@ -7,6 +7,7 @@ data class BridgeConfig(
     val lanUrl: String = "",
     val remoteUrl: String = "",
     val token: String = "",
+    val certFingerprint: String = "",
     val hostname: String = "",
     val deviceName: String = "Android",
 ) {

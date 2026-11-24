@@ -35,7 +35,7 @@ function isGlobalIpv6(ip) {
   return clean.startsWith('2') || clean.startsWith('3');
 }
 
-export function detectHostAddresses(port) {
+export function detectHostAddresses(port, scheme = 'http') {
   const interfaces = os.networkInterfaces();
   const lanIps = [];
   const tailscaleIps = [];
@@ -71,9 +71,9 @@ export function detectHostAddresses(port) {
     }
   }
 
-  const lanUrl = lanIps[0] ? `http://${lanIps[0]}:${port}` : `http://127.0.0.1:${port}`;
-  const ipv6Url = ipv6Globals[0] ? `http://[${ipv6Globals[0]}]:${port}` : '';
-  const tailscaleUrl = tailscaleIps[0] ? `http://${tailscaleIps[0]}:${port}` : '';
+  const lanUrl = lanIps[0] ? `${scheme}://${lanIps[0]}:${port}` : `${scheme}://127.0.0.1:${port}`;
+  const ipv6Url = ipv6Globals[0] ? `${scheme}://[${ipv6Globals[0]}]:${port}` : '';
+  const tailscaleUrl = tailscaleIps[0] ? `${scheme}://${tailscaleIps[0]}:${port}` : '';
   const remoteUrl = process.env.WINMUX_BRIDGE_REMOTE_URL || ipv6Url || tailscaleUrl || '';
   return {
     hostname: os.hostname(),
@@ -125,8 +125,9 @@ export class AuthStore {
     return this.pairing;
   }
 
-  buildPairingPayload(port) {
-    const netInfo = detectHostAddresses(port);
+  buildPairingPayload(port, { tls = false, certFingerprint = '' } = {}) {
+    const scheme = tls ? 'https' : 'http';
+    const netInfo = detectHostAddresses(port, scheme);
     const { code, expiresAt } = this.getActivePairing();
     const params = new URLSearchParams({
       lan: netInfo.lanUrl,
@@ -136,9 +137,14 @@ export class AuthStore {
     if (netInfo.remoteUrl) {
       params.set('remote', netInfo.remoteUrl);
     }
+    if (certFingerprint) {
+      params.set('fp', certFingerprint);
+    }
     return {
       code,
       expiresAt,
+      tls,
+      certFingerprint,
       hostname: netInfo.hostname,
       lanUrl: netInfo.lanUrl,
       ipv6Url: netInfo.ipv6Url,

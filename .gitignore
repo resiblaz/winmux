@@ -289,6 +289,7 @@ profiles.json
 
 # Local portable Release output
 /dist/
+/tools/remote-bridge/dist/
 
 # Versioned release notes are source documentation.
 !/doc/releases/

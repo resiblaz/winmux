@@ -3,9 +3,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const HOOK_MARKER = 'winmux-hook.mjs';
+const HOOK_MARKERS = ['winmux-hook.mjs', 'winmux-bridge.exe'];
+
+function isRunningAsSea() {
+  return Boolean(globalThis.__WINMUX_SEA__) || path.basename(process.execPath).toLowerCase() === 'winmux-bridge.exe';
+}
 
 export function resolveHookScriptPath() {
+  if (isRunningAsSea()) {
+    return process.execPath;
+  }
   const srcDir = path.dirname(fileURLToPath(import.meta.url));
   return path.resolve(srcDir, '..', 'hooks', 'winmux-hook.mjs');
 }
@@ -21,12 +28,16 @@ function quoteCmdPath(p) {
   return `"${String(p).replaceAll('"', '\\"')}"`;
 }
 
+function hasWinmuxHookMarker(text) {
+  return typeof text === 'string' && HOOK_MARKERS.some((marker) => text.includes(marker));
+}
+
 function isWinmuxHookEntry(entry) {
   if (!entry) return false;
-  if (typeof entry === 'string') return entry.includes(HOOK_MARKER);
-  if (typeof entry.command === 'string' && entry.command.includes(HOOK_MARKER)) return true;
+  if (typeof entry === 'string') return hasWinmuxHookMarker(entry);
+  if (hasWinmuxHookMarker(entry.command)) return true;
   if (Array.isArray(entry.hooks)) {
-    return entry.hooks.some((h) => h && typeof h.command === 'string' && h.command.includes(HOOK_MARKER));
+    return entry.hooks.some((h) => h && hasWinmuxHookMarker(h.command));
   }
   return false;
 }
@@ -61,7 +72,7 @@ export class HookInstaller {
     try {
       if (fs.existsSync(this.codexConfigPath)) {
         const toml = fs.readFileSync(this.codexConfigPath, 'utf8');
-        codexInstalled = /^\s*notify\s*=.*winmux-hook\.mjs/m.test(toml);
+        codexInstalled = /^\s*notify\s*=.*(?:winmux-hook\.mjs|winmux-bridge\.exe)/m.test(toml);
       }
     } catch {
       codexInstalled = false;
@@ -78,7 +89,10 @@ export class HookInstaller {
   }
 
   install({ claude = true, codex = true } = {}) {
-    const hookCmd = (event) => `node ${quoteCmdPath(this.hookScriptPath)} claude-hook ${event}`;
+    const seaMode = isRunningAsSea() && this.hookScriptPath.toLowerCase().endsWith('.exe');
+    const hookCmd = (event) => seaMode
+      ? `${quoteCmdPath(this.hookScriptPath)} hook claude-hook ${event}`
+      : `node ${quoteCmdPath(this.hookScriptPath)} claude-hook ${event}`;
 
     if (claude) {
       const settings = readJsonSafe(this.claudeSettingsPath);
@@ -108,7 +122,9 @@ export class HookInstaller {
         ? fs.readFileSync(this.codexConfigPath, 'utf8')
         : '';
       const escapedPath = this.hookScriptPath.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
-      const notifyLine = `notify = ["node", "${escapedPath}", "codex-notify"]`;
+      const notifyLine = seaMode
+        ? `notify = ["${escapedPath}", "hook", "codex-notify"]`
+        : `notify = ["node", "${escapedPath}", "codex-notify"]`;
       const lines = existingToml ? existingToml.replace(/\r\n/g, '\n').split('\n') : [];
 
       let replaced = false;
@@ -172,7 +188,7 @@ export class HookInstaller {
       const filteredLines = existingToml
         .replace(/\r\n/g, '\n')
         .split('\n')
-        .filter((line) => !/^\s*notify\s*=.*winmux-hook\.mjs/.test(line));
+        .filter((line) => !/^\s*notify\s*=.*(?:winmux-hook\.mjs|winmux-bridge\.exe)/.test(line));
       writeAtomic(this.codexConfigPath, `${filteredLines.join('\n').replace(/\n*$/, '')}\n`);
     }
 

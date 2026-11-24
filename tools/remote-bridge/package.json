@@ -6,7 +6,8 @@
   "description": "Local PC sidecar bridge connecting Winmux Named Pipe automation and Agent Hooks to the Winmux Android mobile app.",
   "scripts": {
     "start": "node ./bin/winmux-bridge.mjs",
-    "test": "node --test ./test/*.test.mjs"
+    "test": "node --test ./test/*.test.mjs",
+    "build:exe": "node ./build-sea.mjs"
   },
   "engines": {
     "node": ">=20.0.0"

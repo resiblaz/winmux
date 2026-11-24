@@ -876,16 +876,15 @@ namespace winrt::TerminalApp::implementation
             return _waitForIo(pipe, overlapped, gsl::narrow<DWORD>(clampedMs), bytesTransferred);
         }
 
-        IoResult _connect(const HANDLE pipe) const
+        IoResult _connect(const HANDLE pipe, const HANDLE ioEvent) const
         {
-            wil::unique_handle event{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
-            if (!event)
+            if (!ResetEvent(ioEvent))
             {
                 return IoResult::Failed;
             }
 
             OVERLAPPED overlapped{};
-            overlapped.hEvent = event.get();
+            overlapped.hEvent = ioEvent;
             if (ConnectNamedPipe(pipe, &overlapped))
             {
                 return IoResult::Completed;
@@ -905,8 +904,38 @@ namespace winrt::TerminalApp::implementation
             return _waitForIo(pipe, overlapped, INFINITE, bytesTransferred);
         }
 
-        IoResult _readRequest(const HANDLE pipe, std::string& request) const
+        IoResult _readRequest(const HANDLE pipe, const HANDLE ioEvent, std::string& pendingBuffer, std::string& request) const
         {
+            request.clear();
+            const auto extractFromBuffer = [&]() -> std::optional<IoResult> {
+                if (const auto newline = pendingBuffer.find('\n'); newline != std::string::npos)
+                {
+                    if (newline > WorkspaceAutomationProtocol::MaximumMessageBytes)
+                    {
+                        pendingBuffer.clear();
+                        return IoResult::TooLarge;
+                    }
+                    request.assign(pendingBuffer, 0, newline);
+                    pendingBuffer.erase(0, newline + 1);
+                    if (!request.empty() && request.back() == '\r')
+                    {
+                        request.pop_back();
+                    }
+                    return IoResult::Completed;
+                }
+                if (pendingBuffer.size() > WorkspaceAutomationProtocol::MaximumMessageBytes)
+                {
+                    pendingBuffer.clear();
+                    return IoResult::TooLarge;
+                }
+                return std::nullopt;
+            };
+
+            if (const auto immediate = extractFromBuffer())
+            {
+                return *immediate;
+            }
+
             const auto deadline = std::chrono::steady_clock::now() + PipeRequestTimeout;
             std::array<char, 4096> buffer{};
 
@@ -918,19 +947,18 @@ namespace winrt::TerminalApp::implementation
                     return IoResult::TimedOut;
                 }
 
-                wil::unique_handle event{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
-                if (!event)
+                if (!ResetEvent(ioEvent))
                 {
                     return IoResult::Failed;
                 }
                 OVERLAPPED overlapped{};
-                overlapped.hEvent = event.get();
+                overlapped.hEvent = ioEvent;
                 DWORD bytesTransferred = 0;
                 auto result = IoResult::Completed;
                 if (!ReadFile(pipe, buffer.data(), gsl::narrow<DWORD>(buffer.size()), &bytesTransferred, &overlapped))
                 {
                     const auto error = GetLastError();
-                    if (error == ERROR_BROKEN_PIPE)
+                    if (error == ERROR_BROKEN_PIPE || error == ERROR_PIPE_NOT_CONNECTED)
                     {
                         return IoResult::Disconnected;
                     }
@@ -953,28 +981,15 @@ namespace winrt::TerminalApp::implementation
                     return IoResult::Disconnected;
                 }
 
-                request.append(buffer.data(), bytesTransferred);
-                if (const auto newline = request.find('\n'); newline != std::string::npos)
+                pendingBuffer.append(buffer.data(), bytesTransferred);
+                if (const auto extracted = extractFromBuffer())
                 {
-                    if (newline > WorkspaceAutomationProtocol::MaximumMessageBytes)
-                    {
-                        return IoResult::TooLarge;
-                    }
-                    request.resize(newline);
-                    if (!request.empty() && request.back() == '\r')
-                    {
-                        request.pop_back();
-                    }
-                    return IoResult::Completed;
-                }
-                if (request.size() > WorkspaceAutomationProtocol::MaximumMessageBytes)
-                {
-                    return IoResult::TooLarge;
+                    return *extracted;
                 }
             }
         }
 
-        IoResult _writeResponse(const HANDLE pipe, std::string response) const
+        IoResult _writeResponse(const HANDLE pipe, const HANDLE ioEvent, std::string response) const
         {
             response.push_back('\n');
             size_t offset = 0;
@@ -987,13 +1002,12 @@ namespace winrt::TerminalApp::implementation
                     return IoResult::TimedOut;
                 }
 
-                wil::unique_handle event{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
-                if (!event)
+                if (!ResetEvent(ioEvent))
                 {
                     return IoResult::Failed;
                 }
                 OVERLAPPED overlapped{};
-                overlapped.hEvent = event.get();
+                overlapped.hEvent = ioEvent;
                 DWORD bytesTransferred = 0;
                 auto result = IoResult::Completed;
                 const auto remaining = gsl::narrow<DWORD>(response.size() - offset);
@@ -1026,7 +1040,7 @@ namespace winrt::TerminalApp::implementation
             return IoResult::Completed;
         }
 
-        IoResult _waitForClientDisconnect(const HANDLE pipe) const
+        IoResult _waitForClientDisconnect(const HANDLE pipe, const HANDLE ioEvent) const
         {
             // DisconnectNamedPipe discards unread response bytes. Wait until the
             // newline-framed client has consumed the response and closed its end,
@@ -1042,13 +1056,12 @@ namespace winrt::TerminalApp::implementation
                     return IoResult::TimedOut;
                 }
 
-                wil::unique_handle event{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
-                if (!event)
+                if (!ResetEvent(ioEvent))
                 {
                     return IoResult::Failed;
                 }
                 OVERLAPPED overlapped{};
-                overlapped.hEvent = event.get();
+                overlapped.hEvent = ioEvent;
                 DWORD bytesTransferred = 0;
                 auto result = IoResult::Completed;
                 if (!ReadFile(pipe, buffer.data(), gsl::narrow<DWORD>(buffer.size()), &bytesTransferred, &overlapped))
@@ -1140,33 +1153,61 @@ namespace winrt::TerminalApp::implementation
             return {};
         }
 
-        void _serve(const HANDLE pipe) const
+        void _serve(const HANDLE pipe, const HANDLE ioEvent) const
         {
+            std::string pendingBuffer;
             std::string request;
-            const auto readResult = _readRequest(pipe, request);
-            std::string response;
-            if (readResult == IoResult::Completed)
-            {
-                response = _dispatchRequest(std::move(request));
-            }
-            else if (readResult == IoResult::TooLarge)
-            {
-                response = WorkspaceAutomationProtocol::MakeError({}, "message_too_large", "Request exceeds the 64 KiB limit");
-            }
-            else if (readResult == IoResult::TimedOut)
-            {
-                response = WorkspaceAutomationProtocol::MakeError({}, "request_timeout", "Request timed out");
-            }
+            bool servedAnyRequest = false;
 
-            if (!response.empty())
+            while (WaitForSingleObject(StopEvent.get(), 0) != WAIT_OBJECT_0)
             {
+                const auto readResult = _readRequest(pipe, ioEvent, pendingBuffer, request);
+                std::string response;
+                bool closeAfterResponse = false;
+
+                if (readResult == IoResult::Completed)
+                {
+                    response = _dispatchRequest(std::move(request));
+                    servedAnyRequest = true;
+                }
+                else if (readResult == IoResult::TooLarge)
+                {
+                    response = WorkspaceAutomationProtocol::MakeError({}, "message_too_large", "Request exceeds the 64 KiB limit");
+                    closeAfterResponse = true;
+                }
+                else if (readResult == IoResult::TimedOut)
+                {
+                    // On an idle persistent connection after serving prior requests, close cleanly
+                    // without sending an unsolicited error frame.
+                    if (servedAnyRequest && pendingBuffer.empty())
+                    {
+                        break;
+                    }
+                    response = WorkspaceAutomationProtocol::MakeError({}, "request_timeout", "Request timed out");
+                    closeAfterResponse = true;
+                }
+                else
+                {
+                    break;
+                }
+
+                if (response.empty())
+                {
+                    break;
+                }
+
                 if (response.size() > WorkspaceAutomationProtocol::MaximumMessageBytes)
                 {
                     response = WorkspaceAutomationProtocol::MakeError({}, "response_too_large", "Response exceeds the 64 KiB limit");
                 }
-                if (_writeResponse(pipe, std::move(response)) == IoResult::Completed)
+                if (_writeResponse(pipe, ioEvent, std::move(response)) != IoResult::Completed)
                 {
-                    _waitForClientDisconnect(pipe);
+                    break;
+                }
+                if (closeAfterResponse)
+                {
+                    _waitForClientDisconnect(pipe, ioEvent);
+                    break;
                 }
             }
         }
@@ -1177,6 +1218,11 @@ namespace winrt::TerminalApp::implementation
             {
                 winrt::init_apartment(winrt::apartment_type::multi_threaded);
                 const auto uninitialize = wil::scope_exit([]() noexcept { winrt::uninit_apartment(); });
+                wil::unique_handle ioEvent{ CreateEventW(nullptr, TRUE, FALSE, nullptr) };
+                if (!ioEvent)
+                {
+                    return;
+                }
                 wil::unique_hfile pipe;
                 while (WaitForSingleObject(StopEvent.get(), 0) != WAIT_OBJECT_0)
                 {
@@ -1193,10 +1239,10 @@ namespace winrt::TerminalApp::implementation
                         }
                     }
 
-                    const auto connectResult = _connect(pipe.get());
+                    const auto connectResult = _connect(pipe.get(), ioEvent.get());
                     if (connectResult == IoResult::Completed)
                     {
-                        _serve(pipe.get());
+                        _serve(pipe.get(), ioEvent.get());
                         if (!DisconnectNamedPipe(pipe.get()))
                         {
                             pipe.reset();

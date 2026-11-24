@@ -23,6 +23,7 @@ namespace TerminalAppUnitTests
         TEST_METHOD(TruncatesTerminalContent);
         TEST_METHOD(SerializesVersionedResponses);
         TEST_METHOD(ServesOneRequestOverCurrentUserPipe);
+        TEST_METHOD(ServesMultipleRequestsOverPersistentPipe);
         TEST_METHOD(ServesLargeResponseWithoutTruncation);
         TEST_METHOD(DoesNotLeakHandlesAcrossRequests);
         TEST_METHOD(StopsWhileAClientIsIdle);
@@ -548,5 +549,67 @@ namespace TerminalAppUnitTests
         VERIFY_IS_FALSE(handlerInvoked.load(std::memory_order_acquire));
 
         client.reset();
+    }
+
+    void WorkspaceAutomationTests::ServesMultipleRequestsOverPersistentPipe()
+    {
+        using namespace winrt::TerminalApp::implementation;
+
+        const auto pipeName = WorkspaceAutomationServer::MakePipeName(GetCurrentProcessId(), GetTickCount64());
+        int callCount = 0;
+        WorkspaceAutomationServer server{
+            pipeName,
+            nullptr,
+            [&callCount](const std::string_view request) {
+                const auto parsed = WorkspaceAutomationProtocol::ParseRequest(request);
+                if (!parsed)
+                {
+                    return WorkspaceAutomationProtocol::MakeError(parsed.Id, parsed.ErrorCode, parsed.ErrorMessage);
+                }
+                ++callCount;
+                JsonObject result;
+                result.Insert(L"seq", JsonValue::CreateNumberValue(callCount));
+                return WorkspaceAutomationProtocol::MakeResult(parsed.Request->Id, result);
+            }
+        };
+        VERIFY_IS_TRUE(server.Start());
+
+        wil::unique_hfile client;
+        for (size_t attempt = 0; attempt < 80 && !client; ++attempt)
+        {
+            client.reset(CreateFileW(pipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr));
+            if (!client)
+            {
+                Sleep(25);
+            }
+        }
+        VERIFY_IS_TRUE(static_cast<bool>(client));
+
+        const auto roundTrip = [&](const std::string_view req, const winrt::hstring& expectedId, const double expectedSeq) {
+            DWORD bytesWritten = 0;
+            VERIFY_WIN32_BOOL_SUCCEEDED(WriteFile(client.get(), req.data(), gsl::narrow<DWORD>(req.size()), &bytesWritten, nullptr));
+            VERIFY_ARE_EQUAL(gsl::narrow<DWORD>(req.size()), bytesWritten);
+
+            std::string responseText;
+            std::array<char, 512> buffer{};
+            while (responseText.find('\n') == std::string::npos)
+            {
+                DWORD bytesRead = 0;
+                VERIFY_WIN32_BOOL_SUCCEEDED(ReadFile(client.get(), buffer.data(), gsl::narrow<DWORD>(buffer.size()), &bytesRead, nullptr));
+                VERIFY_IS_GREATER_THAN(bytesRead, 0u);
+                responseText.append(buffer.data(), bytesRead);
+            }
+            const auto newline = responseText.find('\n');
+            const auto response = JsonObject::Parse(winrt::to_hstring(responseText.substr(0, newline)));
+            VERIFY_ARE_EQUAL(expectedId, response.GetNamedString(L"id"));
+            VERIFY_ARE_EQUAL(expectedSeq, response.GetNamedObject(L"result").GetNamedNumber(L"seq"));
+        };
+
+        roundTrip(R"({"version":1,"id":"persist-1","method":"workspace.list","params":{}})" "\n", L"persist-1", 1.0);
+        roundTrip(R"({"version":1,"id":"persist-2","method":"workspace.snapshot","params":{}})" "\n", L"persist-2", 2.0);
+        roundTrip(R"({"version":1,"id":"persist-3","method":"workspace.list","params":{}})" "\n", L"persist-3", 3.0);
+
+        client.reset();
+        server.Stop();
     }
 }

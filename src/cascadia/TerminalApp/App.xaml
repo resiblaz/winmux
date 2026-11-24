@@ -179,7 +179,7 @@
                             <SolidColorBrush x:Key="WorkspaceChromeSurfaceRaisedBrush"
                                              Color="#181B22" />
                             <SolidColorBrush x:Key="WorkspaceChromeDividerBrush"
-                                             Color="#14FFFFFF" />
+                                             Color="#22262F" />
                             <SolidColorBrush x:Key="WorkspaceChromeButtonHoverBrush"
                                              Color="#0DFFFFFF" />
                             <SolidColorBrush x:Key="WorkspaceChromeButtonPressedBrush"
@@ -255,7 +255,7 @@
                             <SolidColorBrush x:Key="WorkspaceChromeSurfaceRaisedBrush"
                                              Color="#181B22" />
                             <SolidColorBrush x:Key="WorkspaceChromeDividerBrush"
-                                             Color="#14FFFFFF" />
+                                             Color="#22262F" />
                             <SolidColorBrush x:Key="WorkspaceChromeButtonHoverBrush"
                                              Color="#0DFFFFFF" />
                             <SolidColorBrush x:Key="WorkspaceChromeButtonPressedBrush"

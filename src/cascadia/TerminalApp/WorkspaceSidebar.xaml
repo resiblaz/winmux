@@ -1499,7 +1499,7 @@
                         <Grid Background="{TemplateBinding Background}">
                             <Border Width="1"
                                     HorizontalAlignment="Right"
-                                    Background="{ThemeResource WorkspaceChromeDividerBrush}" />
+                                    Background="Transparent" />
                         </Grid>
                     </ControlTemplate>
                 </Thumb.Template>

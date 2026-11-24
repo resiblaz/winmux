@@ -247,6 +247,13 @@ namespace winrt::TerminalApp::implementation
         _SidebarController().ListeningPortsTimer.Tick([weakThis{ get_weak() }](const auto&, const auto&) {
             if (const auto page = weakThis.get())
             {
+                const bool sidebarVisible = page->_workspaceSidebar &&
+                                            winrt::get_self<implementation::WorkspaceSidebar>(page->_workspaceSidebar)->IsEffectivelyExpanded();
+                const auto desiredInterval = sidebarVisible ? 2s : 8s;
+                if (page->_SidebarController().ListeningPortsTimer.Interval() != desiredInterval)
+                {
+                    page->_SidebarController().ListeningPortsTimer.Interval(desiredInterval);
+                }
                 if (!page->_SidebarController().ListeningPortsRefreshInFlight)
                 {
                     page->_RefreshWorkspaceListeningPorts();

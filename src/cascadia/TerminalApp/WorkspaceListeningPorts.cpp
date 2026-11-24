@@ -282,7 +282,21 @@ namespace winrt::TerminalApp::implementation
             return {};
         }
 
-        std::wstring _queryProcessCommandLine(const uint32_t processId) noexcept
+        struct CachedCommandLineEntry
+        {
+            uint64_t CreationTime{};
+            std::wstring CommandLine;
+        };
+
+        std::mutex _commandLineCacheMutex;
+        std::unordered_map<uint32_t, CachedCommandLineEntry> _commandLineCache;
+
+        uint64_t _fileTimeToUInt64(const FILETIME& ft) noexcept
+        {
+            return (static_cast<uint64_t>(ft.dwHighDateTime) << 32) | static_cast<uint64_t>(ft.dwLowDateTime);
+        }
+
+        std::wstring _queryProcessCommandLineCached(const uint32_t processId) noexcept
         try
         {
             if (processId == 0)
@@ -294,6 +308,21 @@ namespace winrt::TerminalApp::implementation
             if (!processHandle)
             {
                 return {};
+            }
+
+            FILETIME creationTime{};
+            FILETIME exitTime{};
+            FILETIME kernelTime{};
+            FILETIME userTime{};
+            uint64_t creationStamp = 0;
+            if (GetProcessTimes(processHandle.get(), &creationTime, &exitTime, &kernelTime, &userTime))
+            {
+                creationStamp = _fileTimeToUInt64(creationTime);
+                const std::scoped_lock lock{ _commandLineCacheMutex };
+                if (const auto it = _commandLineCache.find(processId); it != _commandLineCache.end() && it->second.CreationTime == creationStamp)
+                {
+                    return it->second.CommandLine;
+                }
             }
 
             using PfnNtQueryInformationProcess = NTSTATUS(NTAPI*)(HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
@@ -311,11 +340,12 @@ namespace winrt::TerminalApp::implementation
 
             ULONG bufferSize = InitialCommandLineBufferBytes;
             std::vector<std::byte> buffer;
+            std::wstring resolved;
             for (size_t attempt = 0; attempt < 2; ++attempt)
             {
                 if (bufferSize > MaximumCommandLineBufferBytes)
                 {
-                    return {};
+                    break;
                 }
                 buffer.resize(bufferSize);
                 ULONG returnLength = 0;
@@ -328,20 +358,20 @@ namespace winrt::TerminalApp::implementation
                 {
                     if (returnLength <= bufferSize || returnLength > MaximumCommandLineBufferBytes)
                     {
-                        return {};
+                        break;
                     }
                     bufferSize = returnLength;
                     continue;
                 }
                 if (!NT_SUCCESS(status) || returnLength < sizeof(UNICODE_STRING))
                 {
-                    return {};
+                    break;
                 }
 
                 const auto* unicodeString = reinterpret_cast<const UNICODE_STRING*>(buffer.data());
                 if (!unicodeString->Buffer || unicodeString->Length == 0)
                 {
-                    return {};
+                    break;
                 }
 
                 const auto bufferBegin = reinterpret_cast<uintptr_t>(buffer.data());
@@ -350,17 +380,132 @@ namespace winrt::TerminalApp::implementation
                 const auto textBytes = static_cast<size_t>(unicodeString->Length);
                 if (textBegin < bufferBegin || textBegin > bufferEnd || textBytes > (bufferEnd - textBegin))
                 {
-                    return {};
+                    break;
                 }
 
-                return std::wstring{ unicodeString->Buffer, textBytes / sizeof(wchar_t) };
+                resolved.assign(unicodeString->Buffer, textBytes / sizeof(wchar_t));
+                break;
             }
-            return {};
+
+            if (creationStamp != 0)
+            {
+                const std::scoped_lock lock{ _commandLineCacheMutex };
+                if (_commandLineCache.size() > 512)
+                {
+                    _commandLineCache.clear();
+                }
+                _commandLineCache.insert_or_assign(processId, CachedCommandLineEntry{ creationStamp, resolved });
+            }
+            return resolved;
         }
         catch (...)
         {
             return {};
         }
+
+        void _pruneCommandLineCache(const std::unordered_map<uint32_t, uint32_t>& liveParents) noexcept
+        {
+            const std::scoped_lock lock{ _commandLineCacheMutex };
+            for (auto it = _commandLineCache.begin(); it != _commandLineCache.end();)
+            {
+                if (!liveParents.contains(it->first))
+                {
+                    it = _commandLineCache.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+        }
+
+        struct ProcessTreeLookup
+        {
+            struct RootMatch
+            {
+                uint32_t RootPid{ 0 };
+                size_t Depth{ 0 };
+            };
+
+            std::unordered_set<uint32_t> Roots;
+            std::unordered_map<uint32_t, uint32_t> Parents;
+            std::unordered_map<uint32_t, RootMatch> Memo;
+
+            ProcessTreeLookup(const std::span<const uint32_t> rootProcessIds,
+                              const std::span<const WorkspaceListeningPorts::ProcessRecord> processes)
+            {
+                Roots.reserve(rootProcessIds.size());
+                for (const auto processId : rootProcessIds)
+                {
+                    if (processId != 0)
+                    {
+                        Roots.emplace(processId);
+                    }
+                }
+                Parents.reserve(processes.size());
+                Memo.reserve(processes.size());
+                for (const auto& process : processes)
+                {
+                    if (process.ProcessId != 0)
+                    {
+                        Parents.insert_or_assign(process.ProcessId, process.ParentProcessId);
+                    }
+                }
+            }
+
+            RootMatch FindRoot(const uint32_t startPid)
+            {
+                if (startPid == 0)
+                {
+                    return {};
+                }
+                if (const auto cached = Memo.find(startPid); cached != Memo.end())
+                {
+                    return cached->second;
+                }
+
+                std::array<uint32_t, MaximumProcessTreeDepth> path{};
+                size_t pathLen = 0;
+                auto currentId = startPid;
+                RootMatch resolved{};
+
+                while (currentId != 0 && pathLen < MaximumProcessTreeDepth)
+                {
+                    if (Roots.contains(currentId))
+                    {
+                        resolved = { currentId, 0 };
+                        break;
+                    }
+                    if (const auto cached = Memo.find(currentId); cached != Memo.end())
+                    {
+                        resolved = cached->second;
+                        break;
+                    }
+                    path[pathLen++] = currentId;
+                    const auto parent = Parents.find(currentId);
+                    if (parent == Parents.end() || parent->second == currentId)
+                    {
+                        break;
+                    }
+                    currentId = parent->second;
+                }
+
+                for (size_t i = pathLen; i > 0; --i)
+                {
+                    const auto pid = path[i - 1];
+                    if (resolved.RootPid != 0)
+                    {
+                        resolved.Depth += 1;
+                    }
+                    Memo.insert_or_assign(pid, resolved);
+                }
+                if (pathLen == 0)
+                {
+                    Memo.insert_or_assign(startPid, resolved);
+                }
+                return resolved;
+            }
+        };
 
         uint16_t _hostPort(const DWORD networkPort) noexcept
         {
@@ -453,6 +598,128 @@ namespace winrt::TerminalApp::implementation
             const auto ipv6Succeeded = _queryTcpTable<MIB_TCP6TABLE_OWNER_PID>(AF_INET6, addRow);
             return ipv4Succeeded && ipv6Succeeded;
         }
+        WorkspaceListeningPorts::PortsByRootProcess _mapListenersWithLookup(
+            ProcessTreeLookup& lookup,
+            const std::span<const WorkspaceListeningPorts::ListenerRecord> listeners)
+        {
+            WorkspaceListeningPorts::PortsByRootProcess result;
+            for (const auto& listener : listeners)
+            {
+                if (listener.ProcessId == 0 || listener.Port == 0)
+                {
+                    continue;
+                }
+                if (const auto match = lookup.FindRoot(listener.ProcessId); match.RootPid != 0)
+                {
+                    result[match.RootPid].emplace_back(listener.Port);
+                }
+            }
+            for (auto& [processId, ports] : result)
+            {
+                std::sort(ports.begin(), ports.end());
+                ports.erase(std::unique(ports.begin(), ports.end()), ports.end());
+            }
+            return result;
+        }
+
+        WorkspaceListeningPorts::ProcessActivityByRoot _mapActivityWithLookup(
+            ProcessTreeLookup& lookup,
+            const std::span<const WorkspaceListeningPorts::ProcessRecord> processes)
+        {
+            struct Candidate
+            {
+                int Tier{ 0 };
+                size_t Depth{ 0 };
+                bool NonCmdWrapper{ false };
+                std::wstring Name;
+                std::wstring CommandLine;
+            };
+
+            WorkspaceListeningPorts::ProcessActivityByRoot result;
+            std::unordered_map<uint32_t, Candidate> bestCandidates;
+
+            for (const auto& process : processes)
+            {
+                if (process.ProcessId == 0 || process.ExecutableName.empty())
+                {
+                    continue;
+                }
+
+                const auto match = lookup.FindRoot(process.ProcessId);
+                if (match.RootPid == 0)
+                {
+                    continue;
+                }
+
+                auto& activity = result[match.RootPid];
+                const auto lowerBase = _lowerBaseName(process.ExecutableName);
+
+                if (match.Depth == 0)
+                {
+                    if (_isWslShell(lowerBase))
+                    {
+                        activity.AllowsTitleFallbackWhenIdle = true;
+                    }
+                    else if (!_isInteractiveShell(lowerBase))
+                    {
+                        activity.HasActiveChild = true;
+                    }
+                }
+                else
+                {
+                    if (_isInfrastructureProcess(lowerBase))
+                    {
+                        continue;
+                    }
+                    activity.HasActiveChild = true;
+                }
+
+                Candidate candidate{};
+                candidate.Depth = match.Depth;
+                candidate.CommandLine = process.CommandLine.empty() ? process.ExecutableName : process.CommandLine;
+
+                if (const auto agent = _detectAgentLabel(process.ExecutableName, process.CommandLine); !agent.empty())
+                {
+                    candidate.Tier = 3;
+                    candidate.Name = std::wstring{ agent };
+                    activity.HasActiveChild = true;
+                }
+                else if (match.Depth > 0 || !_isInteractiveShell(lowerBase))
+                {
+                    candidate.Tier = _isWrapperProcess(lowerBase) ? 1 : 2;
+                    candidate.NonCmdWrapper = (lowerBase != L"cmd");
+                    candidate.Name = _cleanDisplayName(process.ExecutableName);
+                }
+                else
+                {
+                    continue;
+                }
+
+                auto& best = bestCandidates[match.RootPid];
+                const auto better = (candidate.Tier > best.Tier) ||
+                                    (candidate.Tier == best.Tier && candidate.Tier == 3 && (best.Name.empty() || candidate.Depth < best.Depth)) ||
+                                    (candidate.Tier == best.Tier && candidate.Tier == 2 && candidate.Depth > best.Depth) ||
+                                    (candidate.Tier == best.Tier && candidate.Tier == 1 &&
+                                     ((candidate.NonCmdWrapper && !best.NonCmdWrapper) ||
+                                      (candidate.NonCmdWrapper == best.NonCmdWrapper && candidate.Depth > best.Depth)));
+                if (better)
+                {
+                    best = std::move(candidate);
+                }
+            }
+
+            for (auto& [rootPid, best] : bestCandidates)
+            {
+                if (best.Tier > 0)
+                {
+                    auto& activity = result[rootPid];
+                    activity.ActiveProcessName = std::move(best.Name);
+                    activity.ActiveCommandLine = std::move(best.CommandLine);
+                }
+            }
+
+            return result;
+        }
     }
 
     WorkspaceListeningPorts::PortsByRootProcess WorkspaceListeningPorts::MapListenersToRoots(
@@ -460,84 +727,15 @@ namespace winrt::TerminalApp::implementation
         const std::span<const ProcessRecord> processes,
         const std::span<const ListenerRecord> listeners)
     {
-        std::unordered_set<uint32_t> roots;
-        roots.reserve(rootProcessIds.size());
-        for (const auto processId : rootProcessIds)
-        {
-            if (processId != 0)
-            {
-                roots.emplace(processId);
-            }
-        }
-
-        std::unordered_map<uint32_t, uint32_t> parents;
-        parents.reserve(processes.size());
-        for (const auto& process : processes)
-        {
-            if (process.ProcessId != 0)
-            {
-                parents.insert_or_assign(process.ProcessId, process.ParentProcessId);
-            }
-        }
-
-        PortsByRootProcess result;
-        for (const auto& listener : listeners)
-        {
-            if (listener.ProcessId == 0 || listener.Port == 0)
-            {
-                continue;
-            }
-
-            auto processId = listener.ProcessId;
-            for (size_t depth = 0; processId != 0 && depth < MaximumProcessTreeDepth; ++depth)
-            {
-                if (roots.contains(processId))
-                {
-                    result[processId].emplace_back(listener.Port);
-                    break;
-                }
-
-                const auto parent = parents.find(processId);
-                if (parent == parents.end() || parent->second == processId)
-                {
-                    break;
-                }
-                processId = parent->second;
-            }
-        }
-
-        for (auto& [processId, ports] : result)
-        {
-            std::sort(ports.begin(), ports.end());
-            ports.erase(std::unique(ports.begin(), ports.end()), ports.end());
-        }
-        return result;
+        ProcessTreeLookup lookup{ rootProcessIds, processes };
+        return _mapListenersWithLookup(lookup, listeners);
     }
 
     WorkspaceListeningPorts::ProcessNamesByRoot WorkspaceListeningPorts::MapProcessNamesToRoots(
         const std::span<const uint32_t> rootProcessIds,
         const std::span<const ProcessRecord> processes)
     {
-        std::unordered_set<uint32_t> roots;
-        roots.reserve(rootProcessIds.size());
-        for (const auto processId : rootProcessIds)
-        {
-            if (processId != 0)
-            {
-                roots.emplace(processId);
-            }
-        }
-
-        std::unordered_map<uint32_t, uint32_t> parents;
-        parents.reserve(processes.size());
-        for (const auto& process : processes)
-        {
-            if (process.ProcessId != 0)
-            {
-                parents.insert_or_assign(process.ProcessId, process.ParentProcessId);
-            }
-        }
-
+        ProcessTreeLookup lookup{ rootProcessIds, processes };
         ProcessNamesByRoot result;
         for (const auto& process : processes)
         {
@@ -545,22 +743,9 @@ namespace winrt::TerminalApp::implementation
             {
                 continue;
             }
-
-            auto processId = process.ProcessId;
-            for (size_t depth = 0; processId != 0 && depth < MaximumProcessTreeDepth; ++depth)
+            if (const auto match = lookup.FindRoot(process.ProcessId); match.RootPid != 0)
             {
-                if (roots.contains(processId))
-                {
-                    result[processId].emplace_back(process.ExecutableName);
-                    break;
-                }
-
-                const auto parent = parents.find(processId);
-                if (parent == parents.end() || parent->second == processId)
-                {
-                    break;
-                }
-                processId = parent->second;
+                result[match.RootPid].emplace_back(process.ExecutableName);
             }
         }
         return result;
@@ -570,138 +755,8 @@ namespace winrt::TerminalApp::implementation
         const std::span<const uint32_t> rootProcessIds,
         const std::span<const ProcessRecord> processes)
     {
-        std::unordered_set<uint32_t> roots;
-        roots.reserve(rootProcessIds.size());
-        for (const auto processId : rootProcessIds)
-        {
-            if (processId != 0)
-            {
-                roots.emplace(processId);
-            }
-        }
-
-        std::unordered_map<uint32_t, uint32_t> parents;
-        parents.reserve(processes.size());
-        for (const auto& process : processes)
-        {
-            if (process.ProcessId != 0)
-            {
-                parents.insert_or_assign(process.ProcessId, process.ParentProcessId);
-            }
-        }
-
-        struct Candidate
-        {
-            int Tier{ 0 };
-            size_t Depth{ 0 };
-            bool NonCmdWrapper{ false };
-            std::wstring Name;
-            std::wstring CommandLine;
-        };
-
-        ProcessActivityByRoot result;
-        std::unordered_map<uint32_t, Candidate> bestCandidates;
-
-        for (const auto& process : processes)
-        {
-            if (process.ProcessId == 0 || process.ExecutableName.empty())
-            {
-                continue;
-            }
-
-            uint32_t matchedRoot = 0;
-            size_t matchedDepth = 0;
-            auto currentId = process.ProcessId;
-            for (size_t depth = 0; currentId != 0 && depth < MaximumProcessTreeDepth; ++depth)
-            {
-                if (roots.contains(currentId))
-                {
-                    matchedRoot = currentId;
-                    matchedDepth = depth;
-                    break;
-                }
-
-                const auto parent = parents.find(currentId);
-                if (parent == parents.end() || parent->second == currentId)
-                {
-                    break;
-                }
-                currentId = parent->second;
-            }
-
-            if (matchedRoot == 0)
-            {
-                continue;
-            }
-
-            auto& activity = result[matchedRoot];
-            const auto lowerBase = _lowerBaseName(process.ExecutableName);
-
-            if (matchedDepth == 0)
-            {
-                if (_isWslShell(lowerBase))
-                {
-                    activity.AllowsTitleFallbackWhenIdle = true;
-                }
-                else if (!_isInteractiveShell(lowerBase))
-                {
-                    activity.HasActiveChild = true;
-                }
-            }
-            else
-            {
-                if (_isInfrastructureProcess(lowerBase))
-                {
-                    continue;
-                }
-                activity.HasActiveChild = true;
-            }
-
-            Candidate candidate{};
-            candidate.Depth = matchedDepth;
-            candidate.CommandLine = process.CommandLine.empty() ? process.ExecutableName : process.CommandLine;
-
-            if (const auto agent = _detectAgentLabel(process.ExecutableName, process.CommandLine); !agent.empty())
-            {
-                candidate.Tier = 3;
-                candidate.Name = std::wstring{ agent };
-                activity.HasActiveChild = true;
-            }
-            else if (matchedDepth > 0 || !_isInteractiveShell(lowerBase))
-            {
-                candidate.Tier = _isWrapperProcess(lowerBase) ? 1 : 2;
-                candidate.NonCmdWrapper = (lowerBase != L"cmd");
-                candidate.Name = _cleanDisplayName(process.ExecutableName);
-            }
-            else
-            {
-                continue;
-            }
-
-            auto& best = bestCandidates[matchedRoot];
-            const auto better = (candidate.Tier > best.Tier) ||
-                                (candidate.Tier == best.Tier && candidate.Tier == 3 && (best.Name.empty() || candidate.Depth < best.Depth)) ||
-                                (candidate.Tier == best.Tier && candidate.Tier == 2 && candidate.Depth > best.Depth) ||
-                                (candidate.Tier == best.Tier && candidate.Tier == 1 &&
-                                 ((candidate.NonCmdWrapper && !best.NonCmdWrapper) ||
-                                  (candidate.NonCmdWrapper == best.NonCmdWrapper && candidate.Depth > best.Depth)));
-            if (better)
-            {
-                best = std::move(candidate);
-            }
-        }
-
-        for (auto& [rootPid, best] : bestCandidates)
-        {
-            if (best.Tier > 0)
-            {
-                auto& activity = result[rootPid];
-                activity.ActiveProcessName = std::move(best.Name);
-                activity.ActiveCommandLine = std::move(best.CommandLine);
-            }
-        }
-
-        return result;
+        ProcessTreeLookup lookup{ rootProcessIds, processes };
+        return _mapActivityWithLookup(lookup, processes);
     }
 
     WorkspaceListeningPorts::Snapshot WorkspaceListeningPorts::Query(const std::span<const uint32_t> rootProcessIds) noexcept
@@ -713,31 +768,17 @@ namespace winrt::TerminalApp::implementation
         }
 
         std::vector<ProcessRecord> processes;
+        processes.reserve(512);
         if (!_queryProcesses(processes))
         {
             return {};
         }
 
-        // Enrich command lines ONLY for wrapper processes inside our tracked terminal subtrees
-        // so agent CLIs hosted on Node/Cmd/PowerShell/Python are accurately identified with minimal cost.
-        std::unordered_set<uint32_t> roots;
-        roots.reserve(rootProcessIds.size());
-        for (const auto processId : rootProcessIds)
-        {
-            if (processId != 0)
-            {
-                roots.emplace(processId);
-            }
-        }
-        std::unordered_map<uint32_t, uint32_t> parents;
-        parents.reserve(processes.size());
-        for (const auto& process : processes)
-        {
-            if (process.ProcessId != 0)
-            {
-                parents.insert_or_assign(process.ProcessId, process.ParentProcessId);
-            }
-        }
+        // Single shared process-tree lookup + memoized root resolution across command-line enrichment,
+        // TCP listener attribution, and active child process classification.
+        ProcessTreeLookup lookup{ rootProcessIds, processes };
+        _pruneCommandLineCache(lookup.Parents);
+
         for (auto& process : processes)
         {
             if (process.ProcessId == 0 || process.ExecutableName.empty())
@@ -749,25 +790,14 @@ namespace winrt::TerminalApp::implementation
             {
                 continue;
             }
-
-            auto currentId = process.ProcessId;
-            for (size_t depth = 0; currentId != 0 && depth < MaximumProcessTreeDepth; ++depth)
+            if (lookup.FindRoot(process.ProcessId).RootPid != 0)
             {
-                if (roots.contains(currentId))
-                {
-                    process.CommandLine = _queryProcessCommandLine(process.ProcessId);
-                    break;
-                }
-                const auto parent = parents.find(currentId);
-                if (parent == parents.end() || parent->second == currentId)
-                {
-                    break;
-                }
-                currentId = parent->second;
+                process.CommandLine = _queryProcessCommandLineCached(process.ProcessId);
             }
         }
 
         std::vector<ListenerRecord> listeners;
+        listeners.reserve(128);
         if (!_queryListeners(listeners))
         {
             return {};
@@ -775,9 +805,9 @@ namespace winrt::TerminalApp::implementation
 
         return {
             true,
-            MapListenersToRoots(rootProcessIds, processes, listeners),
-            MapProcessNamesToRoots(rootProcessIds, processes),
-            MapProcessActivityToRoots(rootProcessIds, processes),
+            _mapListenersWithLookup(lookup, listeners),
+            {},
+            _mapActivityWithLookup(lookup, processes),
         };
     }
     catch (...)

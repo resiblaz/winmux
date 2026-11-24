@@ -66,6 +66,9 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
+        bool HasSameIdentityAs(const WorkspaceSidebarRow& other) const noexcept;
+        bool UpdateFrom(const WorkspaceSidebarRow& next);
+
         // Internal population helpers
         TerminalApp::WorkspaceSidebarRowKind _kind{ TerminalApp::WorkspaceSidebarRowKind::Workspace };
         TerminalApp::WorkspaceItemViewModel _workspace{ nullptr };

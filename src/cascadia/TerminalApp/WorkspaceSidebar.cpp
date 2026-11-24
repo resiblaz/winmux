@@ -592,8 +592,8 @@ namespace winrt::TerminalApp::implementation
         _treeModel.PruneCollapsed(activeWorkspaceIds);
         const auto projection = _treeModel.Project(inputs);
 
-        std::vector<TerminalApp::WorkspaceSidebarRow> rows;
-        rows.reserve(projection.Nodes.size());
+        std::vector<winrt::com_ptr<WorkspaceSidebarRow>> nextRows;
+        nextRows.reserve(projection.Nodes.size());
 
         for (const auto& node : projection.Nodes)
         {
@@ -676,12 +676,111 @@ namespace winrt::TerminalApp::implementation
                 rowImpl->_automationName = rowImpl->_title;
             }
 
-            rows.emplace_back(*rowImpl);
+            nextRows.emplace_back(std::move(rowImpl));
         }
 
         const auto wasSyncing = std::exchange(_syncingSelection, true);
         auto restoreSyncing = wil::scope_exit([&]() noexcept { _syncingSelection = wasSyncing; });
-        _treeRows.ReplaceAll({ rows.data(), gsl::narrow_cast<uint32_t>(rows.size()) });
+
+        // Incremental reconciliation: preserve existing WorkspaceSidebarRow instances and
+        // ListViewItem containers across refreshes so scroll position and hover states never flicker.
+        const auto existingSize = _treeRows.Size();
+        const auto nextSize = gsl::narrow_cast<uint32_t>(nextRows.size());
+        bool sameShape = existingSize == nextSize;
+        if (sameShape)
+        {
+            for (uint32_t i = 0; i < nextSize; ++i)
+            {
+                const auto existingImpl = winrt::get_self<WorkspaceSidebarRow>(_treeRows.GetAt(i));
+                if (!existingImpl || !existingImpl->HasSameIdentityAs(*nextRows[i]))
+                {
+                    sameShape = false;
+                    break;
+                }
+            }
+        }
+
+        if (sameShape)
+        {
+            for (uint32_t i = 0; i < nextSize; ++i)
+            {
+                winrt::get_self<WorkspaceSidebarRow>(_treeRows.GetAt(i))->UpdateFrom(*nextRows[i]);
+            }
+        }
+        else if (nextRows.empty())
+        {
+            if (_treeRows.Size() > 0)
+            {
+                _treeRows.Clear();
+            }
+        }
+        else
+        {
+            // Pass 1: remove rows that no longer exist in the new projection.
+            for (uint32_t i = _treeRows.Size(); i > 0; --i)
+            {
+                const auto existingImpl = winrt::get_self<WorkspaceSidebarRow>(_treeRows.GetAt(i - 1));
+                bool stillPresent = false;
+                if (existingImpl)
+                {
+                    for (const auto& nextRow : nextRows)
+                    {
+                        if (existingImpl->HasSameIdentityAs(*nextRow))
+                        {
+                            stillPresent = true;
+                            break;
+                        }
+                    }
+                }
+                if (!stillPresent)
+                {
+                    _treeRows.RemoveAt(i - 1);
+                }
+            }
+
+            // Pass 2: align surviving rows in-place and insert newly visible rows.
+            for (uint32_t targetIdx = 0; targetIdx < nextSize; ++targetIdx)
+            {
+                const auto& desired = *nextRows[targetIdx];
+                if (targetIdx < _treeRows.Size())
+                {
+                    const auto currentImpl = winrt::get_self<WorkspaceSidebarRow>(_treeRows.GetAt(targetIdx));
+                    if (currentImpl && currentImpl->HasSameIdentityAs(desired))
+                    {
+                        currentImpl->UpdateFrom(desired);
+                        continue;
+                    }
+                }
+
+                std::optional<uint32_t> foundIdx;
+                for (uint32_t searchIdx = targetIdx + 1; searchIdx < _treeRows.Size(); ++searchIdx)
+                {
+                    const auto candidateImpl = winrt::get_self<WorkspaceSidebarRow>(_treeRows.GetAt(searchIdx));
+                    if (candidateImpl && candidateImpl->HasSameIdentityAs(desired))
+                    {
+                        foundIdx = searchIdx;
+                        break;
+                    }
+                }
+
+                if (foundIdx.has_value())
+                {
+                    const auto existingRow = _treeRows.GetAt(*foundIdx);
+                    winrt::get_self<WorkspaceSidebarRow>(existingRow)->UpdateFrom(desired);
+                    _treeRows.RemoveAt(*foundIdx);
+                    _treeRows.InsertAt(targetIdx, existingRow);
+                }
+                else
+                {
+                    _treeRows.InsertAt(targetIdx, *nextRows[targetIdx]);
+                }
+            }
+
+            while (_treeRows.Size() > nextSize)
+            {
+                _treeRows.RemoveAtEnd();
+            }
+        }
 
         _UpdateFilterHeader(projection);
         _SyncListSelection();
@@ -693,6 +792,20 @@ namespace winrt::TerminalApp::implementation
         {
             return;
         }
+
+        const FilterHeaderState nextState{
+            projection.TotalSurfaceCount,
+            projection.AttentionSurfaceCount,
+            projection.RunningSurfaceCount,
+            _treeModel.FilterMode(),
+            projection.AnyWorkspaceExpanded,
+            projection.IsFiltered && projection.Nodes.empty(),
+        };
+        if (_lastFilterHeaderState.has_value() && *_lastFilterHeaderState == nextState)
+        {
+            return;
+        }
+        _lastFilterHeaderState = nextState;
 
         FilterAllButton().Content(box_value(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_FilterAll", projection.TotalSurfaceCount) }));
         FilterAttentionButton().Content(box_value(winrt::hstring{ RS_fmt(L"WorkspaceSidebar_FilterAttention", projection.AttentionSurfaceCount) }));

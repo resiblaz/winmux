@@ -641,10 +641,24 @@ namespace TerminalAppLocalTests
             // Start with 1 Workspace and 1 Surface -> 2 rows (Workspace + Surface).
             sidebar->RefreshTree();
             VERIFY_ARE_EQUAL(2u, sidebar->TreeRows().Size());
-            VERIFY_ARE_EQUAL(winrt::TerminalApp::WorkspaceSidebarRowKind::Workspace, sidebar->TreeRows().GetAt(0).Kind());
-            VERIFY_ARE_EQUAL(winrt::TerminalApp::WorkspaceSidebarRowKind::Surface, sidebar->TreeRows().GetAt(1).Kind());
+            const auto initialWorkspaceRow = sidebar->TreeRows().GetAt(0);
+            const auto initialSurfaceRow = sidebar->TreeRows().GetAt(1);
+            VERIFY_ARE_EQUAL(winrt::TerminalApp::WorkspaceSidebarRowKind::Workspace, initialWorkspaceRow.Kind());
+            VERIFY_ARE_EQUAL(winrt::TerminalApp::WorkspaceSidebarRowKind::Surface, initialSurfaceRow.Kind());
 
-            // Split the active Surface -> 3rd-level Pane leaf rows appear (Workspace + Surface + Pane0 + Pane1).
+            // Repeated no-op RefreshTree must update in-place with zero row replacement and zero spurious PropertyChanged.
+            uint32_t propertyChangedCount = 0;
+            auto propRevoker = initialWorkspaceRow.PropertyChanged(winrt::auto_revoke, [&](auto&&, auto&&) {
+                ++propertyChangedCount;
+            });
+            sidebar->RefreshTree();
+            VERIFY_ARE_EQUAL(initialWorkspaceRow, sidebar->TreeRows().GetAt(0));
+            VERIFY_ARE_EQUAL(initialSurfaceRow, sidebar->TreeRows().GetAt(1));
+            VERIFY_ARE_EQUAL(0u, propertyChangedCount);
+            propRevoker.revoke();
+
+            // Split the active Surface -> 3rd-level Pane leaf rows appear (Workspace + Surface + Pane0 + Pane1),
+            // while existing Workspace and Surface row objects are preserved in-place.
             const auto firstTab = page->_GetFocusedTabImpl();
             VERIFY_IS_NOT_NULL(firstTab);
             const auto initialPaneId = firstTab->GetActivePane()->Id().value();
@@ -654,6 +668,8 @@ namespace TerminalAppLocalTests
 
             sidebar->RefreshTree();
             VERIFY_ARE_EQUAL(4u, sidebar->TreeRows().Size());
+            VERIFY_ARE_EQUAL(initialWorkspaceRow, sidebar->TreeRows().GetAt(0));
+            VERIFY_ARE_EQUAL(initialSurfaceRow, sidebar->TreeRows().GetAt(1));
             VERIFY_ARE_EQUAL(winrt::TerminalApp::WorkspaceSidebarRowKind::Pane, sidebar->TreeRows().GetAt(2).Kind());
             VERIFY_ARE_EQUAL(winrt::TerminalApp::WorkspaceSidebarRowKind::Pane, sidebar->TreeRows().GetAt(3).Kind());
 

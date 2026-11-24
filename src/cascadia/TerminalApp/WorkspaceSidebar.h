@@ -160,8 +160,21 @@ namespace winrt::TerminalApp::implementation
         WorkspaceSidebarTreeModel _treeModel;
         winrt::weak_ref<TerminalApp::Tab> _activeTab;
         std::optional<uint32_t> _activePaneId;
+        struct FilterHeaderState
+        {
+            uint32_t TotalSurfaceCount{ 0 };
+            uint32_t AttentionSurfaceCount{ 0 };
+            uint32_t RunningSurfaceCount{ 0 };
+            SidebarFilterMode FilterMode{ SidebarFilterMode::All };
+            bool AnyWorkspaceExpanded{ false };
+            bool ShowEmptyState{ false };
+
+            bool operator==(const FilterHeaderState&) const noexcept = default;
+        };
+
         std::unordered_map<uint32_t, SidebarProcessState> _processStates;
         TerminalApp::WorkspaceSidebarRow _dragRow{ nullptr };
+        std::optional<FilterHeaderState> _lastFilterHeaderState;
 
         void _ApplyLayout();
         void _SetExpandedContentVisibility(Windows::UI::Xaml::Visibility visibility);

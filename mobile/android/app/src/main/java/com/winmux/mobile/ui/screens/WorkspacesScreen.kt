@@ -85,27 +85,33 @@ fun WorkspacesScreen(
     var actionFeedback by remember { mutableStateOf<String?>(null) }
     val expandedOverrides = remember { mutableStateMapOf<String, Boolean>() }
 
-    val totalPanes = snapshot.workspaces.sumOf { it.panes.size }
-    val runningPanes = snapshot.workspaces.sumOf { ws -> ws.panes.count { it.hasActiveChild } }
-    val attentionPanes = snapshot.workspaces.sumOf { ws -> ws.panes.count { it.hasAttention } }
+    val (totalPanes, runningPanes, attentionPanes) = remember(snapshot.workspaces) {
+        Triple(
+            snapshot.workspaces.sumOf { it.panes.size },
+            snapshot.workspaces.sumOf { ws -> ws.panes.count { it.hasActiveChild } },
+            snapshot.workspaces.sumOf { ws -> ws.panes.count { it.hasAttention } },
+        )
+    }
 
-    val queryLower = searchQuery.trim().lowercase()
-    val filteredWorkspaces = snapshot.workspaces.filter { ws ->
-        val matchesFilter = when (filter) {
-            WorkspaceFilter.ALL -> true
-            WorkspaceFilter.RUNNING -> ws.hasRunning
-            WorkspaceFilter.ATTENTION -> ws.hasAttention
-        }
-        val matchesQuery = queryLower.isEmpty() ||
-            ws.title.lowercase().contains(queryLower) ||
-            ws.workingDirectory.lowercase().contains(queryLower) ||
-            ws.gitBranch.lowercase().contains(queryLower) ||
-            ws.panes.any {
-                it.title.lowercase().contains(queryLower) ||
-                    it.activeProcessName.lowercase().contains(queryLower) ||
-                    it.agentKind.lowercase().contains(queryLower)
+    val queryLower = remember(searchQuery) { searchQuery.trim().lowercase() }
+    val filteredWorkspaces = remember(snapshot.workspaces, filter, queryLower) {
+        snapshot.workspaces.filter { ws ->
+            val matchesFilter = when (filter) {
+                WorkspaceFilter.ALL -> true
+                WorkspaceFilter.RUNNING -> ws.hasRunning
+                WorkspaceFilter.ATTENTION -> ws.hasAttention
             }
-        matchesFilter && matchesQuery
+            val matchesQuery = queryLower.isEmpty() ||
+                ws.title.lowercase().contains(queryLower) ||
+                ws.workingDirectory.lowercase().contains(queryLower) ||
+                ws.gitBranch.lowercase().contains(queryLower) ||
+                ws.panes.any {
+                    it.title.lowercase().contains(queryLower) ||
+                        it.activeProcessName.lowercase().contains(queryLower) ||
+                        it.agentKind.lowercase().contains(queryLower)
+                }
+            matchesFilter && matchesQuery
+        }
     }
 
     Scaffold(

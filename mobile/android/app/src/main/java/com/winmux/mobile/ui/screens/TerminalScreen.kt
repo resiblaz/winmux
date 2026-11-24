@@ -50,6 +50,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -57,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -70,8 +72,10 @@ import com.winmux.mobile.model.PermissionsInfo
 import com.winmux.mobile.ui.components.AgentBadgeIcon
 import com.winmux.mobile.ui.components.AnsiTerminalParser
 import com.winmux.mobile.ui.theme.WinmuxColors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private data class QuickKeySpec(
     val label: String,
@@ -141,7 +145,12 @@ fun TerminalScreen(
         }
     }
 
-    val renderedText = remember(screenText) { AnsiTerminalParser.parse(screenText) }
+    // Parse ANSI sequences off the main UI thread so fast AI streaming never drops frames.
+    val renderedText by produceState(initialValue = AnnotatedString(screenText), key1 = screenText) {
+        value = withContext(Dispatchers.Default) {
+            AnsiTerminalParser.parse(screenText)
+        }
+    }
 
     suspend fun loadScreen() {
         runCatching {

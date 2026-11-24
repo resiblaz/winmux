@@ -68,6 +68,7 @@ object WinmuxRepository {
             .put("surfaceId", surfaceId)
             .put("paneId", paneId)
             .put("maxLines", maxLines)
+            .put("supportsDelta", true)
             .toString()
         activeTerminalSubscription = payload
         wsSender?.invoke(payload)
@@ -181,8 +182,14 @@ object WinmuxRepository {
                 if (wsId.isNotBlank() && sfId.isNotBlank() && paneId >= 0) {
                     val key = terminalKey(wsId, sfId, paneId)
                     val updated = LinkedHashMap(_terminalOutputs.value)
-                    updated.remove(key)
-                    updated[key] = obj.optString("text", "")
+                    val prev = updated.remove(key).orEmpty()
+                    val nextText = if (obj.optString("mode") == "append") {
+                        val combined = prev + obj.optString("delta", "")
+                        if (combined.length > 16384) combined.takeLast(16384) else combined
+                    } else {
+                        obj.optString("text", "")
+                    }
+                    updated[key] = nextText
                     while (updated.size > 12) {
                         val oldest = updated.keys.firstOrNull() ?: break
                         updated.remove(oldest)

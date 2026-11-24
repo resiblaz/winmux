@@ -37,6 +37,33 @@ object AnsiTerminalParser {
 
     private val promptRegex = Regex("""^((?:PS\s+[^>]+>|[A-Za-z]:\\[^>]*>|[^\s]+@[^\s]+:[^$#]*[$#])\s*)(.*)$""")
 
+    // Pre-allocated static SpanStyle instances and 256-color table to avoid per-line GC churn.
+    private val defaultFgStyle = SpanStyle(color = defaultFg)
+    private val promptPrefixStyle = SpanStyle(color = Color(0xFF60A5FA), fontWeight = FontWeight.SemiBold)
+    private val promptCmdStyle = SpanStyle(color = Color(0xFFF8FAFC))
+    private val diffHunkStyle = SpanStyle(color = Color(0xFF38BDF8))
+    private val diffAddStyle = SpanStyle(color = Color(0xFF4ADE80), background = Color(0x1A22C55E))
+    private val diffDelStyle = SpanStyle(color = Color(0xFFF87171), background = Color(0x1AEF4444))
+    private val errorStyle = SpanStyle(color = Color(0xFFF87171))
+    private val successStyle = SpanStyle(color = Color(0xFF4ADE80))
+    private val warningStyle = SpanStyle(color = Color(0xFFFBBF24))
+
+    private val palette256: Array<Color> = Array(256) { i ->
+        when {
+            i < 8 -> standardColors[i]
+            i < 16 -> brightColors[i - 8]
+            i < 232 -> {
+                val cube = i - 16
+                val levels = intArrayOf(0, 95, 135, 175, 215, 255)
+                Color(levels[cube / 36], levels[(cube % 36) / 6], levels[cube % 6])
+            }
+            else -> {
+                val gray = 8 + (i - 232) * 10
+                Color(gray, gray, gray)
+            }
+        }
+    }
+
     fun parse(raw: String): AnnotatedString {
         if (raw.isEmpty()) return AnnotatedString("")
         return if (raw.indexOf('\u001B') >= 0) {
@@ -176,59 +203,53 @@ object AnsiTerminalParser {
         flush()
     }
 
-    private fun colorFrom256(idx: Int): Color {
-        val i = idx.coerceIn(0, 255)
-        if (i < 8) return standardColors[i]
-        if (i < 16) return brightColors[i - 8]
-        if (i < 232) {
-            val cube = i - 16
-            val r = cube / 36
-            val g = (cube % 36) / 6
-            val b = cube % 6
-            val levels = intArrayOf(0, 95, 135, 175, 215, 255)
-            return Color(levels[r], levels[g], levels[b])
-        }
-        val gray = 8 + (i - 232) * 10
-        return Color(gray, gray, gray)
-    }
+    private fun colorFrom256(idx: Int): Color = palette256[idx.coerceIn(0, 255)]
 
     private fun highlightPlainTerminal(raw: String): AnnotatedString = buildAnnotatedString {
-        val lines = raw.replace("\r\n", "\n").replace("\r", "\n").split('\n')
-        lines.forEachIndexed { idx, line ->
+        var pos = 0
+        val len = raw.length
+        while (pos <= len) {
+            var end = pos
+            while (end < len && raw[end] != '\n' && raw[end] != '\r') {
+                end++
+            }
+            val line = raw.substring(pos, end)
             val trimmed = line.trimStart()
-            val promptMatch = promptRegex.matchEntire(line)
+            val promptMatch = if (trimmed.isNotEmpty() && (line.contains('>') || line.contains('$') || line.contains('#'))) {
+                promptRegex.matchEntire(line)
+            } else {
+                null
+            }
             when {
                 promptMatch != null -> {
-                    withStyle(SpanStyle(color = Color(0xFF60A5FA), fontWeight = FontWeight.SemiBold)) {
-                        append(promptMatch.groupValues[1])
-                    }
-                    withStyle(SpanStyle(color = Color(0xFFF8FAFC))) {
-                        append(promptMatch.groupValues[2])
-                    }
+                    withStyle(promptPrefixStyle) { append(promptMatch.groupValues[1]) }
+                    withStyle(promptCmdStyle) { append(promptMatch.groupValues[2]) }
                 }
                 trimmed.startsWith("@@") && trimmed.contains("@@") -> {
-                    withStyle(SpanStyle(color = Color(0xFF38BDF8))) { append(line) }
+                    withStyle(diffHunkStyle) { append(line) }
                 }
                 line.startsWith("+") && !line.startsWith("+++") -> {
-                    withStyle(SpanStyle(color = Color(0xFF4ADE80), background = Color(0x1A22C55E))) { append(line) }
+                    withStyle(diffAddStyle) { append(line) }
                 }
                 line.startsWith("-") && !line.startsWith("---") -> {
-                    withStyle(SpanStyle(color = Color(0xFFF87171), background = Color(0x1AEF4444))) { append(line) }
+                    withStyle(diffDelStyle) { append(line) }
                 }
                 containsErrorMarker(trimmed) -> {
-                    withStyle(SpanStyle(color = Color(0xFFF87171))) { append(line) }
+                    withStyle(errorStyle) { append(line) }
                 }
                 containsSuccessMarker(trimmed) -> {
-                    withStyle(SpanStyle(color = Color(0xFF4ADE80))) { append(line) }
+                    withStyle(successStyle) { append(line) }
                 }
                 containsWarningMarker(trimmed) -> {
-                    withStyle(SpanStyle(color = Color(0xFFFBBF24))) { append(line) }
+                    withStyle(warningStyle) { append(line) }
                 }
                 else -> {
-                    withStyle(SpanStyle(color = defaultFg)) { append(line) }
+                    withStyle(defaultFgStyle) { append(line) }
                 }
             }
-            if (idx < lines.lastIndex) append('\n')
+            if (end >= len) break
+            append('\n')
+            pos = if (raw[end] == '\r' && end + 1 < len && raw[end + 1] == '\n') end + 2 else end + 1
         }
     }
 

@@ -8,7 +8,13 @@ import com.winmux.mobile.model.BridgeSnapshot
 import com.winmux.mobile.model.DecisionCard
 import com.winmux.mobile.model.ModelParsers
 import com.winmux.mobile.model.PairedDeviceInfo
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -155,22 +161,64 @@ class WinmuxApiClient {
         if (candidates.isEmpty()) {
             throw IOException("尚未配置电脑端 Bridge 地址")
         }
-        var lastError: Exception? = null
-        for (candidate in candidates) {
+        if (candidates.size == 1) {
+            val only = candidates.first()
             try {
-                val probe = clientForUrl(candidate.baseUrl, config.certFingerprint, probe = true)
-                val req = Request.Builder().url("${candidate.baseUrl}/api/health").get().build()
-                probe.newCall(req).execute().use { res ->
-                    if (res.isSuccessful) {
-                        activeEndpoint = candidate
-                        return@withContext candidate
-                    }
-                }
+                probeEndpoint(only, config.certFingerprint)
+                activeEndpoint = only
+                return@withContext only
             } catch (e: Exception) {
-                lastError = e
+                throw IOException("无法连接电脑端 Winmux Bridge (${e.message ?: "请检查网络或证书指纹"})")
             }
         }
-        throw IOException("无法连接电脑端 Winmux Bridge (${lastError?.message ?: "请检查网络或证书指纹"})")
+
+        // Happy Eyeballs parallel racing: probe LAN immediately and Remote after a 150ms head-start.
+        // On home Wi-Fi, LAN wins in <50ms; on 5G/cellular, Remote wins immediately instead of waiting 2.5s for LAN timeout.
+        val winner = CompletableDeferred<ResolvedEndpoint>()
+        var lastError: Exception? = null
+        coroutineScope {
+            val jobs = candidates.mapIndexed { index, candidate ->
+                launch {
+                    if (index > 0) {
+                        delay(150L)
+                    }
+                    if (winner.isCompleted) return@launch
+                    try {
+                        probeEndpoint(candidate, config.certFingerprint)
+                        if (winner.complete(candidate)) {
+                            activeEndpoint = candidate
+                        }
+                    } catch (e: Exception) {
+                        lastError = e
+                    }
+                }
+            }
+            launch {
+                jobs.forEach { it.join() }
+                if (!winner.isCompleted) {
+                    winner.completeExceptionally(
+                        IOException("无法连接电脑端 Winmux Bridge (${lastError?.message ?: "请检查网络或证书指纹"})")
+                    )
+                }
+            }
+            try {
+                val resolved = winner.await()
+                coroutineContext.cancelChildren()
+                resolved
+            } finally {
+                coroutineContext.cancelChildren()
+            }
+        }
+    }
+
+    private fun probeEndpoint(candidate: ResolvedEndpoint, certFingerprint: String) {
+        val probe = clientForUrl(candidate.baseUrl, certFingerprint, probe = true)
+        val req = Request.Builder().url("${candidate.baseUrl}/api/health").get().build()
+        probe.newCall(req).execute().use { res ->
+            if (!res.isSuccessful) {
+                throw IOException("HTTP ${res.code}")
+            }
+        }
     }
 
     suspend fun pair(

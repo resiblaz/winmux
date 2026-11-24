@@ -9,6 +9,16 @@
 
 namespace winrt::TerminalApp::implementation
 {
+    struct SidebarProcessState
+    {
+        SidebarIconKind Icon{ SidebarIconKind::Terminal };
+        bool HasActiveChild{ false };
+        bool AllowsTitleFallbackWhenIdle{ false };
+        std::wstring ActiveProcessName{};
+
+        bool operator==(const SidebarProcessState&) const noexcept = default;
+    };
+
     struct WorkspaceSidebar : WorkspaceSidebarT<WorkspaceSidebar>
     {
         WorkspaceSidebar();
@@ -28,7 +38,7 @@ namespace winrt::TerminalApp::implementation
 
         void SetWorkspaces(const Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceItemViewModel>& workspaces);
         void SetActiveSelection(const TerminalApp::Tab& activeTab, std::optional<uint32_t> activePaneId);
-        void UpdateProcessIcons(std::unordered_map<uint32_t, SidebarIconKind> processIcons);
+        void UpdateProcessStates(std::unordered_map<uint32_t, SidebarProcessState> processStates);
         void RefreshTree();
         void ScheduleRefreshTree();
         void SetSearchQueryForTests(winrt::hstring query);
@@ -149,7 +159,7 @@ namespace winrt::TerminalApp::implementation
         WorkspaceSidebarTreeModel _treeModel;
         winrt::weak_ref<TerminalApp::Tab> _activeTab;
         std::optional<uint32_t> _activePaneId;
-        std::unordered_map<uint32_t, SidebarIconKind> _processIcons;
+        std::unordered_map<uint32_t, SidebarProcessState> _processStates;
         TerminalApp::WorkspaceSidebarRow _dragRow{ nullptr };
 
         void _ApplyLayout();

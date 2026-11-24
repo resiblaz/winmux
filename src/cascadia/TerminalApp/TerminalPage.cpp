@@ -248,7 +248,7 @@ namespace winrt::TerminalApp::implementation
         });
         _RefreshWorkspaceNotifications();
         _workspaceFeatures->Snapshots().RefreshCache();
-        _SidebarController().ListeningPortsTimer.Interval(3s);
+        _SidebarController().ListeningPortsTimer.Interval(2s);
         _SidebarController().ListeningPortsTimer.Tick([weakThis{ get_weak() }](const auto&, const auto&) {
             if (const auto page = weakThis.get())
             {

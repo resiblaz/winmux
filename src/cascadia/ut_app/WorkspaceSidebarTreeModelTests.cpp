@@ -22,6 +22,7 @@ namespace TerminalAppUnitTests
         TEST_METHOD(CollapseAndExpandAllPreserveManualStateAcrossSearch);
         TEST_METHOD(StatusFiltersAndCountsMatchAttentionAndRunning);
         TEST_METHOD(DetectsTerminalClaudeCodexAndAgyIcons);
+        TEST_METHOD(ExplicitIdleIconOverridesStaleAgentTitle);
         TEST_METHOD(PruneCollapsedRemovesClosedWorkspaces);
 
     private:
@@ -241,6 +242,31 @@ namespace TerminalAppUnitTests
         VERIFY_ARE_EQUAL(static_cast<int>(SidebarIconKind::Agy), static_cast<int>(WorkspaceSidebarTreeModel::DetectIconKind(L"agy")));
         VERIFY_ARE_EQUAL(static_cast<int>(SidebarIconKind::Agy), static_cast<int>(WorkspaceSidebarTreeModel::DetectIconKind(L"agy.exe")));
         VERIFY_ARE_EQUAL(static_cast<int>(SidebarIconKind::Agy), static_cast<int>(WorkspaceSidebarTreeModel::DetectIconKind(L"Antigravity CLI")));
+    }
+
+    void WorkspaceSidebarTreeModelTests::ExplicitIdleIconOverridesStaleAgentTitle()
+    {
+        WorkspaceSidebarTreeModel model;
+        SidebarWorkspaceInput ws{};
+        ws.WorkspaceId = _makeGuid(50);
+        ws.Title = L"Agent Workspace";
+        ws.IsSelected = true;
+
+        // When a live native shell exits claude back to prompt, UseExplicitIcon=true keeps Terminal
+        // even if the terminal title still says "claude".
+        SidebarSurfaceInput sf{};
+        sf.SurfaceId = _makeGuid(501);
+        sf.Title = L"claude";
+        sf.Icon = SidebarIconKind::Terminal;
+        sf.UseExplicitIcon = true;
+        sf.Panes.push_back(SidebarPaneInput{ 0, L"claude", true, false, false, SidebarIconKind::Terminal, true });
+        ws.Surfaces.push_back(std::move(sf));
+
+        model.SetSelectedWorkspace(ws.WorkspaceId);
+        const auto proj = model.Project({ ws });
+        VERIFY_ARE_EQUAL(size_t{ 2 }, proj.Nodes.size());
+        VERIFY_ARE_EQUAL(static_cast<int>(SidebarIconKind::Terminal), static_cast<int>(proj.Nodes[1].Icon));
+        VERIFY_ARE_EQUAL(static_cast<int>(SidebarStatusKind::Idle), static_cast<int>(proj.Nodes[1].Status));
     }
 
     void WorkspaceSidebarTreeModelTests::PruneCollapsedRemovesClosedWorkspaces()

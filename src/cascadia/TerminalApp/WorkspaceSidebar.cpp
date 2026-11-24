@@ -72,9 +72,29 @@ namespace winrt::TerminalApp::implementation
             return 0;
         }
 
+        bool _containsIgnoreCase(const std::wstring_view haystack, const std::wstring_view needle)
+        {
+            if (needle.empty() || haystack.size() < needle.size())
+            {
+                return false;
+            }
+            auto lower = [](const std::wstring_view text) {
+                std::wstring out{ text };
+                for (auto& ch : out)
+                {
+                    if (ch >= L'A' && ch <= L'Z')
+                    {
+                        ch = static_cast<wchar_t>(ch - L'A' + L'a');
+                    }
+                }
+                return out;
+            };
+            return lower(haystack).find(lower(needle)) != std::wstring::npos;
+        }
+
         std::vector<SidebarPaneInput> _collectLeafPanes(const winrt::com_ptr<Tab>& tabImpl,
                                                         const std::optional<uint32_t> activePaneId,
-                                                        const std::unordered_map<uint32_t, SidebarIconKind>& processIcons)
+                                                        const std::unordered_map<uint32_t, SidebarProcessState>& processStates)
         {
             std::vector<SidebarPaneInput> panes;
             if (!tabImpl || !tabImpl->GetRootPane())
@@ -106,14 +126,35 @@ namespace winrt::TerminalApp::implementation
                 entry.HasAttention = pane->HasAttention();
                 const auto state = content.TaskbarState();
                 entry.IsRunning = state == 1 || state == 3;
+                bool hasLiveProcessState = false;
+                bool allowTitleFallback = true;
                 if (const auto rootPid = _rootProcessIdForPane(pane); rootPid != 0)
                 {
-                    if (const auto it = processIcons.find(rootPid); it != processIcons.end())
+                    if (const auto it = processStates.find(rootPid); it != processStates.end())
                     {
-                        entry.Icon = it->second;
+                        hasLiveProcessState = true;
+                        const auto& procState = it->second;
+                        if (procState.HasActiveChild)
+                        {
+                            entry.IsRunning = true;
+                            entry.ActiveProcessName = procState.ActiveProcessName;
+                        }
+                        if (procState.Icon != SidebarIconKind::Terminal)
+                        {
+                            entry.Icon = procState.Icon;
+                            entry.UseExplicitIcon = true;
+                            allowTitleFallback = false;
+                        }
+                        else if (!procState.HasActiveChild && !procState.AllowsTitleFallbackWhenIdle)
+                        {
+                            // Native Windows shell confirmed idle at prompt: revert stale agent title icons to Terminal.
+                            entry.Icon = SidebarIconKind::Terminal;
+                            entry.UseExplicitIcon = true;
+                            allowTitleFallback = false;
+                        }
                     }
                 }
-                if (entry.Icon == SidebarIconKind::Terminal)
+                if (allowTitleFallback && (!hasLiveProcessState || entry.Icon == SidebarIconKind::Terminal))
                 {
                     entry.Icon = WorkspaceSidebarTreeModel::DetectIconKind(entry.Title);
                 }
@@ -273,13 +314,13 @@ namespace winrt::TerminalApp::implementation
         RefreshTree();
     }
 
-    void WorkspaceSidebar::UpdateProcessIcons(std::unordered_map<uint32_t, SidebarIconKind> processIcons)
+    void WorkspaceSidebar::UpdateProcessStates(std::unordered_map<uint32_t, SidebarProcessState> processStates)
     {
-        if (_processIcons == processIcons)
+        if (_processStates == processStates)
         {
             return;
         }
-        _processIcons = std::move(processIcons);
+        _processStates = std::move(processStates);
         ScheduleRefreshTree();
     }
 
@@ -489,9 +530,19 @@ namespace winrt::TerminalApp::implementation
                 sfInput.IsActive = isCurrentSurface;
                 sfInput.IsRunning = _isTabRunning(surface);
                 sfInput.IsVimActive = _isTabVimActive(tabImpl);
-                sfInput.Panes = _collectLeafPanes(tabImpl, isCurrentSurface ? _activePaneId : std::nullopt, _processIcons);
+                sfInput.Panes = _collectLeafPanes(tabImpl, isCurrentSurface ? _activePaneId : std::nullopt, _processStates);
+
+                bool allPanesUseExplicitIcon = !sfInput.Panes.empty();
+                std::wstring surfaceActiveProcess;
+                SidebarIconKind activePaneIcon = SidebarIconKind::Terminal;
+                SidebarIconKind firstAgentIcon = SidebarIconKind::Terminal;
+
                 for (const auto& pane : sfInput.Panes)
                 {
+                    if (!pane.UseExplicitIcon)
+                    {
+                        allPanesUseExplicitIcon = false;
+                    }
                     if (pane.HasAttention)
                     {
                         sfInput.HasAttention = true;
@@ -500,14 +551,38 @@ namespace winrt::TerminalApp::implementation
                     {
                         sfInput.IsRunning = true;
                     }
-                    if (sfInput.Icon == SidebarIconKind::Terminal && pane.Icon != SidebarIconKind::Terminal)
+                    if (pane.IsActive && pane.Icon != SidebarIconKind::Terminal)
                     {
-                        sfInput.Icon = pane.Icon;
+                        activePaneIcon = pane.Icon;
+                    }
+                    if (firstAgentIcon == SidebarIconKind::Terminal && pane.Icon != SidebarIconKind::Terminal)
+                    {
+                        firstAgentIcon = pane.Icon;
+                    }
+                    if (pane.IsActive && !pane.ActiveProcessName.empty())
+                    {
+                        surfaceActiveProcess = pane.ActiveProcessName;
+                    }
+                    else if (surfaceActiveProcess.empty() && !pane.ActiveProcessName.empty())
+                    {
+                        surfaceActiveProcess = pane.ActiveProcessName;
                     }
                 }
-                if (sfInput.Icon == SidebarIconKind::Terminal)
+
+                sfInput.Icon = activePaneIcon != SidebarIconKind::Terminal ? activePaneIcon : firstAgentIcon;
+                if (sfInput.Icon != SidebarIconKind::Terminal || allPanesUseExplicitIcon)
+                {
+                    sfInput.UseExplicitIcon = true;
+                }
+                else
                 {
                     sfInput.Icon = WorkspaceSidebarTreeModel::DetectIconKind(sfInput.Title);
+                }
+                if (sfInput.Subtitle.empty() &&
+                    !surfaceActiveProcess.empty() &&
+                    !_containsIgnoreCase(sfInput.Title, surfaceActiveProcess))
+                {
+                    sfInput.Subtitle = std::move(surfaceActiveProcess);
                 }
                 wsInput.Surfaces.emplace_back(std::move(sfInput));
             }

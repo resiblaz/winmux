@@ -147,6 +147,10 @@ namespace winrt::TerminalApp::implementation
         {
             winrt::get_self<WorkspaceItemViewModel>(item)->UpdateListeningPorts({});
         }
+        if (_workspaceSidebar)
+        {
+            winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar)->UpdateProcessStates({});
+        }
     }
 
     void TerminalPage::_RefreshWorkspaceListeningPorts()
@@ -212,6 +216,10 @@ namespace winrt::TerminalApp::implementation
             {
                 winrt::get_self<WorkspaceItemViewModel>(item)->UpdateListeningPorts({});
             }
+            if (_workspaceSidebar)
+            {
+                winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar)->UpdateProcessStates({});
+            }
             return;
         }
 
@@ -262,25 +270,21 @@ namespace winrt::TerminalApp::implementation
 
                 if (page->_workspaceSidebar)
                 {
-                    std::unordered_map<uint32_t, SidebarIconKind> processIcons;
-                    for (const auto& [rootPid, exeNames] : snapshot.ProcessNames)
+                    std::unordered_map<uint32_t, SidebarProcessState> processStates;
+                    processStates.reserve(snapshot.ProcessActivities.size());
+                    for (const auto& [rootPid, activity] : snapshot.ProcessActivities)
                     {
-                        auto detected = SidebarIconKind::Terminal;
-                        for (const auto& exeName : exeNames)
+                        SidebarProcessState state{};
+                        state.HasActiveChild = activity.HasActiveChild;
+                        state.AllowsTitleFallbackWhenIdle = activity.AllowsTitleFallbackWhenIdle;
+                        state.ActiveProcessName = activity.ActiveProcessName;
+                        if (!activity.ActiveProcessName.empty())
                         {
-                            const auto candidate = WorkspaceSidebarTreeModel::DetectIconKind(exeName);
-                            if (candidate != SidebarIconKind::Terminal)
-                            {
-                                detected = candidate;
-                                break;
-                            }
+                            state.Icon = WorkspaceSidebarTreeModel::DetectIconKind(activity.ActiveProcessName);
                         }
-                        if (detected != SidebarIconKind::Terminal)
-                        {
-                            processIcons.emplace(rootPid, detected);
-                        }
+                        processStates.emplace(rootPid, std::move(state));
                     }
-                    winrt::get_self<implementation::WorkspaceSidebar>(page->_workspaceSidebar)->UpdateProcessIcons(std::move(processIcons));
+                    winrt::get_self<implementation::WorkspaceSidebar>(page->_workspaceSidebar)->UpdateProcessStates(std::move(processStates));
                 }
             }
 

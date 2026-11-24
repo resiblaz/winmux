@@ -49,6 +49,8 @@ namespace winrt::TerminalApp::implementation
         bool HasAttention{};
         bool IsRunning{};
         SidebarIconKind Icon{ SidebarIconKind::Terminal };
+        bool UseExplicitIcon{};
+        std::wstring ActiveProcessName;
     };
 
     struct SidebarSurfaceInput
@@ -63,6 +65,7 @@ namespace winrt::TerminalApp::implementation
         bool IsVimActive{};
         SidebarIconKind Icon{ SidebarIconKind::Terminal };
         std::vector<SidebarPaneInput> Panes;
+        bool UseExplicitIcon{};
     };
 
     struct SidebarWorkspaceInput
@@ -373,14 +376,16 @@ namespace winrt::TerminalApp::implementation
                     const auto sfRunning = _surfaceIsRunning(sf);
 
                     auto sfIcon = sf.Icon;
-                    if (sfIcon == SidebarIconKind::Terminal)
+                    if (!sf.UseExplicitIcon && sfIcon == SidebarIconKind::Terminal)
                     {
                         sfIcon = DetectIconKind(sf.Title);
                         if (sfIcon == SidebarIconKind::Terminal)
                         {
                             for (const auto& pane : sf.Panes)
                             {
-                                const auto paneIcon = pane.Icon != SidebarIconKind::Terminal ? pane.Icon : DetectIconKind(pane.Title);
+                                const auto paneIcon = (pane.UseExplicitIcon || pane.Icon != SidebarIconKind::Terminal) ?
+                                                          pane.Icon :
+                                                          DetectIconKind(pane.Title);
                                 if (paneIcon != SidebarIconKind::Terminal)
                                 {
                                     sfIcon = paneIcon;
@@ -410,7 +415,9 @@ namespace winrt::TerminalApp::implementation
                         for (size_t paneIndex = 0; paneIndex < sf.Panes.size(); ++paneIndex)
                         {
                             const auto& pane = sf.Panes[paneIndex];
-                            const auto paneIcon = pane.Icon != SidebarIconKind::Terminal ? pane.Icon : DetectIconKind(pane.Title);
+                            const auto paneIcon = (pane.UseExplicitIcon || pane.Icon != SidebarIconKind::Terminal) ?
+                                                      pane.Icon :
+                                                      DetectIconKind(pane.Title);
 
                             SidebarProjectedNode paneNode{};
                             paneNode.Kind = SidebarNodeKind::Pane;

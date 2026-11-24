@@ -10,13 +10,18 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -238,13 +243,14 @@ fun TerminalScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(WinmuxColors.Bg)
-            .imePadding(),
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)),
     ) {
-        // Top bar
+        // Top bar (extends dark surface seamlessly behind system status bar while keeping controls below it)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(WinmuxColors.Surface)
+                .statusBarsPadding()
                 .padding(horizontal = 4.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -298,10 +304,10 @@ fun TerminalScreen(
                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
                 )
             }
-            IconButton(onClick = { showAgentActions = true }) {
+            IconButton(onClick = { showAgentActions = true }, modifier = Modifier.size(38.dp)) {
                 Icon(Icons.Default.Tune, contentDescription = "模型、指令与分屏", tint = WinmuxColors.Accent)
             }
-            IconButton(onClick = { scope.launch { loadScreen() } }) {
+            IconButton(onClick = { scope.launch { loadScreen() } }, modifier = Modifier.size(38.dp)) {
                 Icon(Icons.Default.Refresh, contentDescription = "刷新", tint = WinmuxColors.TextSecondary)
             }
         }

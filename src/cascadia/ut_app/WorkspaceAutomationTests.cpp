@@ -39,6 +39,11 @@ namespace TerminalAppUnitTests
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::List), static_cast<int>(list.Request->Method));
         VERIFY_IS_FALSE(list.Request->WorkspaceId.has_value());
 
+        const auto snapshot = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"snap-1","method":"workspace.snapshot","params":{}})");
+        VERIFY_IS_TRUE(static_cast<bool>(snapshot));
+        VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::Snapshot), static_cast<int>(snapshot.Request->Method));
+        VERIFY_IS_FALSE(snapshot.Request->WorkspaceId.has_value());
+
         const auto select = WorkspaceAutomationProtocol::ParseRequest(R"({"version":1,"id":"select-1","method":"workspace.select","params":{"id":"01020304-0506-0708-090a-0b0c0d0e0f10"}})");
         VERIFY_IS_TRUE(static_cast<bool>(select));
         VERIFY_ARE_EQUAL(static_cast<int>(WorkspaceAutomationMethod::Select), static_cast<int>(select.Request->Method));

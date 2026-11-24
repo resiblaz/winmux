@@ -11,6 +11,7 @@ namespace winrt::TerminalApp::implementation
     enum class WorkspaceAutomationMethod
     {
         List,
+        Snapshot,
         Select,
         Create,
         Close,

@@ -448,6 +448,58 @@ namespace winrt::TerminalApp::implementation
             result.Insert(L"workspaces", workspaces);
             return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
         }
+        case WorkspaceAutomationMethod::Snapshot:
+        {
+            // Single-IPC atomic snapshot: returns every workspace together with its panes
+            // and live child-process metadata, eliminating N+1 Named Pipe round-trips.
+            JsonArray workspaces;
+            for (uint32_t index = 0; index < _workspaceItems.Size(); ++index)
+            {
+                const auto item = _workspaceItems.GetAt(index);
+                const auto itemImpl = winrt::get_self<WorkspaceItemViewModel>(item);
+                const auto activeTab = item.SourceTab();
+                const auto activeTabImpl = _GetTabImpl(activeTab);
+                const auto activePane = activeTabImpl ? activeTabImpl->GetActivePane() : nullptr;
+
+                JsonArray panes;
+                for (const auto& surface : item.Surfaces())
+                {
+                    if (const auto tabImpl = _GetTabImpl(surface); tabImpl && tabImpl->GetRootPane())
+                    {
+                        const auto surfaceId = itemImpl->SurfaceIdForTab(surface);
+                        tabImpl->GetRootPane()->WalkTree([&](const auto& pane) {
+                            if (pane->Id())
+                            {
+                                panes.Append(paneJson(pane, surfaceId, surface == activeTab && pane == activePane));
+                            }
+                        });
+                    }
+                }
+
+                auto wsObj = workspaceJson(item, index);
+                wsObj.Insert(L"activeSurfaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(itemImpl->SurfaceIdForTab(activeTab))));
+                if (activePane && activePane->Id())
+                {
+                    wsObj.Insert(L"activePaneId", JsonValue::CreateNumberValue(activePane->Id().value()));
+                }
+                else
+                {
+                    wsObj.Insert(L"activePaneId", JsonValue::CreateNullValue());
+                }
+                wsObj.Insert(L"panes", panes);
+                workspaces.Append(wsObj);
+            }
+
+            JsonObject result;
+            result.Insert(L"windowId", JsonValue::CreateStringValue(winrt::to_hstring(_WindowProperties.WindowId())));
+            result.Insert(L"pipe", JsonValue::CreateStringValue(_server ? _server->PipeName() : std::wstring_view{}));
+            JsonObject permissions;
+            permissions.Insert(L"sendInput", JsonValue::CreateBooleanValue(_currentWindowSettings().WorkspaceAutomationAllowInput()));
+            permissions.Insert(L"readContent", JsonValue::CreateBooleanValue(_currentWindowSettings().WorkspaceAutomationAllowContentRead()));
+            result.Insert(L"permissions", permissions);
+            result.Insert(L"workspaces", workspaces);
+            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
+        }
         case WorkspaceAutomationMethod::Select:
         {
             const auto index = findWorkspace(request.WorkspaceId.value());

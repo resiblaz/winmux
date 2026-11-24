@@ -90,6 +90,7 @@ class WinmuxConnectionService : Service() {
                         token = cfg.token,
                         listener = object : WebSocketListener() {
                             override fun onOpen(webSocket: WebSocket, response: Response) {
+                                WinmuxRepository.attachWebSocketSender { msg -> webSocket.send(msg) }
                                 WinmuxRepository.setConnectionState(
                                     ConnectionState.Connected(endpoint.label, endpoint.baseUrl),
                                 )
@@ -101,15 +102,18 @@ class WinmuxConnectionService : Service() {
                             }
 
                             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                                WinmuxRepository.attachWebSocketSender(null)
                                 webSocket.close(1000, null)
                                 wsClosedSignal.set(true)
                             }
 
                             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                                WinmuxRepository.attachWebSocketSender(null)
                                 wsClosedSignal.set(true)
                             }
 
                             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                                WinmuxRepository.attachWebSocketSender(null)
                                 WinmuxRepository.setConnectionState(
                                     ConnectionState.Error(t.message ?: "连接已断开，准备重连"),
                                 )

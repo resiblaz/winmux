@@ -41,6 +41,44 @@ object WinmuxRepository {
     private val _models = MutableStateFlow(AllModelsConfig())
     val models: StateFlow<AllModelsConfig> = _models.asStateFlow()
 
+    private val _terminalOutputs = MutableStateFlow<Map<String, String>>(emptyMap())
+    val terminalOutputs: StateFlow<Map<String, String>> = _terminalOutputs.asStateFlow()
+
+    @Volatile
+    private var wsSender: ((String) -> Boolean)? = null
+
+    @Volatile
+    private var activeTerminalSubscription: String? = null
+
+    fun attachWebSocketSender(sender: ((String) -> Boolean)?) {
+        wsSender = sender
+        // Re-subscribe active terminal stream automatically after WebSocket reconnect.
+        activeTerminalSubscription?.let { payload ->
+            sender?.invoke(payload)
+        }
+    }
+
+    fun subscribeTerminal(workspaceId: String, surfaceId: String, paneId: Int, maxLines: Int = 120) {
+        val payload = JSONObject()
+            .put("type", "terminal.subscribe")
+            .put("workspaceId", workspaceId)
+            .put("surfaceId", surfaceId)
+            .put("paneId", paneId)
+            .put("maxLines", maxLines)
+            .toString()
+        activeTerminalSubscription = payload
+        wsSender?.invoke(payload)
+    }
+
+    fun unsubscribeTerminal() {
+        activeTerminalSubscription = null
+        val payload = JSONObject().put("type", "terminal.unsubscribe").toString()
+        wsSender?.invoke(payload)
+    }
+
+    fun terminalKey(workspaceId: String, surfaceId: String, paneId: Int): String =
+        "$workspaceId:$surfaceId:$paneId"
+
     fun initialize(context: Context) {
         if (::appContext.isInitialized) return
         appContext = context.applicationContext
@@ -130,6 +168,17 @@ object WinmuxRepository {
                 val note = ModelParsers.parseNotification(noteObj)
                 _notifications.value = (listOf(note) + _notifications.value).take(50)
                 NotificationHelper.showEventNotification(appContext, note)
+            }
+            "terminal.output" -> {
+                val wsId = obj.optString("workspaceId")
+                val sfId = obj.optString("surfaceId")
+                val paneId = obj.optInt("paneId", -1)
+                if (wsId.isNotBlank() && sfId.isNotBlank() && paneId >= 0) {
+                    val key = terminalKey(wsId, sfId, paneId)
+                    val updated = _terminalOutputs.value.toMutableMap()
+                    updated[key] = obj.optString("text", "")
+                    _terminalOutputs.value = updated
+                }
             }
         }
     }

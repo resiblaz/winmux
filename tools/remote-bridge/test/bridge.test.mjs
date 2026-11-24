@@ -14,6 +14,8 @@ function startMockWinmuxPipe() {
     sentInputs: [],
     focused: [],
     createdWorkspaces: 0,
+    snapshotCalls: 0,
+    paneListCalls: 0,
     workspaces: [
       {
         id: '11111111-2222-4333-8444-555555555555',
@@ -58,7 +60,20 @@ function startMockWinmuxPipe() {
       if (idx < 0) return;
       const req = JSON.parse(buf.slice(0, idx));
       let result = {};
-      if (req.method === 'workspace.list') {
+      if (req.method === 'workspace.snapshot') {
+        state.snapshotCalls++;
+        result = {
+          windowId: '1',
+          pipe: pipeName,
+          permissions: { sendInput: true, readContent: true },
+          workspaces: state.workspaces.map((ws) => ({
+            ...ws,
+            activeSurfaceId: (state.panesByWorkspace[ws.id] || [])[0]?.surfaceId || '',
+            activePaneId: (state.panesByWorkspace[ws.id] || [])[0]?.id ?? null,
+            panes: state.panesByWorkspace[ws.id] || [],
+          })),
+        };
+      } else if (req.method === 'workspace.list') {
         result = {
           windowId: '1',
           pipe: pipeName,
@@ -66,6 +81,7 @@ function startMockWinmuxPipe() {
           workspaces: state.workspaces,
         };
       } else if (req.method === 'pane.list') {
+        state.paneListCalls++;
         result = {
           workspaceId: req.params.workspaceId,
           panes: state.panesByWorkspace[req.params.workspaceId] || [],
@@ -143,7 +159,7 @@ test('pairing, Winmux Named Pipe snapshot/control, WebSocket push, and blocking 
     });
     assert.equal(replayRes.status, 401);
 
-    // 4. Snapshot returns real workspace + live child-process agent metadata.
+    // 4. Snapshot uses single-IPC workspace.snapshot (0 pane.list calls during snapshot!).
     const snapRes = await fetch(`${baseUrl}/api/snapshot`, { headers: authHeaders });
     assert.equal(snapRes.status, 200);
     const snapBody = await snapRes.json();
@@ -151,6 +167,8 @@ test('pairing, Winmux Named Pipe snapshot/control, WebSocket push, and blocking 
     assert.equal(snapBody.snapshot.workspaces.length, 1);
     assert.equal(snapBody.snapshot.workspaces[0].panes[0].agentKind, 'claude');
     assert.equal(snapBody.snapshot.workspaces[0].panes[0].hasActiveChild, true);
+    assert.ok(mockPipe.state.snapshotCalls >= 1);
+    assert.equal(mockPipe.state.paneListCalls, 0);
 
     // 5. Read terminal content & send input over Winmux Named Pipe.
     const readRes = await fetch(
@@ -257,6 +275,28 @@ test('pairing, Winmux Named Pipe snapshot/control, WebSocket push, and blocking 
     });
     assert.equal(actionRes.status, 200);
     assert.equal(mockPipe.state.sentInputs.at(-1).text, '/model opus\r');
+
+    // 9. WebSocket terminal.subscribe pushes live terminal output without HTTP polling!
+    ws.send(JSON.stringify({
+      type: 'terminal.subscribe',
+      workspaceId: '11111111-2222-4333-8444-555555555555',
+      surfaceId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+      paneId: 0,
+      maxLines: 80,
+    }));
+    for (let i = 0; i < 40 && !wsEvents.some((e) => e.type === 'terminal.output'); i++) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    const termOut = wsEvents.find((e) => e.type === 'terminal.output');
+    assert.ok(termOut, 'WebSocket client should receive terminal.output on subscribe');
+    assert.match(termOut.text, /Ready for your prompt/);
+
+    // 10. Decision history persists to disk across Bridge restarts.
+    const persistedPath = path.join(tempDir, 'decisions.json');
+    assert.ok(fs.existsSync(persistedPath), 'decisions.json should be persisted on disk');
+    const persisted = JSON.parse(fs.readFileSync(persistedPath, 'utf8'));
+    assert.equal(persisted.decisions.length, 1);
+    assert.equal(persisted.decisions[0].status, 'resolved');
 
     ws.close();
   } finally {

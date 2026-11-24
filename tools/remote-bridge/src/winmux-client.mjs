@@ -130,6 +130,57 @@ export class WinmuxClient {
   }
 
   async getSnapshot() {
+    const mapPane = (p) => ({
+      id: p.id,
+      surfaceId: p.surfaceId,
+      active: Boolean(p.active),
+      connectionClosed: Boolean(p.connectionClosed),
+      hasAttention: Boolean(p.hasAttention),
+      title: p.title || 'Terminal',
+      readOnly: Boolean(p.readOnly),
+      profile: p.profile || '',
+      workingDirectory: p.workingDirectory || '',
+      rootProcessId: p.rootProcessId ?? 0,
+      hasActiveChild: Boolean(p.hasActiveChild),
+      activeProcessName: p.activeProcessName || '',
+      agentKind: p.agentKind || 'terminal',
+    });
+
+    // Prefer single-IPC atomic workspace.snapshot (eliminates N+1 Named Pipe round-trips).
+    try {
+      const snapResult = await this.call('workspace.snapshot', {});
+      const rawWorkspaces = Array.isArray(snapResult.workspaces) ? snapResult.workspaces : [];
+      return {
+        connected: true,
+        windowId: snapResult.windowId || '',
+        permissions: {
+          sendInput: Boolean(snapResult.permissions?.sendInput),
+          readContent: Boolean(snapResult.permissions?.readContent),
+        },
+        workspaces: rawWorkspaces.map((ws) => ({
+          id: ws.id,
+          index: ws.index ?? 0,
+          title: ws.title || 'Workspace',
+          selected: Boolean(ws.selected),
+          pinned: Boolean(ws.pinned),
+          surfaceCount: ws.surfaceCount ?? 0,
+          unreadCount: ws.unreadCount ?? 0,
+          workingDirectory: ws.workingDirectory || '',
+          gitBranch: ws.gitBranch || '',
+          listeningPorts: Array.isArray(ws.listeningPorts) ? ws.listeningPorts : [],
+          activeSurfaceId: ws.activeSurfaceId || '',
+          activePaneId: ws.activePaneId ?? null,
+          panes: Array.isArray(ws.panes) ? ws.panes.map(mapPane) : [],
+        })),
+        updatedAt: Date.now(),
+      };
+    } catch (err) {
+      if (err?.code !== 'method_not_found') {
+        throw err;
+      }
+    }
+
+    // Fallback for older Winmux builds without workspace.snapshot.
     const listResult = await this.call('workspace.list', {});
     const rawWorkspaces = Array.isArray(listResult.workspaces) ? listResult.workspaces : [];
     const workspaces = [];
@@ -160,21 +211,7 @@ export class WinmuxClient {
         listeningPorts: Array.isArray(ws.listeningPorts) ? ws.listeningPorts : [],
         activeSurfaceId,
         activePaneId,
-        panes: panes.map((p) => ({
-          id: p.id,
-          surfaceId: p.surfaceId,
-          active: Boolean(p.active),
-          connectionClosed: Boolean(p.connectionClosed),
-          hasAttention: Boolean(p.hasAttention),
-          title: p.title || 'Terminal',
-          readOnly: Boolean(p.readOnly),
-          profile: p.profile || '',
-          workingDirectory: p.workingDirectory || '',
-          rootProcessId: p.rootProcessId ?? 0,
-          hasActiveChild: Boolean(p.hasActiveChild),
-          activeProcessName: p.activeProcessName || '',
-          agentKind: p.agentKind || 'terminal',
-        })),
+        panes: panes.map(mapPane),
       });
     }
 

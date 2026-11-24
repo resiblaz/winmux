@@ -93,6 +93,10 @@ export class AgentInspector {
     this.claudeDir = options.claudeDir || path.join(home, '.claude');
     this.codexDir = options.codexDir || path.join(home, '.codex');
     this.agyDir = options.agyDir || path.join(home, '.gemini', 'antigravity-cli');
+    this.usageCacheTtlMs = options.usageCacheTtlMs ?? 5000;
+    this._fileCache = new Map(); // path -> { mtimeMs, size, parsed }
+    this._lastUsageSummary = null;
+    this._lastUsageAt = 0;
   }
 
   getModelsConfig() {
@@ -158,13 +162,34 @@ export class AgentInspector {
     throw err;
   }
 
-  getUsageSummary() {
-    return {
+  getUsageSummary({ force = false } = {}) {
+    const now = Date.now();
+    if (!force && this._lastUsageSummary && this.usageCacheTtlMs > 0 && now - this._lastUsageAt < this.usageCacheTtlMs) {
+      return this._lastUsageSummary;
+    }
+    const summary = {
       claude: this._readClaudeUsage(),
       codex: this._readCodexUsage(),
       agy: this._readAgyUsage(),
-      updatedAt: Date.now(),
+      updatedAt: now,
     };
+    this._lastUsageSummary = summary;
+    this._lastUsageAt = now;
+    return summary;
+  }
+
+  _getCachedFileParse(file, parser) {
+    const cached = this._fileCache.get(file.path);
+    if (cached && cached.mtimeMs === file.mtimeMs && cached.size === file.size) {
+      return cached.parsed;
+    }
+    const parsed = parser(file);
+    this._fileCache.set(file.path, { mtimeMs: file.mtimeMs, size: file.size, parsed });
+    if (this._fileCache.size > 256) {
+      const oldestKey = this._fileCache.keys().next().value;
+      if (oldestKey) this._fileCache.delete(oldestKey);
+    }
+    return parsed;
   }
 
   _readClaudeModelConfig() {
@@ -285,57 +310,59 @@ export class AgentInspector {
     let latestSession = null;
 
     for (const file of files) {
-      const lines = readTailLines(file.path, 512 * 1024);
-      let sessionTokens = 0;
-      let sessionModel = '';
-      let sessionUpdatedAt = file.mtimeMs;
-      let sessionTurns = 0;
-
-      for (const line of lines) {
-        if (!line || !line.includes('"usage"')) continue;
-        let obj;
-        try {
-          obj = JSON.parse(line);
-        } catch {
-          continue;
+      const parsed = this._getCachedFileParse(file, (f) => {
+        const lines = readTailLines(f.path, 512 * 1024);
+        const entries = [];
+        let sessionModel = '';
+        let sessionUpdatedAt = f.mtimeMs;
+        for (const line of lines) {
+          if (!line || !line.includes('"usage"')) continue;
+          let obj;
+          try {
+            obj = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          const usage = obj?.message?.usage;
+          if (!usage || typeof usage !== 'object') continue;
+          const input = Number(usage.input_tokens || 0);
+          const output = Number(usage.output_tokens || 0);
+          const cacheRead = Number(usage.cache_read_input_tokens || 0);
+          const cacheWrite = Number(usage.cache_creation_input_tokens || 0);
+          const ts = parseTimestampMs(obj.timestamp, f.mtimeMs);
+          if (obj?.message?.model) sessionModel = String(obj.message.model);
+          if (ts > sessionUpdatedAt) sessionUpdatedAt = ts;
+          entries.push({ input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite, ts });
         }
-        const usage = obj?.message?.usage;
-        if (!usage || typeof usage !== 'object') continue;
-        const input = Number(usage.input_tokens || 0);
-        const output = Number(usage.output_tokens || 0);
-        const cacheRead = Number(usage.cache_read_input_tokens || 0);
-        const cacheWrite = Number(usage.cache_creation_input_tokens || 0);
-        const total = input + output + cacheRead + cacheWrite;
-        const ts = parseTimestampMs(obj.timestamp, file.mtimeMs);
+        return { entries, sessionModel, sessionUpdatedAt };
+      });
 
-        week.inputTokens += input;
-        week.outputTokens += output;
-        week.cacheReadTokens += cacheRead;
-        week.cacheWriteTokens += cacheWrite;
-        week.totalTokens += total;
+      let sessionTokens = 0;
+      for (const e of parsed.entries) {
+        week.inputTokens += e.input;
+        week.outputTokens += e.output;
+        week.cacheReadTokens += e.cacheRead;
+        week.cacheWriteTokens += e.cacheWrite;
+        week.totalTokens += e.total;
         week.turns += 1;
 
-        if (ts >= todayStart) {
-          today.inputTokens += input;
-          today.outputTokens += output;
-          today.cacheReadTokens += cacheRead;
-          today.cacheWriteTokens += cacheWrite;
-          today.totalTokens += total;
+        if (e.ts >= todayStart) {
+          today.inputTokens += e.input;
+          today.outputTokens += e.output;
+          today.cacheReadTokens += e.cacheRead;
+          today.cacheWriteTokens += e.cacheWrite;
+          today.totalTokens += e.total;
           today.turns += 1;
         }
-
-        sessionTokens += total;
-        sessionTurns += 1;
-        if (obj?.message?.model) sessionModel = String(obj.message.model);
-        if (ts > sessionUpdatedAt) sessionUpdatedAt = ts;
+        sessionTokens += e.total;
       }
 
-      if (!latestSession && sessionTurns > 0) {
+      if (!latestSession && parsed.entries.length > 0) {
         latestSession = {
-          model: sessionModel || modelCfg.currentModel,
+          model: parsed.sessionModel || modelCfg.currentModel,
           totalTokens: sessionTokens,
-          turns: sessionTurns,
-          updatedAt: sessionUpdatedAt,
+          turns: parsed.entries.length,
+          updatedAt: parsed.sessionUpdatedAt,
         };
       }
     }
@@ -363,34 +390,39 @@ export class AgentInspector {
     let latestRateLimits = null;
 
     for (const file of files) {
-      const lines = readTailLines(file.path, 512 * 1024);
-      let lastUsage = null;
-      let contextWindow = 0;
-      let sessionRateLimits = null;
-      let lastTs = file.mtimeMs;
+      const parsed = this._getCachedFileParse(file, (f) => {
+        const lines = readTailLines(f.path, 512 * 1024);
+        let lastUsage = null;
+        let contextWindow = 0;
+        let sessionRateLimits = null;
+        let lastTs = f.mtimeMs;
 
-      for (const line of lines) {
-        if (!line || (!line.includes('"token_count"') && !line.includes('"rate_limits"'))) continue;
-        let obj;
-        try {
-          obj = JSON.parse(line);
-        } catch {
-          continue;
+        for (const line of lines) {
+          if (!line || (!line.includes('"token_count"') && !line.includes('"rate_limits"'))) continue;
+          let obj;
+          try {
+            obj = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          const payload = obj?.payload;
+          if (!payload || payload.type !== 'token_count') continue;
+          const ts = parseTimestampMs(obj.timestamp, f.mtimeMs);
+          if (ts > lastTs) lastTs = ts;
+          if (payload.info?.total_token_usage) {
+            lastUsage = payload.info.total_token_usage;
+          }
+          if (payload.info?.model_context_window) {
+            contextWindow = Number(payload.info.model_context_window || 0);
+          }
+          if (payload.rate_limits && typeof payload.rate_limits === 'object') {
+            sessionRateLimits = payload.rate_limits;
+          }
         }
-        const payload = obj?.payload;
-        if (!payload || payload.type !== 'token_count') continue;
-        const ts = parseTimestampMs(obj.timestamp, file.mtimeMs);
-        if (ts > lastTs) lastTs = ts;
-        if (payload.info?.total_token_usage) {
-          lastUsage = payload.info.total_token_usage;
-        }
-        if (payload.info?.model_context_window) {
-          contextWindow = Number(payload.info.model_context_window || 0);
-        }
-        if (payload.rate_limits && typeof payload.rate_limits === 'object') {
-          sessionRateLimits = payload.rate_limits;
-        }
-      }
+        return { lastUsage, contextWindow, sessionRateLimits, lastTs };
+      });
+
+      const { lastUsage, contextWindow, sessionRateLimits, lastTs } = parsed;
 
       if (lastUsage) {
         const input = Number(lastUsage.input_tokens || 0);

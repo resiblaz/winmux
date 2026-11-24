@@ -38,7 +38,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -118,11 +120,28 @@ fun TerminalScreen(
         }
     }
 
-    LaunchedEffect(target) {
-        while (true) {
-            loadScreen()
-            delay(2500L)
+    val terminalOutputs by WinmuxRepository.terminalOutputs.collectAsState()
+    val streamKey = WinmuxRepository.terminalKey(target.workspaceId, target.surfaceId, target.paneId)
+    val pushedText = terminalOutputs[streamKey]
+
+    LaunchedEffect(pushedText) {
+        if (pushedText != null) {
+            screenText = pushedText.ifBlank { "（当前终端暂无输出）" }
+            errorBanner = null
         }
+    }
+
+    // Subscribe to real-time WebSocket diff pushes instead of HTTP polling.
+    DisposableEffect(target) {
+        WinmuxRepository.subscribeTerminal(target.workspaceId, target.surfaceId, target.paneId, maxLines = 120)
+        onDispose {
+            WinmuxRepository.unsubscribeTerminal()
+        }
+    }
+
+    // Initial HTTP load fallback in case WebSocket is still connecting.
+    LaunchedEffect(target) {
+        loadScreen()
     }
 
     LaunchedEffect(screenText) {

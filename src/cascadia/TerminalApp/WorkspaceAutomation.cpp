@@ -268,16 +268,19 @@ namespace winrt::TerminalApp::implementation
         }
 
         const auto method = root.GetNamedString(L"method");
-        if (method == L"workspace.list" || method == L"workspace.create")
+        if (method == L"workspace.list" || method == L"workspace.snapshot" || method == L"workspace.create")
         {
             if (!_hasOnlyKeys(params, {}))
             {
                 return _parseError(std::move(id), "invalid_params", "This method does not accept parameters");
             }
+            const auto parsedMethod = method == L"workspace.list"     ? WorkspaceAutomationMethod::List :
+                                      method == L"workspace.snapshot" ? WorkspaceAutomationMethod::Snapshot :
+                                                                        WorkspaceAutomationMethod::Create;
             return {
                 .Request = WorkspaceAutomationRequest{
                     .Id = id,
-                    .Method = method == L"workspace.list" ? WorkspaceAutomationMethod::List : WorkspaceAutomationMethod::Create,
+                    .Method = parsedMethod,
                 },
                 .Id = std::move(id),
             };

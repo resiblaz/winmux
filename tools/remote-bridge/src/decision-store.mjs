@@ -1,13 +1,50 @@
 import crypto from 'node:crypto';
 import EventEmitter from 'node:events';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const MAX_DECISION_HISTORY = 100;
 
 export class DecisionStore extends EventEmitter {
-  constructor() {
+  constructor(options = {}) {
     super();
-    this.decisions = [];
+    this.storagePath = options.storagePath || (options.stateDir ? path.join(options.stateDir, 'decisions.json') : null);
+    this.decisions = this._load();
     this._waiters = new Map();
+  }
+
+  _load() {
+    if (!this.storagePath) return [];
+    try {
+      if (!fs.existsSync(this.storagePath)) return [];
+      const parsed = JSON.parse(fs.readFileSync(this.storagePath, 'utf8'));
+      const list = Array.isArray(parsed.decisions) ? parsed.decisions : [];
+      // Pending blocking hooks from a previous crashed process can no longer be answered.
+      return list.slice(0, MAX_DECISION_HISTORY).map((item) =>
+        item && item.status === 'pending'
+          ? {
+              ...item,
+              status: 'expired',
+              resolvedAt: item.resolvedAt || Date.now(),
+              resolution: item.resolution || { decision: 'restart', label: '服务重启已失效', color: 'grey' },
+            }
+          : item
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  _save() {
+    if (!this.storagePath) return;
+    try {
+      fs.mkdirSync(path.dirname(this.storagePath), { recursive: true });
+      const tmp = `${this.storagePath}.${process.pid}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify({ version: 1, decisions: this.decisions }, null, 2), 'utf8');
+      fs.renameSync(tmp, this.storagePath);
+    } catch {
+      // Best-effort persistence; never break live decision handling.
+    }
   }
 
   list() {
@@ -46,6 +83,7 @@ export class DecisionStore extends EventEmitter {
       this.decisions.length = MAX_DECISION_HISTORY;
     }
 
+    this._save();
     this.emit('created', item);
     return item;
   }
@@ -67,6 +105,7 @@ export class DecisionStore extends EventEmitter {
           item.status = 'expired';
           item.resolvedAt = Date.now();
           item.resolution = { decision: 'timeout', label: '已超时', color: 'grey' };
+          this._save();
           this.emit('resolved', item);
         }
         resolve({ status: 'expired', decision: 'timeout' });
@@ -111,6 +150,7 @@ export class DecisionStore extends EventEmitter {
       waiter.resolve({ status: 'resolved', ...item.resolution });
     }
 
+    this._save();
     this.emit('resolved', item);
     return { ok: true, item };
   }

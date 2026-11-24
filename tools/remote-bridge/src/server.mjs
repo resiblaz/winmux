@@ -4,8 +4,10 @@ import { URL } from 'node:url';
 import { AgentInspector } from './agent-inspector.mjs';
 import { AuthStore } from './auth-store.mjs';
 import { DecisionStore } from './decision-store.mjs';
+import { HookInstaller } from './hook-installer.mjs';
 import { SystemMonitor } from './system-monitor.mjs';
 import { ensureTlsCredentials } from './tls-cert.mjs';
+import { TunnelManager } from './tunnel-manager.mjs';
 import { WebSocketHub } from './websocket.mjs';
 import { WinmuxClient } from './winmux-client.mjs';
 
@@ -83,6 +85,8 @@ export class WinmuxBridgeServer {
     this.winmux = options.winmuxClient || new WinmuxClient(options.winmuxOptions);
     this.decisions = options.decisionStore || new DecisionStore({ stateDir: this.authStore.stateDir });
     this.agentInspector = options.agentInspector || new AgentInspector(options.agentInspectorOptions);
+    this.hookInstaller = options.hookInstaller || new HookInstaller(options.hookInstallerOptions);
+    this.tunnel = options.tunnelManager || new TunnelManager(options.tunnelOptions);
     this.systemMonitor = options.systemMonitor || new SystemMonitor();
     this.wsHub = new WebSocketHub();
     this.notifications = [];
@@ -203,6 +207,7 @@ export class WinmuxBridgeServer {
     }
     this._terminalSubscriptions.clear();
     this.wsHub.closeAll();
+    this.tunnel.stop();
     if (this._httpServer) {
       const server = this._httpServer;
       this._httpServer = null;
@@ -213,10 +218,17 @@ export class WinmuxBridgeServer {
   }
 
   getPairingInfo() {
-    return this.authStore.buildPairingPayload(this.actualPort, {
-      tls: this.tlsEnabled,
-      certFingerprint: this.tlsCredentials?.fingerprintSha256 || '',
-    });
+    const tunnelStatus = this.tunnel.getStatus();
+    return {
+      ...this.authStore.buildPairingPayload(this.actualPort, {
+        tls: this.tlsEnabled,
+        certFingerprint: this.tlsCredentials?.fingerprintSha256 || '',
+        tunnelUrl: tunnelStatus.publicUrl || '',
+      }),
+      hooks: this.hookInstaller.getStatus(),
+      tunnel: tunnelStatus,
+      devices: this.authStore.listDevices(),
+    };
   }
 
   async pollOnce() {
@@ -418,6 +430,49 @@ export class WinmuxBridgeServer {
       if (method === 'POST' && pathname === '/api/local/pairing/refresh') {
         this.authStore.rotatePairingCode();
         sendJson(res, 200, this.getPairingInfo());
+        return;
+      }
+      if (method === 'GET' && pathname === '/api/local/hooks') {
+        sendJson(res, 200, this.hookInstaller.getStatus());
+        return;
+      }
+      if (method === 'POST' && pathname === '/api/local/hooks/install') {
+        const body = await readJsonBody(req);
+        const status = this.hookInstaller.install({
+          claude: body.claude !== false,
+          codex: body.codex !== false,
+        });
+        sendJson(res, 200, { ok: true, hooks: status, pairing: this.getPairingInfo() });
+        return;
+      }
+      if (method === 'POST' && pathname === '/api/local/hooks/uninstall') {
+        const status = this.hookInstaller.uninstall();
+        sendJson(res, 200, { ok: true, hooks: status, pairing: this.getPairingInfo() });
+        return;
+      }
+      if (method === 'GET' && pathname === '/api/local/devices') {
+        sendJson(res, 200, { devices: this.authStore.listDevices() });
+        return;
+      }
+      const localDeviceDeleteMatch = pathname.match(/^\/api\/local\/devices\/([^/]+)$/);
+      if (method === 'DELETE' && localDeviceDeleteMatch) {
+        const targetId = decodeURIComponent(localDeviceDeleteMatch[1]);
+        const removed = this.authStore.revokeDevice(targetId);
+        sendJson(res, removed ? 200 : 404, { ok: removed, pairing: this.getPairingInfo() });
+        return;
+      }
+      if (method === 'GET' && pathname === '/api/local/tunnel') {
+        sendJson(res, 200, this.tunnel.getStatus());
+        return;
+      }
+      if (method === 'POST' && pathname === '/api/local/tunnel/start') {
+        const status = await this.tunnel.start(this.actualPort, { tls: this.tlsEnabled });
+        sendJson(res, status.running ? 200 : 503, { ok: status.running, tunnel: status, pairing: this.getPairingInfo() });
+        return;
+      }
+      if (method === 'POST' && pathname === '/api/local/tunnel/stop') {
+        const status = this.tunnel.stop();
+        sendJson(res, 200, { ok: true, tunnel: status, pairing: this.getPairingInfo() });
         return;
       }
       if (method === 'POST' && pathname === '/api/hooks/decision') {

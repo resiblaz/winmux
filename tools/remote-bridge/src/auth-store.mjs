@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { encodeQrMatrix } from './qr-encoder.mjs';
 
 export function resolveStateDir() {
   if (process.env.WINMUX_BRIDGE_STATE_DIR) {
@@ -125,21 +126,24 @@ export class AuthStore {
     return this.pairing;
   }
 
-  buildPairingPayload(port, { tls = false, certFingerprint = '' } = {}) {
+  buildPairingPayload(port, { tls = false, certFingerprint = '', tunnelUrl = '' } = {}) {
     const scheme = tls ? 'https' : 'http';
     const netInfo = detectHostAddresses(port, scheme);
     const { code, expiresAt } = this.getActivePairing();
+    const effectiveRemoteUrl = tunnelUrl || netInfo.remoteUrl;
     const params = new URLSearchParams({
       lan: netInfo.lanUrl,
       code,
       host: netInfo.hostname,
     });
-    if (netInfo.remoteUrl) {
-      params.set('remote', netInfo.remoteUrl);
+    if (effectiveRemoteUrl) {
+      params.set('remote', effectiveRemoteUrl);
     }
     if (certFingerprint) {
       params.set('fp', certFingerprint);
     }
+    const pairUri = `winmux://pair?${params.toString()}`;
+    const qr = encodeQrMatrix(pairUri);
     return {
       code,
       expiresAt,
@@ -148,11 +152,14 @@ export class AuthStore {
       hostname: netInfo.hostname,
       lanUrl: netInfo.lanUrl,
       ipv6Url: netInfo.ipv6Url,
-      remoteUrl: netInfo.remoteUrl,
+      tunnelUrl,
+      remoteUrl: effectiveRemoteUrl,
       lanIps: netInfo.lanIps,
       ipv6Globals: netInfo.ipv6Globals,
       tailscaleIps: netInfo.tailscaleIps,
-      pairUri: `winmux://pair?${params.toString()}`,
+      pairUri,
+      qrSize: qr.size,
+      qrModules: qr.modules,
       pairedDeviceCount: this.devices.length,
     };
   }

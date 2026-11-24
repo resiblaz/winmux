@@ -549,3 +549,101 @@ test('self-signed ECDSA TLS server generates valid X.509 cert with deterministic
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('QR encoder, one-click Claude/Codex hook installer, and localhost device revocation work safely', async () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'winmux-hooks-qr-'));
+  const claudeDir = path.join(tempRoot, '.claude');
+  const codexDir = path.join(tempRoot, '.codex');
+  const stateDir = path.join(tempRoot, 'state');
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.mkdirSync(codexDir, { recursive: true });
+
+  fs.writeFileSync(
+    path.join(claudeDir, 'settings.json'),
+    JSON.stringify({ model: 'opus', env: { CUSTOM_FLAG: '1' }, hooks: { Stop: [{ matcher: 'custom', hooks: [{ type: 'command', command: 'echo keep' }] }] } }, null, 2),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(codexDir, 'config.toml'),
+    '# Existing codex config\nmodel = "gpt-5.4"\n\n[mcp_servers.demo]\ncommand = "echo"\n',
+    'utf8'
+  );
+
+  const bridge = new WinmuxBridgeServer({
+    host: '127.0.0.1',
+    port: 0,
+    tls: false,
+    pollIntervalMs: 0,
+    stateDir,
+    hookInstallerOptions: { homeDir: tempRoot },
+  });
+
+  try {
+    const pairing = await bridge.start();
+    const baseUrl = `http://127.0.0.1:${bridge.actualPort}`;
+
+    // 1. Validate QR code matrix geometry (finder patterns & exact size^2 length)
+    assert.ok(pairing.qrSize >= 29 && (pairing.qrSize - 17) % 4 === 0);
+    assert.equal(pairing.qrModules.length, pairing.qrSize * pairing.qrSize);
+    const modAt = (r, c) => pairing.qrModules[r * pairing.qrSize + c];
+    assert.equal(modAt(0, 0), '1');
+    assert.equal(modAt(0, 6), '1');
+    assert.equal(modAt(3, 3), '1');
+    assert.equal(modAt(0, pairing.qrSize - 1), '1');
+    assert.equal(modAt(pairing.qrSize - 1, 0), '1');
+    assert.equal(modAt(pairing.qrSize - 8, 8), '1'); // mandatory dark module
+
+    // 2. Install hooks via localhost API and verify existing user settings are preserved
+    assert.equal(pairing.hooks.allInstalled, false);
+    const installRes = await fetch(`${baseUrl}/api/local/hooks/install`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude: true, codex: true }),
+    });
+    assert.equal(installRes.status, 200);
+    const installed = await installRes.json();
+    assert.equal(installed.hooks.claudeInstalled, true);
+    assert.equal(installed.hooks.codexInstalled, true);
+    assert.equal(installed.hooks.allInstalled, true);
+
+    const claudeDisk = JSON.parse(fs.readFileSync(path.join(claudeDir, 'settings.json'), 'utf8'));
+    assert.equal(claudeDisk.model, 'opus');
+    assert.equal(claudeDisk.env.CUSTOM_FLAG, '1');
+    assert.equal(claudeDisk.hooks.Stop.length, 2); // kept user hook + added winmux hook
+    assert.equal(claudeDisk.hooks.PermissionRequest.length, 1);
+
+    const codexToml = fs.readFileSync(path.join(codexDir, 'config.toml'), 'utf8');
+    assert.match(codexToml, /# Existing codex config/);
+    assert.match(codexToml, /notify = \["node", ".*winmux-hook\.mjs", "codex-notify"\]/);
+    assert.match(codexToml, /\[mcp_servers\.demo\]/);
+
+    // 3. Uninstall hooks cleanly while preserving user hooks and TOML sections
+    const uninstallRes = await fetch(`${baseUrl}/api/local/hooks/uninstall`, { method: 'POST' });
+    assert.equal(uninstallRes.status, 200);
+    const uninstalled = await uninstallRes.json();
+    assert.equal(uninstalled.hooks.claudeInstalled, false);
+    assert.equal(uninstalled.hooks.codexInstalled, false);
+    const claudeAfter = JSON.parse(fs.readFileSync(path.join(claudeDir, 'settings.json'), 'utf8'));
+    assert.equal(claudeAfter.hooks.Stop.length, 1);
+    assert.equal(claudeAfter.hooks.Stop[0].matcher, 'custom');
+
+    // 4. Localhost device list & revocation
+    const pairRes = await fetch(`${baseUrl}/api/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: pairing.code, deviceName: 'OnePlus-13' }),
+    });
+    const pairBody = await pairRes.json();
+    const listRes = await (await fetch(`${baseUrl}/api/local/devices`)).json();
+    assert.equal(listRes.devices.length, 1);
+    assert.equal(listRes.devices[0].name, 'OnePlus-13');
+
+    const delRes = await fetch(`${baseUrl}/api/local/devices/${pairBody.deviceId}`, { method: 'DELETE' });
+    assert.equal(delRes.status, 200);
+    const listAfter = await (await fetch(`${baseUrl}/api/local/devices`)).json();
+    assert.equal(listAfter.devices.length, 0);
+  } finally {
+    await bridge.stop();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});

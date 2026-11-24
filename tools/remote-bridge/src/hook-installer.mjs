@@ -4,6 +4,57 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HOOK_MARKERS = ['winmux-hook.mjs', 'winmux-bridge.exe'];
+const CODEX_BACKUP_PREFIX = '# winmux-backup-notify: ';
+
+function countBracketDelta(line) {
+  let delta = 0;
+  let inSingle = false;
+  let inDouble = false;
+  let escaped = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (inDouble) {
+      if (ch === '\\') escaped = true;
+      else if (ch === '"') inDouble = false;
+      continue;
+    }
+    if (inSingle) {
+      if (ch === '\'') inSingle = false;
+      continue;
+    }
+    if (ch === '#') break;
+    if (ch === '"') inDouble = true;
+    else if (ch === '\'') inSingle = true;
+    else if (ch === '[') delta += 1;
+    else if (ch === ']') delta -= 1;
+  }
+  return delta;
+}
+
+function findTopLevelCodexNotify(lines) {
+  let firstTableIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed.startsWith('[')) {
+      firstTableIdx = i;
+      break;
+    }
+    if (/^\s*notify\s*=/.test(lines[i])) {
+      let end = i;
+      let depth = countBracketDelta(lines[i]);
+      while (depth > 0 && end + 1 < lines.length) {
+        end += 1;
+        depth += countBracketDelta(lines[end]);
+      }
+      return { start: i, end, firstTableIdx: -1 };
+    }
+  }
+  return { start: -1, end: -1, firstTableIdx };
+}
 
 function isRunningAsSea() {
   return Boolean(globalThis.__WINMUX_SEA__) || path.basename(process.execPath).toLowerCase() === 'winmux-bridge.exe';
@@ -72,7 +123,12 @@ export class HookInstaller {
     try {
       if (fs.existsSync(this.codexConfigPath)) {
         const toml = fs.readFileSync(this.codexConfigPath, 'utf8');
-        codexInstalled = /^\s*notify\s*=.*(?:winmux-hook\.mjs|winmux-bridge\.exe)/m.test(toml);
+        const lines = toml.replace(/\r\n/g, '\n').split('\n');
+        const span = findTopLevelCodexNotify(lines);
+        if (span.start >= 0) {
+          const joined = lines.slice(span.start, span.end + 1).join('\n');
+          codexInstalled = hasWinmuxHookMarker(joined);
+        }
       }
     } catch {
       codexInstalled = false;
@@ -126,32 +182,26 @@ export class HookInstaller {
         ? `notify = ["${escapedPath}", "hook", "codex-notify"]`
         : `notify = ["node", "${escapedPath}", "codex-notify"]`;
       const lines = existingToml ? existingToml.replace(/\r\n/g, '\n').split('\n') : [];
+      const span = findTopLevelCodexNotify(lines);
+      const hasBackup = lines.some((l) => l.startsWith(CODEX_BACKUP_PREFIX));
 
-      let replaced = false;
-      let firstTableIdx = -1;
-      for (let i = 0; i < lines.length; i++) {
-        const trimmed = lines[i].trim();
-        if (firstTableIdx < 0 && trimmed.startsWith('[') && !trimmed.startsWith('[[')) {
-          firstTableIdx = i;
+      if (span.start >= 0) {
+        const existingText = lines.slice(span.start, span.end + 1).join('\n');
+        const replacement = [];
+        if (!hasWinmuxHookMarker(existingText) && !hasBackup) {
+          replacement.push(`${CODEX_BACKUP_PREFIX}${Buffer.from(existingText, 'utf8').toString('base64')}`);
         }
-        if (firstTableIdx < 0 && /^\s*notify\s*=/.test(lines[i])) {
-          lines[i] = notifyLine;
-          replaced = true;
-          break;
-        }
-      }
-
-      if (!replaced) {
-        if (firstTableIdx >= 0) {
-          lines.splice(firstTableIdx, 0, notifyLine, '');
+        replacement.push(notifyLine);
+        lines.splice(span.start, span.end - span.start + 1, ...replacement);
+      } else if (span.firstTableIdx >= 0) {
+        lines.splice(span.firstTableIdx, 0, notifyLine, '');
+      } else {
+        if (lines.length > 0 && lines[lines.length - 1] !== '') {
+          lines.push(notifyLine);
+        } else if (lines.length > 0) {
+          lines.splice(lines.length - 1, 0, notifyLine);
         } else {
-          if (lines.length > 0 && lines[lines.length - 1] !== '') {
-            lines.push(notifyLine);
-          } else if (lines.length > 0) {
-            lines.splice(lines.length - 1, 0, notifyLine);
-          } else {
-            lines.push(notifyLine);
-          }
+          lines.push(notifyLine);
         }
       }
 
@@ -185,11 +235,27 @@ export class HookInstaller {
 
     if (fs.existsSync(this.codexConfigPath)) {
       const existingToml = fs.readFileSync(this.codexConfigPath, 'utf8');
-      const filteredLines = existingToml
-        .replace(/\r\n/g, '\n')
-        .split('\n')
-        .filter((line) => !/^\s*notify\s*=.*(?:winmux-hook\.mjs|winmux-bridge\.exe)/.test(line));
-      writeAtomic(this.codexConfigPath, `${filteredLines.join('\n').replace(/\n*$/, '')}\n`);
+      const lines = existingToml.replace(/\r\n/g, '\n').split('\n');
+      const span = findTopLevelCodexNotify(lines);
+      if (span.start >= 0 && hasWinmuxHookMarker(lines.slice(span.start, span.end + 1).join('\n'))) {
+        lines.splice(span.start, span.end - span.start + 1);
+      }
+      const backupIdx = lines.findIndex((l) => l.startsWith(CODEX_BACKUP_PREFIX));
+      if (backupIdx >= 0) {
+        const encoded = lines[backupIdx].slice(CODEX_BACKUP_PREFIX.length).trim();
+        let restored = '';
+        try {
+          restored = Buffer.from(encoded, 'base64').toString('utf8');
+        } catch {
+          restored = '';
+        }
+        if (restored) {
+          lines.splice(backupIdx, 1, ...restored.split('\n'));
+        } else {
+          lines.splice(backupIdx, 1);
+        }
+      }
+      writeAtomic(this.codexConfigPath, `${lines.join('\n').replace(/\n*$/, '')}\n`);
     }
 
     return this.getStatus();

@@ -87,6 +87,121 @@ function readTailLines(filePath, maxBytes = 256 * 1024) {
   }
 }
 
+async function listRecentFilesAsync(rootDir, extension, maxAgeMs, maxFiles = 80) {
+  const results = [];
+  const cutoff = Date.now() - maxAgeMs;
+
+  const walk = async (dir, depth) => {
+    if (depth > 5) return;
+    let entries;
+    try {
+      entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(full, depth + 1);
+      } else if (entry.isFile() && entry.name.endsWith(extension)) {
+        try {
+          const stat = await fs.promises.stat(full);
+          if (stat.mtimeMs >= cutoff) {
+            results.push({ path: full, mtimeMs: stat.mtimeMs, size: stat.size });
+          }
+        } catch {
+          // ignore transient files
+        }
+      }
+    }
+  };
+
+  await walk(rootDir, 0);
+  results.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return results.slice(0, maxFiles);
+}
+
+async function readTailLinesAsync(filePath, maxBytes = 256 * 1024) {
+  let handle = null;
+  try {
+    const stat = await fs.promises.stat(filePath);
+    const readSize = Math.min(stat.size, maxBytes);
+    if (readSize <= 0) return [];
+    handle = await fs.promises.open(filePath, 'r');
+    const buf = Buffer.alloc(readSize);
+    await handle.read(buf, 0, readSize, stat.size - readSize);
+    return buf.toString('utf8').split(/\r?\n/);
+  } catch {
+    return [];
+  } finally {
+    if (handle) {
+      await handle.close().catch(() => {});
+    }
+  }
+}
+
+function parseCodexTokenLines(lines, fallbackMtimeMs) {
+  const events = [];
+  let contextWindow = 0;
+  let sessionRateLimits = null;
+  let lastTs = fallbackMtimeMs;
+
+  for (const line of lines) {
+    if (!line || (!line.includes('"token_count"') && !line.includes('"rate_limits"'))) continue;
+    let obj;
+    try {
+      obj = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const payload = obj?.payload;
+    if (!payload || payload.type !== 'token_count') continue;
+    const ts = parseTimestampMs(obj.timestamp, fallbackMtimeMs);
+    if (ts > lastTs) lastTs = ts;
+    if (payload.info?.total_token_usage) {
+      const u = payload.info.total_token_usage;
+      const input = Number(u.input_tokens || 0);
+      const output = Number(u.output_tokens || 0);
+      const cached = Number(u.cached_input_tokens || 0);
+      const total = Number(u.total_tokens || input + output);
+      events.push({ ts, input, output, cached, total });
+    }
+    if (payload.info?.model_context_window) {
+      contextWindow = Number(payload.info.model_context_window || 0);
+    }
+    if (payload.rate_limits && typeof payload.rate_limits === 'object') {
+      sessionRateLimits = payload.rate_limits;
+    }
+  }
+  return { events, contextWindow, sessionRateLimits, lastTs };
+}
+
+function parseClaudeUsageLines(lines, fallbackMtimeMs) {
+  const entries = [];
+  let sessionModel = '';
+  let sessionUpdatedAt = fallbackMtimeMs;
+  for (const line of lines) {
+    if (!line || !line.includes('"usage"')) continue;
+    let obj;
+    try {
+      obj = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const usage = obj?.message?.usage;
+    if (!usage || typeof usage !== 'object') continue;
+    const input = Number(usage.input_tokens || 0);
+    const output = Number(usage.output_tokens || 0);
+    const cacheRead = Number(usage.cache_read_input_tokens || 0);
+    const cacheWrite = Number(usage.cache_creation_input_tokens || 0);
+    const ts = parseTimestampMs(obj.timestamp, fallbackMtimeMs);
+    if (obj?.message?.model) sessionModel = String(obj.message.model);
+    if (ts > sessionUpdatedAt) sessionUpdatedAt = ts;
+    entries.push({ input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite, ts });
+  }
+  return { entries, sessionModel, sessionUpdatedAt };
+}
+
 export class AgentInspector {
   constructor(options = {}) {
     const home = options.homeDir || os.homedir();
@@ -97,6 +212,7 @@ export class AgentInspector {
     this._fileCache = new Map(); // path -> { mtimeMs, size, parsed }
     this._lastUsageSummary = null;
     this._lastUsageAt = 0;
+    this._usagePromise = null;
   }
 
   getModelsConfig() {
@@ -176,6 +292,44 @@ export class AgentInspector {
     this._lastUsageSummary = summary;
     this._lastUsageAt = now;
     return summary;
+  }
+
+  async getUsageSummaryAsync({ force = false } = {}) {
+    const now = Date.now();
+    if (!force && this._lastUsageSummary && this.usageCacheTtlMs > 0 && now - this._lastUsageAt < this.usageCacheTtlMs) {
+      return this._lastUsageSummary;
+    }
+    if (this._usagePromise) {
+      return this._usagePromise;
+    }
+    this._usagePromise = (async () => {
+      const [claude, codex, agy] = await Promise.all([
+        this._readClaudeUsageAsync(),
+        this._readCodexUsageAsync(),
+        this._readAgyUsageAsync(),
+      ]);
+      const summary = { claude, codex, agy, updatedAt: Date.now() };
+      this._lastUsageSummary = summary;
+      this._lastUsageAt = summary.updatedAt;
+      return summary;
+    })().finally(() => {
+      this._usagePromise = null;
+    });
+    return this._usagePromise;
+  }
+
+  async _getCachedFileParseAsync(file, parser) {
+    const cached = this._fileCache.get(file.path);
+    if (cached && cached.mtimeMs === file.mtimeMs && cached.size === file.size) {
+      return cached.parsed;
+    }
+    const parsed = await parser(file);
+    this._fileCache.set(file.path, { mtimeMs: file.mtimeMs, size: file.size, parsed });
+    if (this._fileCache.size > 256) {
+      const oldestKey = this._fileCache.keys().next().value;
+      if (oldestKey) this._fileCache.delete(oldestKey);
+    }
+    return parsed;
   }
 
   _getCachedFileParse(file, parser) {
@@ -310,32 +464,7 @@ export class AgentInspector {
     let latestSession = null;
 
     for (const file of files) {
-      const parsed = this._getCachedFileParse(file, (f) => {
-        const lines = readTailLines(f.path, 512 * 1024);
-        const entries = [];
-        let sessionModel = '';
-        let sessionUpdatedAt = f.mtimeMs;
-        for (const line of lines) {
-          if (!line || !line.includes('"usage"')) continue;
-          let obj;
-          try {
-            obj = JSON.parse(line);
-          } catch {
-            continue;
-          }
-          const usage = obj?.message?.usage;
-          if (!usage || typeof usage !== 'object') continue;
-          const input = Number(usage.input_tokens || 0);
-          const output = Number(usage.output_tokens || 0);
-          const cacheRead = Number(usage.cache_read_input_tokens || 0);
-          const cacheWrite = Number(usage.cache_creation_input_tokens || 0);
-          const ts = parseTimestampMs(obj.timestamp, f.mtimeMs);
-          if (obj?.message?.model) sessionModel = String(obj.message.model);
-          if (ts > sessionUpdatedAt) sessionUpdatedAt = ts;
-          entries.push({ input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite, ts });
-        }
-        return { entries, sessionModel, sessionUpdatedAt };
-      });
+      const parsed = this._getCachedFileParse(file, (f) => parseClaudeUsageLines(readTailLines(f.path, 512 * 1024), f.mtimeMs));
 
       let sessionTokens = 0;
       for (const e of parsed.entries) {
@@ -377,79 +506,102 @@ export class AgentInspector {
     };
   }
 
-  _readCodexUsage() {
-    const modelCfg = this._readCodexModelConfig();
-    const sessionsDir = path.join(this.codexDir, 'sessions');
+  async _readClaudeUsageAsync() {
+    const modelCfg = this._readClaudeModelConfig();
+    const projectsDir = path.join(this.claudeDir, 'projects');
     const sevenDaysMs = 7 * 24 * 3600 * 1000;
     const todayStart = startOfTodayMs();
-    const files = listRecentFiles(sessionsDir, '.jsonl', sevenDaysMs, 60);
+    const files = await listRecentFilesAsync(projectsDir, '.jsonl', sevenDaysMs, 60);
 
+    const today = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalTokens: 0, turns: 0 };
+    const week = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalTokens: 0, turns: 0 };
+    let latestSession = null;
+
+    for (const file of files) {
+      const parsed = await this._getCachedFileParseAsync(file, async (f) =>
+        parseClaudeUsageLines(await readTailLinesAsync(f.path, 512 * 1024), f.mtimeMs)
+      );
+
+      let sessionTokens = 0;
+      for (const e of parsed.entries) {
+        week.inputTokens += e.input;
+        week.outputTokens += e.output;
+        week.cacheReadTokens += e.cacheRead;
+        week.cacheWriteTokens += e.cacheWrite;
+        week.totalTokens += e.total;
+        week.turns += 1;
+
+        if (e.ts >= todayStart) {
+          today.inputTokens += e.input;
+          today.outputTokens += e.output;
+          today.cacheReadTokens += e.cacheRead;
+          today.cacheWriteTokens += e.cacheWrite;
+          today.totalTokens += e.total;
+          today.turns += 1;
+        }
+        sessionTokens += e.total;
+      }
+
+      if (!latestSession && parsed.entries.length > 0) {
+        latestSession = {
+          model: parsed.sessionModel || modelCfg.currentModel,
+          totalTokens: sessionTokens,
+          turns: parsed.entries.length,
+          updatedAt: parsed.sessionUpdatedAt,
+        };
+      }
+    }
+
+    return {
+      agent: 'claude',
+      currentModel: latestSession?.model || modelCfg.currentModel,
+      today,
+      week,
+      latestSession,
+      rateLimits: null,
+    };
+  }
+
+  _aggregateCodexParsed(parsedList, modelCfg, todayStart) {
     const today = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0, sessions: 0 };
     const week = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0, sessions: 0 };
     let latestSession = null;
     let latestRateLimits = null;
 
-    for (const file of files) {
-      const parsed = this._getCachedFileParse(file, (f) => {
-        const lines = readTailLines(f.path, 512 * 1024);
-        let lastUsage = null;
-        let contextWindow = 0;
-        let sessionRateLimits = null;
-        let lastTs = f.mtimeMs;
+    for (const parsed of parsedList) {
+      const { events, contextWindow, sessionRateLimits, lastTs } = parsed;
+      const lastEvent = events.length > 0 ? events[events.length - 1] : null;
 
-        for (const line of lines) {
-          if (!line || (!line.includes('"token_count"') && !line.includes('"rate_limits"'))) continue;
-          let obj;
-          try {
-            obj = JSON.parse(line);
-          } catch {
-            continue;
-          }
-          const payload = obj?.payload;
-          if (!payload || payload.type !== 'token_count') continue;
-          const ts = parseTimestampMs(obj.timestamp, f.mtimeMs);
-          if (ts > lastTs) lastTs = ts;
-          if (payload.info?.total_token_usage) {
-            lastUsage = payload.info.total_token_usage;
-          }
-          if (payload.info?.model_context_window) {
-            contextWindow = Number(payload.info.model_context_window || 0);
-          }
-          if (payload.rate_limits && typeof payload.rate_limits === 'object') {
-            sessionRateLimits = payload.rate_limits;
-          }
-        }
-        return { lastUsage, contextWindow, sessionRateLimits, lastTs };
-      });
-
-      const { lastUsage, contextWindow, sessionRateLimits, lastTs } = parsed;
-
-      if (lastUsage) {
-        const input = Number(lastUsage.input_tokens || 0);
-        const output = Number(lastUsage.output_tokens || 0);
-        const cached = Number(lastUsage.cached_input_tokens || 0);
-        const total = Number(lastUsage.total_tokens || input + output);
-
-        week.inputTokens += input;
-        week.outputTokens += output;
-        week.cacheReadTokens += cached;
-        week.totalTokens += total;
+      if (lastEvent) {
+        week.inputTokens += lastEvent.input;
+        week.outputTokens += lastEvent.output;
+        week.cacheReadTokens += lastEvent.cached;
+        week.totalTokens += lastEvent.total;
         week.sessions += 1;
 
-        if (lastTs >= todayStart) {
-          today.inputTokens += input;
-          today.outputTokens += output;
-          today.cacheReadTokens += cached;
-          today.totalTokens += total;
+        // Compute only today's delta for multi-day resumed sessions instead of counting cumulative history.
+        if (lastEvent.ts >= todayStart) {
+          let preToday = null;
+          for (const ev of events) {
+            if (ev.ts < todayStart) preToday = ev;
+          }
+          const baseInput = preToday ? preToday.input : 0;
+          const baseOutput = preToday ? preToday.output : 0;
+          const baseCached = preToday ? preToday.cached : 0;
+          const baseTotal = preToday ? preToday.total : 0;
+          today.inputTokens += Math.max(0, lastEvent.input - baseInput);
+          today.outputTokens += Math.max(0, lastEvent.output - baseOutput);
+          today.cacheReadTokens += Math.max(0, lastEvent.cached - baseCached);
+          today.totalTokens += Math.max(0, lastEvent.total - baseTotal);
           today.sessions += 1;
         }
 
         if (!latestSession) {
           latestSession = {
             model: modelCfg.currentModel,
-            totalTokens: total,
-            inputTokens: input,
-            outputTokens: output,
+            totalTokens: lastEvent.total,
+            inputTokens: lastEvent.input,
+            outputTokens: lastEvent.output,
             contextWindow,
             updatedAt: lastTs,
           };
@@ -470,6 +622,35 @@ export class AgentInspector {
       latestSession,
       rateLimits: latestRateLimits,
     };
+  }
+
+  _readCodexUsage() {
+    const modelCfg = this._readCodexModelConfig();
+    const sessionsDir = path.join(this.codexDir, 'sessions');
+    const sevenDaysMs = 7 * 24 * 3600 * 1000;
+    const todayStart = startOfTodayMs();
+    const files = listRecentFiles(sessionsDir, '.jsonl', sevenDaysMs, 60);
+    const parsedList = files.map((file) =>
+      this._getCachedFileParse(file, (f) => parseCodexTokenLines(readTailLines(f.path, 512 * 1024), f.mtimeMs))
+    );
+    return this._aggregateCodexParsed(parsedList, modelCfg, todayStart);
+  }
+
+  async _readCodexUsageAsync() {
+    const modelCfg = this._readCodexModelConfig();
+    const sessionsDir = path.join(this.codexDir, 'sessions');
+    const sevenDaysMs = 7 * 24 * 3600 * 1000;
+    const todayStart = startOfTodayMs();
+    const files = await listRecentFilesAsync(sessionsDir, '.jsonl', sevenDaysMs, 60);
+    const parsedList = [];
+    for (const file of files) {
+      parsedList.push(
+        await this._getCachedFileParseAsync(file, async (f) =>
+          parseCodexTokenLines(await readTailLinesAsync(f.path, 512 * 1024), f.mtimeMs)
+        )
+      );
+    }
+    return this._aggregateCodexParsed(parsedList, modelCfg, todayStart);
   }
 
   _normalizeCodexRateLimits(raw) {
@@ -514,6 +695,44 @@ export class AgentInspector {
           // non-JSON history lines still count
         }
       }
+    }
+
+    return {
+      agent: 'agy',
+      currentModel: modelCfg.currentModel,
+      today: { turns: todayTurns, totalTokens: 0 },
+      week: { turns: totalRecentTurns, totalTokens: 0 },
+      latestSession: lastActiveAt ? { model: modelCfg.currentModel, updatedAt: lastActiveAt } : null,
+      rateLimits: null,
+    };
+  }
+
+  async _readAgyUsageAsync() {
+    const modelCfg = this._readAgyModelConfig();
+    const historyPath = path.join(this.agyDir, 'history.jsonl');
+    const todayStart = startOfTodayMs();
+    let todayTurns = 0;
+    let totalRecentTurns = 0;
+    let lastActiveAt = 0;
+
+    try {
+      const stat = await fs.promises.stat(historyPath);
+      lastActiveAt = stat.mtimeMs;
+      const lines = await readTailLinesAsync(historyPath, 128 * 1024);
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        totalRecentTurns += 1;
+        try {
+          const obj = JSON.parse(line);
+          const ts = parseTimestampMs(obj.timestamp ?? obj.createdAt ?? obj.time, 0);
+          if (ts >= todayStart) todayTurns += 1;
+          if (ts > lastActiveAt) lastActiveAt = ts;
+        } catch {
+          // non-JSON history lines still count
+        }
+      }
+    } catch {
+      // history.jsonl absent
     }
 
     return {

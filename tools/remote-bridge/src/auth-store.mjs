@@ -106,10 +106,34 @@ export class AuthStore {
     }
   }
 
-  _saveDevices() {
-    const tmp = `${this.devicesPath}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify({ version: 1, devices: this.devices }, null, 2), 'utf8');
-    fs.renameSync(tmp, this.devicesPath);
+  _saveDevices(devicesList = this.devices) {
+    const serialized = JSON.stringify({ version: 1, devices: devicesList }, null, 2);
+    const tmp = `${this.devicesPath}.${process.pid}.${Date.now()}.tmp`;
+    fs.mkdirSync(path.dirname(this.devicesPath), { recursive: true });
+    fs.writeFileSync(tmp, serialized, 'utf8');
+    let lastErr = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        fs.renameSync(tmp, this.devicesPath);
+        return;
+      } catch (err) {
+        lastErr = err;
+        if (err && (err.code === 'EPERM' || err.code === 'EBUSY')) {
+          try {
+            // Fallback atomic-like copy when AV/indexer transiently locks rename on Windows.
+            fs.writeFileSync(this.devicesPath, serialized, 'utf8');
+            try { fs.rmSync(tmp, { force: true }); } catch {}
+            return;
+          } catch (writeErr) {
+            lastErr = writeErr;
+          }
+        } else {
+          break;
+        }
+      }
+    }
+    try { fs.rmSync(tmp, { force: true }); } catch {}
+    throw lastErr;
   }
 
   rotatePairingCode(ttlMs = 15 * 60 * 1000) {
@@ -184,8 +208,9 @@ export class AuthStore {
       createdAt: Date.now(),
       lastSeenAt: Date.now(),
     };
-    this.devices.push(device);
-    this._saveDevices();
+    const nextDevices = [...this.devices, device];
+    this._saveDevices(nextDevices);
+    this.devices = nextDevices;
     // Rotate pairing code after successful pairing so captured codes cannot be reused.
     this.rotatePairingCode();
 
@@ -204,7 +229,17 @@ export class AuthStore {
     for (const device of this.devices) {
       const candidateBuf = Buffer.from(device.tokenHash, 'hex');
       if (candidateBuf.length === targetBuf.length && crypto.timingSafeEqual(candidateBuf, targetBuf)) {
-        device.lastSeenAt = Date.now();
+        const now = Date.now();
+        const prevPersisted = device._persistedLastSeenAt ?? device.lastSeenAt ?? 0;
+        device.lastSeenAt = now;
+        if (now - prevPersisted >= 60_000) {
+          device._persistedLastSeenAt = now;
+          try {
+            this._saveDevices(this.devices.map(({ _persistedLastSeenAt, ...rest }) => rest));
+          } catch {
+            // Best-effort lastSeenAt persistence; never break auth verification.
+          }
+        }
         return device;
       }
     }
@@ -221,10 +256,10 @@ export class AuthStore {
   }
 
   revokeDevice(deviceId) {
-    const before = this.devices.length;
-    this.devices = this.devices.filter((d) => d.id !== deviceId);
-    if (this.devices.length !== before) {
-      this._saveDevices();
+    const nextDevices = this.devices.filter((d) => d.id !== deviceId);
+    if (nextDevices.length !== this.devices.length) {
+      this._saveDevices(nextDevices.map(({ _persistedLastSeenAt, ...rest }) => rest));
+      this.devices = nextDevices;
       return true;
     }
     return false;

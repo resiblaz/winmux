@@ -13,6 +13,16 @@ import { WebSocketHub } from './websocket.mjs';
 import { WinmuxClient } from './winmux-client.mjs';
 
 const MAX_BODY_BYTES = 256 * 1024;
+const PROXY_HEADERS = [
+  'cf-connecting-ip',
+  'cf-ray',
+  'cf-visitor',
+  'x-forwarded-for',
+  'x-forwarded-host',
+  'x-real-ip',
+  'forwarded',
+  'true-client-ip',
+];
 
 function isLocalAddress(remoteAddress) {
   if (!remoteAddress) return false;
@@ -23,12 +33,47 @@ function isLocalAddress(remoteAddress) {
   );
 }
 
-function sendJson(res, status, body) {
+function isLoopbackHostHeader(hostHeader) {
+  if (!hostHeader || typeof hostHeader !== 'string') return true;
+  const trimmed = hostHeader.trim().toLowerCase();
+  if (!trimmed) return true;
+  if (trimmed.startsWith('[')) {
+    const end = trimmed.indexOf(']');
+    if (end < 0) return false;
+    const host = trimmed.slice(1, end);
+    return host === '::1' || host === '0:0:0:0:0:0:0:1';
+  }
+  const hostOnly = trimmed.split(':')[0];
+  return hostOnly === '127.0.0.1' || hostOnly === 'localhost';
+}
+
+function isLoopbackRequest(req) {
+  if (!isLocalAddress(req.socket?.remoteAddress)) return false;
+  const headers = req.headers || {};
+  for (const h of PROXY_HEADERS) {
+    if (headers[h] !== undefined && String(headers[h]).trim() !== '') {
+      return false;
+    }
+  }
+  return isLoopbackHostHeader(headers.host);
+}
+
+function getClientKey(req) {
+  const headers = req.headers || {};
+  const cfIp = headers['cf-connecting-ip'];
+  if (typeof cfIp === 'string' && cfIp.trim()) return cfIp.trim();
+  const xff = headers['x-forwarded-for'];
+  if (typeof xff === 'string' && xff.trim()) return xff.split(',')[0].trim();
+  return req.socket?.remoteAddress || 'unknown';
+}
+
+function sendJson(res, status, body, extraHeaders = {}) {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(payload),
     'Cache-Control': 'no-store',
+    ...extraHeaders,
   });
   res.end(payload);
 }
@@ -104,6 +149,16 @@ export class WinmuxBridgeServer {
     this._terminalStreamTimer = null;
     this._terminalStreamIntervalMs = options.terminalStreamIntervalMs ?? 750;
     this._terminalSubscriptions = new Map(); // WebSocketClient -> { workspaceId, surfaceId, paneId, maxLines, lastText }
+    this._terminalPollInFlight = false;
+    this._terminalPollPending = false;
+    this._terminalPollPendingKey = '';
+    this._pairRateWindowMs = options.pairRateWindowMs ?? 60_000;
+    this._pairMaxFailuresPerIp = options.pairMaxFailuresPerIp ?? 5;
+    this._pairMaxGlobalFailures = options.pairMaxGlobalFailures ?? 10;
+    this._pairCooldownMs = options.pairCooldownMs ?? 60_000;
+    this._pairFailuresByIp = new Map();
+    this._globalPairFailures = 0;
+    this._globalPairCooldownUntil = 0;
     this._httpServer = null;
 
     this.wsHub.on('disconnection', (client) => {
@@ -232,6 +287,17 @@ export class WinmuxBridgeServer {
     };
   }
 
+  getClientConnectionInfo() {
+    const full = this.getPairingInfo();
+    return {
+      hostname: full.hostname,
+      lanUrl: full.lanUrl,
+      remoteUrl: full.remoteUrl,
+      tls: full.tls,
+      certFingerprint: full.certFingerprint,
+    };
+  }
+
   async pollOnce() {
     // Single-flight deduplication so concurrent HTTP/timer requests never pile up on the Named Pipe.
     if (this._pollPromise) {
@@ -294,6 +360,32 @@ export class WinmuxBridgeServer {
   }
 
   async _pollSubscribedTerminals(forceTargetKey = '') {
+    if (this._terminalSubscriptions.size === 0) return;
+    if (this._terminalPollInFlight) {
+      this._terminalPollPending = true;
+      if (forceTargetKey) {
+        this._terminalPollPendingKey = this._terminalPollPendingKey && this._terminalPollPendingKey !== forceTargetKey
+          ? ''
+          : forceTargetKey;
+      }
+      return;
+    }
+
+    this._terminalPollInFlight = true;
+    try {
+      await this._pollSubscribedTerminalsImpl(forceTargetKey);
+    } finally {
+      this._terminalPollInFlight = false;
+      if (this._terminalPollPending) {
+        const nextKey = this._terminalPollPendingKey;
+        this._terminalPollPending = false;
+        this._terminalPollPendingKey = '';
+        this._pollSubscribedTerminals(nextKey).catch(() => {});
+      }
+    }
+  }
+
+  async _pollSubscribedTerminalsImpl(forceTargetKey = '') {
     if (this._terminalSubscriptions.size === 0) return;
 
     // Group clients subscribed to the same pane so we only read the Named Pipe once per pane.
@@ -386,7 +478,7 @@ export class WinmuxBridgeServer {
     const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`);
     const pathname = parsedUrl.pathname;
     const method = (req.method || 'GET').toUpperCase();
-    const isLocal = isLocalAddress(req.socket.remoteAddress);
+    const isLocal = isLoopbackRequest(req);
 
     // Built-in zero-dependency Web PWA shell (all /api/* and /ws remain strictly Bearer-authenticated).
     if (method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
@@ -426,19 +518,60 @@ export class WinmuxBridgeServer {
       return;
     }
 
-    // Device pairing exchange (protected by short-lived 6-digit pairing code)
+    // Device pairing exchange (protected by short-lived 6-digit pairing code + rate limiting)
     if (method === 'POST' && pathname === '/api/pair') {
+      const now = Date.now();
+      if (this._globalPairCooldownUntil > now) {
+        const retrySec = Math.max(1, Math.ceil((this._globalPairCooldownUntil - now) / 1000));
+        sendJson(
+          res,
+          429,
+          { error: 'rate_limited', message: 'Too many failed pairing attempts. Please retry later.', retryAfterSeconds: retrySec },
+          { 'Retry-After': String(retrySec) }
+        );
+        return;
+      }
+
+      const clientKey = getClientKey(req);
+      const recentFails = (this._pairFailuresByIp.get(clientKey) || []).filter((ts) => now - ts < this._pairRateWindowMs);
+      if (recentFails.length >= this._pairMaxFailuresPerIp) {
+        this._pairFailuresByIp.set(clientKey, recentFails);
+        const retrySec = Math.max(1, Math.ceil((this._pairRateWindowMs - (now - recentFails[0])) / 1000));
+        sendJson(
+          res,
+          429,
+          { error: 'rate_limited', message: 'Too many failed pairing attempts from this client.', retryAfterSeconds: retrySec },
+          { 'Retry-After': String(retrySec) }
+        );
+        return;
+      }
+
       const body = await readJsonBody(req);
       const result = this.authStore.pairDevice(body.code, body.deviceName);
       if (!result.ok) {
+        recentFails.push(now);
+        this._pairFailuresByIp.set(clientKey, recentFails);
+        if (this._pairFailuresByIp.size > 512) {
+          const oldestKey = this._pairFailuresByIp.keys().next().value;
+          if (oldestKey) this._pairFailuresByIp.delete(oldestKey);
+        }
+        this._globalPairFailures += 1;
+        if (this._globalPairFailures >= this._pairMaxGlobalFailures) {
+          this._globalPairFailures = 0;
+          this._globalPairCooldownUntil = now + this._pairCooldownMs;
+          this.authStore.rotatePairingCode();
+        }
         sendJson(res, 401, { error: result.error, message: 'Pairing code is invalid or expired.' });
         return;
       }
+
+      this._pairFailuresByIp.delete(clientKey);
+      this._globalPairFailures = 0;
       sendJson(res, 200, {
         deviceId: result.deviceId,
         deviceName: result.deviceName,
         token: result.token,
-        pairing: this.getPairingInfo(),
+        pairing: this.getClientConnectionInfo(),
       });
       return;
     }
@@ -485,6 +618,9 @@ export class WinmuxBridgeServer {
       if (method === 'DELETE' && localDeviceDeleteMatch) {
         const targetId = decodeURIComponent(localDeviceDeleteMatch[1]);
         const removed = this.authStore.revokeDevice(targetId);
+        if (removed) {
+          this.wsHub.disconnectByDeviceId(targetId, 4001, 'Device revoked');
+        }
         sendJson(res, removed ? 200 : 404, { ok: removed, pairing: this.getPairingInfo() });
         return;
       }
@@ -667,7 +803,7 @@ export class WinmuxBridgeServer {
 
     if (method === 'GET' && pathname === '/api/usage') {
       const force = parsedUrl.searchParams.get('force') === '1';
-      const usage = this.agentInspector.getUsageSummary({ force });
+      const usage = await this.agentInspector.getUsageSummaryAsync({ force });
       sendJson(res, 200, usage);
       return;
     }
@@ -781,6 +917,9 @@ export class WinmuxBridgeServer {
     if (method === 'DELETE' && deviceDeleteMatch) {
       const targetId = decodeURIComponent(deviceDeleteMatch[1]);
       const removed = this.authStore.revokeDevice(targetId);
+      if (removed) {
+        this.wsHub.disconnectByDeviceId(targetId, 4001, 'Device revoked');
+      }
       sendJson(res, removed ? 200 : 404, { ok: removed });
       return;
     }

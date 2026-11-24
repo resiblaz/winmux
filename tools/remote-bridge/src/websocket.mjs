@@ -34,6 +34,9 @@ export class WebSocketClient extends EventEmitter {
     this.closed = false;
     this.lastPongAt = Date.now();
     this._buffer = Buffer.alloc(0);
+    this._fragOpcode = null;
+    this._fragChunks = [];
+    this._fragTotalLen = 0;
 
     socket.on('data', (chunk) => this._onData(chunk));
     socket.on('close', () => this._handleClose());
@@ -91,6 +94,7 @@ export class WebSocketClient extends EventEmitter {
     while (this._buffer.length >= 2) {
       const first = this._buffer[0];
       const second = this._buffer[1];
+      const fin = (first & 0x80) !== 0;
       const opcode = first & 0x0f;
       const masked = (second & 0x80) !== 0;
       let payloadLen = second & 0x7f;
@@ -144,8 +148,46 @@ export class WebSocketClient extends EventEmitter {
         this.lastPongAt = Date.now();
         continue;
       }
-      if (opcode === 0x1) {
-        this.emit('message', rawPayload.toString('utf8'));
+      if (opcode === 0x1 || opcode === 0x2) {
+        if (this._fragOpcode !== null) {
+          this.close(1002, 'Unexpected data frame during fragmentation');
+          return;
+        }
+        if (fin) {
+          if (opcode === 0x1) {
+            this.emit('message', rawPayload.toString('utf8'));
+          }
+        } else {
+          this._fragOpcode = opcode;
+          this._fragChunks = [rawPayload];
+          this._fragTotalLen = rawPayload.length;
+        }
+        continue;
+      }
+      if (opcode === 0x0) {
+        if (this._fragOpcode === null) {
+          this.close(1002, 'Unexpected continuation frame');
+          return;
+        }
+        this._fragTotalLen += rawPayload.length;
+        if (this._fragTotalLen > MAX_FRAME_PAYLOAD) {
+          this._fragOpcode = null;
+          this._fragChunks = [];
+          this._fragTotalLen = 0;
+          this.close(1009, 'Message too large');
+          return;
+        }
+        this._fragChunks.push(rawPayload);
+        if (fin) {
+          const assembled = Buffer.concat(this._fragChunks, this._fragTotalLen);
+          const originalOpcode = this._fragOpcode;
+          this._fragOpcode = null;
+          this._fragChunks = [];
+          this._fragTotalLen = 0;
+          if (originalOpcode === 0x1) {
+            this.emit('message', assembled.toString('utf8'));
+          }
+        }
       }
     }
   }
@@ -203,6 +245,17 @@ export class WebSocketHub extends EventEmitter {
     for (const client of this.clients) {
       client.sendText(text);
     }
+  }
+
+  disconnectByDeviceId(deviceId, code = 4001, reason = 'Device revoked') {
+    let closedCount = 0;
+    for (const client of Array.from(this.clients)) {
+      if (client.metadata?.deviceId === deviceId) {
+        client.close(code, reason);
+        closedCount++;
+      }
+    }
+    return closedCount;
   }
 
   closeAll() {

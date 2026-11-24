@@ -111,6 +111,11 @@ const common = {
 };
 
 if (cmd === 'claude-hook') {
+  // Never intercept or block non-Winmux Claude Code sessions (e.g. VS Code / standalone terminal)
+  // unless the user explicitly opted into global interception.
+  if (!common.workspaceId && process.env.WINMUX_HOOK_ALLOW_GLOBAL !== '1') {
+    process.exit(0);
+  }
   const eventName = flags.positional[0] || 'Notification';
   const rawStdin = await readStdinText();
   let payload = {};

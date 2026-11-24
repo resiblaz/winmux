@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import http from 'node:http';
 import https from 'node:https';
 import net from 'node:net';
 import os from 'node:os';
@@ -660,6 +661,189 @@ test('QR encoder, one-click Claude/Codex hook installer, and localhost device re
     assert.equal(swRes.status, 200);
     const iconRes = await fetch(`${baseUrl}/icon.svg`);
     assert.equal(iconRes.status, 200);
+  } finally {
+    await bridge.stop();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('security hardening: tunnel proxy bypass blocked, pair rate limit, no pair secret leak, WS revoke disconnect, WS fragmentation, multi-line codex hook, and multi-day codex delta', async () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'winmux-security-test-'));
+  const stateDir = path.join(tempRoot, 'state');
+  const codexDir = path.join(tempRoot, '.codex');
+  fs.mkdirSync(path.join(codexDir, 'sessions', '2026'), { recursive: true });
+
+  // Multi-line custom notify + [[array_table]] TOML
+  fs.writeFileSync(
+    path.join(codexDir, 'config.toml'),
+    'model = "gpt-5.4"\nnotify = [\n  "python",\n  "custom-notify.py"\n]\n\n[[mcp_servers]]\nname = "demo"\n',
+    'utf8'
+  );
+
+  // Multi-day Codex session: 10000 tokens yesterday, 12500 cumulative today => today delta MUST be 2500!
+  const yesterdayIso = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
+  const todayIso = new Date().toISOString();
+  fs.writeFileSync(
+    path.join(codexDir, 'sessions', '2026', 'multiday.jsonl'),
+    [
+      JSON.stringify({
+        timestamp: yesterdayIso,
+        type: 'event_msg',
+        payload: {
+          type: 'token_count',
+          info: { total_token_usage: { input_tokens: 8000, cached_input_tokens: 2000, output_tokens: 2000, total_tokens: 10000 } },
+        },
+      }),
+      JSON.stringify({
+        timestamp: todayIso,
+        type: 'event_msg',
+        payload: {
+          type: 'token_count',
+          info: { total_token_usage: { input_tokens: 10000, cached_input_tokens: 2500, output_tokens: 2500, total_tokens: 12500 } },
+        },
+      }),
+    ].join('\n') + '\n',
+    'utf8'
+  );
+
+  const bridge = new WinmuxBridgeServer({
+    host: '127.0.0.1',
+    port: 0,
+    tls: false,
+    pollIntervalMs: 0,
+    stateDir,
+    hookInstallerOptions: { homeDir: tempRoot },
+    agentInspectorOptions: { codexDir, claudeDir: path.join(tempRoot, '.claude'), agyDir: path.join(tempRoot, '.agy') },
+    pairMaxFailuresPerIp: 3,
+    pairMaxGlobalFailures: 5,
+    pairCooldownMs: 200,
+  });
+
+  try {
+    const pairing = await bridge.start();
+    const baseUrl = `http://127.0.0.1:${bridge.actualPort}`;
+
+    // 1. Proxied Cloudflare Tunnel requests arriving via 127.0.0.1 MUST be rejected with 403!
+    const requestStatus = (headers) => new Promise((resolve, reject) => {
+      const req = http.request(
+        { hostname: '127.0.0.1', port: bridge.actualPort, path: '/api/local/pairing', method: 'GET', headers },
+        (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); }
+      );
+      req.on('error', reject);
+      req.end();
+    });
+    for (const headers of [
+      { 'CF-Connecting-IP': '203.0.113.5' },
+      { 'CF-Ray': '89abc-SJC' },
+      { 'X-Forwarded-For': '203.0.113.9' },
+      { Host: 'evil-tunnel.trycloudflare.com' },
+    ]) {
+      const status = await requestStatus(headers);
+      assert.equal(status, 403, `Expected 403 for headers ${JSON.stringify(headers)}`);
+    }
+
+    // 2. Brute-force rate limiting on /api/pair returns 429 after 3 failed attempts from same IP.
+    for (let i = 0; i < 3; i++) {
+      const bad = await fetch(`${baseUrl}/api/pair`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '198.51.100.42' },
+        body: JSON.stringify({ code: '000000', deviceName: 'Brute' }),
+      });
+      assert.equal(bad.status, 401);
+    }
+    const throttled = await fetch(`${baseUrl}/api/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '198.51.100.42' },
+      body: JSON.stringify({ code: '000000', deviceName: 'Brute' }),
+    });
+    assert.equal(throttled.status, 429);
+
+    // 3. Legitimate pairing succeeds and does NOT leak next pairing code, hooks paths, or devices list.
+    const pairRes = await fetch(`${baseUrl}/api/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: pairing.code, deviceName: 'LegitPhone' }),
+    });
+    assert.equal(pairRes.status, 200);
+    const pairBody = await pairRes.json();
+    assert.equal(pairBody.pairing.code, undefined);
+    assert.equal(pairBody.pairing.pairUri, undefined);
+    assert.equal(pairBody.pairing.hooks, undefined);
+    assert.equal(pairBody.pairing.devices, undefined);
+    assert.ok(pairBody.pairing.hostname);
+
+    // 4. Multi-day Codex usage reports only today's delta (2500), not cumulative 12500!
+    const usage = await (await fetch(`${baseUrl}/api/usage`, {
+      headers: { Authorization: `Bearer ${pairBody.token}` },
+    })).json();
+    assert.equal(usage.codex.week.totalTokens, 12500);
+    assert.equal(usage.codex.today.totalTokens, 2500);
+
+    // 5. WebSocket fragmentation reassembly (send fragmented masked text frame: FIN=0 opcode=1 + FIN=1 opcode=0)
+    // and verify device revocation forcefully closes the active WebSocket!
+    const key = crypto.randomBytes(16).toString('base64');
+    const rawSocket = await new Promise((resolve, reject) => {
+      const s = net.connect(bridge.actualPort, '127.0.0.1', () => {
+        s.write(
+          `GET /ws?token=${encodeURIComponent(pairBody.token)} HTTP/1.1\r\n` +
+          `Host: 127.0.0.1:${bridge.actualPort}\r\n` +
+          `Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${key}\r\nSec-WebSocket-Version: 13\r\n\r\n`
+        );
+      });
+      s.once('error', reject);
+      s.once('data', (chunk) => {
+        if (chunk.toString('utf8').includes('101 Switching Protocols')) resolve(s);
+        else reject(new Error('Upgrade failed'));
+      });
+    });
+
+    const receivedTexts = [];
+    let closedByServer = false;
+    rawSocket.on('data', (buf) => {
+      const str = buf.toString('utf8');
+      if (str.includes('"type":"pong"')) receivedTexts.push('pong');
+    });
+    rawSocket.on('close', () => { closedByServer = true; });
+
+    const makeMaskedFrame = (fin, opcode, text) => {
+      const payload = Buffer.from(text, 'utf8');
+      const mask = Buffer.from([1, 2, 3, 4]);
+      const header = Buffer.from([(fin ? 0x80 : 0x00) | opcode, 0x80 | payload.length]);
+      const masked = Buffer.alloc(payload.length);
+      for (let i = 0; i < payload.length; i++) masked[i] = payload[i] ^ mask[i & 3];
+      return Buffer.concat([header, mask, masked]);
+    };
+    rawSocket.write(makeMaskedFrame(false, 0x1, '{"type":'));
+    rawSocket.write(makeMaskedFrame(true, 0x0, '"ping"}'));
+    for (let i = 0; i < 30 && !receivedTexts.includes('pong'); i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    assert.ok(receivedTexts.includes('pong'), 'Fragmented WebSocket ping message should be reassembled and answered');
+
+    // Revoking device must immediately close its active WebSocket!
+    const revokeRes = await fetch(`${baseUrl}/api/local/devices/${pairBody.deviceId}`, { method: 'DELETE' });
+    assert.equal(revokeRes.status, 200);
+    for (let i = 0; i < 30 && !closedByServer; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    assert.equal(closedByServer, true, 'Revoking device must disconnect active WebSocket');
+    rawSocket.destroy();
+
+    // 6. Codex multi-line notify backup + [[mcp_servers]] preservation + restore on uninstall
+    const hookInstall = await fetch(`${baseUrl}/api/local/hooks/install`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude: false, codex: true }),
+    });
+    assert.equal(hookInstall.status, 200);
+    const tomlInstalled = fs.readFileSync(path.join(codexDir, 'config.toml'), 'utf8');
+    assert.equal(tomlInstalled.includes('"custom-notify.py"'), false, 'Old multi-line notify lines must be cleanly replaced');
+    assert.ok(tomlInstalled.indexOf('notify = [') < tomlInstalled.indexOf('[[mcp_servers]]'), 'notify must stay above [[mcp_servers]]');
+
+    const hookUninstall = await fetch(`${baseUrl}/api/local/hooks/uninstall`, { method: 'POST' });
+    assert.equal(hookUninstall.status, 200);
+    const tomlRestored = fs.readFileSync(path.join(codexDir, 'config.toml'), 'utf8');
+    assert.match(tomlRestored, /"custom-notify\.py"/, 'Original custom multi-line notify should be restored on uninstall');
   } finally {
     await bridge.stop();
     fs.rmSync(tempRoot, { recursive: true, force: true });

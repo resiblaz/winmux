@@ -1261,6 +1261,63 @@
   <data name="WorkspaceSidebarCreateWorkspaceButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>新建工作区</value>
   </data>
+  <data name="WorkspaceSidebarRemoteBridgeButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>远程控制</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>远程控制（Winmux Mobile）</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeTitle.Text" xml:space="preserve">
+    <value>远程控制</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeCodeLabel.Text" xml:space="preserve">
+    <value>配对码</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeRefreshButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>刷新配对码</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeLanLabel.Text" xml:space="preserve">
+    <value>局域网地址</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeRemoteLabel.Text" xml:space="preserve">
+    <value>远程 IPv6 地址</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeTlsLabel.Text" xml:space="preserve">
+    <value>TLS SHA-256 指纹</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeCopyUriButton.Content" xml:space="preserve">
+    <value>复制配对链接</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeStoppedHint.Text" xml:space="preserve">
+    <value>一键启动内置加密远程桥接服务，在手机端实时查看与控制 Winmux 工作区。</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteRunning" xml:space="preserve">
+    <value>运行中</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteStopped" xml:space="preserve">
+    <value>未启动</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteStarting" xml:space="preserve">
+    <value>处理中…</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteStart" xml:space="preserve">
+    <value>启动</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteStop" xml:space="preserve">
+    <value>停止</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteCopied" xml:space="preserve">
+    <value>已复制配对链接</value>
+  </data>
+  <data name="WorkspaceSidebar_RemotePairedDevices" xml:space="preserve">
+    <value>已配对 {0} 台设备</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteNoIpv6" xml:space="preserve">
+    <value>未检测到公网 IPv6（路由器开启 IPv6 后自动识别）</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteExternalStopHint" xml:space="preserve">
+    <value>该服务由外部进程启动，请在其终端窗口中停止。</value>
+  </data>
   <data name="WorkspaceSidebarSearchBox.PlaceholderText" xml:space="preserve">
     <value>筛选工作区、终端或分支…</value>
   </data>

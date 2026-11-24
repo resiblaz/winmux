@@ -152,6 +152,7 @@
     <ClInclude Include="WorkspaceGitBranch.h" />
     <ClInclude Include="WorkspaceGitMetadata.h" />
     <ClInclude Include="WorkspaceListeningPorts.h" />
+    <ClInclude Include="WorkspaceRemoteBridge.h" />
     <ClInclude Include="WorkspaceAgentResume.h" />
     <ClInclude Include="WorkspaceAutomation.h" />
     <ClInclude Include="WorkspaceAutomationController.h" />
@@ -345,6 +346,7 @@
     <ClCompile Include="WorkspaceGitBranch.cpp" />
     <ClCompile Include="WorkspaceGitMetadata.cpp" />
     <ClCompile Include="WorkspaceListeningPorts.cpp" />
+    <ClCompile Include="WorkspaceRemoteBridge.cpp" />
     <ClCompile Include="WorkspaceAutomation.cpp" />
     <ClCompile Include="WorkspaceAutomationController.cpp" />
     <ClCompile Include="WorkspaceFeatureSet.cpp" />

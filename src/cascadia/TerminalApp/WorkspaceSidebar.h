@@ -6,6 +6,7 @@
 #include "WorkspaceSidebar.g.h"
 #include "WorkspaceSidebarRow.h"
 #include "WorkspaceSidebarTreeModel.h"
+#include "WorkspaceRemoteBridge.h"
 
 namespace winrt::TerminalApp::implementation
 {
@@ -117,6 +118,10 @@ namespace winrt::TerminalApp::implementation
         void _NotificationHistory_KeyDown(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::Input::KeyRoutedEventArgs& args);
         void _MarkAllNotificationsRead_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _ClearAllNotificationHistory_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _RemoteBridgeFlyout_Opening(const Windows::Foundation::IInspectable& sender, const Windows::Foundation::IInspectable& args);
+        void _RemoteBridgeToggle_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _RemoteBridgeRefresh_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _RemoteBridgeCopyUri_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
 
     private:
         static constexpr double MinimumExpandedWidth{ 152.0 };
@@ -175,8 +180,14 @@ namespace winrt::TerminalApp::implementation
         std::unordered_map<uint32_t, SidebarProcessState> _processStates;
         TerminalApp::WorkspaceSidebarRow _dragRow{ nullptr };
         std::optional<FilterHeaderState> _lastFilterHeaderState;
+        WorkspaceRemoteBridge _remoteBridge;
+        RemoteBridgeStatus _remoteBridgeStatus;
+        bool _remoteBridgeBusy{ false };
 
         void _ApplyLayout();
+        winrt::fire_and_forget _RefreshRemoteBridgeAsync(bool refreshCode);
+        winrt::fire_and_forget _ToggleRemoteBridgeAsync();
+        void _ApplyRemoteBridgeStatus(const RemoteBridgeStatus& status, bool busy);
         void _SetExpandedContentVisibility(Windows::UI::Xaml::Visibility visibility);
         void _ActivateNotification(const TerminalApp::WorkspaceNotification& notification);
         void _SetWorkspaceItemHoverVisibility(const Windows::Foundation::IInspectable& sender, Windows::UI::Xaml::Visibility visibility) const;

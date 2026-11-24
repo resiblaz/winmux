@@ -769,6 +769,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="SidebarTitle"
                                    x:Uid="WorkspaceSidebarTitle"
@@ -779,23 +780,190 @@
                                    FontWeight="SemiBold"
                                    Opacity="0.72"
                                    TextTrimming="CharacterEllipsis" />
+                        <Button x:Name="RemoteBridgeButton"
+                                x:Uid="WorkspaceSidebarRemoteBridgeButton"
+                                Grid.Column="1"
+                                Margin="0,0,2,0"
+                                Style="{StaticResource SidebarHeaderIconButtonStyle}">
+                            <Grid Width="22"
+                                  Height="22">
+                                <FontIcon HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                          FontSize="11"
+                                          Glyph="&#xE8EA;" />
+                                <Ellipse x:Name="RemoteBridgeRunningDot"
+                                         Width="6"
+                                         Height="6"
+                                         Margin="0,2,2,0"
+                                         HorizontalAlignment="Right"
+                                         VerticalAlignment="Top"
+                                         Fill="{StaticResource WorkspaceStatusRunningBrush}"
+                                         Visibility="Collapsed" />
+                            </Grid>
+                            <Button.Flyout>
+                                <Flyout x:Name="RemoteBridgeFlyout"
+                                        Opening="_RemoteBridgeFlyout_Opening"
+                                        Placement="Right">
+                                    <StackPanel Width="312"
+                                                Spacing="10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeTitle"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="15"
+                                                       FontWeight="SemiBold" />
+                                            <Border x:Name="RemoteBridgeStatusBadge"
+                                                    Grid.Column="1"
+                                                    Margin="6,0"
+                                                    Padding="7,2"
+                                                    VerticalAlignment="Center"
+                                                    Background="{ThemeResource WorkspaceChromeStatusFillBrush}"
+                                                    CornerRadius="10">
+                                                <TextBlock x:Name="RemoteBridgeStatusText"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold" />
+                                            </Border>
+                                            <Button x:Name="RemoteBridgeToggleButton"
+                                                    Grid.Column="2"
+                                                    MinWidth="58"
+                                                    Height="26"
+                                                    Padding="10,0"
+                                                    Click="_RemoteBridgeToggle_Click"
+                                                    FontSize="11.5" />
+                                        </Grid>
+
+                                        <StackPanel x:Name="RemoteBridgeRunningPanel"
+                                                    Spacing="8"
+                                                    Visibility="Collapsed">
+                                            <Border Padding="10,8"
+                                                    Background="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}"
+                                                    BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2">
+                                                        <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeCodeLabel"
+                                                                   FontSize="10"
+                                                                   Opacity="0.64" />
+                                                        <TextBlock x:Name="RemoteBridgeCodeText"
+                                                                   FontFamily="Consolas"
+                                                                   FontSize="22"
+                                                                   FontWeight="Bold"
+                                                                   IsTextSelectionEnabled="True" />
+                                                    </StackPanel>
+                                                    <Button x:Name="RemoteBridgeRefreshButton"
+                                                            x:Uid="WorkspaceSidebarRemoteBridgeRefreshButton"
+                                                            Grid.Column="1"
+                                                            Width="28"
+                                                            Height="28"
+                                                            Padding="0"
+                                                            VerticalAlignment="Center"
+                                                            Background="Transparent"
+                                                            BorderThickness="0"
+                                                            Click="_RemoteBridgeRefresh_Click"
+                                                            Content="&#xE72C;"
+                                                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                            FontSize="12" />
+                                                </Grid>
+                                            </Border>
+
+                                            <StackPanel Spacing="4">
+                                                <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeLanLabel"
+                                                           FontSize="10"
+                                                           Opacity="0.64" />
+                                                <TextBlock x:Name="RemoteBridgeLanUrlText"
+                                                           FontFamily="Consolas"
+                                                           FontSize="11.5"
+                                                           IsTextSelectionEnabled="True"
+                                                           TextWrapping="Wrap" />
+                                                <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeRemoteLabel"
+                                                           Margin="0,4,0,0"
+                                                           FontSize="10"
+                                                           Opacity="0.64" />
+                                                <TextBlock x:Name="RemoteBridgeRemoteUrlText"
+                                                           FontFamily="Consolas"
+                                                           FontSize="11"
+                                                           IsTextSelectionEnabled="True"
+                                                           Opacity="0.82"
+                                                           TextWrapping="Wrap" />
+                                                <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeTlsLabel"
+                                                           Margin="0,4,0,0"
+                                                           FontSize="10"
+                                                           Opacity="0.64" />
+                                                <TextBlock x:Name="RemoteBridgeTlsFingerprintText"
+                                                           FontFamily="Consolas"
+                                                           FontSize="10.5"
+                                                           Foreground="{StaticResource WorkspaceStatusRunningBrush}"
+                                                           IsTextSelectionEnabled="True"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+
+                                            <Grid Margin="0,2,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center"
+                                                            Spacing="1">
+                                                    <TextBlock x:Name="RemoteBridgePairedCountText"
+                                                               FontSize="11"
+                                                               Opacity="0.72" />
+                                                    <TextBlock x:Name="RemoteBridgeCopyFeedbackText"
+                                                               FontSize="10.5"
+                                                               Foreground="{StaticResource WorkspaceStatusRunningBrush}"
+                                                               Visibility="Collapsed" />
+                                                </StackPanel>
+                                                <Button x:Name="RemoteBridgeCopyUriButton"
+                                                        x:Uid="WorkspaceSidebarRemoteBridgeCopyUriButton"
+                                                        Grid.Column="1"
+                                                        Click="_RemoteBridgeCopyUri_Click"
+                                                        FontSize="11.5" />
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <StackPanel x:Name="RemoteBridgeStoppedPanel"
+                                                    Spacing="6">
+                                            <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeStoppedHint"
+                                                       FontSize="11.5"
+                                                       Opacity="0.76"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+
+                                        <TextBlock x:Name="RemoteBridgeErrorText"
+                                                   FontSize="11"
+                                                   Foreground="{ThemeResource AttentionPaneBorderColor}"
+                                                   TextWrapping="Wrap"
+                                                   Visibility="Collapsed" />
+                                    </StackPanel>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
                         <Button x:Name="CollapseAllButton"
                                 x:Uid="WorkspaceSidebarCollapseAllButton"
-                                Grid.Column="1"
+                                Grid.Column="2"
                                 Margin="0,0,2,0"
                                 Click="_CollapseAll_Click"
                                 Content="&#xE73F;"
                                 Style="{StaticResource SidebarHeaderIconButtonStyle}" />
                         <Button x:Name="SidebarCreateWorkspaceButton"
                                 x:Uid="WorkspaceSidebarCreateWorkspaceButton"
-                                Grid.Column="2"
+                                Grid.Column="3"
                                 Click="_CreateWorkspace_Click"
                                 Content="&#xE710;"
                                 Style="{StaticResource SidebarHeaderIconButtonStyle}" />
 
                         <!-- Retained for NotificationCenterFlyout hosting and narrow-window ToggleButton compatibility -->
                         <Button x:Name="NotificationCenterButton"
-                                Grid.Column="3"
+                                Grid.Column="4"
                                 Width="0"
                                 Height="0"
                                 Padding="0"
@@ -914,7 +1082,7 @@
                             </Button.Flyout>
                         </Button>
                         <Button x:Name="ToggleButton"
-                                Grid.Column="4"
+                                Grid.Column="5"
                                 Width="0"
                                 Height="0"
                                 Padding="0"

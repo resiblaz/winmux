@@ -1714,4 +1714,218 @@ namespace winrt::TerminalApp::implementation
     {
         ClearAllNotificationHistoryRequested.raise(*this, nullptr);
     }
+
+    void WorkspaceSidebar::_RemoteBridgeFlyout_Opening(const IInspectable&, const IInspectable&)
+    {
+        if (_layoutElementsReady)
+        {
+            RemoteBridgeCopyFeedbackText().Visibility(Visibility::Collapsed);
+            _ApplyRemoteBridgeStatus(_remoteBridgeStatus, _remoteBridgeBusy);
+        }
+        _RefreshRemoteBridgeAsync(false);
+    }
+
+    void WorkspaceSidebar::_RemoteBridgeToggle_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        _ToggleRemoteBridgeAsync();
+    }
+
+    void WorkspaceSidebar::_RemoteBridgeRefresh_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        _RefreshRemoteBridgeAsync(true);
+    }
+
+    void WorkspaceSidebar::_RemoteBridgeCopyUri_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        if (_remoteBridgeStatus.PairUri.empty())
+        {
+            return;
+        }
+        DataPackage dataPackage{};
+        dataPackage.SetText(_remoteBridgeStatus.PairUri);
+        Clipboard::SetContent(dataPackage);
+        Clipboard::Flush();
+
+        if (_layoutElementsReady)
+        {
+            RemoteBridgeCopyFeedbackText().Text(RS_(L"WorkspaceSidebar_RemoteCopied"));
+            RemoteBridgeCopyFeedbackText().Visibility(Visibility::Visible);
+        }
+    }
+
+    winrt::fire_and_forget WorkspaceSidebar::_RefreshRemoteBridgeAsync(const bool refreshCode)
+    {
+        const auto weakThis = get_weak();
+        const auto dispatcher = Dispatcher();
+        if (!dispatcher)
+        {
+            co_return;
+        }
+
+        co_await winrt::resume_background();
+
+        RemoteBridgeStatus nextStatus{};
+        try
+        {
+            if (const auto self = weakThis.get())
+            {
+                nextStatus = self->_remoteBridge.RefreshStatus(WorkspaceRemoteBridge::DefaultPort, refreshCode);
+            }
+        }
+        CATCH_LOG();
+
+        co_await wil::resume_foreground(dispatcher);
+        if (const auto self = weakThis.get())
+        {
+            self->_remoteBridgeStatus = std::move(nextStatus);
+            self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, self->_remoteBridgeBusy);
+        }
+    }
+
+    winrt::fire_and_forget WorkspaceSidebar::_ToggleRemoteBridgeAsync()
+    {
+        if (_remoteBridgeBusy)
+        {
+            co_return;
+        }
+
+        const auto weakThis = get_weak();
+        const auto dispatcher = Dispatcher();
+        if (!dispatcher)
+        {
+            co_return;
+        }
+
+        _remoteBridgeBusy = true;
+        _ApplyRemoteBridgeStatus(_remoteBridgeStatus, true);
+
+        const bool shouldStop = _remoteBridgeStatus.Running;
+        co_await winrt::resume_background();
+
+        RemoteBridgeStatus nextStatus{};
+        try
+        {
+            if (const auto self = weakThis.get())
+            {
+                if (shouldStop)
+                {
+                    if (self->_remoteBridge.IsOwnedRunning())
+                    {
+                        self->_remoteBridge.Stop();
+                        nextStatus = self->_remoteBridge.RefreshStatus(WorkspaceRemoteBridge::DefaultPort, false);
+                    }
+                    else
+                    {
+                        nextStatus = self->_remoteBridge.RefreshStatus(WorkspaceRemoteBridge::DefaultPort, false);
+                        if (nextStatus.Running)
+                        {
+                            nextStatus.ErrorMessage = std::wstring{ RS_(L"WorkspaceSidebar_RemoteExternalStopHint") };
+                        }
+                    }
+                }
+                else
+                {
+                    std::wstring startError;
+                    if (!self->_remoteBridge.Start(startError, WorkspaceRemoteBridge::DefaultPort))
+                    {
+                        nextStatus.ErrorMessage = std::move(startError);
+                    }
+                    else
+                    {
+                        // Poll briefly until the newly spawned Node.js sidecar opens its HTTPS listener.
+                        for (int attempt = 0; attempt < 20; ++attempt)
+                        {
+                            nextStatus = self->_remoteBridge.RefreshStatus(WorkspaceRemoteBridge::DefaultPort, false);
+                            if (nextStatus.Running)
+                            {
+                                break;
+                            }
+                            Sleep(150);
+                        }
+                        if (!nextStatus.Running && nextStatus.ErrorMessage.empty())
+                        {
+                            nextStatus.ErrorMessage = L"Remote Bridge started but did not respond on 127.0.0.1:47710.";
+                        }
+                    }
+                }
+            }
+        }
+        CATCH_LOG();
+
+        co_await wil::resume_foreground(dispatcher);
+        if (const auto self = weakThis.get())
+        {
+            self->_remoteBridgeBusy = false;
+            self->_remoteBridgeStatus = std::move(nextStatus);
+            self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, false);
+        }
+    }
+
+    void WorkspaceSidebar::_ApplyRemoteBridgeStatus(const RemoteBridgeStatus& status, const bool busy)
+    {
+        if (!_layoutElementsReady)
+        {
+            return;
+        }
+
+        RemoteBridgeRunningDot().Visibility(status.Running ? Visibility::Visible : Visibility::Collapsed);
+        RemoteBridgeToggleButton().IsEnabled(!busy);
+        RemoteBridgeRefreshButton().IsEnabled(!busy && status.Running);
+
+        if (busy)
+        {
+            RemoteBridgeStatusText().Text(RS_(L"WorkspaceSidebar_RemoteStarting"));
+            RemoteBridgeToggleButton().Content(box_value(status.Running ? RS_(L"WorkspaceSidebar_RemoteStop") : RS_(L"WorkspaceSidebar_RemoteStart")));
+        }
+        else if (status.Running)
+        {
+            RemoteBridgeStatusText().Text(RS_(L"WorkspaceSidebar_RemoteRunning"));
+            RemoteBridgeToggleButton().Content(box_value(RS_(L"WorkspaceSidebar_RemoteStop")));
+        }
+        else
+        {
+            RemoteBridgeStatusText().Text(RS_(L"WorkspaceSidebar_RemoteStopped"));
+            RemoteBridgeToggleButton().Content(box_value(RS_(L"WorkspaceSidebar_RemoteStart")));
+        }
+
+        RemoteBridgeRunningPanel().Visibility(status.Running ? Visibility::Visible : Visibility::Collapsed);
+        RemoteBridgeStoppedPanel().Visibility(status.Running ? Visibility::Collapsed : Visibility::Visible);
+
+        if (status.Running)
+        {
+            RemoteBridgeCodeText().Text(status.PairingCode);
+            RemoteBridgeLanUrlText().Text(status.LanUrl);
+            RemoteBridgeRemoteUrlText().Text(status.RemoteUrl.empty() ? RS_(L"WorkspaceSidebar_RemoteNoIpv6") : winrt::hstring{ status.RemoteUrl });
+
+            if (!status.CertFingerprint.empty())
+            {
+                const auto preview = status.CertFingerprint.size() > 24 ?
+                                         status.CertFingerprint.substr(0, 24) + L"…" :
+                                         status.CertFingerprint;
+                RemoteBridgeTlsFingerprintText().Text(preview);
+                ToolTipService::SetToolTip(RemoteBridgeTlsFingerprintText(), box_value(status.CertFingerprint));
+                RemoteBridgeTlsFingerprintText().Visibility(Visibility::Visible);
+            }
+            else
+            {
+                RemoteBridgeTlsFingerprintText().Text(L"HTTP (TLS disabled)");
+                ToolTipService::SetToolTip(RemoteBridgeTlsFingerprintText(), nullptr);
+                RemoteBridgeTlsFingerprintText().Visibility(Visibility::Visible);
+            }
+
+            RemoteBridgePairedCountText().Text(RS_fmt(L"WorkspaceSidebar_RemotePairedDevices", status.PairedDeviceCount));
+            RemoteBridgeCopyUriButton().IsEnabled(!status.PairUri.empty());
+        }
+
+        if (!status.ErrorMessage.empty())
+        {
+            RemoteBridgeErrorText().Text(status.ErrorMessage);
+            RemoteBridgeErrorText().Visibility(Visibility::Visible);
+        }
+        else
+        {
+            RemoteBridgeErrorText().Text(L"");
+            RemoteBridgeErrorText().Visibility(Visibility::Collapsed);
+        }
+    }
 }

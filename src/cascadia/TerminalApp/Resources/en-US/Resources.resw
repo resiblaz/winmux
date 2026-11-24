@@ -1261,6 +1261,63 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebarCreateWorkspaceButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>New workspace</value>
   </data>
+  <data name="WorkspaceSidebarRemoteBridgeButton.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Remote Control</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Remote Control (Winmux Mobile)</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeTitle.Text" xml:space="preserve">
+    <value>Remote Control</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeCodeLabel.Text" xml:space="preserve">
+    <value>PAIRING CODE</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeRefreshButton.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Refresh pairing code</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeLanLabel.Text" xml:space="preserve">
+    <value>LAN URL</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeRemoteLabel.Text" xml:space="preserve">
+    <value>Remote IPv6 URL</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeTlsLabel.Text" xml:space="preserve">
+    <value>TLS SHA-256</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeCopyUriButton.Content" xml:space="preserve">
+    <value>Copy Pair URI</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeStoppedHint.Text" xml:space="preserve">
+    <value>Start the built-in encrypted Remote Bridge to monitor and control Winmux workspaces from your Android phone.</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteRunning" xml:space="preserve">
+    <value>Running</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteStopped" xml:space="preserve">
+    <value>Stopped</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteStarting" xml:space="preserve">
+    <value>Working…</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteStart" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteStop" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteCopied" xml:space="preserve">
+    <value>Copied Pair URI!</value>
+  </data>
+  <data name="WorkspaceSidebar_RemotePairedDevices" xml:space="preserve">
+    <value>{0} paired device(s)</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteNoIpv6" xml:space="preserve">
+    <value>Not detected (enable IPv6 on router)</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteExternalStopHint" xml:space="preserve">
+    <value>Bridge was started externally; close its terminal to stop it.</value>
+  </data>
   <data name="WorkspaceSidebarSearchBox.PlaceholderText" xml:space="preserve">
     <value>Filter workspaces, terminals, branches…</value>
   </data>

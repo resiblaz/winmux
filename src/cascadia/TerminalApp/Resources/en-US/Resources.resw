@@ -1318,6 +1318,48 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebar_RemoteExternalStopHint" xml:space="preserve">
     <value>Bridge was started externally; close its terminal to stop it.</value>
   </data>
+  <data name="WorkspaceSidebarRemoteBridgeAutoStartCheckBox.Content" xml:space="preserve">
+    <value>Auto-start Remote Bridge with Winmux</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeQrHint.Text" xml:space="preserve">
+    <value>Scan with Winmux Mobile to pair instantly</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeHooksTitle.Text" xml:space="preserve">
+    <value>Agent Hooks (Claude &amp; Codex)</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeTunnelTitle.Text" xml:space="preserve">
+    <value>5G Public Tunnel (Cloudflare)</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeDevicesTitle.Text" xml:space="preserve">
+    <value>AUTHORIZED DEVICES</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteHooksInstall" xml:space="preserve">
+    <value>Install</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteHooksUninstall" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteHooksStatusReady" xml:space="preserve">
+    <value>Claude ✓ · Codex ✓</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteHooksStatusPartial" xml:space="preserve">
+    <value>Claude {0} · Codex {1}</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteTunnelStart" xml:space="preserve">
+    <value>Enable</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteTunnelStop" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteTunnelMissing" xml:space="preserve">
+    <value>Install cloudflared (winget install Cloudflare.cloudflared)</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteTunnelReady" xml:space="preserve">
+    <value>Ready (zero router config)</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteDeviceRevoke" xml:space="preserve">
+    <value>Revoke</value>
+  </data>
   <data name="WorkspaceSidebarSearchBox.PlaceholderText" xml:space="preserve">
     <value>Filter workspaces, terminals, branches…</value>
   </data>

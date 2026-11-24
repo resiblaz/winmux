@@ -4,6 +4,7 @@
 #include "pch.h"
 #include "WorkspaceRemoteBridge.h"
 
+#include <fstream>
 #include <winhttp.h>
 #include <winrt/Windows.Data.Json.h>
 
@@ -42,7 +43,8 @@ namespace winrt::TerminalApp::implementation
                                  const wchar_t* verb,
                                  const wchar_t* path,
                                  std::string& responseBodyOut,
-                                 DWORD& statusCodeOut)
+                                 DWORD& statusCodeOut,
+                                 const DWORD receiveTimeoutMs = 1500)
         {
             responseBodyOut.clear();
             statusCodeOut = 0;
@@ -57,7 +59,7 @@ namespace winrt::TerminalApp::implementation
                 return false;
             }
 
-            WinHttpSetTimeouts(session.get(), 800, 1000, 1200, 1500);
+            WinHttpSetTimeouts(session.get(), 800, 1000, 1500, receiveTimeoutMs);
 
             unique_winhttp connection{ WinHttpConnect(session.get(), L"127.0.0.1", port, 0) };
             if (!connection)
@@ -133,7 +135,7 @@ namespace winrt::TerminalApp::implementation
                     break;
                 }
                 responseBodyOut.resize(offset + readBytes);
-                if (responseBodyOut.size() > 64 * 1024)
+                if (responseBodyOut.size() > 128 * 1024)
                 {
                     break;
                 }
@@ -141,11 +143,171 @@ namespace winrt::TerminalApp::implementation
 
             return statusCode >= 200 && statusCode < 300;
         }
+
+        bool _queryLocalhostJson(const uint16_t port,
+                                 const wchar_t* verb,
+                                 const wchar_t* path,
+                                 JsonObject& jsonOut,
+                                 const DWORD receiveTimeoutMs = 1500)
+        {
+            std::string body;
+            DWORD httpStatus = 0;
+            bool ok = _httpQueryLocalhost(port, true, verb, path, body, httpStatus, receiveTimeoutMs);
+            if (!ok && httpStatus == 0)
+            {
+                ok = _httpQueryLocalhost(port, false, verb, path, body, httpStatus, receiveTimeoutMs);
+            }
+            if (body.empty())
+            {
+                return false;
+            }
+            JsonObject parsed{ nullptr };
+            if (!JsonObject::TryParse(winrt::to_hstring(body), parsed) || !parsed)
+            {
+                return false;
+            }
+            jsonOut = parsed;
+            return ok;
+        }
+
+        RemoteBridgeStatus _parsePairingObject(const JsonObject& json)
+        {
+            RemoteBridgeStatus status{};
+            if (!json)
+            {
+                return status;
+            }
+            status.Running = true;
+            status.TlsEnabled = json.GetNamedBoolean(L"tls", true);
+            status.PairingCode = std::wstring{ json.GetNamedString(L"code", L"") };
+            status.LanUrl = std::wstring{ json.GetNamedString(L"lanUrl", L"") };
+            status.RemoteUrl = std::wstring{ json.GetNamedString(L"remoteUrl", L"") };
+            status.CertFingerprint = std::wstring{ json.GetNamedString(L"certFingerprint", L"") };
+            status.PairUri = std::wstring{ json.GetNamedString(L"pairUri", L"") };
+            status.QrSize = static_cast<uint32_t>(std::max(0.0, json.GetNamedNumber(L"qrSize", 0.0)));
+            const auto qrModulesW = json.GetNamedString(L"qrModules", L"");
+            status.QrModules.reserve(qrModulesW.size());
+            for (const auto ch : qrModulesW)
+            {
+                status.QrModules.push_back(ch == L'1' ? '1' : '0');
+            }
+            status.PairedDeviceCount = static_cast<uint32_t>(std::max(0.0, json.GetNamedNumber(L"pairedDeviceCount", 0.0)));
+
+            if (json.HasKey(L"hooks"))
+            {
+                if (const auto hooksVal = json.Lookup(L"hooks"); hooksVal && hooksVal.ValueType() == JsonValueType::Object)
+                {
+                    const auto hooksObj = hooksVal.GetObject();
+                    status.ClaudeHookInstalled = hooksObj.GetNamedBoolean(L"claudeInstalled", false);
+                    status.CodexHookInstalled = hooksObj.GetNamedBoolean(L"codexInstalled", false);
+                }
+            }
+
+            if (json.HasKey(L"tunnel"))
+            {
+                if (const auto tunnelVal = json.Lookup(L"tunnel"); tunnelVal && tunnelVal.ValueType() == JsonValueType::Object)
+                {
+                    const auto tunnelObj = tunnelVal.GetObject();
+                    status.TunnelAvailable = tunnelObj.GetNamedBoolean(L"available", false);
+                    status.TunnelRunning = tunnelObj.GetNamedBoolean(L"running", false);
+                    status.TunnelPublicUrl = std::wstring{ tunnelObj.GetNamedString(L"publicUrl", L"") };
+                    status.TunnelError = std::wstring{ tunnelObj.GetNamedString(L"error", L"") };
+                }
+            }
+
+            if (json.HasKey(L"devices"))
+            {
+                if (const auto devVal = json.Lookup(L"devices"); devVal && devVal.ValueType() == JsonValueType::Array)
+                {
+                    const auto arr = devVal.GetArray();
+                    for (uint32_t i = 0; i < arr.Size(); ++i)
+                    {
+                        if (const auto item = arr.GetAt(i); item && item.ValueType() == JsonValueType::Object)
+                        {
+                            const auto obj = item.GetObject();
+                            status.Devices.push_back(RemotePairedDevice{
+                                std::wstring{ obj.GetNamedString(L"id", L"") },
+                                std::wstring{ obj.GetNamedString(L"name", L"Android") },
+                            });
+                        }
+                    }
+                }
+            }
+            return status;
+        }
     }
 
     WorkspaceRemoteBridge::~WorkspaceRemoteBridge()
     {
         Stop();
+    }
+
+    std::filesystem::path WorkspaceRemoteBridge::DesktopPrefsPath()
+    {
+        if (const auto localAppData = wil::TryGetEnvironmentVariableW(L"LOCALAPPDATA"))
+        {
+            return std::filesystem::path{ localAppData.get() } / L"Winmux" / L"remote-bridge" / L"desktop-prefs.json";
+        }
+        return {};
+    }
+
+    bool WorkspaceRemoteBridge::LoadAutoStartPreference() noexcept
+    {
+        try
+        {
+            const auto path = DesktopPrefsPath();
+            std::error_code ec;
+            if (path.empty() || !std::filesystem::is_regular_file(path, ec))
+            {
+                return false;
+            }
+            std::ifstream in(path, std::ios::binary);
+            if (!in)
+            {
+                return false;
+            }
+            std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+            JsonObject json{ nullptr };
+            if (JsonObject::TryParse(winrt::to_hstring(content), json) && json)
+            {
+                return json.GetNamedBoolean(L"autoStartBridge", false);
+            }
+        }
+        catch (...)
+        {
+        }
+        return false;
+    }
+
+    void WorkspaceRemoteBridge::SaveAutoStartPreference(const bool enabled) noexcept
+    {
+        try
+        {
+            const auto path = DesktopPrefsPath();
+            if (path.empty())
+            {
+                return;
+            }
+            std::error_code ec;
+            std::filesystem::create_directories(path.parent_path(), ec);
+            JsonObject json{};
+            json.Insert(L"autoStartBridge", JsonValue::CreateBooleanValue(enabled));
+            const auto payload = winrt::to_string(json.Stringify());
+            const auto tmp = std::filesystem::path{ path.wstring() + L".tmp" };
+            {
+                std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+                out.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+            }
+            std::filesystem::rename(tmp, path, ec);
+            if (ec)
+            {
+                std::filesystem::copy_file(tmp, path, std::filesystem::copy_options::overwrite_existing, ec);
+                std::filesystem::remove(tmp, ec);
+            }
+        }
+        catch (...)
+        {
+        }
     }
 
     std::filesystem::path WorkspaceRemoteBridge::FindBridgeEntryScript()
@@ -235,38 +397,15 @@ namespace winrt::TerminalApp::implementation
 
     RemoteBridgeStatus WorkspaceRemoteBridge::QueryLocalPairing(const uint16_t port, const bool refresh)
     {
-        RemoteBridgeStatus status{};
         const wchar_t* verb = refresh ? L"POST" : L"GET";
         const wchar_t* path = refresh ? L"/api/local/pairing/refresh" : L"/api/local/pairing";
 
-        std::string body;
-        DWORD httpStatus = 0;
-        bool ok = _httpQueryLocalhost(port, true, verb, path, body, httpStatus);
-        if (!ok)
-        {
-            // Fallback for plain HTTP mode (WINMUX_BRIDGE_TLS=0).
-            ok = _httpQueryLocalhost(port, false, verb, path, body, httpStatus);
-        }
-        if (!ok || body.empty())
-        {
-            return status;
-        }
-
         JsonObject json{ nullptr };
-        if (!JsonObject::TryParse(winrt::to_hstring(body), json) || !json)
+        if (!_queryLocalhostJson(port, verb, path, json, 1500))
         {
-            return status;
+            return {};
         }
-
-        status.Running = true;
-        status.TlsEnabled = json.GetNamedBoolean(L"tls", true);
-        status.PairingCode = std::wstring{ json.GetNamedString(L"code", L"") };
-        status.LanUrl = std::wstring{ json.GetNamedString(L"lanUrl", L"") };
-        status.RemoteUrl = std::wstring{ json.GetNamedString(L"remoteUrl", L"") };
-        status.CertFingerprint = std::wstring{ json.GetNamedString(L"certFingerprint", L"") };
-        status.PairUri = std::wstring{ json.GetNamedString(L"pairUri", L"") };
-        status.PairedDeviceCount = static_cast<uint32_t>(std::max(0.0, json.GetNamedNumber(L"pairedDeviceCount", 0.0)));
-        return status;
+        return _parsePairingObject(json);
     }
 
     bool WorkspaceRemoteBridge::IsOwnedRunning() const noexcept
@@ -374,5 +513,55 @@ namespace winrt::TerminalApp::implementation
         auto status = QueryLocalPairing(port, refreshCode);
         status.OwnedByWinmux = IsOwnedRunning();
         return status;
+    }
+
+    RemoteBridgeStatus WorkspaceRemoteBridge::InstallHooks(const bool install, const uint16_t port) const
+    {
+        JsonObject json{ nullptr };
+        const wchar_t* route = install ? L"/api/local/hooks/install" : L"/api/local/hooks/uninstall";
+        _queryLocalhostJson(port, L"POST", route, json, 3000);
+        if (json && json.HasKey(L"pairing"))
+        {
+            auto status = _parsePairingObject(json.GetNamedObject(L"pairing"));
+            status.OwnedByWinmux = IsOwnedRunning();
+            return status;
+        }
+        return RefreshStatus(port, false);
+    }
+
+    RemoteBridgeStatus WorkspaceRemoteBridge::ToggleTunnel(const bool enable, const uint16_t port) const
+    {
+        JsonObject json{ nullptr };
+        const wchar_t* route = enable ? L"/api/local/tunnel/start" : L"/api/local/tunnel/stop";
+        _queryLocalhostJson(port, L"POST", route, json, enable ? 23000 : 3000);
+        if (json && json.HasKey(L"pairing"))
+        {
+            auto status = _parsePairingObject(json.GetNamedObject(L"pairing"));
+            status.OwnedByWinmux = IsOwnedRunning();
+            if (!status.TunnelRunning && !status.TunnelError.empty())
+            {
+                status.ErrorMessage = status.TunnelError;
+            }
+            return status;
+        }
+        return RefreshStatus(port, false);
+    }
+
+    RemoteBridgeStatus WorkspaceRemoteBridge::RevokeDevice(const std::wstring& deviceId, const uint16_t port) const
+    {
+        if (deviceId.empty())
+        {
+            return RefreshStatus(port, false);
+        }
+        const auto route = L"/api/local/devices/" + deviceId;
+        JsonObject json{ nullptr };
+        _queryLocalhostJson(port, L"DELETE", route.c_str(), json, 3000);
+        if (json && json.HasKey(L"pairing"))
+        {
+            auto status = _parsePairingObject(json.GetNamedObject(L"pairing"));
+            status.OwnedByWinmux = IsOwnedRunning();
+            return status;
+        }
+        return RefreshStatus(port, false);
     }
 }

@@ -122,6 +122,10 @@ namespace winrt::TerminalApp::implementation
         void _RemoteBridgeToggle_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _RemoteBridgeRefresh_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
         void _RemoteBridgeCopyUri_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _RemoteBridgeAutoStart_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _RemoteBridgeHooks_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _RemoteBridgeTunnel_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
+        void _RemoteBridgeRevokeDevice_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& args);
 
     private:
         static constexpr double MinimumExpandedWidth{ 152.0 };
@@ -182,11 +186,16 @@ namespace winrt::TerminalApp::implementation
         std::optional<FilterHeaderState> _lastFilterHeaderState;
         WorkspaceRemoteBridge _remoteBridge;
         RemoteBridgeStatus _remoteBridgeStatus;
+        std::string _renderedQrKey;
         bool _remoteBridgeBusy{ false };
 
         void _ApplyLayout();
+        winrt::fire_and_forget _AutoStartRemoteBridgeAsync();
         winrt::fire_and_forget _RefreshRemoteBridgeAsync(bool refreshCode);
         winrt::fire_and_forget _ToggleRemoteBridgeAsync();
+        winrt::fire_and_forget _ToggleRemoteHooksAsync();
+        winrt::fire_and_forget _ToggleRemoteTunnelAsync();
+        winrt::fire_and_forget _RevokeRemoteDeviceAsync(std::wstring deviceId);
         void _ApplyRemoteBridgeStatus(const RemoteBridgeStatus& status, bool busy);
         void _SetExpandedContentVisibility(Windows::UI::Xaml::Visibility visibility);
         void _ActivateNotification(const TerminalApp::WorkspaceNotification& notification);

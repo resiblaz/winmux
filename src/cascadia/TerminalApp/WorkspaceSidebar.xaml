@@ -805,145 +805,242 @@
                                 <Flyout x:Name="RemoteBridgeFlyout"
                                         Opening="_RemoteBridgeFlyout_Opening"
                                         Placement="Right">
-                                    <StackPanel Width="312"
-                                                Spacing="10">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeTitle"
-                                                       VerticalAlignment="Center"
-                                                       FontSize="15"
-                                                       FontWeight="SemiBold" />
-                                            <Border x:Name="RemoteBridgeStatusBadge"
-                                                    Grid.Column="1"
-                                                    Margin="6,0"
-                                                    Padding="7,2"
-                                                    VerticalAlignment="Center"
-                                                    Background="{ThemeResource WorkspaceChromeStatusFillBrush}"
-                                                    CornerRadius="10">
-                                                <TextBlock x:Name="RemoteBridgeStatusText"
-                                                           FontSize="11"
+                                    <ScrollViewer MaxHeight="560"
+                                                  VerticalScrollBarVisibility="Auto">
+                                        <StackPanel Width="324"
+                                                    Spacing="10">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeTitle"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="15"
                                                            FontWeight="SemiBold" />
-                                            </Border>
-                                            <Button x:Name="RemoteBridgeToggleButton"
-                                                    Grid.Column="2"
-                                                    MinWidth="58"
-                                                    Height="26"
-                                                    Padding="10,0"
-                                                    Click="_RemoteBridgeToggle_Click"
-                                                    FontSize="11.5" />
-                                        </Grid>
+                                                <Border x:Name="RemoteBridgeStatusBadge"
+                                                        Grid.Column="1"
+                                                        Margin="6,0"
+                                                        Padding="7,2"
+                                                        VerticalAlignment="Center"
+                                                        Background="{ThemeResource WorkspaceChromeStatusFillBrush}"
+                                                        CornerRadius="10">
+                                                    <TextBlock x:Name="RemoteBridgeStatusText"
+                                                               FontSize="11"
+                                                               FontWeight="SemiBold" />
+                                                </Border>
+                                                <Button x:Name="RemoteBridgeToggleButton"
+                                                        Grid.Column="2"
+                                                        MinWidth="58"
+                                                        Height="26"
+                                                        Padding="10,0"
+                                                        Click="_RemoteBridgeToggle_Click"
+                                                        FontSize="11.5" />
+                                            </Grid>
 
-                                        <StackPanel x:Name="RemoteBridgeRunningPanel"
-                                                    Spacing="8"
-                                                    Visibility="Collapsed">
-                                            <Border Padding="10,8"
-                                                    Background="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}"
-                                                    BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="6">
-                                                <Grid>
+                                            <CheckBox x:Name="RemoteBridgeAutoStartCheckBox"
+                                                      x:Uid="WorkspaceSidebarRemoteBridgeAutoStartCheckBox"
+                                                      MinHeight="24"
+                                                      Click="_RemoteBridgeAutoStart_Click"
+                                                      FontSize="11.5" />
+
+                                            <StackPanel x:Name="RemoteBridgeRunningPanel"
+                                                        Spacing="8"
+                                                        Visibility="Collapsed">
+                                                <!-- Scannable QR Code for Winmux Mobile -->
+                                                <StackPanel HorizontalAlignment="Center"
+                                                            Spacing="4">
+                                                    <Border Padding="8"
+                                                            HorizontalAlignment="Center"
+                                                            Background="White"
+                                                            CornerRadius="8">
+                                                        <Image x:Name="RemoteBridgeQrImage"
+                                                               Width="168"
+                                                               Height="168"
+                                                               Stretch="Uniform" />
+                                                    </Border>
+                                                    <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeQrHint"
+                                                               HorizontalAlignment="Center"
+                                                               FontSize="10.5"
+                                                               Opacity="0.7" />
+                                                </StackPanel>
+
+                                                <Border Padding="10,8"
+                                                        Background="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}"
+                                                        BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Spacing="2">
+                                                            <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeCodeLabel"
+                                                                       FontSize="10"
+                                                                       Opacity="0.64" />
+                                                            <TextBlock x:Name="RemoteBridgeCodeText"
+                                                                       FontFamily="Consolas"
+                                                                       FontSize="22"
+                                                                       FontWeight="Bold"
+                                                                       IsTextSelectionEnabled="True" />
+                                                        </StackPanel>
+                                                        <Button x:Name="RemoteBridgeRefreshButton"
+                                                                x:Uid="WorkspaceSidebarRemoteBridgeRefreshButton"
+                                                                Grid.Column="1"
+                                                                Width="28"
+                                                                Height="28"
+                                                                Padding="0"
+                                                                VerticalAlignment="Center"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                Click="_RemoteBridgeRefresh_Click"
+                                                                Content="&#xE72C;"
+                                                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                                FontSize="12" />
+                                                    </Grid>
+                                                </Border>
+
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeLanLabel"
+                                                               FontSize="10"
+                                                               Opacity="0.64" />
+                                                    <TextBlock x:Name="RemoteBridgeLanUrlText"
+                                                               FontFamily="Consolas"
+                                                               FontSize="11.5"
+                                                               IsTextSelectionEnabled="True"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeRemoteLabel"
+                                                               Margin="0,4,0,0"
+                                                               FontSize="10"
+                                                               Opacity="0.64" />
+                                                    <TextBlock x:Name="RemoteBridgeRemoteUrlText"
+                                                               FontFamily="Consolas"
+                                                               FontSize="11"
+                                                               IsTextSelectionEnabled="True"
+                                                               Opacity="0.82"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeTlsLabel"
+                                                               Margin="0,4,0,0"
+                                                               FontSize="10"
+                                                               Opacity="0.64" />
+                                                    <TextBlock x:Name="RemoteBridgeTlsFingerprintText"
+                                                               FontFamily="Consolas"
+                                                               FontSize="10.5"
+                                                               Foreground="{StaticResource WorkspaceStatusRunningBrush}"
+                                                               IsTextSelectionEnabled="True"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+
+                                                <!-- One-click Agent Hook Installer (Claude / Codex) -->
+                                                <Border Padding="8,6"
+                                                        Background="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}"
+                                                        BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel VerticalAlignment="Center"
+                                                                    Spacing="1">
+                                                            <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeHooksTitle"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold" />
+                                                            <TextBlock x:Name="RemoteBridgeHooksStatusText"
+                                                                       FontSize="10.5"
+                                                                       Opacity="0.72" />
+                                                        </StackPanel>
+                                                        <Button x:Name="RemoteBridgeHooksButton"
+                                                                Grid.Column="1"
+                                                                Height="26"
+                                                                Padding="8,0"
+                                                                Click="_RemoteBridgeHooks_Click"
+                                                                FontSize="11" />
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Optional Public Quick Tunnel (Cloudflare cloudflared) -->
+                                                <Border Padding="8,6"
+                                                        Background="{ThemeResource WorkspaceChromeSurfaceRaisedBrush}"
+                                                        BorderBrush="{ThemeResource WorkspaceChromeDividerBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel VerticalAlignment="Center"
+                                                                    Spacing="1">
+                                                            <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeTunnelTitle"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold" />
+                                                            <TextBlock x:Name="RemoteBridgeTunnelStatusText"
+                                                                       FontSize="10.5"
+                                                                       Opacity="0.72"
+                                                                       TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                        <Button x:Name="RemoteBridgeTunnelButton"
+                                                                Grid.Column="1"
+                                                                Height="26"
+                                                                Padding="8,0"
+                                                                Click="_RemoteBridgeTunnel_Click"
+                                                                FontSize="11" />
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Paired Devices List with one-click Revoke -->
+                                                <StackPanel x:Name="RemoteBridgeDevicesSection"
+                                                            Spacing="4"
+                                                            Visibility="Collapsed">
+                                                    <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeDevicesTitle"
+                                                               FontSize="10.5"
+                                                               Opacity="0.68" />
+                                                    <StackPanel x:Name="RemoteBridgeDevicesList"
+                                                                Spacing="4" />
+                                                </StackPanel>
+
+                                                <Grid Margin="0,2,0,0">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
-                                                    <StackPanel Spacing="2">
-                                                        <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeCodeLabel"
-                                                                   FontSize="10"
-                                                                   Opacity="0.64" />
-                                                        <TextBlock x:Name="RemoteBridgeCodeText"
-                                                                   FontFamily="Consolas"
-                                                                   FontSize="22"
-                                                                   FontWeight="Bold"
-                                                                   IsTextSelectionEnabled="True" />
+                                                    <StackPanel VerticalAlignment="Center"
+                                                                Spacing="1">
+                                                        <TextBlock x:Name="RemoteBridgePairedCountText"
+                                                                   FontSize="11"
+                                                                   Opacity="0.72" />
+                                                        <TextBlock x:Name="RemoteBridgeCopyFeedbackText"
+                                                                   FontSize="10.5"
+                                                                   Foreground="{StaticResource WorkspaceStatusRunningBrush}"
+                                                                   Visibility="Collapsed" />
                                                     </StackPanel>
-                                                    <Button x:Name="RemoteBridgeRefreshButton"
-                                                            x:Uid="WorkspaceSidebarRemoteBridgeRefreshButton"
+                                                    <Button x:Name="RemoteBridgeCopyUriButton"
+                                                            x:Uid="WorkspaceSidebarRemoteBridgeCopyUriButton"
                                                             Grid.Column="1"
-                                                            Width="28"
-                                                            Height="28"
-                                                            Padding="0"
-                                                            VerticalAlignment="Center"
-                                                            Background="Transparent"
-                                                            BorderThickness="0"
-                                                            Click="_RemoteBridgeRefresh_Click"
-                                                            Content="&#xE72C;"
-                                                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                                            FontSize="12" />
+                                                            Click="_RemoteBridgeCopyUri_Click"
+                                                            FontSize="11.5" />
                                                 </Grid>
-                                            </Border>
-
-                                            <StackPanel Spacing="4">
-                                                <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeLanLabel"
-                                                           FontSize="10"
-                                                           Opacity="0.64" />
-                                                <TextBlock x:Name="RemoteBridgeLanUrlText"
-                                                           FontFamily="Consolas"
-                                                           FontSize="11.5"
-                                                           IsTextSelectionEnabled="True"
-                                                           TextWrapping="Wrap" />
-                                                <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeRemoteLabel"
-                                                           Margin="0,4,0,0"
-                                                           FontSize="10"
-                                                           Opacity="0.64" />
-                                                <TextBlock x:Name="RemoteBridgeRemoteUrlText"
-                                                           FontFamily="Consolas"
-                                                           FontSize="11"
-                                                           IsTextSelectionEnabled="True"
-                                                           Opacity="0.82"
-                                                           TextWrapping="Wrap" />
-                                                <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeTlsLabel"
-                                                           Margin="0,4,0,0"
-                                                           FontSize="10"
-                                                           Opacity="0.64" />
-                                                <TextBlock x:Name="RemoteBridgeTlsFingerprintText"
-                                                           FontFamily="Consolas"
-                                                           FontSize="10.5"
-                                                           Foreground="{StaticResource WorkspaceStatusRunningBrush}"
-                                                           IsTextSelectionEnabled="True"
-                                                           TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
 
-                                            <Grid Margin="0,2,0,0">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel VerticalAlignment="Center"
-                                                            Spacing="1">
-                                                    <TextBlock x:Name="RemoteBridgePairedCountText"
-                                                               FontSize="11"
-                                                               Opacity="0.72" />
-                                                    <TextBlock x:Name="RemoteBridgeCopyFeedbackText"
-                                                               FontSize="10.5"
-                                                               Foreground="{StaticResource WorkspaceStatusRunningBrush}"
-                                                               Visibility="Collapsed" />
-                                                </StackPanel>
-                                                <Button x:Name="RemoteBridgeCopyUriButton"
-                                                        x:Uid="WorkspaceSidebarRemoteBridgeCopyUriButton"
-                                                        Grid.Column="1"
-                                                        Click="_RemoteBridgeCopyUri_Click"
-                                                        FontSize="11.5" />
-                                            </Grid>
-                                        </StackPanel>
+                                            <StackPanel x:Name="RemoteBridgeStoppedPanel"
+                                                        Spacing="6">
+                                                <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeStoppedHint"
+                                                           FontSize="11.5"
+                                                           Opacity="0.76"
+                                                           TextWrapping="Wrap" />
+                                            </StackPanel>
 
-                                        <StackPanel x:Name="RemoteBridgeStoppedPanel"
-                                                    Spacing="6">
-                                            <TextBlock x:Uid="WorkspaceSidebarRemoteBridgeStoppedHint"
-                                                       FontSize="11.5"
-                                                       Opacity="0.76"
-                                                       TextWrapping="Wrap" />
+                                            <TextBlock x:Name="RemoteBridgeErrorText"
+                                                       FontSize="11"
+                                                       Foreground="{ThemeResource AttentionPaneBorderColor}"
+                                                       TextWrapping="Wrap"
+                                                       Visibility="Collapsed" />
                                         </StackPanel>
-
-                                        <TextBlock x:Name="RemoteBridgeErrorText"
-                                                   FontSize="11"
-                                                   Foreground="{ThemeResource AttentionPaneBorderColor}"
-                                                   TextWrapping="Wrap"
-                                                   Visibility="Collapsed" />
-                                    </StackPanel>
+                                    </ScrollViewer>
                                 </Flyout>
                             </Button.Flyout>
                         </Button>

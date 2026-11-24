@@ -7,6 +7,10 @@
 #include "Tab.h"
 #include "Pane.h"
 
+#include <robuffer.h>
+#include <winrt/Windows.Storage.Streams.h>
+#include <winrt/Windows.UI.Xaml.Media.Imaging.h>
+
 #include "WorkspaceSidebar.g.cpp"
 
 using namespace winrt;
@@ -191,6 +195,12 @@ namespace winrt::TerminalApp::implementation
                 self->_ApplyLayout();
                 self->_layoutAnimationsEnabled = true;
                 self->RefreshTree();
+                const auto autoStart = WorkspaceRemoteBridge::LoadAutoStartPreference();
+                self->RemoteBridgeAutoStartCheckBox().IsChecked(autoStart);
+                if (autoStart)
+                {
+                    self->_AutoStartRemoteBridgeAsync();
+                }
             }
         });
     }
@@ -1753,6 +1763,195 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void WorkspaceSidebar::_RemoteBridgeAutoStart_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        if (!_layoutElementsReady)
+        {
+            return;
+        }
+        const bool enabled = RemoteBridgeAutoStartCheckBox().IsChecked().Value();
+        WorkspaceRemoteBridge::SaveAutoStartPreference(enabled);
+        if (enabled && !_remoteBridgeStatus.Running && !_remoteBridgeBusy)
+        {
+            _ToggleRemoteBridgeAsync();
+        }
+    }
+
+    void WorkspaceSidebar::_RemoteBridgeHooks_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        _ToggleRemoteHooksAsync();
+    }
+
+    void WorkspaceSidebar::_RemoteBridgeTunnel_Click(const IInspectable&, const RoutedEventArgs&)
+    {
+        _ToggleRemoteTunnelAsync();
+    }
+
+    void WorkspaceSidebar::_RemoteBridgeRevokeDevice_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto btn = sender.try_as<FrameworkElement>())
+        {
+            if (const auto id = btn.Tag().try_as<winrt::hstring>(); id && !id->empty())
+            {
+                _RevokeRemoteDeviceAsync(std::wstring{ *id });
+            }
+        }
+    }
+
+    winrt::fire_and_forget WorkspaceSidebar::_AutoStartRemoteBridgeAsync()
+    {
+        const auto weakThis = get_weak();
+        const auto dispatcher = Dispatcher();
+        if (!dispatcher)
+        {
+            co_return;
+        }
+
+        co_await winrt::resume_background();
+
+        RemoteBridgeStatus nextStatus{};
+        try
+        {
+            if (const auto self = weakThis.get())
+            {
+                std::wstring startError;
+                if (self->_remoteBridge.Start(startError, WorkspaceRemoteBridge::DefaultPort))
+                {
+                    for (int attempt = 0; attempt < 20; ++attempt)
+                    {
+                        nextStatus = self->_remoteBridge.RefreshStatus(WorkspaceRemoteBridge::DefaultPort, false);
+                        if (nextStatus.Running)
+                        {
+                            break;
+                        }
+                        Sleep(150);
+                    }
+                }
+            }
+        }
+        CATCH_LOG();
+
+        co_await wil::resume_foreground(dispatcher);
+        if (const auto self = weakThis.get())
+        {
+            self->_remoteBridgeStatus = std::move(nextStatus);
+            self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, self->_remoteBridgeBusy);
+        }
+    }
+
+    winrt::fire_and_forget WorkspaceSidebar::_ToggleRemoteHooksAsync()
+    {
+        if (_remoteBridgeBusy || !_remoteBridgeStatus.Running)
+        {
+            co_return;
+        }
+        const auto weakThis = get_weak();
+        const auto dispatcher = Dispatcher();
+        if (!dispatcher)
+        {
+            co_return;
+        }
+
+        const bool shouldInstall = !(_remoteBridgeStatus.ClaudeHookInstalled && _remoteBridgeStatus.CodexHookInstalled);
+        _remoteBridgeBusy = true;
+        _ApplyRemoteBridgeStatus(_remoteBridgeStatus, true);
+
+        co_await winrt::resume_background();
+
+        RemoteBridgeStatus nextStatus{};
+        try
+        {
+            if (const auto self = weakThis.get())
+            {
+                nextStatus = self->_remoteBridge.InstallHooks(shouldInstall, WorkspaceRemoteBridge::DefaultPort);
+            }
+        }
+        CATCH_LOG();
+
+        co_await wil::resume_foreground(dispatcher);
+        if (const auto self = weakThis.get())
+        {
+            self->_remoteBridgeBusy = false;
+            self->_remoteBridgeStatus = std::move(nextStatus);
+            self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, false);
+        }
+    }
+
+    winrt::fire_and_forget WorkspaceSidebar::_ToggleRemoteTunnelAsync()
+    {
+        if (_remoteBridgeBusy || !_remoteBridgeStatus.Running)
+        {
+            co_return;
+        }
+        const auto weakThis = get_weak();
+        const auto dispatcher = Dispatcher();
+        if (!dispatcher)
+        {
+            co_return;
+        }
+
+        const bool shouldEnable = !_remoteBridgeStatus.TunnelRunning;
+        _remoteBridgeBusy = true;
+        _ApplyRemoteBridgeStatus(_remoteBridgeStatus, true);
+
+        co_await winrt::resume_background();
+
+        RemoteBridgeStatus nextStatus{};
+        try
+        {
+            if (const auto self = weakThis.get())
+            {
+                nextStatus = self->_remoteBridge.ToggleTunnel(shouldEnable, WorkspaceRemoteBridge::DefaultPort);
+            }
+        }
+        CATCH_LOG();
+
+        co_await wil::resume_foreground(dispatcher);
+        if (const auto self = weakThis.get())
+        {
+            self->_remoteBridgeBusy = false;
+            self->_remoteBridgeStatus = std::move(nextStatus);
+            self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, false);
+        }
+    }
+
+    winrt::fire_and_forget WorkspaceSidebar::_RevokeRemoteDeviceAsync(std::wstring deviceId)
+    {
+        if (_remoteBridgeBusy || !_remoteBridgeStatus.Running || deviceId.empty())
+        {
+            co_return;
+        }
+        const auto weakThis = get_weak();
+        const auto dispatcher = Dispatcher();
+        if (!dispatcher)
+        {
+            co_return;
+        }
+
+        _remoteBridgeBusy = true;
+        _ApplyRemoteBridgeStatus(_remoteBridgeStatus, true);
+
+        co_await winrt::resume_background();
+
+        RemoteBridgeStatus nextStatus{};
+        try
+        {
+            if (const auto self = weakThis.get())
+            {
+                nextStatus = self->_remoteBridge.RevokeDevice(deviceId, WorkspaceRemoteBridge::DefaultPort);
+            }
+        }
+        CATCH_LOG();
+
+        co_await wil::resume_foreground(dispatcher);
+        if (const auto self = weakThis.get())
+        {
+            self->_remoteBridgeBusy = false;
+            self->_remoteBridgeStatus = std::move(nextStatus);
+            self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, false);
+        }
+    }
+
     winrt::fire_and_forget WorkspaceSidebar::_RefreshRemoteBridgeAsync(const bool refreshCode)
     {
         const auto weakThis = get_weak();
@@ -1897,6 +2096,56 @@ namespace winrt::TerminalApp::implementation
             RemoteBridgeLanUrlText().Text(status.LanUrl);
             RemoteBridgeRemoteUrlText().Text(status.RemoteUrl.empty() ? RS_(L"WorkspaceSidebar_RemoteNoIpv6") : winrt::hstring{ status.RemoteUrl });
 
+            // Render crisp QR code bitmap when matrix changes.
+            if (status.QrSize >= 21 && status.QrModules.size() == static_cast<size_t>(status.QrSize) * status.QrSize)
+            {
+                if (_renderedQrKey != status.QrModules)
+                {
+                    constexpr uint32_t quiet = 2;
+                    const uint32_t totalModules = status.QrSize + quiet * 2;
+                    const uint32_t scale = std::max<uint32_t>(3u, 168u / totalModules);
+                    const uint32_t dim = totalModules * scale;
+
+                    Windows::UI::Xaml::Media::Imaging::WriteableBitmap bitmap{ gsl::narrow_cast<int32_t>(dim), gsl::narrow_cast<int32_t>(dim) };
+                    auto pixelBuffer = bitmap.PixelBuffer();
+                    if (const auto byteAccess = pixelBuffer.try_as<::Windows::Storage::Streams::IBufferByteAccess>())
+                    {
+                        uint8_t* bytes = nullptr;
+                        if (SUCCEEDED(byteAccess->Buffer(&bytes)) && bytes != nullptr)
+                        {
+                            // Fill white background (BGRA = FF FF FF FF).
+                            std::memset(bytes, 0xFF, static_cast<size_t>(dim) * dim * 4);
+                            for (uint32_t r = 0; r < status.QrSize; ++r)
+                            {
+                                for (uint32_t c = 0; c < status.QrSize; ++c)
+                                {
+                                    if (status.QrModules[static_cast<size_t>(r) * status.QrSize + c] != '1')
+                                    {
+                                        continue;
+                                    }
+                                    const uint32_t y0 = (r + quiet) * scale;
+                                    const uint32_t x0 = (c + quiet) * scale;
+                                    for (uint32_t dy = 0; dy < scale; ++dy)
+                                    {
+                                        uint8_t* rowPtr = bytes + (static_cast<size_t>(y0 + dy) * dim + x0) * 4;
+                                        for (uint32_t dx = 0; dx < scale; ++dx)
+                                        {
+                                            rowPtr[dx * 4 + 0] = 0x00;
+                                            rowPtr[dx * 4 + 1] = 0x00;
+                                            rowPtr[dx * 4 + 2] = 0x00;
+                                            rowPtr[dx * 4 + 3] = 0xFF;
+                                        }
+                                    }
+                                }
+                            }
+                            bitmap.Invalidate();
+                            RemoteBridgeQrImage().Source(bitmap);
+                            _renderedQrKey = status.QrModules;
+                        }
+                    }
+                }
+            }
+
             if (!status.CertFingerprint.empty())
             {
                 const auto preview = status.CertFingerprint.size() > 24 ?
@@ -1911,6 +2160,79 @@ namespace winrt::TerminalApp::implementation
                 RemoteBridgeTlsFingerprintText().Text(L"HTTP (TLS disabled)");
                 ToolTipService::SetToolTip(RemoteBridgeTlsFingerprintText(), nullptr);
                 RemoteBridgeTlsFingerprintText().Visibility(Visibility::Visible);
+            }
+
+            // Hooks status & one-click button
+            const bool allHooks = status.ClaudeHookInstalled && status.CodexHookInstalled;
+            RemoteBridgeHooksStatusText().Text(
+                allHooks ? RS_(L"WorkspaceSidebar_RemoteHooksStatusReady") :
+                           winrt::hstring{ RS_fmt(L"WorkspaceSidebar_RemoteHooksStatusPartial",
+                                                  status.ClaudeHookInstalled ? L"✓" : L"–",
+                                                  status.CodexHookInstalled ? L"✓" : L"–") });
+            RemoteBridgeHooksButton().Content(box_value(allHooks ? RS_(L"WorkspaceSidebar_RemoteHooksUninstall") : RS_(L"WorkspaceSidebar_RemoteHooksInstall")));
+            RemoteBridgeHooksButton().IsEnabled(!busy);
+
+            // Public Quick Tunnel status & toggle
+            if (status.TunnelRunning && !status.TunnelPublicUrl.empty())
+            {
+                RemoteBridgeTunnelStatusText().Text(status.TunnelPublicUrl);
+                RemoteBridgeTunnelButton().Content(box_value(RS_(L"WorkspaceSidebar_RemoteTunnelStop")));
+                RemoteBridgeTunnelButton().IsEnabled(!busy);
+            }
+            else if (status.TunnelAvailable)
+            {
+                RemoteBridgeTunnelStatusText().Text(RS_(L"WorkspaceSidebar_RemoteTunnelReady"));
+                RemoteBridgeTunnelButton().Content(box_value(RS_(L"WorkspaceSidebar_RemoteTunnelStart")));
+                RemoteBridgeTunnelButton().IsEnabled(!busy);
+            }
+            else
+            {
+                RemoteBridgeTunnelStatusText().Text(RS_(L"WorkspaceSidebar_RemoteTunnelMissing"));
+                RemoteBridgeTunnelButton().Content(box_value(RS_(L"WorkspaceSidebar_RemoteTunnelStart")));
+                RemoteBridgeTunnelButton().IsEnabled(false);
+            }
+
+            // Paired devices list with Revoke buttons
+            const auto devicesList = RemoteBridgeDevicesList();
+            devicesList.Children().Clear();
+            if (!status.Devices.empty())
+            {
+                RemoteBridgeDevicesSection().Visibility(Visibility::Visible);
+                for (const auto& dev : status.Devices)
+                {
+                    Grid row{};
+                    ColumnDefinition col0{};
+                    col0.Width(GridLengthHelper::FromValueAndType(1.0, GridUnitType::Star));
+                    ColumnDefinition col1{};
+                    col1.Width(GridLengthHelper::Auto());
+                    row.ColumnDefinitions().Append(col0);
+                    row.ColumnDefinitions().Append(col1);
+
+                    TextBlock nameText{};
+                    nameText.Text(dev.Name);
+                    nameText.FontSize(11.5);
+                    nameText.VerticalAlignment(VerticalAlignment::Center);
+                    nameText.TextTrimming(TextTrimming::CharacterEllipsis);
+                    Grid::SetColumn(nameText, 0);
+
+                    Button revokeBtn{};
+                    revokeBtn.Content(box_value(RS_(L"WorkspaceSidebar_RemoteDeviceRevoke")));
+                    revokeBtn.FontSize(10.5);
+                    revokeBtn.Height(24);
+                    revokeBtn.Padding(Thickness{ 8, 0, 8, 0 });
+                    revokeBtn.IsEnabled(!busy);
+                    revokeBtn.Tag(box_value(winrt::hstring{ dev.Id }));
+                    revokeBtn.Click({ get_weak(), &WorkspaceSidebar::_RemoteBridgeRevokeDevice_Click });
+                    Grid::SetColumn(revokeBtn, 1);
+
+                    row.Children().Append(nameText);
+                    row.Children().Append(revokeBtn);
+                    devicesList.Children().Append(row);
+                }
+            }
+            else
+            {
+                RemoteBridgeDevicesSection().Visibility(Visibility::Collapsed);
             }
 
             RemoteBridgePairedCountText().Text(RS_fmt(L"WorkspaceSidebar_RemotePairedDevices", status.PairedDeviceCount));

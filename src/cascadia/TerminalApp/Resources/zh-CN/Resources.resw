@@ -1318,6 +1318,48 @@
   <data name="WorkspaceSidebar_RemoteExternalStopHint" xml:space="preserve">
     <value>该服务由外部进程启动，请在其终端窗口中停止。</value>
   </data>
+  <data name="WorkspaceSidebarRemoteBridgeAutoStartCheckBox.Content" xml:space="preserve">
+    <value>随 Winmux 启动自动运行</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeQrHint.Text" xml:space="preserve">
+    <value>打开手机端 Winmux 扫码即可一键加密配对</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeHooksTitle.Text" xml:space="preserve">
+    <value>Agent Hooks（审批与完成推送）</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeTunnelTitle.Text" xml:space="preserve">
+    <value>免路由器公网隧道（Cloudflare）</value>
+  </data>
+  <data name="WorkspaceSidebarRemoteBridgeDevicesTitle.Text" xml:space="preserve">
+    <value>已授权手机设备</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteHooksInstall" xml:space="preserve">
+    <value>一键配置</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteHooksUninstall" xml:space="preserve">
+    <value>移除</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteHooksStatusReady" xml:space="preserve">
+    <value>Claude ✓ · Codex ✓</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteHooksStatusPartial" xml:space="preserve">
+    <value>Claude {0} · Codex {1}</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteTunnelStart" xml:space="preserve">
+    <value>开启隧道</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteTunnelStop" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteTunnelMissing" xml:space="preserve">
+    <value>未检测到 cloudflared（winget install Cloudflare.cloudflared）</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteTunnelReady" xml:space="preserve">
+    <value>已就绪，开启后出门 5G 可直连</value>
+  </data>
+  <data name="WorkspaceSidebar_RemoteDeviceRevoke" xml:space="preserve">
+    <value>吊销</value>
+  </data>
   <data name="WorkspaceSidebarSearchBox.PlaceholderText" xml:space="preserve">
     <value>筛选工作区、终端或分支…</value>
   </data>

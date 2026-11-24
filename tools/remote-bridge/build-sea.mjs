@@ -41,21 +41,55 @@ const MODULE_ORDER = [
   'server.mjs',
 ];
 
-function transformEsmToCjs(source) {
+function transformImportSpecifiers(specList) {
+  return specList
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const alias = part.match(/^([A-Za-z0-9_$]+)\s+as\s+([A-Za-z0-9_$]+)$/);
+      return alias ? `${alias[1]}: ${alias[2]}` : part;
+    })
+    .join(', ');
+}
+
+function transformEsmToCjs(source, fileLabel = '<unknown>') {
   const exportedNames = [];
-  const lines = source.replace(/\r\n/g, '\n').split('\n');
+  const rawLines = source.replace(/\r\n/g, '\n').split('\n');
+  // Join multi-line import { ... } from '...' statements into single lines first.
+  const lines = [];
+  for (let i = 0; i < rawLines.length; i++) {
+    let line = rawLines[i];
+    if (/^\s*import\b/.test(line) && !/\bfrom\s+['"][^'"]+['"];?\s*$/.test(line) && !/^\s*import\s+['"][^'"]+['"];?\s*$/.test(line)) {
+      while (i + 1 < rawLines.length && !/\bfrom\s+['"][^'"]+['"];?\s*$/.test(line)) {
+        i += 1;
+        line = `${line.trimEnd()} ${rawLines[i].trim()}`;
+      }
+    }
+    lines.push(line);
+  }
+
   const out = [];
 
   for (const line of lines) {
     // Strip shebang
     if (line.startsWith('#!')) continue;
 
-    // import { a, b } from 'node:...' or './...'
+    // import { a, b as c } from 'node:...' or './...'
     const namedImport = line.match(/^import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"];?\s*$/);
     if (namedImport) {
       const spec = namedImport[2];
       const loader = spec.startsWith('./') ? `__req(${JSON.stringify(spec)})` : `require(${JSON.stringify(spec)})`;
-      out.push(`const {${namedImport[1]}} = ${loader};`);
+      out.push(`const { ${transformImportSpecifiers(namedImport[1])} } = ${loader};`);
+      continue;
+    }
+
+    // import * as ns from 'node:...' or './...'
+    const nsImport = line.match(/^import\s+\*\s+as\s+([A-Za-z0-9_$]+)\s+from\s+['"]([^'"]+)['"];?\s*$/);
+    if (nsImport) {
+      const spec = nsImport[2];
+      const loader = spec.startsWith('./') ? `__req(${JSON.stringify(spec)})` : `require(${JSON.stringify(spec)})`;
+      out.push(`const ${nsImport[1]} = ${loader};`);
       continue;
     }
 
@@ -92,6 +126,24 @@ function transformEsmToCjs(source) {
       continue;
     }
 
+    // export { a, b }
+    const expList = line.match(/^export\s+\{([^}]+)\};?\s*$/);
+    if (expList) {
+      for (const item of expList[1].split(',').map((s) => s.trim()).filter(Boolean)) {
+        const alias = item.match(/^([A-Za-z0-9_$]+)\s+as\s+([A-Za-z0-9_$]+)$/);
+        if (alias) {
+          out.push(`exports.${alias[2]} = ${alias[1]};`);
+        } else {
+          exportedNames.push(item);
+        }
+      }
+      continue;
+    }
+
+    if (/^\s*(?:import|export)\s/.test(line)) {
+      throw new Error(`Unsupported ESM syntax in ${fileLabel}: ${line.trim()}`);
+    }
+
     out.push(line.replaceAll('import.meta.url', JSON.stringify('file:///winmux-bridge.exe')));
   }
 
@@ -102,7 +154,7 @@ function transformEsmToCjs(source) {
 }
 
 function buildHookBody(source) {
-  const transformed = transformEsmToCjs(source)
+  const transformed = transformEsmToCjs(source, 'hooks/winmux-hook.mjs')
     .replaceAll('process.argv.slice(2)', 'hookArgv');
   return `async function __runHook(hookArgv) {\n${transformed}\n}`;
 }
@@ -127,7 +179,7 @@ const chunks = [
 for (const fileName of MODULE_ORDER) {
   const fullPath = path.join(srcDir, fileName);
   const src = fs.readFileSync(fullPath, 'utf8');
-  const body = transformEsmToCjs(src);
+  const body = transformEsmToCjs(src, `src/${fileName}`);
   chunks.push(`__factories[${JSON.stringify('./' + fileName)}] = function(exports, __req) {\n${body}\n};`);
 }
 
@@ -181,6 +233,16 @@ __main().catch((err) => {
 const bundlePath = path.join(distDir, 'winmux-bridge.bundle.cjs');
 const seaConfigPath = path.join(distDir, 'sea-config.json');
 fs.writeFileSync(bundlePath, chunks.join('\n\n'), 'utf8');
+
+const syntaxCheck = spawnSync(process.execPath, ['--check', bundlePath], {
+  stdio: 'inherit',
+  cwd: rootDir,
+});
+if (syntaxCheck.status !== 0) {
+  try { fs.rmSync(bundlePath, { force: true }); } catch {}
+  console.error('Generated SEA bundle failed JavaScript syntax verification.');
+  process.exit(syntaxCheck.status || 1);
+}
 
 const seaConfig = {
   main: bundlePath,

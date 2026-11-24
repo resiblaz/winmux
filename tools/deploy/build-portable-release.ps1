@@ -245,9 +245,24 @@ try
         if ($IncludeBridgeExe)
         {
             $bridgeExe = Join-Path $bridgeSource 'dist\winmux-bridge.exe'
-            if (-not (Test-Path -LiteralPath $bridgeExe -PathType Leaf))
+            $buildSeaScript = Join-Path $bridgeSource 'build-sea.mjs'
+            $needsSeaBuild = -not (Test-Path -LiteralPath $bridgeExe -PathType Leaf)
+            if (-not $needsSeaBuild)
             {
-                $buildSeaScript = Join-Path $bridgeSource 'build-sea.mjs'
+                $exeMtime = (Get-Item -LiteralPath $bridgeExe).LastWriteTimeUtc
+                $latestSourceMtime = @(
+                    Get-Item -LiteralPath $buildSeaScript -ErrorAction SilentlyContinue
+                    Get-ChildItem -LiteralPath (Join-Path $bridgeSource 'src') -Recurse -File -ErrorAction SilentlyContinue
+                    Get-ChildItem -LiteralPath (Join-Path $bridgeSource 'hooks') -Recurse -File -ErrorAction SilentlyContinue
+                ) | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1 -ExpandProperty LastWriteTimeUtc
+                if ($latestSourceMtime -and $latestSourceMtime -gt $exeMtime)
+                {
+                    Write-Host 'Detected newer remote-bridge sources; rebuilding winmux-bridge.exe...' -ForegroundColor Cyan
+                    $needsSeaBuild = $true
+                }
+            }
+            if ($needsSeaBuild)
+            {
                 Write-Host 'Building standalone zero-dependency winmux-bridge.exe (Node SEA)...' -ForegroundColor Cyan
                 & node $buildSeaScript --out $bridgeExe
                 if ($LASTEXITCODE -ne 0)

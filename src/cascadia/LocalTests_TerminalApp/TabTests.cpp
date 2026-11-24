@@ -13,7 +13,6 @@
 #include "../TerminalApp/WorkspaceGitBranch.h"
 #include "../TerminalApp/WorkspaceAgentResume.h"
 #include "../TerminalApp/WorkspaceSidebar.h"
-#include "../TerminalApp/ConclusionMarkdownView.h"
 #include "../TerminalApp/ShortcutActionDispatch.h"
 #include "../TerminalApp/Tab.h"
 #include "../TerminalApp/CommandPalette.h"
@@ -101,84 +100,6 @@ namespace TerminalAppLocalTests
             return message;
         }
 
-        struct MarkdownInspection
-        {
-            std::wstring Text;
-            std::vector<winrt::hstring> LinkSchemes;
-            size_t CodeBlockCount{};
-            size_t ImageCount{};
-            bool SawBold{};
-            bool SawItalic{};
-            bool SawInlineCode{};
-            bool SawStrikethrough{};
-        };
-
-        void InspectMarkdownInline(const winrt::Windows::UI::Xaml::Documents::Inline& inlineElement,
-                                   MarkdownInspection& inspection)
-        {
-            namespace Documents = winrt::Windows::UI::Xaml::Documents;
-
-            if (const auto run = inlineElement.try_as<Documents::Run>())
-            {
-                inspection.Text.append(run.Text());
-                inspection.SawBold = inspection.SawBold || run.FontWeight().Weight >= FontWeights::Bold().Weight;
-                inspection.SawItalic = inspection.SawItalic || run.FontStyle() == FontStyle::Italic;
-                inspection.SawStrikethrough = inspection.SawStrikethrough ||
-                                              (static_cast<uint32_t>(run.TextDecorations()) &
-                                               static_cast<uint32_t>(TextDecorations::Strikethrough)) != 0;
-                if (const auto font = run.FontFamily())
-                {
-                    const auto source = font.Source();
-                    const std::wstring_view sourceView{ source.c_str(), source.size() };
-                    inspection.SawInlineCode = inspection.SawInlineCode || sourceView.find(L"Cascadia Mono") != std::wstring_view::npos;
-                }
-            }
-            else if (const auto hyperlink = inlineElement.try_as<Documents::Hyperlink>())
-            {
-                if (const auto uri = hyperlink.NavigateUri())
-                {
-                    inspection.LinkSchemes.emplace_back(uri.SchemeName());
-                }
-                for (const auto& child : hyperlink.Inlines())
-                {
-                    InspectMarkdownInline(child, inspection);
-                }
-            }
-            else if (const auto span = inlineElement.try_as<Documents::Span>())
-            {
-                for (const auto& child : span.Inlines())
-                {
-                    InspectMarkdownInline(child, inspection);
-                }
-            }
-            else if (const auto container = inlineElement.try_as<Documents::InlineUIContainer>())
-            {
-                const auto child = container.Child();
-                inspection.CodeBlockCount += child.try_as<winrt::Microsoft::Terminal::UI::Markdown::CodeBlock>() ? 1 : 0;
-                inspection.ImageCount += child.try_as<Image>() ? 1 : 0;
-            }
-            else if (inlineElement.try_as<Documents::LineBreak>())
-            {
-                inspection.Text.append(L"\n");
-            }
-        }
-
-        MarkdownInspection InspectMarkdown(const RichTextBlock& richText)
-        {
-            MarkdownInspection inspection;
-            for (const auto& block : richText.Blocks())
-            {
-                if (const auto paragraph = block.try_as<winrt::Windows::UI::Xaml::Documents::Paragraph>())
-                {
-                    for (const auto& inlineElement : paragraph.Inlines())
-                    {
-                        InspectMarkdownInline(inlineElement, inspection);
-                    }
-                    inspection.Text.append(L"\n");
-                }
-            }
-            return inspection;
-        }
     }
 
     // TODO:microsoft/terminal#3838:
@@ -218,9 +139,6 @@ namespace TerminalAppLocalTests
 
         TEST_METHOD(CreateTerminalPage);
         TEST_METHOD(CreateWorkspaceSidebarXamlType);
-        TEST_METHOD(ConclusionMarkdownRendersCompactCommonMark);
-        TEST_METHOD(ConclusionMarkdownRendersGfmExtensions);
-        TEST_METHOD(ConclusionMarkdownRestrictsExternalContent);
         TEST_METHOD(WorkspaceSidebarAdaptsToWindowModes);
         TEST_METHOD(WorkspaceSidebarThreeLevelTreeAndCrossWorkspaceMove);
         TEST_METHOD(WorkspaceItemViewModelTracksTab);
@@ -407,95 +325,6 @@ namespace TerminalAppLocalTests
         VERIFY_SUCCEEDED(result);
     }
 
-    void TabTests::ConclusionMarkdownRendersCompactCommonMark()
-    {
-        const auto result = RunOnUIThread([]() {
-            const winrt::TerminalApp::ConclusionMarkdownView view{};
-            view.Markdown(L"# Heading\n\n3. First\n4. Second\n\n**bold** *italic* `inline`\n\n---\n\n```powershell\nGet-Date\n```");
-
-            const auto richText = view.Content().as<RichTextBlock>();
-            VERIFY_ARE_EQUAL(12.0, richText.FontSize());
-
-            double maximumParagraphFontSize = 0.0;
-            for (const auto& block : richText.Blocks())
-            {
-                if (const auto paragraph = block.try_as<winrt::Windows::UI::Xaml::Documents::Paragraph>())
-                {
-                    maximumParagraphFontSize = std::max(maximumParagraphFontSize, paragraph.FontSize());
-                }
-            }
-            VERIFY_IS_TRUE(maximumParagraphFontSize <= 16.0);
-
-            const auto inspection = InspectMarkdown(richText);
-            VERIFY_IS_TRUE(inspection.Text.find(L"3. First") != std::wstring::npos);
-            VERIFY_IS_TRUE(inspection.Text.find(L"4. Second") != std::wstring::npos);
-            VERIFY_IS_TRUE(inspection.Text.find(L"────────") != std::wstring::npos);
-            VERIFY_IS_TRUE(inspection.SawBold);
-            VERIFY_IS_TRUE(inspection.SawItalic);
-            VERIFY_IS_TRUE(inspection.SawInlineCode);
-            VERIFY_ARE_EQUAL(1u, inspection.CodeBlockCount);
-
-            for (const auto& block : richText.Blocks())
-            {
-                if (const auto paragraph = block.try_as<winrt::Windows::UI::Xaml::Documents::Paragraph>())
-                {
-                    for (const auto& inlineElement : paragraph.Inlines())
-                    {
-                        if (const auto container = inlineElement.try_as<winrt::Windows::UI::Xaml::Documents::InlineUIContainer>())
-                        {
-                            if (const auto codeBlock = container.Child().try_as<winrt::Microsoft::Terminal::UI::Markdown::CodeBlock>())
-                            {
-                                VERIFY_ARE_EQUAL(Visibility::Collapsed, codeBlock.PlayButtonVisibility());
-                            }
-                        }
-                    }
-                }
-            }
-        });
-        VERIFY_SUCCEEDED(result);
-    }
-
-    void TabTests::ConclusionMarkdownRestrictsExternalContent()
-    {
-        const auto result = RunOnUIThread([]() {
-            const winrt::TerminalApp::ConclusionMarkdownView view{};
-            view.Markdown(L"[web](https://example.com) [mail](mailto:test@example.com) [unsafe](javascript:alert(1)) ![diagram](https://example.com/image.png) <b>html</b>");
-
-            const auto richText = view.Content().as<RichTextBlock>();
-            const auto inspection = InspectMarkdown(richText);
-            VERIFY_ARE_EQUAL(2u, inspection.LinkSchemes.size());
-            VERIFY_IS_TRUE(til::equals_insensitive_ascii(inspection.LinkSchemes.at(0), L"https"));
-            VERIFY_IS_TRUE(til::equals_insensitive_ascii(inspection.LinkSchemes.at(1), L"mailto"));
-            VERIFY_ARE_EQUAL(0u, inspection.ImageCount);
-            VERIFY_IS_TRUE(inspection.Text.find(L"unsafe") != std::wstring::npos);
-            VERIFY_IS_TRUE(inspection.Text.find(L"diagram") != std::wstring::npos);
-            VERIFY_IS_TRUE(inspection.Text.find(L"html") != std::wstring::npos);
-        });
-        VERIFY_SUCCEEDED(result);
-    }
-
-    void TabTests::ConclusionMarkdownRendersGfmExtensions()
-    {
-        const auto result = RunOnUIThread([]() {
-            const winrt::TerminalApp::ConclusionMarkdownView view{};
-            view.Markdown(L"| Name | Status |\n| --- | --- |\n| build | **ready** |\n\n- [ ] todo\n- [x] done\n\n7. [x] numbered\n8. regular\n\n~~obsolete~~\n\nVisit https://example.org/docs.");
-
-            const auto richText = view.Content().as<RichTextBlock>();
-            const auto inspection = InspectMarkdown(richText);
-            VERIFY_IS_TRUE(inspection.Text.find(L"Name  │  Status") != std::wstring::npos);
-            VERIFY_IS_TRUE(inspection.Text.find(L"build  │  ready") != std::wstring::npos);
-            VERIFY_IS_TRUE(inspection.Text.find(L"☐ todo") != std::wstring::npos);
-            VERIFY_IS_TRUE(inspection.Text.find(L"☑ done") != std::wstring::npos);
-            VERIFY_IS_TRUE(inspection.Text.find(L"7. ☑ numbered") != std::wstring::npos);
-            VERIFY_IS_TRUE(inspection.Text.find(L"8. regular") != std::wstring::npos);
-            VERIFY_IS_TRUE(inspection.SawBold);
-            VERIFY_IS_TRUE(inspection.SawStrikethrough);
-            VERIFY_ARE_EQUAL(1u, inspection.LinkSchemes.size());
-            VERIFY_IS_TRUE(til::equals_insensitive_ascii(inspection.LinkSchemes.at(0), L"https"));
-        });
-        VERIFY_SUCCEEDED(result);
-    }
-
     void TabTests::WorkspaceSidebarAdaptsToWindowModes()
     {
         static constexpr std::wstring_view settingsJson{ LR"(
@@ -543,27 +372,7 @@ namespace TerminalAppLocalTests
             VERIFY_IS_NOT_NULL(page->_workspaceSurfaceNewTabButton);
             const auto newTerminalGlyph = winrt::unbox_value<winrt::hstring>(page->_workspaceSurfaceNewTabButton.Content());
             VERIFY_IS_TRUE(std::wstring_view{ newTerminalGlyph } == L"\uE756");
-            VERIFY_IS_NOT_NULL(page->_workspaceToolTabs);
-            VERIFY_ARE_EQUAL(1u, page->_workspaceToolTabs.Items().Size());
-            const auto conclusionItem = page->_workspaceToolTabs.Items().GetAt(0).as<ListViewItem>();
-            const auto conclusionContent = conclusionItem.Content().as<Grid>();
-            VERIFY_ARE_EQUAL(36.0, conclusionItem.Width());
-            VERIFY_ARE_EQUAL(1u, conclusionContent.Children().Size());
-            VERIFY_IS_NOT_NULL(conclusionContent.Children().GetAt(0).try_as<FontIcon>());
-            VERIFY_ARE_EQUAL(-1, page->_workspaceToolTabs.SelectedIndex());
             VERIFY_ARE_EQUAL(Visibility::Visible, page->_tabContent.Visibility());
-            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_conclusionSidebar.Visibility());
-
-            page->_workspaceToolTabs.SelectedIndex(0);
-            VERIFY_IS_TRUE(page->_workspaceToolTabSelected);
-            VERIFY_ARE_EQUAL(-1, page->_workspaceSurfaceTabs.SelectedIndex());
-            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_tabContent.Visibility());
-            VERIFY_ARE_EQUAL(Visibility::Visible, page->_conclusionSidebar.Visibility());
-
-            page->_workspaceSurfaceTabs.SelectedItem(workspaceItem.SourceTab());
-            VERIFY_IS_FALSE(page->_workspaceToolTabSelected);
-            VERIFY_ARE_EQUAL(Visibility::Visible, page->_tabContent.Visibility());
-            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_conclusionSidebar.Visibility());
             sidebar->ShowSwitchHints(true);
             const std::wstring_view shortcut{ workspaceItem.SwitchShortcutText() };
             const auto separator = shortcut.find_last_of(L'+');
@@ -1090,24 +899,10 @@ namespace TerminalAppLocalTests
                 const SwitchToWorkspaceSurfaceArgs shortcutArgs{ index };
                 return page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToWorkspaceSurface, shortcutArgs });
             };
-            const auto switchConclusion = [&]() {
-                return page->_actionDispatch->DoAction(ActionAndArgs{ ShortcutAction::SwitchToWorkspaceConclusion, nullptr });
-            };
-
-            VERIFY_IS_TRUE(switchConclusion());
-            VERIFY_IS_TRUE(page->_workspaceToolTabSelected);
-            VERIFY_ARE_EQUAL(Visibility::Visible, page->_conclusionSidebar.Visibility());
 
             VERIFY_IS_TRUE(switchSurface(0));
-            VERIFY_IS_FALSE(page->_workspaceToolTabSelected);
             VERIFY_ARE_EQUAL(workspace.Surfaces().GetAt(0), page->_GetFocusedTab());
             VERIFY_IS_TRUE(switchSurface(1));
-            VERIFY_ARE_EQUAL(workspace.Surfaces().GetAt(1), page->_GetFocusedTab());
-
-            VERIFY_IS_TRUE(switchConclusion());
-            VERIFY_IS_TRUE(page->_workspaceToolTabSelected);
-            VERIFY_IS_TRUE(switchSurface(1));
-            VERIFY_IS_FALSE(page->_workspaceToolTabSelected);
             VERIFY_ARE_EQUAL(workspace.Surfaces().GetAt(1), page->_GetFocusedTab());
 
             const auto selectedTab = page->_GetFocusedTab();
@@ -1116,7 +911,6 @@ namespace TerminalAppLocalTests
 
             page->_SidebarController().Enabled = false;
             VERIFY_IS_FALSE(switchSurface(0));
-            VERIFY_IS_FALSE(switchConclusion());
             VERIFY_ARE_EQUAL(selectedTab, page->_GetFocusedTab());
             page->_SidebarController().Enabled = true;
 
@@ -1189,10 +983,6 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(second.Surfaces().GetAt(0), page->_GetFocusedTab());
             press(VirtualKeyModifiers::Control, '8');
             VERIFY_ARE_EQUAL(second.Surfaces().GetAt(0), page->_GetFocusedTab());
-            page->_SetWorkspaceToolTabSelected(true);
-            press(VirtualKeyModifiers::Control, '2');
-            VERIFY_IS_FALSE(page->_workspaceToolTabSelected);
-            VERIFY_ARE_EQUAL(Visibility::Visible, page->_tabContent.Visibility());
 
             // Pinning changes Workspace ordinals, including their displayed hints.
             page->_ToggleWorkspacePin(second.SourceTab());

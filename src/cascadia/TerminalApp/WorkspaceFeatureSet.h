@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "AgentHistoryCoordinator.h"
 #include "WorkspaceAutomationController.h"
 #include "WorkspaceSnapshotCoordinator.h"
 #include "WorkspaceCollection.h"
@@ -26,7 +25,6 @@ namespace winrt::TerminalApp::implementation
         WorkspaceFeatureSet& operator=(const WorkspaceFeatureSet&) = delete;
 
         WorkspaceAutomationController& Automation() noexcept;
-        AgentHistoryCoordinator& History() noexcept;
         WorkspaceSnapshotCoordinator& Snapshots() noexcept;
         WorkspaceCollection& Workspaces() noexcept;
         const WorkspaceCollection& Workspaces() const noexcept;
@@ -41,7 +39,6 @@ namespace winrt::TerminalApp::implementation
         WorkspaceSessionRestoreState _sessionRestore;
         WorkspaceSidebarController _sidebar;
         WorkspaceAutomationController _automation;
-        AgentHistoryCoordinator _history;
         WorkspaceSnapshotCoordinator _snapshots;
     };
 }

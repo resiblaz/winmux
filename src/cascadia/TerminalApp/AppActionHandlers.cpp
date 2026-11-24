@@ -504,13 +504,7 @@ namespace winrt::TerminalApp::implementation
                 {
                     const auto index = std::min(realArgs.TabIndex(), workspaces.Size() - 1);
                     const auto item = workspaces.GetAt(index);
-                    const auto restoreFocus = _workspaceToolTabSelected && item.SourceTab() == _GetFocusedTab();
-                    _SetWorkspaceToolTabSelected(false);
                     _SelectWorkspace(item);
-                    if (restoreFocus)
-                    {
-                        item.SourceTab().Focus(FocusState::Programmatic);
-                    }
                 }
             }
             else if (_tabs.Size() > 0)
@@ -536,15 +530,9 @@ namespace winrt::TerminalApp::implementation
                 item && realArgs.SurfaceIndex() < item.Surfaces().Size())
             {
                 const auto target = item.Surfaces().GetAt(realArgs.SurfaceIndex());
-                const auto restoreFocus = _workspaceToolTabSelected && target == _GetFocusedTab();
-                _SetWorkspaceToolTabSelected(false);
                 if (const auto tabIndex = _GetTabIndex(target))
                 {
                     _SelectTab(tabIndex.value());
-                    if (restoreFocus)
-                    {
-                        target.Focus(FocusState::Programmatic);
-                    }
                 }
             }
 
@@ -558,14 +546,9 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_HandleSwitchToWorkspaceConclusion(const IInspectable& /*sender*/,
                                                           const ActionEventArgs& args)
     {
-        if (!_SidebarController().Enabled)
-        {
-            args.Handled(false);
-            return;
-        }
-
-        _SetWorkspaceToolTabSelected(true);
-        args.Handled(true);
+        // Conclusion/History sidebar was removed; keep the action handler as a no-op
+        // for backward compatibility with existing user settings.json keybindings.
+        args.Handled(false);
     }
 
     void TerminalPage::_HandleResizePane(const IInspectable& /*sender*/,

@@ -61,9 +61,6 @@
     <Page Include="WorkspaceSidebar.xaml">
       <SubType>Designer</SubType>
     </Page>
-    <Page Include="ConclusionSidebar.xaml">
-      <SubType>Designer</SubType>
-    </Page>
     <Page Include="TabHeaderControl.xaml">
       <SubType>Designer</SubType>
     </Page>
@@ -133,19 +130,6 @@
       <DependentUpon>WorkspaceSidebarRow.idl</DependentUpon>
     </ClInclude>
     <ClInclude Include="WorkspaceSidebarTreeModel.h" />
-    <ClInclude Include="ConclusionSidebar.h">
-      <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
-    </ClInclude>
-    <ClInclude Include="ConclusionMarkdownView.h">
-      <DependentUpon>ConclusionMarkdownView.idl</DependentUpon>
-    </ClInclude>
-    <ClInclude Include="AgentHistoryItem.h">
-      <DependentUpon>AgentHistoryItem.idl</DependentUpon>
-    </ClInclude>
-    <ClInclude Include="AgentHistoryStore.h" />
-    <ClInclude Include="AgentHistoryInbox.h" />
-    <ClInclude Include="AgentHistoryCoordinator.h" />
-    <ClInclude Include="CodexAppServerClient.h" />
     <ClInclude Include="WorkspaceItemViewModel.h">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClInclude>
@@ -302,7 +286,6 @@
       <DependentUpon>TerminalPage.xaml</DependentUpon>
       <SubType>Code</SubType>
     </ClCompile>
-    <ClCompile Include="AgentHistoryCoordinator.cpp" />
     <ClCompile Include="WorkspaceSnapshotCoordinator.cpp" />
     <ClCompile Include="TabManagement.cpp">
       <DependentUpon>TerminalPage.xaml</DependentUpon>
@@ -328,18 +311,6 @@
     <ClCompile Include="WorkspaceSidebarRow.cpp">
       <DependentUpon>WorkspaceSidebarRow.idl</DependentUpon>
     </ClCompile>
-    <ClCompile Include="ConclusionSidebar.cpp">
-      <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
-    </ClCompile>
-    <ClCompile Include="ConclusionMarkdownView.cpp">
-      <DependentUpon>ConclusionMarkdownView.idl</DependentUpon>
-    </ClCompile>
-    <ClCompile Include="AgentHistoryItem.cpp">
-      <DependentUpon>AgentHistoryItem.idl</DependentUpon>
-    </ClCompile>
-    <ClCompile Include="AgentHistoryStore.cpp" />
-    <ClCompile Include="AgentHistoryInbox.cpp" />
-    <ClCompile Include="CodexAppServerClient.cpp" />
     <ClCompile Include="WorkspaceItemViewModel.cpp">
       <DependentUpon>WorkspaceItemViewModel.idl</DependentUpon>
     </ClCompile>
@@ -467,16 +438,6 @@
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="WorkspaceSidebarRow.idl">
-      <SubType>Code</SubType>
-    </Midl>
-    <Midl Include="ConclusionSidebar.idl">
-      <DependentUpon>ConclusionSidebar.xaml</DependentUpon>
-      <SubType>Code</SubType>
-    </Midl>
-    <Midl Include="ConclusionMarkdownView.idl">
-      <SubType>Code</SubType>
-    </Midl>
-    <Midl Include="AgentHistoryItem.idl">
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="WorkspaceItemViewModel.idl">

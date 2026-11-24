@@ -408,8 +408,6 @@ try
             try
             {
                 Invoke-TaefSelection -Taef $taef -TestDll $terminalAppTests -Label 'TerminalApp.LocalTests (UWP TestHostApp)' -Patterns @(
-                    '*AgentHistoryStoreTests*',
-                    '*CodexAppServerTests*',
                     '*WorkspaceSidebar*',
                     '*WorkspaceSurfaceShortcutActions*',
                     '*WorkspaceSwitchShortcutActions*',

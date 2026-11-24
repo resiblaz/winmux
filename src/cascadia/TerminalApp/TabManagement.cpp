@@ -1246,7 +1246,6 @@ namespace winrt::TerminalApp::implementation
 
         try
         {
-            _SetWorkspaceToolTabSelected(false);
             _tabContent.Children().Clear();
             _tabContent.Children().Append(tab.Content());
             _SyncWorkspaceSelection(tab);
@@ -1318,7 +1317,6 @@ namespace winrt::TerminalApp::implementation
             {
                 const auto tab{ _tabs.GetAt(selectedIndex) };
                 _UpdatedSelectedTab(tab);
-                _workspaceFeatures->History().UpdateView();
             }
         }
     }

@@ -50,27 +50,6 @@
     <ClCompile Include="WorkspaceSidebarRow.cpp">
       <Filter>controls</Filter>
     </ClCompile>
-    <ClCompile Include="ConclusionSidebar.cpp">
-      <Filter>controls</Filter>
-    </ClCompile>
-    <ClCompile Include="ConclusionMarkdownView.cpp">
-      <Filter>controls</Filter>
-    </ClCompile>
-    <ClCompile Include="AgentHistoryItem.cpp">
-      <Filter>workspace</Filter>
-    </ClCompile>
-    <ClCompile Include="AgentHistoryStore.cpp">
-      <Filter>workspace</Filter>
-    </ClCompile>
-    <ClCompile Include="AgentHistoryInbox.cpp">
-      <Filter>workspace</Filter>
-    </ClCompile>
-    <ClCompile Include="AgentHistoryCoordinator.cpp">
-      <Filter>workspace</Filter>
-    </ClCompile>
-    <ClCompile Include="CodexAppServerClient.cpp">
-      <Filter>workspace</Filter>
-    </ClCompile>
     <ClCompile Include="WorkspaceItemViewModel.cpp">
       <Filter>workspace</Filter>
     </ClCompile>
@@ -134,27 +113,6 @@
       <Filter>controls</Filter>
     </ClInclude>
     <ClInclude Include="WorkspaceSidebarTreeModel.h">
-      <Filter>workspace</Filter>
-    </ClInclude>
-    <ClInclude Include="ConclusionSidebar.h">
-      <Filter>controls</Filter>
-    </ClInclude>
-    <ClInclude Include="ConclusionMarkdownView.h">
-      <Filter>controls</Filter>
-    </ClInclude>
-    <ClInclude Include="AgentHistoryItem.h">
-      <Filter>workspace</Filter>
-    </ClInclude>
-    <ClInclude Include="AgentHistoryStore.h">
-      <Filter>workspace</Filter>
-    </ClInclude>
-    <ClInclude Include="AgentHistoryInbox.h">
-      <Filter>workspace</Filter>
-    </ClInclude>
-    <ClInclude Include="AgentHistoryCoordinator.h">
-      <Filter>workspace</Filter>
-    </ClInclude>
-    <ClInclude Include="CodexAppServerClient.h">
       <Filter>workspace</Filter>
     </ClInclude>
     <ClInclude Include="WorkspaceItemViewModel.h">
@@ -226,15 +184,6 @@
     <Midl Include="WorkspaceSidebarRow.idl">
       <Filter>controls</Filter>
     </Midl>
-    <Midl Include="ConclusionSidebar.idl">
-      <Filter>controls</Filter>
-    </Midl>
-    <Midl Include="ConclusionMarkdownView.idl">
-      <Filter>controls</Filter>
-    </Midl>
-    <Midl Include="AgentHistoryItem.idl">
-      <Filter>workspace</Filter>
-    </Midl>
     <Midl Include="WorkspaceItemViewModel.idl">
       <Filter>workspace</Filter>
     </Midl>
@@ -256,9 +205,6 @@
       <Filter>controls</Filter>
     </Page>
     <Page Include="WorkspaceSidebar.xaml">
-      <Filter>controls</Filter>
-    </Page>
-    <Page Include="ConclusionSidebar.xaml">
       <Filter>controls</Filter>
     </Page>
     <Page Include="TitlebarControl.xaml">

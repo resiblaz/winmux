@@ -228,14 +228,10 @@ namespace winrt::TerminalApp::implementation
         _tabRow.AddHandler(UIElement::PointerPressedEvent(), winrt::box_value(cancelNumber), true);
         LostFocus({ get_weak(), &TerminalPage::_WorkspaceNumberLostFocusHandler });
         _tabRow.LostFocus({ get_weak(), &TerminalPage::_WorkspaceNumberLostFocusHandler });
-        _conclusionSidebar = this->ConclusionSidebar();
-        winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->SetTabContentMode(true);
-        _workspaceFeatures->History().Attach(_conclusionSidebar);
         _workspaceList = _workspaceSidebar.WorkspaceList();
         _workspaceSurfaceTabBar = this->WorkspaceSurfaceTabBar();
         _workspaceSurfaceTabs = this->WorkspaceSurfaceTabs();
         _workspaceSurfaceNewTabButton = this->WorkspaceSurfaceNewTabButton();
-        _workspaceToolTabs = this->WorkspaceToolTabs();
         const auto workspaceSidebarImpl = winrt::get_self<implementation::WorkspaceSidebar>(_workspaceSidebar);
         workspaceSidebarImpl->SetWorkspaces(_WorkspaceItems());
         _workspaceItemsChangedRevoker = _WorkspaceItems().VectorChanged(winrt::auto_revoke, [weakThis{ get_weak() }](auto&&, auto&&) {
@@ -243,7 +239,6 @@ namespace winrt::TerminalApp::implementation
             {
                 page->_RefreshWorkspaceNotifications();
                 page->_RefreshWorkspaceListeningPorts();
-                page->_workspaceFeatures->History().OnWorkspaceItemsChanged();
             }
         });
         _RefreshWorkspaceNotifications();

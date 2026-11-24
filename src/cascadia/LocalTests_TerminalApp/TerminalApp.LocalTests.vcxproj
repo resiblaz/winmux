@@ -40,8 +40,6 @@
   <!-- ========================= Cpp Files ======================== -->
   <ItemGroup>
     <ClCompile Include="CommandlineTest.cpp" />
-    <ClCompile Include="AgentHistoryStoreTests.cpp" />
-    <ClCompile Include="CodexAppServerTests.cpp" />
     <ClCompile Include="WorkspaceGitMetadataTests.cpp" />
     <ClCompile Include="SettingsTests.cpp" />
     <ClCompile Include="TabTests.cpp" />

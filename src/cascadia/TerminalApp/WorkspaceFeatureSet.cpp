@@ -10,7 +10,6 @@ namespace winrt::TerminalApp::implementation
 {
     WorkspaceFeatureSet::WorkspaceFeatureSet(TerminalPage& page) noexcept :
         _automation{ page },
-        _history{ page },
         _snapshots{ page }
     {
     }
@@ -23,11 +22,6 @@ namespace winrt::TerminalApp::implementation
     WorkspaceAutomationController& WorkspaceFeatureSet::Automation() noexcept
     {
         return _automation;
-    }
-
-    AgentHistoryCoordinator& WorkspaceFeatureSet::History() noexcept
-    {
-        return _history;
     }
 
     WorkspaceSnapshotCoordinator& WorkspaceFeatureSet::Snapshots() noexcept
@@ -69,7 +63,6 @@ namespace winrt::TerminalApp::implementation
     {
         _sidebar.Stop();
         _snapshots.Stop();
-        _history.Stop();
         _automation.Stop();
     }
 }

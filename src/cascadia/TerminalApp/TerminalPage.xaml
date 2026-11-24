@@ -212,37 +212,6 @@
                             Content="&#xE756;"
                             FontFamily="{ThemeResource SymbolThemeFontFamily}"
                             FontSize="13" />
-
-                    <ListView x:Name="WorkspaceToolTabs"
-                              Grid.Column="2"
-                              Margin="0,0,4,0"
-                              Background="Transparent"
-                              BorderThickness="0"
-                              Foreground="{ThemeResource WorkspaceChromeTextPrimaryBrush}"
-                              IsSwipeEnabled="False"
-                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                              ScrollViewer.HorizontalScrollMode="Disabled"
-                              ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                              SelectionChanged="_WorkspaceToolTabs_SelectionChanged"
-                              SelectionMode="Single">
-                        <ListView.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <ItemsStackPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ListView.ItemsPanel>
-                        <ListViewItem x:Uid="WorkspaceConclusionTab"
-                                      Width="36"
-                                      MinWidth="36"
-                                      Style="{StaticResource WorkspaceSurfaceTabItemStyle}">
-                            <Grid Width="36"
-                                  Height="30">
-                                <FontIcon VerticalAlignment="Center"
-                                          FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                          FontSize="12"
-                                          Glyph="&#xE8A5;" />
-                            </Grid>
-                        </ListViewItem>
-                    </ListView>
                 </Grid>
             </Border>
 
@@ -254,12 +223,6 @@
                     <ImageBrush />
                 </Grid.Background>
             </Grid>
-
-            <local:ConclusionSidebar x:Name="ConclusionSidebar"
-                                     Grid.Row="1"
-                                     HorizontalAlignment="Stretch"
-                                     VerticalAlignment="Stretch"
-                                     Visibility="Collapsed" />
         </Grid>
 
         <!--

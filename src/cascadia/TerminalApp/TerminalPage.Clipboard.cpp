@@ -310,10 +310,7 @@ namespace winrt::TerminalApp::implementation
             if (const auto tabImpl{ _GetFocusedTabImpl() })
             {
                 const auto rootDimension = static_cast<float>(widthOrHeight ? ActualWidth() : ActualHeight());
-                const auto tabContentVisible = _tabContent.Visibility() == Visibility::Visible;
-                const auto contentDimension = static_cast<float>(widthOrHeight ?
-                                                                     (tabContentVisible ? _tabContent.ActualWidth() : _conclusionSidebar.ActualWidth()) :
-                                                                     (tabContentVisible ? _tabContent.ActualHeight() : _conclusionSidebar.ActualHeight()));
+                const auto contentDimension = static_cast<float>(widthOrHeight ? _tabContent.ActualWidth() : _tabContent.ActualHeight());
 
                 // Before the first layout pass there is no reliable chrome
                 // measurement, so retain the original snapping behavior.

@@ -4,7 +4,6 @@
 #include "pch.h"
 #include "WorkspaceAutomationController.h"
 
-#include "AgentHistoryStore.h"
 #include "TerminalPage.h"
 #include "WorkspaceAutomation.h"
 #include "WorkspaceFeatureSet.h"
@@ -209,7 +208,6 @@ namespace winrt::TerminalApp::implementation
         auto& _WindowProperties = _page._WindowProperties;
         auto& _settingsTab = _page._settingsTab;
         auto& _tabContent = _page._tabContent;
-        auto& _conclusionSidebar = _page._conclusionSidebar;
         const auto _currentWindowSettings = [&]() { return _page._currentWindowSettings(); };
         const auto _GetTabImpl = [&](const TerminalApp::Tab& tab) { return tab ? TerminalPage::_GetTabImpl(tab) : winrt::com_ptr<Tab>{}; };
         const auto _SelectWorkspace = [&](const TerminalApp::WorkspaceItemViewModel& item) { return _page._SelectWorkspace(item); };
@@ -732,106 +730,6 @@ namespace winrt::TerminalApp::implementation
             JsonObject result;
             result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(request.WorkspaceId.value())));
             result.Insert(L"pane", paneJson(createdPane, request.SurfaceId.value(), true));
-            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
-        }
-        case WorkspaceAutomationMethod::ConclusionCreate:
-        {
-            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
-            if (!workspaceIndex)
-            {
-                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
-            }
-            if (!_conclusionSidebar)
-            {
-                return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "Conclusion sidebar is not available");
-            }
-
-            const auto item = _workspaceItems.GetAt(workspaceIndex.value());
-            const auto stored = winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar)->AddConclusion(
-                item.WorkspaceId(),
-                item.Title(),
-                L"codex",
-                request.SessionId,
-                request.TurnId,
-                item.WorkingDirectory(),
-                request.Title,
-                request.Prompt,
-                request.Body,
-                request.Model,
-                winrt::clock::now());
-            if (!stored)
-            {
-                return WorkspaceAutomationProtocol::MakeError(request.Id, "persistence_failed", "Unable to commit the AI history turn");
-            }
-
-            JsonObject result;
-            result.Insert(L"accepted", JsonValue::CreateBooleanValue(true));
-            result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(item.WorkspaceId())));
-            result.Insert(L"sessionId", JsonValue::CreateStringValue(request.SessionId));
-            result.Insert(L"turnId", JsonValue::CreateStringValue(request.TurnId));
-            return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
-        }
-        case WorkspaceAutomationMethod::HistoryIngest:
-        {
-            const auto workspaceIndex = findWorkspace(request.WorkspaceId.value());
-            if (!workspaceIndex)
-            {
-                return WorkspaceAutomationProtocol::MakeError(request.Id, "workspace_not_found", "Workspace was not found in this window");
-            }
-            if (!_conclusionSidebar)
-            {
-                return WorkspaceAutomationProtocol::MakeError(request.Id, "operation_failed", "History sidebar is not available");
-            }
-
-            const auto item = _workspaceItems.GetAt(workspaceIndex.value());
-            const auto eventTimestamp = winrt::clock::from_sys(
-                std::chrono::system_clock::time_point{ std::chrono::milliseconds{ request.EventAt.value() } });
-            const auto cwd = request.Cwd.empty() ? item.WorkingDirectory() : request.Cwd;
-            const AgentHistoryEventReceipt event{
-                .EventId = request.EventId.value(),
-                .Cwd = request.Cwd,
-                .Title = request.Title,
-                .Prompt = request.Prompt,
-                .FinalMarkdown = request.Body,
-                .Model = request.Model,
-                .EventAt = request.EventAt,
-            };
-            const auto sidebar = winrt::get_self<implementation::ConclusionSidebar>(_conclusionSidebar);
-            const auto stored = request.HistoryEvent == AgentHistoryEventKind::Prompt ?
-                                    sidebar->AddPrompt(item.WorkspaceId(),
-                                                       item.Title(),
-                                                       L"codex",
-                                                       request.SessionId,
-                                                       request.TurnId,
-                                                       cwd,
-                                                       request.Prompt,
-                                                       request.Model,
-                                                       eventTimestamp,
-                                                       event) :
-                                    sidebar->AddConclusion(item.WorkspaceId(),
-                                                           item.Title(),
-                                                           L"codex",
-                                                           request.SessionId,
-                                                           request.TurnId,
-                                                           cwd,
-                                                           request.Title,
-                                                           request.Prompt,
-                                                           request.Body,
-                                                           request.Model,
-                                                           eventTimestamp,
-                                                           event);
-            if (!stored)
-            {
-                return WorkspaceAutomationProtocol::MakeError(request.Id, "persistence_failed", "Unable to commit the AI history event");
-            }
-
-            JsonObject result;
-            result.Insert(L"accepted", JsonValue::CreateBooleanValue(true));
-            result.Insert(L"workspaceId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(item.WorkspaceId())));
-            result.Insert(L"eventId", JsonValue::CreateStringValue(::Microsoft::Console::Utils::GuidToPlainString(request.EventId.value())));
-            result.Insert(L"event", JsonValue::CreateStringValue(request.HistoryEvent == AgentHistoryEventKind::Prompt ? L"prompt" : L"final"));
-            result.Insert(L"sessionId", JsonValue::CreateStringValue(request.SessionId));
-            result.Insert(L"turnId", JsonValue::CreateStringValue(request.TurnId));
             return WorkspaceAutomationProtocol::MakeResult(request.Id, result);
         }
         case WorkspaceAutomationMethod::NotificationList:

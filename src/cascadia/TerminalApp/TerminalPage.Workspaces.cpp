@@ -88,8 +88,6 @@ namespace winrt::TerminalApp::implementation
             _SidebarController().NumberInput.Reset();
         }
         _SidebarController().LayoutInitialized = true;
-        _SetWorkspaceToolTabSelected(enabled && _workspaceToolTabSelected);
-        _workspaceFeatures->History().UpdateView();
         _UpdateWorkspaceTitleBar();
         _UpdateWorkspaceListeningPortsTimer();
         _workspaceFeatures->Automation().Update(_SidebarController().Enabled);
@@ -356,46 +354,6 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
-    void TerminalPage::_SetWorkspaceToolTabSelected(const bool selected)
-    {
-        if (!_tabContent || !_conclusionSidebar)
-        {
-            return;
-        }
-
-        _workspaceToolTabSelected = selected && _SidebarController().Enabled;
-        const auto wasSyncingSelection = std::exchange(_SidebarController().SyncingSelection, true);
-        auto restoreSyncingSelection = wil::scope_exit([&]() noexcept { _SidebarController().SyncingSelection = wasSyncingSelection; });
-
-        if (_workspaceToolTabs)
-        {
-            _workspaceToolTabs.SelectedIndex(_workspaceToolTabSelected ? 0 : -1);
-        }
-        if (_workspaceToolTabSelected && _workspaceSurfaceTabs)
-        {
-            _workspaceSurfaceTabs.SelectedIndex(-1);
-        }
-        else if (_workspaceSurfaceTabs)
-        {
-            if (const auto tab = _GetFocusedTab())
-            {
-                _workspaceSurfaceTabs.SelectedItem(tab);
-            }
-        }
-
-        _tabContent.Visibility(_workspaceToolTabSelected ? Visibility::Collapsed : Visibility::Visible);
-        _conclusionSidebar.Visibility(_workspaceToolTabSelected ? Visibility::Visible : Visibility::Collapsed);
-
-        if (_workspaceToolTabSelected)
-        {
-            for (const auto& tab : _tabs)
-            {
-                tab.Focus(FocusState::Unfocused);
-            }
-            _workspaceFeatures->History().UpdateView();
-        }
-    }
-
     void TerminalPage::_ApplyRestoredWorkspaceActiveSurfaces()
     {
         auto& workspaces = _workspaceFeatures->Workspaces();
@@ -500,7 +458,6 @@ namespace winrt::TerminalApp::implementation
         const auto nextIndex = ((currentIndex + delta) % count + count) % count;
         const auto& target = targets[gsl::narrow_cast<size_t>(nextIndex)];
 
-        _SetWorkspaceToolTabSelected(false);
         if (const auto tabIndex = _GetTabIndex(target.Surface))
         {
             _SelectTab(tabIndex.value());
@@ -750,7 +707,6 @@ namespace winrt::TerminalApp::implementation
             return;
         }
 
-        _SetWorkspaceToolTabSelected(false);
         switch (row.Kind())
         {
         case TerminalApp::WorkspaceSidebarRowKind::Workspace:
@@ -924,7 +880,6 @@ namespace winrt::TerminalApp::implementation
         {
             if (const auto tab = list.SelectedItem().try_as<TerminalApp::Tab>())
             {
-                _SetWorkspaceToolTabSelected(false);
                 if (const auto tabIndex = _GetTabIndex(tab))
                 {
                     _SelectTab(tabIndex.value());
@@ -951,20 +906,6 @@ namespace winrt::TerminalApp::implementation
             _OpenNewWorkspaceSurface(item);
         }
     }
-
-    void TerminalPage::_WorkspaceToolTabs_SelectionChanged(const IInspectable& sender, const SelectionChangedEventArgs&)
-    {
-        if (_SidebarController().SyncingSelection || _removing || _rearranging)
-        {
-            return;
-        }
-
-        if (const auto list = sender.try_as<ListView>(); list && list.SelectedIndex() >= 0)
-        {
-            _SetWorkspaceToolTabSelected(true);
-        }
-    }
-
 
     safe_void_coroutine TerminalPage::_WorkspaceConfigureAgentResumeRequested(const TerminalApp::WorkspaceSidebar&,
                                                                               const TerminalApp::WorkspaceItemViewModel& item)
@@ -1045,10 +986,79 @@ namespace winrt::TerminalApp::implementation
             co_return;
         }
 
-        _workspaceFeatures->History().ResumeSession(
-            info.WorkspaceId,
-            info.SessionId,
-            info.WorkingDirectory.empty() ? item.WorkingDirectory() : info.WorkingDirectory);
+        const auto presenter = _dialogPresenter.get();
+        if (!presenter)
+        {
+            co_return;
+        }
+
+        const auto workingDirectory = info.WorkingDirectory.empty() ? item.WorkingDirectory() : info.WorkingDirectory;
+        const auto workspaceId = info.WorkspaceId;
+        const auto weakThis = get_weak();
+
+        ContentDialog dialog{};
+        dialog.Title(box_value(RS_(L"WorkspaceSidebar_AgentResumeDialogTitle")));
+        dialog.Content(box_value(RS_fmt(L"WorkspaceSidebar_AgentResumeDialogBody", info.SessionId)));
+        dialog.PrimaryButtonText(RS_(L"WorkspaceSidebar_AgentResumeDialogConfirm"));
+        dialog.CloseButtonText(RS_(L"WorkspaceSidebar_AgentDialogCancel"));
+        dialog.DefaultButton(ContentDialogButton::Close);
+        if (co_await presenter.ShowDialog(dialog) != ContentDialogResult::Primary)
+        {
+            co_return;
+        }
+
+        const auto codexCliPath = WorkspaceAgentResume::ResolveCodexCliPath();
+        const auto commandProcessorPath = WorkspaceAgentResume::ResolveSystemCommandProcessorPath();
+        if (codexCliPath.empty() || commandProcessorPath.empty())
+        {
+            ContentDialog errorDialog{};
+            errorDialog.Title(box_value(RS_(L"WorkspaceSidebar_AgentCliMissingDialogTitle")));
+            errorDialog.Content(box_value(RS_(L"WorkspaceSidebar_AgentCliMissingDialogBody")));
+            errorDialog.CloseButtonText(RS_(L"Ok"));
+            co_await presenter.ShowDialog(errorDialog);
+            co_return;
+        }
+
+        const auto page = weakThis.get();
+        if (!page)
+        {
+            co_return;
+        }
+
+        TerminalApp::WorkspaceItemViewModel workspaceItem{ nullptr };
+        for (const auto& candidate : page->_WorkspaceItems())
+        {
+            if (candidate.WorkspaceId() == workspaceId)
+            {
+                workspaceItem = candidate;
+                break;
+            }
+        }
+        if (!workspaceItem)
+        {
+            co_return;
+        }
+
+        const auto tab = workspaceItem.SourceTab();
+        uint32_t tabIndex{};
+        if (!tab || !page->_tabs.IndexOf(tab, tabIndex))
+        {
+            co_return;
+        }
+
+        NewTerminalArgs args{};
+        args.Commandline(WorkspaceAgentResume::BuildCommandline(info, commandProcessorPath, codexCliPath));
+        args.Elevate(false);
+        if (Utils::IsValidDirectory(workingDirectory.c_str()))
+        {
+            args.StartingDirectory(workingDirectory);
+        }
+
+        page->_SelectTab(tabIndex);
+        if (const auto newPane = page->_MakePane(args, nullptr, nullptr, true, workspaceId))
+        {
+            page->_SplitPane(TerminalPage::_GetTabImpl(tab), SplitDirection::Automatic, 0.5f, newPane, workspaceId);
+        }
         co_return;
     }
 

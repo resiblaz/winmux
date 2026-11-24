@@ -19,8 +19,6 @@
 #include "Toast.h"
 #include "WorkspaceItemViewModel.h"
 #include "WorkspaceSidebar.h"
-#include "ConclusionSidebar.h"
-#include "AgentHistoryInbox.h"
 #include "WorkspaceAgentResume.h"
 
 #include "WindowsPackageManagerFactory.h"
@@ -48,7 +46,6 @@ namespace winrt::TerminalApp::implementation
     struct TerminalSettingsCache;
     class WorkspaceFeatureSet;
     class WorkspaceAutomationController;
-    class AgentHistoryCoordinator;
     class WorkspaceSnapshotCoordinator;
     struct WorkspaceSessionRestoreState;
     class WorkspaceSidebarController;
@@ -315,13 +312,10 @@ namespace winrt::TerminalApp::implementation
         TerminalApp::TabRowControl _tabRow{ nullptr };
         Windows::UI::Xaml::Controls::Grid _tabContent{ nullptr };
         TerminalApp::WorkspaceSidebar _workspaceSidebar{ nullptr };
-        TerminalApp::ConclusionSidebar _conclusionSidebar{ nullptr };
         Windows::UI::Xaml::Controls::ListView _workspaceList{ nullptr };
         Windows::UI::Xaml::Controls::Border _workspaceSurfaceTabBar{ nullptr };
         Windows::UI::Xaml::Controls::ListView _workspaceSurfaceTabs{ nullptr };
         Windows::UI::Xaml::Controls::Button _workspaceSurfaceNewTabButton{ nullptr };
-        Windows::UI::Xaml::Controls::ListView _workspaceToolTabs{ nullptr };
-        bool _workspaceToolTabSelected{};
         Microsoft::UI::Xaml::Controls::SplitButton _newTabButton{ nullptr };
         Microsoft::UI::Xaml::Controls::SplitButton _workspaceNewTabButton{ nullptr };
         Windows::UI::Xaml::Controls::Button _workspaceNotificationButton{ nullptr };
@@ -485,7 +479,6 @@ namespace winrt::TerminalApp::implementation
         void _UpdateWorkspaceSidebarForWindowWidth(double width);
         void _Root_SizeChanged(const IInspectable& sender, const Windows::UI::Xaml::SizeChangedEventArgs& args);
         void _SyncWorkspaceSelection(const winrt::TerminalApp::Tab& tab);
-        void _SetWorkspaceToolTabSelected(bool selected);
         void _ApplyRestoredWorkspaceActiveSurfaces();
         bool _SelectWorkspace(const TerminalApp::WorkspaceItemViewModel& item);
         void _SynchronizeFlatTabOrder();
@@ -507,7 +500,6 @@ namespace winrt::TerminalApp::implementation
         void _WorkspaceSurfaceTabs_SelectionChanged(const IInspectable& sender, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs& eventArgs);
         void _WorkspaceSurfaceTabClose_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
         void _WorkspaceSurfaceNewTab_Click(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);
-        void _WorkspaceToolTabs_SelectionChanged(const IInspectable& sender, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs& eventArgs);
         safe_void_coroutine _WorkspaceConfigureAgentResumeRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         safe_void_coroutine _WorkspaceResumeAgentRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
         void _WorkspaceClearAgentResumeRequested(const TerminalApp::WorkspaceSidebar& sender, const TerminalApp::WorkspaceItemViewModel& item);
@@ -806,7 +798,6 @@ namespace winrt::TerminalApp::implementation
         friend class TerminalAppLocalTests::TabTests;
         friend class TerminalAppLocalTests::SettingsTests;
         friend class WorkspaceAutomationController;
-        friend class AgentHistoryCoordinator;
         friend class WorkspaceSnapshotCoordinator;
     };
 }

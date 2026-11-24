@@ -334,6 +334,14 @@
                         <MenuFlyoutItem x:Uid="WorkspaceSidebarNewSurfaceMenuItem"
                                         Click="_AddSurface_Click"
                                         Tag="{Binding}" />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarOpenDirectoryMenuItem"
+                                        Click="_OpenDirectory_Click"
+                                        IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(WorkingDirectory), Mode=OneWay}"
+                                        Tag="{Binding}" />
+                        <MenuFlyoutItem x:Uid="WorkspaceSidebarCopyPathMenuItem"
+                                        Click="_CopyPath_Click"
+                                        IsEnabled="{x:Bind mtu:Converters.StringNotEmpty(WorkingDirectory), Mode=OneWay}"
+                                        Tag="{Binding}" />
                         <MenuFlyoutSeparator />
                         <MenuFlyoutItem x:Uid="WorkspaceSidebarOpenNotificationMenuItem"
                                         Click="_Notification_Click"

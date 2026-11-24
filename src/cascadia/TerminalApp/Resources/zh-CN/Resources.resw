@@ -1381,6 +1381,12 @@
   <data name="WorkspaceSidebarNewSurfaceMenuItem.Text" xml:space="preserve">
     <value>新建终端</value>
   </data>
+  <data name="WorkspaceSidebarOpenDirectoryMenuItem.Text" xml:space="preserve">
+    <value>在资源管理器中打开</value>
+  </data>
+  <data name="WorkspaceSidebarCopyPathMenuItem.Text" xml:space="preserve">
+    <value>复制路径</value>
+  </data>
   <data name="WorkspaceSidebarSplitSurfaceMenuItem.Text" xml:space="preserve">
     <value>拆分窗格</value>
   </data>

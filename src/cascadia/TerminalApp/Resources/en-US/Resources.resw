@@ -1381,6 +1381,12 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebarNewSurfaceMenuItem.Text" xml:space="preserve">
     <value>New terminal</value>
   </data>
+  <data name="WorkspaceSidebarOpenDirectoryMenuItem.Text" xml:space="preserve">
+    <value>Open in Explorer</value>
+  </data>
+  <data name="WorkspaceSidebarCopyPathMenuItem.Text" xml:space="preserve">
+    <value>Copy path</value>
+  </data>
   <data name="WorkspaceSidebarSplitSurfaceMenuItem.Text" xml:space="preserve">
     <value>Split pane</value>
   </data>

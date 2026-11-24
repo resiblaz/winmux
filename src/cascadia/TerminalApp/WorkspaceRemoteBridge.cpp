@@ -310,6 +310,60 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    std::filesystem::path WorkspaceRemoteBridge::FindStandaloneBridgeExecutable()
+    {
+        std::error_code ec;
+        if (const auto envExe = wil::TryGetEnvironmentVariableW(L"WINMUX_BRIDGE_EXE"))
+        {
+            std::filesystem::path p{ envExe.get() };
+            if (std::filesystem::is_regular_file(p, ec))
+            {
+                return p;
+            }
+        }
+
+        std::wstring modulePath(MAX_PATH, L'\0');
+        for (;;)
+        {
+            const auto copied = GetModuleFileNameW(nullptr, modulePath.data(), gsl::narrow_cast<DWORD>(modulePath.size()));
+            if (copied == 0)
+            {
+                return {};
+            }
+            if (copied < modulePath.size())
+            {
+                modulePath.resize(copied);
+                break;
+            }
+            modulePath.resize(modulePath.size() * 2);
+        }
+
+        const std::filesystem::path dir = std::filesystem::path{ modulePath }.parent_path();
+        if (const auto portableExe = dir / L"bridge" / L"winmux-bridge.exe";
+            std::filesystem::is_regular_file(portableExe, ec))
+        {
+            return portableExe;
+        }
+
+        std::filesystem::path cursor = dir;
+        for (int depth = 0; depth < 8 && !cursor.empty(); ++depth)
+        {
+            const auto candidate = cursor / L"tools" / L"remote-bridge" / L"dist" / L"winmux-bridge.exe";
+            if (std::filesystem::is_regular_file(candidate, ec))
+            {
+                return candidate;
+            }
+            const auto parent = cursor.parent_path();
+            if (parent == cursor)
+            {
+                break;
+            }
+            cursor = parent;
+        }
+
+        return {};
+    }
+
     std::filesystem::path WorkspaceRemoteBridge::FindBridgeEntryScript()
     {
         std::error_code ec;
@@ -428,18 +482,38 @@ namespace winrt::TerminalApp::implementation
             return true;
         }
 
-        const auto scriptPath = FindBridgeEntryScript();
-        if (scriptPath.empty())
-        {
-            errorOut = L"winmux-bridge.mjs not found.";
-            return false;
-        }
+        std::wstring executablePath;
+        std::wstring commandLine;
+        std::wstring workDir;
 
-        const auto nodeExe = FindNodeExecutable();
-        if (nodeExe.empty())
+        if (const auto standaloneExe = FindStandaloneBridgeExecutable(); !standaloneExe.empty())
         {
-            errorOut = L"node.exe not found in PATH.";
-            return false;
+            // Prefer bundled zero-dependency SEA winmux-bridge.exe when present.
+            executablePath = standaloneExe.wstring();
+            commandLine = _quoteCommandArg(executablePath);
+            workDir = standaloneExe.parent_path().wstring();
+        }
+        else
+        {
+            const auto scriptPath = FindBridgeEntryScript();
+            if (scriptPath.empty())
+            {
+                errorOut = L"winmux-bridge.exe / winmux-bridge.mjs not found.";
+                return false;
+            }
+
+            const auto nodeExe = FindNodeExecutable();
+            if (nodeExe.empty())
+            {
+                errorOut = L"node.exe not found in PATH (and bundled winmux-bridge.exe is missing).";
+                return false;
+            }
+
+            executablePath = nodeExe;
+            commandLine = _quoteCommandArg(nodeExe);
+            commandLine.push_back(L' ');
+            commandLine.append(_quoteCommandArg(scriptPath.wstring()));
+            workDir = scriptPath.parent_path().parent_path().wstring();
         }
 
         std::scoped_lock lock{ _mutex };
@@ -458,18 +532,13 @@ namespace winrt::TerminalApp::implementation
             SetInformationJobObject(job.get(), JobObjectExtendedLimitInformation, &info, sizeof(info));
         }
 
-        std::wstring commandLine = _quoteCommandArg(nodeExe);
-        commandLine.push_back(L' ');
-        commandLine.append(_quoteCommandArg(scriptPath.wstring()));
-
         STARTUPINFOW si{};
         si.cb = sizeof(si);
         si.dwFlags = STARTF_USESHOWWINDOW;
         si.wShowWindow = SW_HIDE;
 
         PROCESS_INFORMATION pi{};
-        const auto workDir = scriptPath.parent_path().parent_path().wstring();
-        if (!CreateProcessW(nodeExe.c_str(),
+        if (!CreateProcessW(executablePath.c_str(),
                             commandLine.data(),
                             nullptr,
                             nullptr,
@@ -480,7 +549,7 @@ namespace winrt::TerminalApp::implementation
                             &si,
                             &pi))
         {
-            errorOut = L"Failed to launch node.exe (error " + std::to_wstring(GetLastError()) + L").";
+            errorOut = L"Failed to launch Remote Bridge (error " + std::to_wstring(GetLastError()) + L").";
             return false;
         }
 

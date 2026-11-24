@@ -52,6 +52,7 @@ namespace winrt::TerminalApp::implementation
         WorkspaceRemoteBridge(const WorkspaceRemoteBridge&) = delete;
         WorkspaceRemoteBridge& operator=(const WorkspaceRemoteBridge&) = delete;
 
+        static std::filesystem::path FindStandaloneBridgeExecutable();
         static std::filesystem::path FindBridgeEntryScript();
         static std::wstring FindNodeExecutable();
         static std::filesystem::path DesktopPrefsPath();

@@ -8,6 +8,7 @@
 #include "Pane.h"
 
 #include <robuffer.h>
+#include <shellapi.h>
 #include <winrt/Windows.Storage.Streams.h>
 #include <winrt/Windows.UI.Xaml.Media.Imaging.h>
 
@@ -1563,6 +1564,33 @@ namespace winrt::TerminalApp::implementation
         {
             _treeModel.SetWorkspaceCollapsed(item.WorkspaceId(), false);
             NewSurfaceRequested.raise(*this, item);
+        }
+    }
+
+    void WorkspaceSidebar::_OpenDirectory_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            const auto dir = item.WorkingDirectory();
+            if (!dir.empty())
+            {
+                ShellExecuteW(nullptr, L"open", dir.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+            }
+        }
+    }
+
+    void WorkspaceSidebar::_CopyPath_Click(const IInspectable& sender, const RoutedEventArgs&)
+    {
+        if (const auto item = _ItemFromSender(sender))
+        {
+            const auto dir = item.WorkingDirectory();
+            if (!dir.empty())
+            {
+                DataPackage dataPackage{};
+                dataPackage.SetText(dir);
+                Clipboard::SetContent(dataPackage);
+                Clipboard::Flush();
+            }
         }
     }
 

@@ -175,8 +175,12 @@ fun TerminalScreen(
                 )
             }.onSuccess {
                 errorBanner = null
-                delay(320)
-                loadScreen()
+                // When WebSocket is connected, Bridge already pushes terminal.output ~220ms after input.
+                // Only perform a fallback HTTP read when WebSocket is disconnected.
+                if (!WinmuxRepository.isWebSocketConnected) {
+                    delay(320)
+                    loadScreen()
+                }
             }.onFailure { err ->
                 errorBanner = err.message
             }

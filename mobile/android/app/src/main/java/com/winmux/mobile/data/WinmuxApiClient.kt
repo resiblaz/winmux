@@ -30,6 +30,11 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
+class BridgeHttpException(
+    val statusCode: Int,
+    message: String,
+) : IOException(message)
+
 data class ResolvedEndpoint(
     val baseUrl: String,
     val label: String,
@@ -421,16 +426,18 @@ class WinmuxApiClient {
                         return raw
                     }
                     val parsedMsg = runCatching { JSONObject(raw).optString("message") }.getOrNull()
-                    val err = IOException(parsedMsg?.ifBlank { null } ?: "请求失败 (HTTP ${res.code})")
+                    val msg = parsedMsg?.ifBlank { null } ?: "请求失败 (HTTP ${res.code})"
                     if (res.code in 400..499) {
-                        throw err
+                        throw BridgeHttpException(res.code, msg)
                     }
-                    lastException = err
+                    lastException = BridgeHttpException(res.code, msg)
                 }
-            } catch (e: IOException) {
-                if (e.message?.contains("HTTP 4") == true || e.message?.contains("Enable experimental") == true) {
+            } catch (e: BridgeHttpException) {
+                if (e.statusCode in 400..499) {
                     throw e
                 }
+                lastException = e
+            } catch (e: IOException) {
                 lastException = e
             }
         }

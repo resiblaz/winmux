@@ -50,6 +50,9 @@ object WinmuxRepository {
     @Volatile
     private var activeTerminalSubscription: String? = null
 
+    val isWebSocketConnected: Boolean
+        get() = wsSender != null
+
     fun attachWebSocketSender(sender: ((String) -> Boolean)?) {
         wsSender = sender
         // Re-subscribe active terminal stream automatically after WebSocket reconnect.
@@ -92,11 +95,13 @@ object WinmuxRepository {
     }
 
     fun unpair() {
+        unsubscribeTerminal()
         settingsRepo.clearPairing()
         _config.value = settingsRepo.loadConfig()
         _connectionState.value = ConnectionState.Disconnected
         _snapshot.value = BridgeSnapshot()
         _decisions.value = emptyList()
+        _terminalOutputs.value = emptyMap()
     }
 
     fun setConnectionState(state: ConnectionState) {
@@ -175,8 +180,13 @@ object WinmuxRepository {
                 val paneId = obj.optInt("paneId", -1)
                 if (wsId.isNotBlank() && sfId.isNotBlank() && paneId >= 0) {
                     val key = terminalKey(wsId, sfId, paneId)
-                    val updated = _terminalOutputs.value.toMutableMap()
+                    val updated = LinkedHashMap(_terminalOutputs.value)
+                    updated.remove(key)
                     updated[key] = obj.optString("text", "")
+                    while (updated.size > 12) {
+                        val oldest = updated.keys.firstOrNull() ?: break
+                        updated.remove(oldest)
+                    }
                     _terminalOutputs.value = updated
                 }
             }

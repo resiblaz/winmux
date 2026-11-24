@@ -1797,7 +1797,8 @@ namespace winrt::TerminalApp::implementation
         {
             return;
         }
-        const bool enabled = RemoteBridgeAutoStartCheckBox().IsChecked().Value();
+        const auto checked = RemoteBridgeAutoStartCheckBox().IsChecked();
+        const bool enabled = checked && checked.Value();
         WorkspaceRemoteBridge::SaveAutoStartPreference(enabled);
         if (enabled && !_remoteBridgeStatus.Running && !_remoteBridgeBusy)
         {
@@ -1828,12 +1829,20 @@ namespace winrt::TerminalApp::implementation
 
     winrt::fire_and_forget WorkspaceSidebar::_AutoStartRemoteBridgeAsync()
     {
+        if (_remoteBridgeBusy)
+        {
+            co_return;
+        }
         const auto weakThis = get_weak();
         const auto dispatcher = Dispatcher();
         if (!dispatcher)
         {
             co_return;
         }
+
+        const auto generation = ++_remoteBridgeGeneration;
+        _remoteBridgeBusy = true;
+        _ApplyRemoteBridgeStatus(_remoteBridgeStatus, true);
 
         co_await winrt::resume_background();
 
@@ -1855,6 +1864,10 @@ namespace winrt::TerminalApp::implementation
                         Sleep(150);
                     }
                 }
+                else if (!startError.empty())
+                {
+                    nextStatus.ErrorMessage = std::move(startError);
+                }
             }
         }
         CATCH_LOG();
@@ -1862,8 +1875,12 @@ namespace winrt::TerminalApp::implementation
         co_await wil::resume_foreground(dispatcher);
         if (const auto self = weakThis.get())
         {
-            self->_remoteBridgeStatus = std::move(nextStatus);
-            self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, self->_remoteBridgeBusy);
+            if (self->_remoteBridgeGeneration == generation)
+            {
+                self->_remoteBridgeBusy = false;
+                self->_remoteBridgeStatus = std::move(nextStatus);
+                self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, false);
+            }
         }
     }
 
@@ -1881,6 +1898,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         const bool shouldInstall = !(_remoteBridgeStatus.ClaudeHookInstalled && _remoteBridgeStatus.CodexHookInstalled);
+        const auto generation = ++_remoteBridgeGeneration;
         _remoteBridgeBusy = true;
         _ApplyRemoteBridgeStatus(_remoteBridgeStatus, true);
 
@@ -1899,9 +1917,12 @@ namespace winrt::TerminalApp::implementation
         co_await wil::resume_foreground(dispatcher);
         if (const auto self = weakThis.get())
         {
-            self->_remoteBridgeBusy = false;
-            self->_remoteBridgeStatus = std::move(nextStatus);
-            self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, false);
+            if (self->_remoteBridgeGeneration == generation)
+            {
+                self->_remoteBridgeBusy = false;
+                self->_remoteBridgeStatus = std::move(nextStatus);
+                self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, false);
+            }
         }
     }
 
@@ -1919,6 +1940,7 @@ namespace winrt::TerminalApp::implementation
         }
 
         const bool shouldEnable = !_remoteBridgeStatus.TunnelRunning;
+        const auto generation = ++_remoteBridgeGeneration;
         _remoteBridgeBusy = true;
         _ApplyRemoteBridgeStatus(_remoteBridgeStatus, true);
 
@@ -1937,9 +1959,12 @@ namespace winrt::TerminalApp::implementation
         co_await wil::resume_foreground(dispatcher);
         if (const auto self = weakThis.get())
         {
-            self->_remoteBridgeBusy = false;
-            self->_remoteBridgeStatus = std::move(nextStatus);
-            self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, false);
+            if (self->_remoteBridgeGeneration == generation)
+            {
+                self->_remoteBridgeBusy = false;
+                self->_remoteBridgeStatus = std::move(nextStatus);
+                self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, false);
+            }
         }
     }
 
@@ -1956,6 +1981,7 @@ namespace winrt::TerminalApp::implementation
             co_return;
         }
 
+        const auto generation = ++_remoteBridgeGeneration;
         _remoteBridgeBusy = true;
         _ApplyRemoteBridgeStatus(_remoteBridgeStatus, true);
 
@@ -1974,14 +2000,21 @@ namespace winrt::TerminalApp::implementation
         co_await wil::resume_foreground(dispatcher);
         if (const auto self = weakThis.get())
         {
-            self->_remoteBridgeBusy = false;
-            self->_remoteBridgeStatus = std::move(nextStatus);
-            self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, false);
+            if (self->_remoteBridgeGeneration == generation)
+            {
+                self->_remoteBridgeBusy = false;
+                self->_remoteBridgeStatus = std::move(nextStatus);
+                self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, false);
+            }
         }
     }
 
     winrt::fire_and_forget WorkspaceSidebar::_RefreshRemoteBridgeAsync(const bool refreshCode)
     {
+        if (_remoteBridgeBusy)
+        {
+            co_return;
+        }
         const auto weakThis = get_weak();
         const auto dispatcher = Dispatcher();
         if (!dispatcher)
@@ -1989,6 +2022,7 @@ namespace winrt::TerminalApp::implementation
             co_return;
         }
 
+        const auto generation = ++_remoteBridgeGeneration;
         co_await winrt::resume_background();
 
         RemoteBridgeStatus nextStatus{};
@@ -2004,8 +2038,11 @@ namespace winrt::TerminalApp::implementation
         co_await wil::resume_foreground(dispatcher);
         if (const auto self = weakThis.get())
         {
-            self->_remoteBridgeStatus = std::move(nextStatus);
-            self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, self->_remoteBridgeBusy);
+            if (self->_remoteBridgeGeneration == generation && !self->_remoteBridgeBusy)
+            {
+                self->_remoteBridgeStatus = std::move(nextStatus);
+                self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, self->_remoteBridgeBusy);
+            }
         }
     }
 
@@ -2023,6 +2060,7 @@ namespace winrt::TerminalApp::implementation
             co_return;
         }
 
+        const auto generation = ++_remoteBridgeGeneration;
         _remoteBridgeBusy = true;
         _ApplyRemoteBridgeStatus(_remoteBridgeStatus, true);
 
@@ -2082,9 +2120,12 @@ namespace winrt::TerminalApp::implementation
         co_await wil::resume_foreground(dispatcher);
         if (const auto self = weakThis.get())
         {
-            self->_remoteBridgeBusy = false;
-            self->_remoteBridgeStatus = std::move(nextStatus);
-            self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, false);
+            if (self->_remoteBridgeGeneration == generation)
+            {
+                self->_remoteBridgeBusy = false;
+                self->_remoteBridgeStatus = std::move(nextStatus);
+                self->_ApplyRemoteBridgeStatus(self->_remoteBridgeStatus, false);
+            }
         }
     }
 

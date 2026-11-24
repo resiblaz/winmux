@@ -190,6 +190,7 @@ namespace winrt::TerminalApp::implementation
         RemoteBridgeStatus _remoteBridgeStatus;
         std::string _renderedQrKey;
         bool _remoteBridgeBusy{ false };
+        uint64_t _remoteBridgeGeneration{ 0 };
 
         void _ApplyLayout();
         winrt::fire_and_forget _AutoStartRemoteBridgeAsync();

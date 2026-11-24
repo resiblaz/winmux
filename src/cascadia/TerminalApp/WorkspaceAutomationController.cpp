@@ -120,6 +120,21 @@ namespace winrt::TerminalApp::implementation
         }
 
         const auto registryPath = directory / L"automation-endpoints.json";
+        // Serialize read-modify-write across concurrent Winmux windows via a named mutex.
+        wil::unique_handle registryMutex{ CreateMutexW(nullptr, FALSE, L"Local\\WinmuxAutomationEndpointRegistryLock") };
+        bool mutexAcquired = false;
+        if (registryMutex)
+        {
+            const auto waitResult = WaitForSingleObject(registryMutex.get(), 2000);
+            mutexAcquired = (waitResult == WAIT_OBJECT_0 || waitResult == WAIT_ABANDONED);
+        }
+        const auto releaseMutex = wil::scope_exit([&]() noexcept {
+            if (mutexAcquired && registryMutex)
+            {
+                ReleaseMutex(registryMutex.get());
+            }
+        });
+
         JsonArray entries;
         if (std::filesystem::exists(registryPath, ec) && !ec)
         {

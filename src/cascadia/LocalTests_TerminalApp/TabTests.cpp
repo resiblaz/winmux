@@ -2288,7 +2288,7 @@ namespace TerminalAppLocalTests
 
             constexpr uint32_t maximumNotificationHistory = 1000;
             VERIFY_ARE_EQUAL(maximumNotificationHistory, page->_workspaceSidebar.NotificationHistory().Size());
-            VERIFY_ARE_EQUAL(refreshCount, vectorChangeCount);
+            VERIFY_ARE_EQUAL(1u, vectorChangeCount);
             Log::Comment(NoThrowString().Format(L"25 notification projection refreshes completed in %lld ms", elapsed.count()));
         });
     }

@@ -59,6 +59,8 @@ data class SnapshotPayload(
     val snapshot: BridgeSnapshot,
     val decisions: List<DecisionCard>,
     val notifications: List<BridgeNotification>,
+    val lanUrl: String = "",
+    val remoteUrl: String = "",
 )
 
 class WinmuxApiClient {
@@ -68,6 +70,13 @@ class WinmuxApiClient {
         .connectTimeout(2500, TimeUnit.MILLISECONDS)
         .readTimeout(2500, TimeUnit.MILLISECONDS)
         .writeTimeout(2500, TimeUnit.MILLISECONDS)
+        .build()
+
+    // Public HTTPS tunnels (e.g. Cloudflare Quick Tunnel over 5G) need a wider cold-start TLS window.
+    private val defaultRemoteProbeClient = OkHttpClient.Builder()
+        .connectTimeout(8000, TimeUnit.MILLISECONDS)
+        .readTimeout(8000, TimeUnit.MILLISECONDS)
+        .writeTimeout(8000, TimeUnit.MILLISECONDS)
         .build()
 
     private val defaultApiClient = OkHttpClient.Builder()
@@ -100,7 +109,7 @@ class WinmuxApiClient {
 
     private fun clientForUrl(baseUrl: String, fingerprint: String, probe: Boolean): OkHttpClient {
         if (!shouldPinSelfSigned(baseUrl)) {
-            return if (probe) defaultProbeClient else defaultApiClient
+            return if (probe) defaultRemoteProbeClient else defaultApiClient
         }
         return clientFor(fingerprint, probe)
     }
@@ -173,9 +182,9 @@ class WinmuxApiClient {
         }
 
         // Happy Eyeballs parallel racing: probe LAN immediately and Remote after a 150ms head-start.
-        // On home Wi-Fi, LAN wins in <50ms; on 5G/cellular, Remote wins immediately instead of waiting 2.5s for LAN timeout.
+        // On home Wi-Fi, LAN wins in <50ms; on 5G/cellular, Remote gets an 8s TLS budget without blocking Wi-Fi.
         val winner = CompletableDeferred<ResolvedEndpoint>()
-        var lastError: Exception? = null
+        val errors = java.util.Collections.synchronizedList(mutableListOf<String>())
         coroutineScope {
             val jobs = candidates.mapIndexed { index, candidate ->
                 launch {
@@ -189,15 +198,16 @@ class WinmuxApiClient {
                             activeEndpoint = candidate
                         }
                     } catch (e: Exception) {
-                        lastError = e
+                        errors.add("${candidate.label}: ${e.message ?: "连接失败"}")
                     }
                 }
             }
             launch {
                 jobs.forEach { it.join() }
                 if (!winner.isCompleted) {
+                    val detail = synchronized(errors) { errors.joinToString(" | ") }.ifBlank { "请检查网络或证书指纹" }
                     winner.completeExceptionally(
-                        IOException("无法连接电脑端 Winmux Bridge (${lastError?.message ?: "请检查网络或证书指纹"})")
+                        IOException("无法连接电脑端 Winmux Bridge ($detail)")
                     )
                 }
             }
@@ -266,10 +276,13 @@ class WinmuxApiClient {
     suspend fun fetchSnapshot(config: BridgeConfig): SnapshotPayload = withContext(Dispatchers.IO) {
         val raw = executeAuthed(config, "GET", "/api/snapshot")
         val obj = JSONObject(raw)
+        val endpoints = obj.optJSONObject("endpoints")
         SnapshotPayload(
             snapshot = ModelParsers.parseSnapshot(obj.optJSONObject("snapshot")),
             decisions = ModelParsers.parseDecisions(obj.optJSONArray("decisions")),
             notifications = ModelParsers.parseNotifications(obj.optJSONArray("notifications")),
+            lanUrl = endpoints?.optString("lanUrl").orEmpty(),
+            remoteUrl = endpoints?.optString("remoteUrl").orEmpty(),
         )
     }
 

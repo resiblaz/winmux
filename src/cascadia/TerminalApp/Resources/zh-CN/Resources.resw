@@ -1324,6 +1324,9 @@
   <data name="WorkspaceSidebarRemoteBridgeQrHint.Text" xml:space="preserve">
     <value>打开手机端 Winmux 扫码即可一键加密配对</value>
   </data>
+  <data name="WorkspaceSidebarRemoteBridgeQrRefreshLabel.Text" xml:space="preserve">
+    <value>刷新二维码</value>
+  </data>
   <data name="WorkspaceSidebarRemoteBridgeHooksTitle.Text" xml:space="preserve">
     <value>Agent Hooks（审批与完成推送）</value>
   </data>

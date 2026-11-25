@@ -1062,3 +1062,117 @@ test('performance: persistent Named Pipe reuse, adaptive idle polling, and termi
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('tunnel auto-start persists across restarts and syncs endpoints to mobile clients', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'winmux-tunnel-pref-test-'));
+  const mockPipe = await startMockWinmuxPipe();
+
+  const createMockTunnel = (publicUrl) => {
+    let running = false;
+    let starts = 0;
+    return {
+      get starts() { return starts; },
+      getStatus() {
+        return {
+          available: true,
+          running,
+          starting: false,
+          publicUrl: running ? publicUrl : '',
+          binaryPath: 'mock-cloudflared',
+          error: '',
+        };
+      },
+      async start() {
+        starts += 1;
+        running = true;
+        return this.getStatus();
+      },
+      stop() {
+        running = false;
+        return this.getStatus();
+      },
+    };
+  };
+
+  const tunnel1 = createMockTunnel('https://first-run-mock.trycloudflare.com');
+  const bridge1 = new WinmuxBridgeServer({
+    host: '127.0.0.1',
+    port: 0,
+    tls: false,
+    pollIntervalMs: 0,
+    stateDir: tempDir,
+    winmuxOptions: { pipe: mockPipe.pipeName },
+    tunnelManager: tunnel1,
+  });
+
+  let bridge2 = null;
+  try {
+    const pairing1 = await bridge1.start();
+    const base1 = `http://127.0.0.1:${bridge1.actualPort}`;
+    assert.equal(tunnel1.starts, 0, 'Fresh stateDir should not auto-start tunnel before user enables it');
+
+    const pairBody = await (await fetch(`${base1}/api/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: pairing1.code, deviceName: 'SyncPhone' }),
+    })).json();
+
+    const wsEvents = [];
+    const ws = new WebSocket(`ws://127.0.0.1:${bridge1.actualPort}/ws?token=${encodeURIComponent(pairBody.token)}`);
+    await new Promise((resolve, reject) => {
+      ws.addEventListener('open', resolve, { once: true });
+      ws.addEventListener('error', reject, { once: true });
+    });
+    ws.addEventListener('message', (ev) => wsEvents.push(JSON.parse(String(ev.data))));
+    for (let i = 0; i < 20 && !wsEvents.some((e) => e.type === 'hello'); i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    const hello = wsEvents.find((e) => e.type === 'hello');
+    assert.ok(hello?.endpoints?.lanUrl, 'WS hello should include client endpoints');
+
+    // Start tunnel -> persists autoStartTunnel=true and broadcasts endpoints.updated
+    const startRes = await (await fetch(`${base1}/api/local/tunnel/start`, { method: 'POST' })).json();
+    assert.equal(startRes.ok, true);
+    for (let i = 0; i < 20 && !wsEvents.some((e) => e.type === 'endpoints.updated'); i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    const updatedEvt = wsEvents.find((e) => e.type === 'endpoints.updated');
+    assert.equal(updatedEvt?.endpoints?.remoteUrl, 'https://first-run-mock.trycloudflare.com');
+
+    const snap = await (await fetch(`${base1}/api/snapshot`, {
+      headers: { Authorization: `Bearer ${pairBody.token}` },
+    })).json();
+    assert.equal(snap.endpoints?.remoteUrl, 'https://first-run-mock.trycloudflare.com');
+
+    ws.close();
+    await bridge1.stop();
+
+    // Restart Bridge with same stateDir -> tunnel must auto-start automatically!
+    const tunnel2 = createMockTunnel('https://second-run-mock.trycloudflare.com');
+    bridge2 = new WinmuxBridgeServer({
+      host: '127.0.0.1',
+      port: 0,
+      tls: false,
+      pollIntervalMs: 0,
+      stateDir: tempDir,
+      winmuxOptions: { pipe: mockPipe.pipeName },
+      tunnelManager: tunnel2,
+    });
+    await bridge2.start();
+    for (let i = 0; i < 20 && !tunnel2.getStatus().running; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    assert.equal(tunnel2.starts, 1, 'Persisted autoStartTunnel must auto-start tunnel on Bridge startup');
+    assert.equal(bridge2.getClientConnectionInfo().remoteUrl, 'https://second-run-mock.trycloudflare.com');
+
+    // Explicit stop clears persisted preference
+    const base2 = `http://127.0.0.1:${bridge2.actualPort}`;
+    await fetch(`${base2}/api/local/tunnel/stop`, { method: 'POST' });
+    assert.equal(bridge2.authStore.getPrefs().autoStartTunnel, false);
+  } finally {
+    await bridge1.stop().catch(() => {});
+    if (bridge2) await bridge2.stop().catch(() => {});
+    await new Promise((resolve) => mockPipe.server.close(resolve));
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

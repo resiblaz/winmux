@@ -1324,6 +1324,9 @@ For all available options, run 'wt new-tab --help'.</value>
   <data name="WorkspaceSidebarRemoteBridgeQrHint.Text" xml:space="preserve">
     <value>Scan with Winmux Mobile to pair instantly</value>
   </data>
+  <data name="WorkspaceSidebarRemoteBridgeQrRefreshLabel.Text" xml:space="preserve">
+    <value>Refresh QR code</value>
+  </data>
   <data name="WorkspaceSidebarRemoteBridgeHooksTitle.Text" xml:space="preserve">
     <value>Agent Hooks (Claude &amp; Codex)</value>
   </data>

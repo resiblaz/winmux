@@ -113,9 +113,30 @@ object WinmuxRepository {
         val cfg = _config.value
         if (!cfg.isPaired) return@runCatching
         val payload = apiClient.fetchSnapshot(cfg)
+        syncEndpointsFromServer(payload.lanUrl, payload.remoteUrl)
         _snapshot.value = payload.snapshot
         _decisions.value = payload.decisions
         _notifications.value = payload.notifications
+    }
+
+    private fun syncEndpointsFromJson(endpointsObj: JSONObject?) {
+        if (endpointsObj == null) return
+        syncEndpointsFromServer(
+            lanUrl = endpointsObj.optString("lanUrl"),
+            remoteUrl = endpointsObj.optString("remoteUrl"),
+        )
+    }
+
+    private fun syncEndpointsFromServer(lanUrl: String, remoteUrl: String) {
+        val current = _config.value
+        if (!current.isPaired) return
+        val nextLan = lanUrl.trim().trimEnd('/').ifBlank { current.lanUrl }
+        val cleanRemote = remoteUrl.trim().trimEnd('/')
+        // Always adopt a live public tunnel URL; otherwise keep any non-blank remote URL reported by Bridge.
+        val nextRemote = if (cleanRemote.isNotBlank()) cleanRemote else current.remoteUrl
+        if (nextLan != current.lanUrl || nextRemote != current.remoteUrl) {
+            updateConfig(current.copy(lanUrl = nextLan, remoteUrl = nextRemote))
+        }
     }
 
     suspend fun refreshUsageAndModels(): Result<Unit> = runCatching {
@@ -148,9 +169,13 @@ object WinmuxRepository {
         val obj = runCatching { JSONObject(raw) }.getOrNull() ?: return
         when (obj.optString("type")) {
             "hello" -> {
+                syncEndpointsFromJson(obj.optJSONObject("endpoints"))
                 _snapshot.value = ModelParsers.parseSnapshot(obj.optJSONObject("snapshot"))
                 _decisions.value = ModelParsers.parseDecisions(obj.optJSONArray("decisions"))
                 _notifications.value = ModelParsers.parseNotifications(obj.optJSONArray("notifications"))
+            }
+            "endpoints.updated" -> {
+                syncEndpointsFromJson(obj.optJSONObject("endpoints"))
             }
             "snapshot" -> {
                 _snapshot.value = ModelParsers.parseSnapshot(obj.optJSONObject("snapshot"))

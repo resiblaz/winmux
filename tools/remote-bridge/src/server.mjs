@@ -133,6 +133,7 @@ export class WinmuxBridgeServer {
     this.agentInspector = options.agentInspector || new AgentInspector(options.agentInspectorOptions);
     this.hookInstaller = options.hookInstaller || new HookInstaller(options.hookInstallerOptions);
     this.tunnel = options.tunnelManager || new TunnelManager(options.tunnelOptions);
+    this.autoStartTunnelEnabled = options.autoStartTunnel ?? Boolean(this.authStore.getPrefs().autoStartTunnel);
     this.systemMonitor = options.systemMonitor || new SystemMonitor();
     this.wsHub = new WebSocketHub();
     this.notifications = [];
@@ -228,6 +229,7 @@ export class WinmuxBridgeServer {
         type: 'hello',
         serverVersion: '1.0.0',
         deviceId: device.id,
+        endpoints: this.getClientConnectionInfo(),
         snapshot: this._lastSnapshot,
         decisions: this.decisions.list(),
         notifications: this.notifications.slice(0, 30),
@@ -252,6 +254,17 @@ export class WinmuxBridgeServer {
 
     await this.pollOnce();
     this._syncPollTimer();
+
+    if (this.autoStartTunnelEnabled && this.tunnel.getStatus().available) {
+      this.tunnel
+        .start(this.actualPort, { tls: this.tlsEnabled })
+        .then((status) => {
+          if (status.running) {
+            this.wsHub.broadcast({ type: 'endpoints.updated', endpoints: this.getClientConnectionInfo() });
+          }
+        })
+        .catch(() => {});
+    }
 
     return this.getPairingInfo();
   }
@@ -709,11 +722,19 @@ export class WinmuxBridgeServer {
       }
       if (method === 'POST' && pathname === '/api/local/tunnel/start') {
         const status = await this.tunnel.start(this.actualPort, { tls: this.tlsEnabled });
+        if (status.running) {
+          this.autoStartTunnelEnabled = true;
+          try { this.authStore.setPref('autoStartTunnel', true); } catch {}
+          this.wsHub.broadcast({ type: 'endpoints.updated', endpoints: this.getClientConnectionInfo() });
+        }
         sendJson(res, status.running ? 200 : 503, { ok: status.running, tunnel: status, pairing: this.getPairingInfo() });
         return;
       }
       if (method === 'POST' && pathname === '/api/local/tunnel/stop') {
         const status = this.tunnel.stop();
+        this.autoStartTunnelEnabled = false;
+        try { this.authStore.setPref('autoStartTunnel', false); } catch {}
+        this.wsHub.broadcast({ type: 'endpoints.updated', endpoints: this.getClientConnectionInfo() });
         sendJson(res, 200, { ok: true, tunnel: status, pairing: this.getPairingInfo() });
         return;
       }
@@ -762,6 +783,7 @@ export class WinmuxBridgeServer {
       const snapshot = await this.pollOnce();
       sendJson(res, 200, {
         snapshot,
+        endpoints: this.getClientConnectionInfo(),
         decisions: this.decisions.list(),
         notifications: this.notifications.slice(0, 30),
         device: { id: device.id, name: device.name },

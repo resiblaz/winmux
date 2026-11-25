@@ -91,9 +91,64 @@ export class AuthStore {
   constructor(stateDir = resolveStateDir()) {
     this.stateDir = stateDir;
     this.devicesPath = path.join(stateDir, 'devices.json');
+    this.prefsPath = path.join(stateDir, 'prefs.json');
     fs.mkdirSync(stateDir, { recursive: true });
     this.devices = this._loadDevices();
+    this.prefs = this._loadPrefs();
     this.pairing = this.rotatePairingCode();
+  }
+
+  _loadPrefs() {
+    try {
+      if (!fs.existsSync(this.prefsPath)) return { autoStartTunnel: false };
+      const parsed = JSON.parse(fs.readFileSync(this.prefsPath, 'utf8'));
+      return {
+        autoStartTunnel: Boolean(parsed?.autoStartTunnel),
+      };
+    } catch {
+      return { autoStartTunnel: false };
+    }
+  }
+
+  getPrefs() {
+    return { ...this.prefs };
+  }
+
+  setPref(key, value) {
+    const nextPrefs = { ...this.prefs, [key]: value };
+    this._writeJsonAtomic(this.prefsPath, { version: 1, ...nextPrefs });
+    this.prefs = nextPrefs;
+    return this.getPrefs();
+  }
+
+  _writeJsonAtomic(filePath, payloadObj) {
+    const serialized = JSON.stringify(payloadObj, null, 2);
+    const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(tmp, serialized, 'utf8');
+    let lastErr = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        fs.renameSync(tmp, filePath);
+        return;
+      } catch (err) {
+        lastErr = err;
+        if (err && (err.code === 'EPERM' || err.code === 'EBUSY')) {
+          try {
+            // Fallback atomic-like copy when AV/indexer transiently locks rename on Windows.
+            fs.writeFileSync(filePath, serialized, 'utf8');
+            try { fs.rmSync(tmp, { force: true }); } catch {}
+            return;
+          } catch (writeErr) {
+            lastErr = writeErr;
+          }
+        } else {
+          break;
+        }
+      }
+    }
+    try { fs.rmSync(tmp, { force: true }); } catch {}
+    throw lastErr;
   }
 
   _loadDevices() {
@@ -107,33 +162,7 @@ export class AuthStore {
   }
 
   _saveDevices(devicesList = this.devices) {
-    const serialized = JSON.stringify({ version: 1, devices: devicesList }, null, 2);
-    const tmp = `${this.devicesPath}.${process.pid}.${Date.now()}.tmp`;
-    fs.mkdirSync(path.dirname(this.devicesPath), { recursive: true });
-    fs.writeFileSync(tmp, serialized, 'utf8');
-    let lastErr = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        fs.renameSync(tmp, this.devicesPath);
-        return;
-      } catch (err) {
-        lastErr = err;
-        if (err && (err.code === 'EPERM' || err.code === 'EBUSY')) {
-          try {
-            // Fallback atomic-like copy when AV/indexer transiently locks rename on Windows.
-            fs.writeFileSync(this.devicesPath, serialized, 'utf8');
-            try { fs.rmSync(tmp, { force: true }); } catch {}
-            return;
-          } catch (writeErr) {
-            lastErr = writeErr;
-          }
-        } else {
-          break;
-        }
-      }
-    }
-    try { fs.rmSync(tmp, { force: true }); } catch {}
-    throw lastErr;
+    this._writeJsonAtomic(this.devicesPath, { version: 1, devices: devicesList });
   }
 
   rotatePairingCode(ttlMs = 15 * 60 * 1000) {

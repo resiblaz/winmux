@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -109,6 +110,14 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val pendingDecisionCount = decisions.count { it.status == "pending" }
+
+                BackHandler(enabled = showNewTaskSheet || activeTerminal != null || selectedTab != "workspaces") {
+                    when {
+                        showNewTaskSheet -> showNewTaskSheet = false
+                        activeTerminal != null -> activeTerminal = null
+                        selectedTab != "workspaces" -> selectedTab = "workspaces"
+                    }
+                }
 
                 if (activeTerminal != null) {
                     val siblingPanes = snapshot.workspaces

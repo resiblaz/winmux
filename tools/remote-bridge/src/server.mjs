@@ -1,5 +1,8 @@
+import crypto from 'node:crypto';
+import fs from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
+import path from 'node:path';
 import { URL } from 'node:url';
 import { AgentInspector } from './agent-inspector.mjs';
 import { AuthStore } from './auth-store.mjs';
@@ -13,6 +16,16 @@ import { WebSocketHub } from './websocket.mjs';
 import { WinmuxClient } from './winmux-client.mjs';
 
 const MAX_BODY_BYTES = 256 * 1024;
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const MIME_TO_EXT = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'application/pdf': '.pdf',
+  'text/plain': '.txt',
+  'application/json': '.json',
+};
 const PROXY_HEADERS = [
   'cf-connecting-ip',
   'cf-ray',
@@ -108,6 +121,62 @@ function readJsonBody(req) {
     });
     req.on('error', reject);
   });
+}
+
+function readRawBody(req, maxBytes = MAX_UPLOAD_BYTES) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    req.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        const err = new Error(`Upload exceeds maximum allowed size (${Math.round(maxBytes / (1024 * 1024))} MB)`);
+        err.status = 413;
+        err.code = 'payload_too_large';
+        reject(err);
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (total === 0) {
+        const err = new Error('Upload body is empty');
+        err.status = 400;
+        err.code = 'empty_upload';
+        reject(err);
+        return;
+      }
+      resolve(Buffer.concat(chunks, total));
+    });
+    req.on('error', reject);
+  });
+}
+
+function sanitizeUploadFilename(rawHeader, mimeType = '') {
+  let decoded = '';
+  if (typeof rawHeader === 'string' && rawHeader.trim()) {
+    try {
+      decoded = decodeURIComponent(rawHeader.trim());
+    } catch {
+      decoded = rawHeader.trim();
+    }
+  }
+  const base = path.posix.basename(decoded.replace(/\\/g, '/'));
+  let cleaned = base
+    .replace(/[\x00-\x1f<>:"/\\|?*]/g, '_')
+    .replace(/^\.+/, '')
+    .trim();
+  if (!cleaned) {
+    const ext = MIME_TO_EXT[String(mimeType || '').split(';')[0].trim().toLowerCase()] || '.bin';
+    cleaned = `upload${ext}`;
+  }
+  if (cleaned.length > 80) {
+    const ext = path.extname(cleaned).slice(0, 16);
+    const stem = path.basename(cleaned, ext).slice(0, Math.max(1, 80 - ext.length));
+    cleaned = `${stem}${ext}`;
+  }
+  return cleaned;
 }
 
 function extractBearerToken(req, parsedUrl) {
@@ -787,6 +856,43 @@ export class WinmuxBridgeServer {
         decisions: this.decisions.list(),
         notifications: this.notifications.slice(0, 30),
         device: { id: device.id, name: device.name },
+      });
+      return;
+    }
+
+    if (method === 'POST' && pathname === '/api/files/upload') {
+      const contentLen = Number(req.headers['content-length'] || 0);
+      const maxUploadBytes = this.maxUploadBytes ?? MAX_UPLOAD_BYTES;
+      if (Number.isFinite(contentLen) && contentLen > maxUploadBytes) {
+        sendJson(res, 413, {
+          error: 'payload_too_large',
+          message: `Upload exceeds maximum allowed size (${Math.round(maxUploadBytes / (1024 * 1024))} MB).`,
+        });
+        return;
+      }
+      const rawBuf = await readRawBody(req, maxUploadBytes);
+      const mimeType = String(req.headers['x-mime-type'] || req.headers['content-type'] || 'application/octet-stream')
+        .split(';')[0]
+        .trim()
+        .slice(0, 120);
+      const safeName = sanitizeUploadFilename(req.headers['x-filename'], mimeType);
+      const now = new Date();
+      const dateDir = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const uploadDir = path.resolve(this.authStore.stateDir, 'uploads', dateDir);
+      fs.mkdirSync(uploadDir, { recursive: true });
+      const storedName = `${Date.now()}_${crypto.randomBytes(3).toString('hex')}_${safeName}`;
+      const targetPath = path.resolve(uploadDir, storedName);
+      if (!targetPath.startsWith(uploadDir + path.sep)) {
+        sendJson(res, 400, { error: 'invalid_filename', message: 'Invalid upload filename.' });
+        return;
+      }
+      fs.writeFileSync(targetPath, rawBuf);
+      sendJson(res, 201, {
+        ok: true,
+        path: targetPath,
+        filename: safeName,
+        size: rawBuf.length,
+        mimeType,
       });
       return;
     }

@@ -1176,3 +1176,74 @@ test('tunnel auto-start persists across restarts and syncs endpoints to mobile c
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('file upload API enforces Bearer auth, sanitizes path traversal, saves bytes, and caps size', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'winmux-upload-test-'));
+  const mockPipe = await startMockWinmuxPipe();
+  const bridge = new WinmuxBridgeServer({
+    host: '127.0.0.1',
+    port: 0,
+    tls: false,
+    pollIntervalMs: 0,
+    stateDir: tempDir,
+    winmuxOptions: { pipe: mockPipe.pipeName },
+  });
+  bridge.maxUploadBytes = 1024;
+
+  try {
+    const pairing = await bridge.start();
+    const baseUrl = `http://127.0.0.1:${bridge.actualPort}`;
+
+    // 1. Unauthenticated upload rejected with 401
+    const unauth = await fetch(`${baseUrl}/api/files/upload`, {
+      method: 'POST',
+      headers: { 'X-Filename': 'test.png' },
+      body: Buffer.from('hello'),
+    });
+    assert.equal(unauth.status, 401);
+
+    const pairBody = await (await fetch(`${baseUrl}/api/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: pairing.code, deviceName: 'UploadPhone' }),
+    })).json();
+    const authHeaders = { Authorization: `Bearer ${pairBody.token}` };
+
+    // 2. Valid image upload with traversal attempt gets sanitized inside uploads dir
+    const sampleBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+    const okRes = await fetch(`${baseUrl}/api/files/upload`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        'Content-Type': 'application/octet-stream',
+        'X-Filename': encodeURIComponent('../../Windows/System32/截图_测试.png'),
+        'X-Mime-Type': 'image/png',
+      },
+      body: sampleBytes,
+    });
+    assert.equal(okRes.status, 201);
+    const uploaded = await okRes.json();
+    assert.equal(uploaded.ok, true);
+    assert.equal(uploaded.filename, '截图_测试.png');
+    assert.equal(uploaded.size, sampleBytes.length);
+    assert.equal(uploaded.mimeType, 'image/png');
+    assert.ok(uploaded.path.startsWith(path.resolve(tempDir, 'uploads') + path.sep), 'Uploaded file must stay inside uploads dir');
+    assert.deepEqual(fs.readFileSync(uploaded.path), sampleBytes);
+
+    // 3. Oversized upload rejected with 413
+    const bigRes = await fetch(`${baseUrl}/api/files/upload`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        'Content-Type': 'application/octet-stream',
+        'X-Filename': 'huge.bin',
+      },
+      body: Buffer.alloc(2048, 0x41),
+    });
+    assert.equal(bigRes.status, 413);
+  } finally {
+    await bridge.stop();
+    await new Promise((resolve) => mockPipe.server.close(resolve));
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

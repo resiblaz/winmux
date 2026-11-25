@@ -63,6 +63,13 @@ data class SnapshotPayload(
     val remoteUrl: String = "",
 )
 
+data class UploadedFileResult(
+    val path: String,
+    val filename: String,
+    val size: Long,
+    val mimeType: String,
+)
+
 class WinmuxApiClient {
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
@@ -436,6 +443,66 @@ class WinmuxApiClient {
         }
         val raw = executeAuthed(config, "POST", "/api/decisions/${enc(decisionId)}/resolve", body)
         ModelParsers.parseDecision(JSONObject(raw).getJSONObject("decision"))
+    }
+
+    suspend fun uploadFile(
+        config: BridgeConfig,
+        filename: String,
+        mimeType: String,
+        bytes: ByteArray,
+    ): UploadedFileResult = withContext(Dispatchers.IO) {
+        val ordered = buildList {
+            activeEndpoint?.let { add(it) }
+            for (c in candidateEndpoints(config)) {
+                if (none { it.baseUrl == c.baseUrl }) add(c)
+            }
+        }
+        if (ordered.isEmpty()) throw IOException("未配置电脑端地址")
+
+        val octetStream = "application/octet-stream".toMediaType()
+        val encodedName = URLEncoder.encode(filename.ifBlank { "upload.bin" }, "UTF-8").replace("+", "%20")
+        var lastException: Exception? = null
+        for (endpoint in ordered) {
+            try {
+                val baseClient = clientForUrl(endpoint.baseUrl, config.certFingerprint, probe = false)
+                val uploadClient = baseClient.newBuilder()
+                    .writeTimeout(60, TimeUnit.SECONDS)
+                    .readTimeout(60, TimeUnit.SECONDS)
+                    .build()
+                val req = Request.Builder()
+                    .url("${endpoint.baseUrl}/api/files/upload")
+                    .header("Authorization", "Bearer ${config.token}")
+                    .header("X-Filename", encodedName)
+                    .header("X-Mime-Type", mimeType.ifBlank { "application/octet-stream" })
+                    .post(bytes.toRequestBody(octetStream))
+                    .build()
+                uploadClient.newCall(req).execute().use { res ->
+                    val raw = res.body?.string().orEmpty()
+                    if (res.isSuccessful) {
+                        activeEndpoint = endpoint
+                        val obj = JSONObject(raw)
+                        return@withContext UploadedFileResult(
+                            path = obj.getString("path"),
+                            filename = obj.optString("filename", filename),
+                            size = obj.optLong("size", bytes.size.toLong()),
+                            mimeType = obj.optString("mimeType", mimeType),
+                        )
+                    }
+                    val parsedMsg = runCatching { JSONObject(raw).optString("message") }.getOrNull()
+                    val msg = parsedMsg?.ifBlank { null } ?: "上传失败 (HTTP ${res.code})"
+                    if (res.code in 400..499) {
+                        throw BridgeHttpException(res.code, msg)
+                    }
+                    lastException = BridgeHttpException(res.code, msg)
+                }
+            } catch (e: BridgeHttpException) {
+                if (e.statusCode in 400..499) throw e
+                lastException = e
+            } catch (e: Exception) {
+                lastException = e
+            }
+        }
+        throw lastException ?: IOException("文件上传失败，请检查网络连接")
     }
 
     fun openWebSocket(

@@ -285,6 +285,14 @@ namespace winrt::TerminalApp::implementation
 
     Windows::Foundation::Collections::IObservableVector<TerminalApp::WorkspaceNotification> WorkspaceSidebar::NotificationHistory() const noexcept
     {
+        if (_notificationHistoryDirty)
+        {
+            try
+            {
+                const_cast<WorkspaceSidebar*>(this)->_SyncNotificationHistoryList();
+            }
+            CATCH_LOG();
+        }
         return _notificationHistory;
     }
 

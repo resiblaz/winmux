@@ -2,10 +2,14 @@ package com.winmux.mobile.service
 
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.Network
+import android.net.NetworkCapabilities
+import android.os.Build
 import android.os.IBinder
 import androidx.core.content.ContextCompat
 import com.winmux.mobile.data.BridgeHttpException
@@ -28,6 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class WinmuxConnectionService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var loopJob: Job? = null
+    private var healthCheckJob: Job? = null
 
     @Volatile
     private var activeWebSocket: WebSocket? = null
@@ -35,13 +40,18 @@ class WinmuxConnectionService : Service() {
     @Volatile
     private var lastNetworkHandle: Long = -1L
 
+    @Volatile
+    private var lastTransportTag: String = ""
+
     private var connectivityCallback: ConnectivityManager.NetworkCallback? = null
+    private var screenReceiver: BroadcastReceiver? = null
 
     override fun onCreate() {
         super.onCreate()
         NotificationHelper.ensureChannels(this)
         WinmuxRepository.initialize(this)
         registerNetworkMonitor()
+        registerScreenReceiver()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -54,12 +64,24 @@ class WinmuxConnectionService : Service() {
             NotificationHelper.SERVICE_NOTIFICATION_ID,
             NotificationHelper.buildServiceNotification(this, "正在连接电脑端 Winmux..."),
         )
-        restartConnectionLoop()
+        when (intent?.action) {
+            ACTION_ENSURE_CONNECTED -> ensureConnected()
+            ACTION_RECONNECT_NOW -> restartConnectionLoop(initialDelayMs = 0L)
+            else -> {
+                if (loopJob?.isActive == true && WinmuxRepository.connectionState.value is ConnectionState.Connected) {
+                    ensureConnected()
+                } else {
+                    restartConnectionLoop(initialDelayMs = 0L)
+                }
+            }
+        }
         return START_STICKY
     }
 
     override fun onDestroy() {
+        unregisterScreenReceiver()
         unregisterNetworkMonitor()
+        healthCheckJob?.cancel()
         activeWebSocket?.close(1000, "Service stopped")
         activeWebSocket = null
         WinmuxRepository.setConnectionState(ConnectionState.Disconnected)
@@ -70,7 +92,35 @@ class WinmuxConnectionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     @Synchronized
-    private fun restartConnectionLoop() {
+    private fun ensureConnected() {
+        if (!WinmuxRepository.config.value.isPaired) return
+        val ws = activeWebSocket
+        val state = WinmuxRepository.connectionState.value
+        if (ws == null || state !is ConnectionState.Connected) {
+            // Immediately wake out of any backoff sleep or stopped state.
+            restartConnectionLoop(initialDelayMs = 0L)
+            return
+        }
+
+        // Probe existing socket for half-open/zombie TCP after Doze or screen sleep.
+        if (healthCheckJob?.isActive == true) return
+        val beforePingAt = WinmuxRepository.lastMessageReceivedAt
+        val sent = runCatching { ws.send("""{"type":"ping"}""") }.getOrDefault(false)
+        if (!sent) {
+            restartConnectionLoop(initialDelayMs = 0L)
+            return
+        }
+        healthCheckJob = scope.launch {
+            delay(3500L)
+            if (activeWebSocket === ws && WinmuxRepository.lastMessageReceivedAt <= beforePingAt) {
+                restartConnectionLoop(initialDelayMs = 0L)
+            }
+        }
+    }
+
+    @Synchronized
+    private fun restartConnectionLoop(initialDelayMs: Long = 0L) {
+        healthCheckJob?.cancel()
         loopJob?.cancel()
         val previousWs = activeWebSocket
         activeWebSocket = null
@@ -78,6 +128,9 @@ class WinmuxConnectionService : Service() {
         previousWs?.close(1000, "Reconnect requested")
 
         loopJob = scope.launch {
+            if (initialDelayMs > 0L) {
+                delay(initialDelayMs)
+            }
             var backoffMs = 1500L
             while (isActive) {
                 val cfg = WinmuxRepository.config.value
@@ -144,8 +197,9 @@ class WinmuxConnectionService : Service() {
                                         ConnectionState.Error("设备授权已失效或被吊销，请重新配对"),
                                     )
                                 } else {
+                                    val sec = (backoffMs / 1000L).coerceAtLeast(1L)
                                     WinmuxRepository.setConnectionState(
-                                        ConnectionState.Error(t.message ?: "连接已断开，准备重连"),
+                                        ConnectionState.Error("${t.message ?: "连接已断开"}（${sec}秒后自动重连）"),
                                     )
                                 }
                                 closedSignal.complete(Unit)
@@ -175,19 +229,25 @@ class WinmuxConnectionService : Service() {
                         updateServiceNotification("授权已失效，请在 App 中重新配对")
                         break
                     }
+                    val sec = (backoffMs / 1000L).coerceAtLeast(1L)
                     WinmuxRepository.setConnectionState(
-                        ConnectionState.Error(e.message ?: "连接失败，重试中"),
+                        ConnectionState.Error("${e.message ?: "连接失败"}（${sec}秒后自动重连）"),
                     )
-                    updateServiceNotification("重连中：${e.message?.take(40) ?: "请检查网络"}")
+                    updateServiceNotification("自动重连中：${e.message?.take(40) ?: "请检查网络"}")
                 } catch (e: Exception) {
+                    val sec = (backoffMs / 1000L).coerceAtLeast(1L)
                     WinmuxRepository.setConnectionState(
-                        ConnectionState.Error(e.message ?: "连接失败，重试中"),
+                        ConnectionState.Error("${e.message ?: "连接失败"}（${sec}秒后自动重连）"),
                     )
-                    updateServiceNotification("重连中：${e.message?.take(40) ?: "请检查网络"}")
+                    updateServiceNotification("自动重连中：${e.message?.take(40) ?: "请检查网络"}")
                 }
 
                 delay(backoffMs)
-                backoffMs = (backoffMs * 2).coerceAtMost(15_000L)
+                backoffMs = when {
+                    backoffMs < 3000L -> 3000L
+                    backoffMs < 5000L -> 5000L
+                    else -> 8000L
+                }
             }
         }
     }
@@ -210,13 +270,29 @@ class WinmuxConnectionService : Service() {
                 if (WinmuxRepository.config.value.isPaired &&
                     (networkChanged || WinmuxRepository.connectionState.value !is ConnectionState.Connected)
                 ) {
-                    restartConnectionLoop()
+                    // Brief settle delay lets Android DNS/routing finish switching between Wi-Fi and 5G.
+                    restartConnectionLoop(initialDelayMs = 350L)
+                }
+            }
+
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                val transport = when {
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "cell"
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "eth"
+                    else -> ""
+                }
+                if (transport.isBlank()) return
+                val changed = lastTransportTag.isNotBlank() && lastTransportTag != transport
+                lastTransportTag = transport
+                if (changed && WinmuxRepository.config.value.isPaired) {
+                    restartConnectionLoop(initialDelayMs = 350L)
                 }
             }
 
             override fun onLost(network: Network) {
                 if (network.networkHandle == lastNetworkHandle && WinmuxRepository.config.value.isPaired) {
-                    restartConnectionLoop()
+                    restartConnectionLoop(initialDelayMs = 500L)
                 }
             }
         }
@@ -230,12 +306,51 @@ class WinmuxConnectionService : Service() {
         connectivityCallback = null
     }
 
+    private fun registerScreenReceiver() {
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (WinmuxRepository.config.value.isPaired) {
+                    ensureConnected()
+                }
+            }
+        }
+        screenReceiver = receiver
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(receiver, filter)
+            }
+        }
+    }
+
+    private fun unregisterScreenReceiver() {
+        screenReceiver?.let { runCatching { unregisterReceiver(it) } }
+        screenReceiver = null
+    }
+
     companion object {
         const val ACTION_START = "com.winmux.mobile.SERVICE_START"
+        const val ACTION_ENSURE_CONNECTED = "com.winmux.mobile.SERVICE_ENSURE_CONNECTED"
+        const val ACTION_RECONNECT_NOW = "com.winmux.mobile.SERVICE_RECONNECT_NOW"
         const val ACTION_STOP = "com.winmux.mobile.SERVICE_STOP"
 
         fun start(context: Context) {
             val intent = Intent(context, WinmuxConnectionService::class.java).apply { action = ACTION_START }
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun ensureConnected(context: Context) {
+            val intent = Intent(context, WinmuxConnectionService::class.java).apply { action = ACTION_ENSURE_CONNECTED }
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun reconnectNow(context: Context) {
+            val intent = Intent(context, WinmuxConnectionService::class.java).apply { action = ACTION_RECONNECT_NOW }
             ContextCompat.startForegroundService(context, intent)
         }
 

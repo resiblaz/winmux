@@ -50,6 +50,10 @@ object WinmuxRepository {
     @Volatile
     private var activeTerminalSubscription: String? = null
 
+    @Volatile
+    var lastMessageReceivedAt: Long = 0L
+        private set
+
     val isWebSocketConnected: Boolean
         get() = wsSender != null
 
@@ -166,6 +170,7 @@ object WinmuxRepository {
     }
 
     fun onWebSocketMessage(raw: String) {
+        lastMessageReceivedAt = System.currentTimeMillis()
         val obj = runCatching { JSONObject(raw) }.getOrNull() ?: return
         when (obj.optString("type")) {
             "hello" -> {

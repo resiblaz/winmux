@@ -170,7 +170,13 @@ class MainActivity : ComponentActivity() {
                                 "workspaces" -> WorkspacesScreen(
                                     snapshot = snapshot,
                                     connectionState = connectionState,
-                                    onRefresh = { scope.launch { WinmuxRepository.refreshSnapshot() } },
+                                    onRefresh = {
+                                        if (config.isPaired && connectionState !is ConnectionState.Connected) {
+                                            WinmuxConnectionService.reconnectNow(this@MainActivity)
+                                        } else {
+                                            scope.launch { WinmuxRepository.refreshSnapshot() }
+                                        }
+                                    },
                                     onOpenTerminal = { target -> activeTerminal = target },
                                     onOpenNewTask = { wsId ->
                                         newTaskWorkspaceId = wsId
@@ -195,6 +201,9 @@ class MainActivity : ComponentActivity() {
                                     models = models,
                                     connectionState = connectionState,
                                     onRefresh = {
+                                        if (config.isPaired && connectionState !is ConnectionState.Connected) {
+                                            WinmuxConnectionService.reconnectNow(this@MainActivity)
+                                        }
                                         scope.launch {
                                             WinmuxRepository.refreshSnapshot()
                                             WinmuxRepository.refreshUsageAndModels()
@@ -207,7 +216,7 @@ class MainActivity : ComponentActivity() {
                                     incomingPairUri = incomingPair,
                                     onIncomingPairConsumed = { incomingPairUriState.value = null },
                                     onPaired = {
-                                        WinmuxConnectionService.start(this@MainActivity)
+                                        WinmuxConnectionService.reconnectNow(this@MainActivity)
                                         selectedTab = "workspaces"
                                     },
                                     onUnpair = {
@@ -215,7 +224,7 @@ class MainActivity : ComponentActivity() {
                                         WinmuxRepository.unpair()
                                     },
                                     onReconnect = {
-                                        WinmuxConnectionService.start(this@MainActivity)
+                                        WinmuxConnectionService.reconnectNow(this@MainActivity)
                                         scope.launch {
                                             WinmuxRepository.refreshSnapshot()
                                             WinmuxRepository.refreshUsageAndModels()
@@ -240,6 +249,13 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (WinmuxRepository.config.value.isPaired) {
+            WinmuxConnectionService.ensureConnected(this)
         }
     }
 

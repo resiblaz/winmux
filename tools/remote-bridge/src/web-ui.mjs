@@ -1,27 +1,26 @@
 // Zero-dependency built-in Web PWA console served directly by Winmux Remote Bridge.
 // Enables iOS / iPad / macOS / Linux / Windows browsers to control Winmux without installing any app.
 
-export const PWA_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
-  <rect width="108" height="108" rx="22" fill="#0F1117"/>
-  <rect x="10" y="22" width="88" height="64" rx="8" fill="#171B24" stroke="#2B3242" stroke-width="2"/>
-  <path d="M18,22h72a8,8 0 0,1 8,8v8h-88v-8a8,8 0 0,1 8,-8z" fill="#202634"/>
-  <circle cx="21" cy="30" r="2.5" fill="#EF4444"/>
-  <circle cx="29" cy="30" r="2.5" fill="#F59E0B"/>
-  <circle cx="37" cy="30" r="2.5" fill="#22C55E"/>
-  <path d="M12,38h22v46h-16a6,6 0 0,1 -6,-6z" fill="#1C2230"/>
-  <rect x="16" y="46" width="13" height="3" rx="1.5" fill="#4F8CFF"/>
-  <rect x="16" y="54" width="10" height="3" rx="1.5" fill="#22C55E"/>
-  <rect x="16" y="62" width="12" height="3" rx="1.5" fill="#F59E0B"/>
-  <path d="M46,48h36v8h4v9h-4v15h-5v-9h-5v9h-5v-9h-10v9h-5v-9h-6v-15h-4v-9h4z" fill="#D97757"/>
-  <rect x="53" y="55" width="6" height="6" fill="#0F1117"/>
-  <rect x="69" y="55" width="6" height="6" fill="#0F1117"/>
+export const PWA_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0%" stop-color="#192030"/><stop offset="100%" stop-color="#0B0E14"/></linearGradient>
+    <radialGradient id="glow" cx="0.69" cy="0.41" r="0.48"><stop offset="0%" stop-color="#3DDC97" stop-opacity="0.34"/><stop offset="45%" stop-color="#7AA2F7" stop-opacity="0.18"/><stop offset="100%" stop-color="#000" stop-opacity="0"/></radialGradient>
+    <linearGradient id="line" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#64748B" stop-opacity="0.5"/><stop offset="55%" stop-color="#93C5FD"/><stop offset="100%" stop-color="#3DDC97"/></linearGradient>
+    <linearGradient id="star" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FFF"/><stop offset="50%" stop-color="#93C5FD"/><stop offset="100%" stop-color="#3DDC97"/></linearGradient>
+  </defs>
+  <rect x="20" y="20" width="472" height="472" rx="108" fill="url(#bg)"/>
+  <rect x="20" y="20" width="472" height="472" rx="108" fill="url(#glow)"/>
+  <circle cx="256" cy="256" r="164" fill="none" stroke="#FFF" stroke-opacity="0.06" stroke-width="2" stroke-dasharray="6 10"/>
+  <polyline points="104,316 176,276 242,294 312,334 356,206 254,186 242,294" fill="none" stroke="url(#line)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="104" cy="316" r="10" fill="#94A3B8"/><circle cx="176" cy="276" r="12" fill="#CBD5E1"/><circle cx="242" cy="294" r="13" fill="#93C5FD"/><circle cx="312" cy="334" r="14" fill="#93C5FD"/><circle cx="254" cy="186" r="15" fill="#E2E8F0"/>
+  <path d="M 356 140 C 362 186 376 200 422 206 C 376 212 362 226 356 272 C 350 226 336 212 290 206 C 336 200 350 186 356 140 Z" fill="url(#star)"/>
 </svg>`;
 
 export const PWA_MANIFEST_JSON = JSON.stringify(
   {
-    name: 'Winmux Remote',
-    short_name: 'Winmux',
-    description: 'Remote workspace, terminal, and AI agent controller for Winmux',
+    name: '天枢 · Dubhe Remote',
+    short_name: '天枢',
+    description: 'Remote workspace, terminal, and AI agent controller for Dubhe (Winmux)',
     start_url: '/',
     display: 'standalone',
     background_color: '#0F1117',

@@ -171,4 +171,16 @@
     <value>在终端中打开(&amp;T)</value>
     <comment>This is a menu item that will be displayed in the Windows File Explorer that launches the non-preview version of Windows Terminal. Please mark one of the characters to be an accelerator key.</comment>
   </data>
+  <data name="AppNameDev" xml:space="preserve">
+    <value>天枢</value>
+  </data>
+  <data name="AppStoreNameDev" xml:space="preserve">
+    <value>天枢</value>
+  </data>
+  <data name="AppShortNameDev" xml:space="preserve">
+    <value>天枢</value>
+  </data>
+  <data name="ShellExtension_OpenInTerminalMenuItem_Dev" xml:space="preserve">
+    <value>在天枢中打开</value>
+  </data>
 </root>

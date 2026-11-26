@@ -1,42 +1,87 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Deep obsidian background -->
+
+    <!-- Full-bleed deep obsidian background (adapts cleanly to any Android launcher mask) -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="10"
+                android:startY="0"
+                android:endX="98"
+                android:endY="108"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#192030" />
+                <item android:offset="1.0" android:color="#0B0E14" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Soft ambient celestial glow centered behind Dubhe star -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="74"
+                android:centerY="44"
+                android:gradientRadius="46"
+                android:type="radial">
+                <item android:offset="0.0" android:color="#523DDC97" />
+                <item android:offset="0.48" android:color="#2E7AA2F7" />
+                <item android:offset="1.0" android:color="#00000000" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Subtle orbital calibration ring -->
     <path
-        android:fillColor="#0F1117"
-        android:pathData="M0,0h108v108h-108z" />
-    <!-- Terminal window frame -->
+        android:pathData="M54,20a34,34 0 1,0 0,68a34,34 0 1,0 0,-68z"
+        android:strokeColor="#14FFFFFF"
+        android:strokeWidth="0.7" />
+
+    <!-- Big Dipper constellation lines culminating at Dubhe (天枢) -->
     <path
-        android:fillColor="#171B24"
-        android:strokeColor="#2B3242"
-        android:strokeWidth="2"
-        android:pathData="M18,22h72a8,8 0 0,1 8,8v48a8,8 0 0,1 -8,8h-72a8,8 0 0,1 -8,-8v-48a8,8 0 0,1 8,-8z" />
-    <!-- Top window bar -->
-    <path
-        android:fillColor="#202634"
-        android:pathData="M18,22h72a8,8 0 0,1 8,8v8h-88v-8a8,8 0 0,1 8,-8z" />
-    <!-- Window dots -->
-    <path android:fillColor="#EF4444" android:pathData="M21,30m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0" />
-    <path android:fillColor="#F59E0B" android:pathData="M29,30m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0" />
-    <path android:fillColor="#22C55E" android:pathData="M37,30m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0" />
-    <!-- Left sidebar pane accent -->
-    <path
-        android:fillColor="#1C2230"
-        android:pathData="M12,38h22v46h-16a6,6 0 0,1 -6,-6z" />
-    <path android:fillColor="#4F8CFF" android:pathData="M16,46h13v3h-13z" />
-    <path android:fillColor="#22C55E" android:pathData="M16,54h10v3h-10z" />
-    <path android:fillColor="#F59E0B" android:pathData="M16,62h12v3h-12z" />
-    <!-- Clawd / Agent mascot in main terminal pane -->
-    <path
-        android:fillColor="#D97757"
-        android:pathData="M46,48h36v8h4v9h-4v15h-5v-9h-5v9h-5v-9h-10v9h-5v-9h-6v-15h-4v-9h4z" />
-    <path
-        android:fillColor="#0F1117"
-        android:pathData="M53,55h6v6h-6z" />
-    <path
-        android:fillColor="#0F1117"
-        android:pathData="M69,55h6v6h-6z" />
+        android:pathData="M24,67 L38,59 L51,62 L65,70 L74,44 L53,40 L51,62"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="24"
+                android:startY="68"
+                android:endX="74"
+                android:endY="44"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#8064748B" />
+                <item android:offset="0.55" android:color="#93C5FD" />
+                <item android:offset="1.0" android:color="#3DDC97" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Supporting dipper stars -->
+    <path android:fillColor="#94A3B8" android:pathData="M24,67m-2.1,0a2.1,2.1 0 1,0 4.2,0a2.1,2.1 0 1,0 -4.2,0" />
+    <path android:fillColor="#CBD5E1" android:pathData="M38,59m-2.5,0a2.5,2.5 0 1,0 5.0,0a2.5,2.5 0 1,0 -5.0,0" />
+    <path android:fillColor="#93C5FD" android:pathData="M51,62m-2.7,0a2.7,2.7 0 1,0 5.4,0a2.7,2.7 0 1,0 -5.4,0" />
+    <path android:fillColor="#93C5FD" android:pathData="M65,70m-2.9,0a2.9,2.9 0 1,0 5.8,0a2.9,2.9 0 1,0 -5.8,0" />
+    <path android:fillColor="#E2E8F0" android:pathData="M53,40m-3.0,0a3.0,3.0 0 1,0 6.0,0a3.0,3.0 0 1,0 -6.0,0" />
+
+    <!-- Radiant Dubhe (天枢) 4-point primary star at (74, 44) -->
+    <path android:pathData="M74,30 C75.3,39.5 78.5,42.7 88,44 C78.5,45.3 75.3,48.5 74,58 C72.7,48.5 69.5,45.3 60,44 C69.5,42.7 72.7,39.5 74,30 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="62"
+                android:startY="32"
+                android:endX="86"
+                android:endY="56"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFFFFF" />
+                <item android:offset="0.5" android:color="#93C5FD" />
+                <item android:offset="1.0" android:color="#3DDC97" />
+            </gradient>
+        </aapt:attr>
+    </path>
 </vector>
